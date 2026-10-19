@@ -39,6 +39,14 @@ function animate() {
 
     updateFallingLeaves(delta);
 
+    // --- ANIMASI BUNGA & KAWANAN KUPU-KUPU ---
+    if (typeof updateFlowers === 'function') {
+        updateFlowers(delta, elapsedTime);
+    }
+    if (typeof updateButterflies === 'function') {
+        updateButterflies(delta, elapsedTime);
+    }
+
     if (typeof SelectionOutlineManager !== 'undefined') {
         SelectionOutlineManager.updateAnimation(elapsedTime, delta);
     }

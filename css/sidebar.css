@@ -651,6 +651,14 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
     grid-template-columns: repeat(2, 1fr);
 }
 
+.spawner-card-grid.flower-grid {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.spawner-card-grid.butterfly-grid {
+    grid-template-columns: repeat(2, 1fr);
+}
+
 .card-preview.rock-slate-bg {
     background: #232936;
 }
@@ -665,12 +673,13 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
 
 /* --- BRUSH MODE TABS (BLENDER SEGMENTED PILL SWITCH) --- */
 .brush-mode-tabs {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     background: #1c1c1c;
     border: 1px solid var(--panel-border);
     border-radius: var(--radius-sm);
-    padding: 2px;
-    gap: 2px;
+    padding: 3px;
+    gap: 3px;
     margin-bottom: 8px;
     box-sizing: border-box;
 }

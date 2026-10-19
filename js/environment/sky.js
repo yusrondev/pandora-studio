@@ -521,25 +521,27 @@ const auroraShader = {
         void main() {
             vec3 rd = normalize(vWorldDir);
 
-            // Horizon fade: memudar sangat halus di cakrawala
+            // Horizon fade: memudar sangat halus di dekat batas cakrawala/pegunungan
             float el = clamp(rd.y, 0.0, 1.0);
-            float horizonFade = smoothstep(0.01, 0.16, el);
+            float horizonFade = smoothstep(0.005, 0.05, el);
 
             // Sudut azimuth sferis kontinu (-PI s/d +PI)
             float az = atan(rd.x, -rd.z);
 
             float t = u_time * 0.12;
 
-            // Amplop kontinuitas sferis Gauss ultra-halus (Tanpa garis potong)
+            // Amplop posisi ketinggian aurora: diturunkan ke level awan (el ~ 0.04 s/d 0.25)
+            // agar terlihat megah melayang di atas cakrawala persis seperti formasi awan
             float azEnvelope = exp(-pow(az * 0.58, 2.0));
-            float elEnvelope = smoothstep(0.02, 0.18, el) * exp(-pow((el - 0.38) * 2.4, 2.0));
+            float elEnvelope = smoothstep(0.01, 0.1, el) * exp(-pow((el - 0.1) * 6.5, 2.0));
             float globalEnvelope = horizonFade * azEnvelope * elEnvelope;
 
             if (globalEnvelope <= 0.001) {
                 discard;
             }
 
-            vec2 skyUv = vec2(az * 1.5, el * 3.0);
+            // Skala UV vertikal disesuaikan dengan rentang ketinggian awan
+            vec2 skyUv = vec2(az * 1.5, el * 8.5);
 
             // Jalur sungai berliku dinamis (Sinuous meandering curve)
             float river = perlin(vec2(skyUv.x * 0.7 + t * 0.14, 0.4)) * 0.42
@@ -566,13 +568,13 @@ const auroraShader = {
             float fluidWisps = sin(skyUv.x * 14.0 + q.x * 5.5 + r.y * 3.5 + t * 1.8) * 0.5 + 0.5;
             fluidWisps = pow(fluidWisps, 2.2);
 
-            // Jarak ke sungai aurora utama (bentuk penampang melintang Gauss ultra-lembut)
-            float distMain = abs(el * 3.2 - 1.25 - river);
-            float glowMain = exp(-pow(distMain * 2.1, 2.0));
+            // Jarak ke sungai aurora utama di posisi awan (el ~ 0.12 - 0.14)
+            float distMain = abs(el * 8.5 - 1.05 - river);
+            float glowMain = exp(-pow(distMain * 2.2, 2.0));
 
-            // Cabang sekunder kabut cahaya di atasnya
-            float distBranch = abs(el * 3.2 - 1.72 - river * 0.65);
-            float glowBranch = exp(-pow(distBranch * 2.6, 2.0)) * 0.48;
+            // Cabang sekunder kabut cahaya tepat di atas pita utama (el ~ 0.18 - 0.22)
+            float distBranch = abs(el * 8.5 - 1.50 - river * 0.65);
+            float glowBranch = exp(-pow(distBranch * 2.5, 2.0)) * 0.50;
 
             // Total densitas debu aurora:
             float dustDensity = (glowMain + glowBranch) 
@@ -600,7 +602,7 @@ const auroraShader = {
             } else {
                 dustColor = mix(colLime, colCore, (dustDensity - 0.65) / 0.35);
             }
-            dustColor = mix(dustColor, colViolet, smoothstep(0.42, 0.72, el) * 0.45);
+            dustColor = mix(dustColor, colViolet, smoothstep(0.14, 0.26, el) * 0.45);
 
             vec3 aurora = dustColor * dustDensity * 1.65;
             gl_FragColor = vec4(aurora, dustDensity);

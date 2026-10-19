@@ -307,10 +307,32 @@ function serializeMapData(name, existingId = null) {
             scaleY: r.scale.y,
             scaleZ: r.scale.z
         })) : [],
+        flowers: typeof flowersList !== 'undefined' ? flowersList.map(f => ({
+            posX: f.position.x,
+            posY: f.position.y,
+            posZ: f.position.z,
+            rotY: f.rotation.y,
+            flowerType: f.userData.flowerType,
+            themeKey: f.userData.themeKey
+        })) : [],
+        butterflies: typeof butterfliesList !== 'undefined' ? butterfliesList.map(b => ({
+            centerX: b.centerX,
+            centerZ: b.centerZ,
+            hoverHeight: b.hoverHeight,
+            radiusX: b.radiusX,
+            radiusZ: b.radiusZ,
+            flightSpeed: b.flightSpeed,
+            phase: b.phase,
+            flapSpeed: b.flapSpeed,
+            type: b.type,
+            theme: b.theme
+        })) : [],
         activeGrass: activeGrass,
         meta: {
             treeCount: trees.length,
             rockCount: typeof rocksList !== 'undefined' ? rocksList.length : 0,
+            flowerCount: typeof flowersList !== 'undefined' ? flowersList.length : 0,
+            butterflyCount: typeof butterfliesList !== 'undefined' ? butterfliesList.length : 0,
             grassCount: activeGrass.length,
             version: '1.0'
         }
@@ -488,6 +510,22 @@ function applyMapDataToScene(mapData) {
     }
     if (Array.isArray(mapData.rocks) && typeof recreateRock === 'function') {
         mapData.rocks.forEach(rData => recreateRock(rData));
+    }
+
+    // 6. Terapkan Bunga (Flowers)
+    if (typeof clearAllFlowers === 'function') {
+        clearAllFlowers();
+    }
+    if (Array.isArray(mapData.flowers) && typeof recreateFlower === 'function') {
+        mapData.flowers.forEach(fData => recreateFlower(fData));
+    }
+
+    // 7. Terapkan Kupu-kupu (Butterflies)
+    if (typeof clearAllButterflies === 'function') {
+        clearAllButterflies();
+    }
+    if (Array.isArray(mapData.butterflies) && typeof recreateButterfly === 'function') {
+        mapData.butterflies.forEach(bData => recreateButterfly(bData));
     }
 
     selectedTreeIndex = treesList.length > 0 ? treesList.length - 1 : -1;

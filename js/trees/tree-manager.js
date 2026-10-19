@@ -26,7 +26,9 @@ function refreshLayerUI() {
     treeLayerList.innerHTML = '';
 
     const currentRocks = (typeof rocksList !== 'undefined' && Array.isArray(rocksList)) ? rocksList : [];
-    const totalCount = treesList.length + currentRocks.length;
+    const flowerCount = (typeof flowersList !== 'undefined' && Array.isArray(flowersList)) ? flowersList.length : 0;
+    const butterflyCount = (typeof butterfliesList !== 'undefined' && Array.isArray(butterfliesList)) ? butterfliesList.length : 0;
+    const totalCount = treesList.length + currentRocks.length + flowerCount + butterflyCount;
     if (layerCount) layerCount.innerText = totalCount;
 
     if (layerEmptyMsg) layerEmptyMsg.style.display = 'none';

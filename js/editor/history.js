@@ -61,6 +61,26 @@ function captureStateSnapshot() {
             scaleY: r.scale.y,
             scaleZ: r.scale.z
         })) : [],
+        flowers: (typeof flowersList !== 'undefined') ? flowersList.map(f => ({
+            posX: f.position.x,
+            posY: f.position.y,
+            posZ: f.position.z,
+            rotY: f.rotation.y,
+            flowerType: f.userData.flowerType,
+            themeKey: f.userData.themeKey
+        })) : [],
+        butterflies: (typeof butterfliesList !== 'undefined') ? butterfliesList.map(b => ({
+            centerX: b.centerX,
+            centerZ: b.centerZ,
+            hoverHeight: b.hoverHeight,
+            radiusX: b.radiusX,
+            radiusZ: b.radiusZ,
+            flightSpeed: b.flightSpeed,
+            phase: b.phase,
+            flapSpeed: b.flapSpeed,
+            type: b.type,
+            theme: b.theme
+        })) : [],
         cinematic: (typeof CinematicManager !== 'undefined') ? {
             activeSceneIndex: CinematicManager.activeSceneIndex,
             waypoints: JSON.parse(JSON.stringify(CinematicManager.waypoints || [])),
@@ -210,6 +230,18 @@ function applyState(state) {
     if (state.rocks && typeof rocksList !== 'undefined' && typeof recreateRock === 'function') {
         clearAllRocks();
         state.rocks.forEach(rData => recreateRock(rData));
+    }
+
+    // 3c. Restore Bunga (Flowers)
+    if (state.flowers && typeof flowersList !== 'undefined' && typeof recreateFlower === 'function') {
+        clearAllFlowers();
+        state.flowers.forEach(fData => recreateFlower(fData));
+    }
+
+    // 3d. Restore Kupu-kupu (Butterflies)
+    if (state.butterflies && typeof butterfliesList !== 'undefined' && typeof recreateButterfly === 'function') {
+        clearAllButterflies();
+        state.butterflies.forEach(bData => recreateButterfly(bData));
     }
 
     // 4. Restore Cinematic Camera Waypoints / Multi-Scene State

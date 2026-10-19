@@ -52,6 +52,22 @@ const valRockMinSize = document.getElementById('val-rock-min-size');
 const valRockMaxSize = document.getElementById('val-rock-max-size');
 const valRockHeightScale = document.getElementById('val-rock-height-scale');
 
+// Flower Brush Controls
+const selectFlowerBrush = document.getElementById('select-flower-brush');
+const sliderFlowerRadius = document.getElementById('slider-flower-radius');
+const sliderFlowerDensity = document.getElementById('slider-flower-density');
+const valFlowerRadius = document.getElementById('val-flower-radius');
+const valFlowerDensity = document.getElementById('val-flower-density');
+const btnClearAllFlowers = document.getElementById('btn-clear-all-flowers');
+
+// Butterfly Brush Controls
+const selectButterflyBrush = document.getElementById('select-butterfly-brush');
+const sliderButterflyRadius = document.getElementById('slider-butterfly-radius');
+const sliderButterflyDensity = document.getElementById('slider-butterfly-density');
+const valButterflyRadius = document.getElementById('val-butterfly-radius');
+const valButterflyDensity = document.getElementById('val-butterfly-density');
+const btnClearAllButterflies = document.getElementById('btn-clear-all-butterflies');
+
 let isPanMode = false;
 
 btnHandMode.addEventListener('click', () => {
@@ -121,6 +137,50 @@ if (btnClearAllRocks) {
         if (typeof saveState === 'function') saveState();
         if (typeof clearAllRocks === 'function') {
             clearAllRocks();
+        }
+    });
+}
+
+// Flower brush slider listeners
+if (sliderFlowerRadius && valFlowerRadius) {
+    sliderFlowerRadius.addEventListener('input', () => {
+        valFlowerRadius.innerText = parseFloat(sliderFlowerRadius.value).toFixed(1);
+        if (typeof flowerParams !== 'undefined') flowerParams.brushRadius = parseFloat(sliderFlowerRadius.value);
+    });
+}
+if (sliderFlowerDensity && valFlowerDensity) {
+    sliderFlowerDensity.addEventListener('input', () => {
+        valFlowerDensity.innerText = sliderFlowerDensity.value;
+        if (typeof flowerParams !== 'undefined') flowerParams.flowerDensity = parseInt(sliderFlowerDensity.value);
+    });
+}
+if (btnClearAllFlowers) {
+    btnClearAllFlowers.addEventListener('click', () => {
+        if (typeof saveState === 'function') saveState();
+        if (typeof clearAllFlowers === 'function') {
+            clearAllFlowers();
+        }
+    });
+}
+
+// Butterfly brush slider listeners
+if (sliderButterflyRadius && valButterflyRadius) {
+    sliderButterflyRadius.addEventListener('input', () => {
+        valButterflyRadius.innerText = parseFloat(sliderButterflyRadius.value).toFixed(1);
+        if (typeof butterflyParams !== 'undefined') butterflyParams.brushRadius = parseFloat(sliderButterflyRadius.value);
+    });
+}
+if (sliderButterflyDensity && valButterflyDensity) {
+    sliderButterflyDensity.addEventListener('input', () => {
+        valButterflyDensity.innerText = sliderButterflyDensity.value;
+        if (typeof butterflyParams !== 'undefined') butterflyParams.butterflyDensity = parseInt(sliderButterflyDensity.value);
+    });
+}
+if (btnClearAllButterflies) {
+    btnClearAllButterflies.addEventListener('click', () => {
+        if (typeof saveState === 'function') saveState();
+        if (typeof clearAllButterflies === 'function') {
+            clearAllButterflies();
         }
     });
 }

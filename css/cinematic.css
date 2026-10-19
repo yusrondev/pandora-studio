@@ -284,52 +284,39 @@
 :root {
     --sidebar-left-actual-width: 285px;
     --sidebar-right-actual-width: 285px;
+    --cinematic-bottom-height: 250px;
 }
 
 /* =========================================================
-   CINEMATIC BOTTOM PANEL (Docked Resizable Sequencer)
-   Responsive width filling the empty space between sidebars
+   CINEMATIC BOTTOM PANEL (Docked Resizable Sequencer Footer Toolbar)
+   Full-width spanning left to right like top toolbar
    ========================================================= */
 .cinematic-bottom-panel {
     position: fixed;
     bottom: 0;
-    left: var(--sidebar-left-actual-width, 285px);
-    right: var(--sidebar-right-actual-width, 285px);
-    width: auto;
+    left: 0;
+    right: 0;
+    width: 100%;
     height: var(--cinematic-bottom-height, 250px);
     min-height: 140px;
     max-height: 520px;
-    z-index: 89;
+    z-index: 95;
     display: none;
     flex-direction: column;
     background: rgba(14, 18, 28, 0.96);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border-top: 1px solid rgba(56, 189, 248, 0.35);
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(56, 189, 248, 0.15);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, left 0.28s cubic-bezier(0.16, 1, 0.3, 1), right 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
     transform: translateY(105%);
     opacity: 0;
     user-select: none;
     -webkit-user-select: none;
-}
-
-/* Responsive adjustment when sidebars are collapsed */
-body:has(#sidebar-left.collapsed) .cinematic-bottom-panel {
-    left: 0;
-    border-left: none;
-}
-
-body:has(#sidebar-right.collapsed) .cinematic-bottom-panel {
-    right: 0;
-    border-right: none;
-}
-
-/* Instant 60fps tracking without transition delay during sidebar resizing */
-body.resizing-sidebar .cinematic-bottom-panel {
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, left 0s, right 0s !important;
 }
 
 .cinematic-bottom-panel.visible {
@@ -715,6 +702,12 @@ select optgroup,
     border-radius: 1px;
 }
 
+.cinematic-timeline-badges {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
 .btn-cinematic-exit {
     padding: 4px 10px;
     border-radius: var(--radius-sm);
@@ -725,6 +718,8 @@ select optgroup,
     color: #fca5a5;
     cursor: pointer;
     transition: all 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .btn-cinematic-exit:hover {

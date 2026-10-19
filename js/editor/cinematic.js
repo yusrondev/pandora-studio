@@ -184,6 +184,21 @@ const CinematicManager = {
         const panel = document.getElementById('cinematic-bottom-panel');
         if (!resizer || !panel) return;
 
+        // Restore saved height from localStorage
+        try {
+            const savedHeight = localStorage.getItem('pandora_cinematic_bottom_height');
+            if (savedHeight) {
+                const h = parseInt(savedHeight, 10);
+                if (!isNaN(h) && h >= 140 && h <= 520) {
+                    panel.style.height = h + 'px';
+                    panel.style.setProperty('--cinematic-bottom-height', h + 'px');
+                    document.documentElement.style.setProperty('--cinematic-bottom-height', h + 'px');
+                }
+            }
+        } catch (err) {
+            console.warn(err);
+        }
+
         let isDragging = false;
         let startY = 0;
         let startHeight = 0;
@@ -194,6 +209,7 @@ const CinematicManager = {
             startY = e.clientY;
             startHeight = panel.getBoundingClientRect().height;
             resizer.classList.add('dragging');
+            document.body.classList.add('resizing-cinematic-bottom');
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'row-resize';
         });
@@ -204,14 +220,21 @@ const CinematicManager = {
             const newHeight = Math.min(520, Math.max(140, startHeight + deltaY));
             panel.style.height = newHeight + 'px';
             panel.style.setProperty('--cinematic-bottom-height', newHeight + 'px');
+            document.documentElement.style.setProperty('--cinematic-bottom-height', newHeight + 'px');
         });
 
         window.addEventListener('pointerup', () => {
             if (!isDragging) return;
             isDragging = false;
             resizer.classList.remove('dragging');
+            document.body.classList.remove('resizing-cinematic-bottom');
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
+            try {
+                localStorage.setItem('pandora_cinematic_bottom_height', parseInt(panel.style.height, 10));
+            } catch (err) {
+                console.warn(err);
+            }
         });
     },
 
@@ -3010,11 +3033,13 @@ const CinematicManager = {
         const willOpen = forceState !== undefined ? forceState : !panel.classList.contains('visible');
         if (willOpen) {
             panel.classList.add('visible');
+            document.body.classList.add('cinematic-footer-open');
             if (btnToolbar) btnToolbar.classList.add('active');
             this.renderTimelineLanePips();
             this.rescueEditorCamera();
         } else {
             panel.classList.remove('visible');
+            document.body.classList.remove('cinematic-footer-open');
             if (btnToolbar) btnToolbar.classList.remove('active');
             if (this.isDrawingMode) this.toggleDrawingMode(false);
             if (this.isDrawingFoxMode) this.toggleFoxDrawingMode(false);

@@ -15,7 +15,20 @@
     flex-direction: column;
     z-index: 90;
     box-shadow: 0 0 35px rgba(0, 0, 0, 0.65);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, bottom 0.28s cubic-bezier(0.16, 1, 0.3, 1), height 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Sidebar automatically follows Cinematic Sequencer footer toolbar */
+body.cinematic-footer-open .sidebar,
+body:has(#cinematic-bottom-panel.visible) .sidebar {
+    bottom: var(--cinematic-bottom-height, 250px);
+    height: calc(100vh - 42px - var(--cinematic-bottom-height, 250px));
+}
+
+/* Instant 60fps tracking during footer resizing */
+body.resizing-cinematic-bottom .sidebar,
+body.resizing-cinematic-bottom .cinematic-bottom-panel {
+    transition: none !important;
 }
 
 #sidebar-left {
@@ -457,6 +470,11 @@
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
+}
+
+body.cinematic-footer-open .mode-banner,
+body:has(#cinematic-bottom-panel.visible) .mode-banner {
+    bottom: calc(var(--cinematic-bottom-height, 250px) + 16px);
 }
 
 .mode-pulse-dot {

@@ -17,6 +17,42 @@ for (let i = 0; i < vertexCount; i++) {
 }
 groundGeo.setAttribute('color', new THREE.BufferAttribute(terrainColors, 3));
 
+// ==========================================
+// PROCEDURAL CLAY BRUSH NOISE ALGORITHMS
+// ==========================================
+function hash(x, y) {
+    let n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+    return n - Math.floor(n);
+}
+
+function smoothNoise(x, y) {
+    const i = Math.floor(x);
+    const j = Math.floor(y);
+    const fx = x - i;
+    const fy = y - j;
+    const u = fx * fx * (3.0 - 2.0 * fx);
+    const v = fy * fy * (3.0 - 2.0 * fy);
+
+    return (
+        hash(i, j) * (1.0 - u) * (1.0 - v) +
+        hash(i + 1, j) * u * (1.0 - v) +
+        hash(i, j + 1) * (1.0 - u) * v +
+        hash(i + 1, j + 1) * u * v
+    );
+}
+
+function fbm(x, y) {
+    let val = 0.0;
+    let amp = 0.5;
+    let freq = 1.0;
+    for (let o = 0; o < 6; o++) {
+        val += amp * smoothNoise(x * freq, y * freq);
+        freq *= 2.05;
+        amp *= 0.5;
+    }
+    return val;
+}
+
 const groundMat = new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide });
 const ground = new THREE.Mesh(groundGeo, groundMat);
 ground.receiveShadow = true;
@@ -160,6 +196,38 @@ function paintRoadOnTerrain(hitPoint, roadType, radius) {
 
                 if (roadType === 'remove') {
                     colAttr.setXYZ(idx, defaultBaseGrassColor.r, defaultBaseGrassColor.g, defaultBaseGrassColor.b);
+                } else if (roadType === 'road_clay') {
+                    // Palet Albedo: Gradasi tanah liat kering ke lembap (Flat High-Detail Clay PBR)
+                    const cDarkR = 108 / 255;
+                    const cDarkG = 86 / 255;
+                    const cDarkB = 64 / 255;
+                    const cLightR = 168 / 255;
+                    const cLightG = 142 / 255;
+                    const cLightB = 112 / 255;
+
+                    const nx = (vx + halfSize) / groundSize;
+                    const nz = (vz + halfSize) / groundSize;
+
+                    let h = fbm(nx * 16.0, nz * 16.0) * 0.65;
+                    h += smoothNoise(nx * 100.0, nz * 100.0) * 0.25;
+                    h += (Math.random() - 0.5) * 0.1;
+
+                    const t = Math.min(1.0, Math.max(0.0, h * 1.15));
+                    const grainNoise = ((Math.random() - 0.5) * 12) / 255;
+
+                    const targetR = Math.min(1.0, Math.max(0.0, cDarkR + (cLightR - cDarkR) * t + grainNoise));
+                    const targetG = Math.min(1.0, Math.max(0.0, cDarkG + (cLightG - cDarkG) * t + grainNoise * 0.85));
+                    const targetB = Math.min(1.0, Math.max(0.0, cDarkB + (cLightB - cDarkB) * t + grainNoise * 0.65));
+
+                    const curR = colAttr.getX(idx);
+                    const curG = colAttr.getY(idx);
+                    const curB = colAttr.getZ(idx);
+
+                    const blendedR = THREE.MathUtils.lerp(curR, targetR, factor);
+                    const blendedG = THREE.MathUtils.lerp(curG, targetG, factor);
+                    const blendedB = THREE.MathUtils.lerp(curB, targetB, factor);
+
+                    colAttr.setXYZ(idx, blendedR, blendedG, blendedB);
                 } else {
                     const organicNoise = (Math.sin(vx * 1.8) * Math.cos(vz * 1.8) * 0.04) +
                         (Math.sin(vx * 5.2) * Math.cos(vz * 5.2) * 0.02) +

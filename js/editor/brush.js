@@ -94,7 +94,11 @@ function handleBrushAction(event) {
 
         const roadBrush = selectRoadBrush.value;
         if (roadBrush !== 'none') {
-            paintRoadOnTerrain(hitPoint, roadBrush, parseFloat(sliderRoadRadius.value));
+            const roadRad = parseFloat(sliderRoadRadius.value);
+            paintRoadOnTerrain(hitPoint, roadBrush, roadRad);
+            if (roadBrush !== 'remove' && typeof removeGrassInRadius === 'function') {
+                removeGrassInRadius(hitPoint, roadRad * 0.85);
+            }
             return;
         }
 
@@ -520,7 +524,10 @@ function updateBrushReticle(hitPoint, normal) {
         else colorHex = 0xeab308;                              // Kuning emas (Ratakan tanah)
     } else if (roadBrush !== 'none') {
         radius = parseFloat(sliderRoadRadius.value) || 4.0;
-        colorHex = 0xf59e0b; // Amber jalan setapak
+        if (roadBrush === 'road_clay') colorHex = 0xb46b3f;      // Terakota tanah liat PBR
+        else if (roadBrush === 'road_green') colorHex = 0x84cc16; // Hijau berlumut
+        else if (roadBrush === 'remove') colorHex = 0xef4444;     // Merah hapus jalan
+        else colorHex = 0xf59e0b;                                 // Amber jalan tanah coklat
     } else if (grassBrush !== 'none') {
         radius = parseFloat(sliderGrassRadius.value) || 4.0;
         if (grassBrush === 'remove') colorHex = 0xef4444;       // Merah hapus rumput

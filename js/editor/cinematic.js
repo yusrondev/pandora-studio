@@ -648,9 +648,8 @@ const CinematicManager = {
 
         const wp = this.waypoints[this.selectedWaypointIndex];
         if (!wp) return;
-
         const lbl = document.getElementById('txt-selected-wp-label');
-        if (lbl) lbl.innerText = `🎥 Angle Titik #${this.selectedWaypointIndex + 1}`;
+        if (lbl) lbl.innerText = `Waypoint #${this.selectedWaypointIndex + 1}`;
 
         const sliderHeight = document.getElementById('slider-wp-height');
         const valHeight = document.getElementById('val-wp-height');
@@ -1133,8 +1132,7 @@ const CinematicManager = {
             const opt = document.createElement('option');
             opt.value = String(idx);
             const stats = this.getFoxStatsForSpecies(fox.species);
-            const wpCount = fox.waypoints ? fox.waypoints.length : 0;
-            opt.text = `🦊 ${fox.name} (${stats.name} - ${wpCount} Titik)`;
+            opt.text = `${fox.name} (${stats.name} - ${wpCount} WP)`;
             opt.selected = (idx === this.activeFoxIndex);
             selectActive.appendChild(opt);
         });
@@ -1565,9 +1563,9 @@ const CinematicManager = {
         const runSpd = stats.runSpeed.toFixed(1);
 
         if (selectGait.options.length >= 3) {
-            selectGait.options[0].text = `🐾 Jalan (${walkSpd} m/s)`;
-            selectGait.options[1].text = `🦊 Trot (${trotSpd} m/s)`;
-            selectGait.options[2].text = `⚡ Sprint (${runSpd} m/s)`;
+            selectGait.options[0].text = `Walk (${walkSpd} m/s)`;
+            selectGait.options[1].text = `Trot (${trotSpd} m/s)`;
+            selectGait.options[2].text = `Sprint (${runSpd} m/s)`;
         }
     },
 
@@ -2441,7 +2439,7 @@ const CinematicManager = {
             tab.title = `Pilih ${sc.name} (Durasi: ${sc.duration}s)`;
 
             tab.innerHTML = `
-                <span>🎬 ${sc.name}</span>
+                <span>${sc.name}</span>
                 ${this.scenes.length > 1 ? `<button type="button" class="btn-del-scene" title="Hapus ${sc.name}">✕</button>` : ''}
             `;
 

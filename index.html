@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Genshin Sandbox World Editor - Professional Studio UI</title>
+    <title>Pandora3D - Professional Studio UI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -196,7 +196,7 @@
 
         <div class="divider"></div>
 
-        <div class="toolbar-group" title="Pilih Suasana Waktu Genshin Impact">
+        <div class="toolbar-group" id="toolbar-group-sky" data-overflow-item="sky" title="Pilih Suasana Waktu Genshin Impact">
             <label>
                 <span class="svg-icon" style="color:var(--accent);">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -213,29 +213,28 @@
                 </span>
                 <span>Sky</span>
             </label>
-            <select id="select-sky-preset"
-                style="background:rgba(24,30,46,0.85); color:var(--text-main); border:1px solid var(--panel-border); padding:3px 6px; border-radius:var(--radius-sm); outline:none; font-size:10.5px; cursor:pointer;">
+            <select id="select-sky-preset" class="cinematic-mini-select" style="max-width:130px; height:22px;">
                 <option value="day" selected>Siang</option>
                 <option value="sunset">Sore</option>
-                <option value="night">Malam (Aurora & Bintang)</option>
+                <option value="night">Malam (Aurora &amp; Bintang)</option>
             </select>
         </div>
 
-        <div class="toolbar-group" title="Posisi Sudut Matahari (Azimuth)">
+        <div class="toolbar-group" id="toolbar-group-azimuth" data-overflow-item="azimuth" title="Posisi Sudut Matahari (Azimuth)">
             <label><span>Azim</span></label>
             <input type="range" id="slider-azimuth" min="0" max="360" value="300">
             <span id="val-azimuth" class="val-badge">300°</span>
         </div>
 
-        <div class="toolbar-group" title="Ketinggian Sudut Matahari (Elevation)">
+        <div class="toolbar-group" id="toolbar-group-elevation" data-overflow-item="elevation" title="Ketinggian Sudut Matahari (Elevation)">
             <label><span>Elev</span></label>
             <input type="range" id="slider-elevation" min="5" max="85" value="45">
             <span id="val-elevation" class="val-badge">45°</span>
         </div>
 
-        <div class="divider"></div>
+        <div class="divider" id="divider-env-1"></div>
 
-        <div class="toolbar-group" title="Kecepatan Angin">
+        <div class="toolbar-group" id="toolbar-group-wind" data-overflow-item="wind" title="Kecepatan Angin">
             <label>
                 <span class="svg-icon" style="color:#38bdf8;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -249,7 +248,7 @@
             <input type="range" id="slider-wind-speed" min="0.0" max="3.0" step="0.1" value="1.0">
         </div>
 
-        <div class="toolbar-group" title="Intensitas Daun Rontok">
+        <div class="toolbar-group" id="toolbar-group-leaves" data-overflow-item="leaves" title="Intensitas Daun Rontok">
             <label>
                 <span class="svg-icon" style="color:#fb923c;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -263,9 +262,9 @@
             <input type="range" id="slider-leaf-fall" min="0.0" max="3.0" step="0.2" value="1.0">
         </div>
 
-        <div class="divider"></div>
+        <div class="divider" id="divider-env-2"></div>
 
-        <button id="btn-toggle-fullscreen" class="btn-icon-only" title="Toggle Fullscreen (F)">
+        <button id="btn-toggle-fullscreen" class="btn-icon-only" data-overflow-item="fullscreen" title="Toggle Fullscreen (F)">
             <span class="svg-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path
@@ -285,7 +284,27 @@
             </span>
             <span>Layers</span>
         </button>
+
+        <!-- TITIK TIGA OVERFLOW BUTTON -->
+        <button id="btn-toolbar-overflow" class="btn-icon-only btn-toolbar-overflow" title="Menu Opsi Tambahan" aria-label="More Options">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="2.2"></circle>
+                    <circle cx="12" cy="12" r="2.2"></circle>
+                    <circle cx="12" cy="19" r="2.2"></circle>
+                </svg>
+            </span>
+        </button>
     </header>
+
+    <!-- OVERFLOW DROPDOWN MENU (TITIK TIGA SAAT LAYAR TIDAK MENCUKUPI) -->
+    <div id="toolbar-overflow-dropdown" class="toolbar-overflow-dropdown">
+        <div class="overflow-dropdown-header">
+            <span>Menu Opsi Tambahan</span>
+            <span class="overflow-header-badge">Toolbar</span>
+        </div>
+        <div id="toolbar-overflow-content" class="toolbar-overflow-content"></div>
+    </div>
 
     <!-- ACTIVE MODE FLOATING HUD BANNER -->
     <div id="active-mode-banner" class="mode-banner">
@@ -298,29 +317,24 @@
 
     <!-- MINIMALIST FLOATING SPECIES SWITCHER (Hanya tampil saat Demo Mode) -->
     <div id="fox-species-bar" class="fox-species-bar" style="display: none;">
-        <span class="species-bar-hint"><kbd>1-5</kbd> Spesies:</span>
+        <span class="species-bar-hint"><kbd>1-5</kbd> Species:</span>
         <button class="btn-species-pill active" data-species="red" title="Red Fox (Vulpes vulpes) - Tekan 1">
-            <span class="species-icon">🦊</span>
             <span class="species-label">Red</span>
         </button>
         <button class="btn-species-pill" data-species="arctic" title="Arctic Fox (Vulpes lagopus) - Tekan 2">
-            <span class="species-icon">❄️</span>
             <span class="species-label">Arctic</span>
         </button>
         <button class="btn-species-pill" data-species="corsac" title="Corsac Fox (Vulpes corsac) - Tekan 3">
-            <span class="species-icon">🌾</span>
             <span class="species-label">Corsac</span>
         </button>
         <button class="btn-species-pill" data-species="swift" title="Swift Fox (Vulpes velox) - Tekan 4">
-            <span class="species-icon">⚡</span>
             <span class="species-label">Swift</span>
         </button>
         <button class="btn-species-pill" data-species="darwin" title="Darwin Fox (Lycalopex fulvipes) - Tekan 5">
-            <span class="species-icon">🌲</span>
             <span class="species-label">Darwin</span>
         </button>
         <button id="btn-exit-demo-mode" class="btn-species-exit" title="Keluar Mode Demo (ESC)">
-            <span>✕ Keluar (ESC)</span>
+            <span>Exit (ESC)</span>
         </button>
     </div>
 
@@ -328,7 +342,7 @@
     <div id="fox-stats-hud" class="fox-stats-hud" style="display: none;">
         <div class="fox-stats-top-row">
             <div class="fox-stats-profile">
-                <span class="fox-stats-badge" id="fox-stats-hud-badge">🦊</span>
+                <span class="fox-stats-badge" id="fox-stats-hud-badge"></span>
                 <div>
                     <div class="fox-stats-name" id="fox-stats-hud-name">Red Fox</div>
                     <div class="fox-stats-tagline" id="fox-stats-hud-tagline">Seimbang &amp; Adaptif</div>
@@ -336,22 +350,18 @@
             </div>
             <div class="fox-stats-chips">
                 <div class="stat-chip" title="Kecepatan Sprint / Lari Maksimum">
-                    <span class="stat-chip-icon">⚡</span>
                     <span>Speed:</span>
                     <span class="stat-chip-val" id="stat-val-speed">9.6 m/s</span>
                 </div>
                 <div class="stat-chip" title="Ketangkasan &amp; Kecepatan Waktu Belok">
-                    <span class="stat-chip-icon">🔄</span>
                     <span>Agility:</span>
                     <span class="stat-chip-val" id="stat-val-agility">2.6 rad/s</span>
                 </div>
                 <div class="stat-chip" title="Daya / Ketinggian Lompatan">
-                    <span class="stat-chip-icon">🦘</span>
                     <span>Jump:</span>
                     <span class="stat-chip-val" id="stat-val-jump">9.6</span>
                 </div>
                 <div class="stat-chip" title="Kapasitas Stamina Maksimum">
-                    <span class="stat-chip-icon">🔋</span>
                     <span>Stamina:</span>
                     <span class="stat-chip-val" id="stat-val-stamina">100</span>
                 </div>
@@ -362,11 +372,11 @@
         <div class="fox-stamina-row">
             <div class="fox-stamina-header">
                 <span class="fox-stamina-label">
-                    <span>⚡ Stamina Karakter</span>
+                    <span>Stamina</span>
                 </span>
                 <div class="fox-stamina-meta">
                     <span class="fox-stamina-val" id="fox-stamina-val-text">100 / 100</span>
-                    <span class="fox-stamina-state full" id="fox-stamina-state-badge">PENUH</span>
+                    <span class="fox-stamina-state full" id="fox-stamina-state-badge">FULL</span>
                 </div>
             </div>
             <div class="fox-stamina-track">
@@ -395,90 +405,90 @@
                         <rect x="2" y="6" width="14" height="12" rx="2" ry="2"></rect>
                     </svg>
                 </span>
-                <span style="font-weight:700;">CINEMATIC SEQUENCER</span>
+                <span style="font-weight:600; font-size:11px; letter-spacing:0.5px;">TIMELINE</span>
                 <div class="cinematic-scene-tabs" id="cinematic-scene-tabs"></div>
-                <span class="cinematic-badge" id="fox-status-badge" style="display:none; background:rgba(249,115,22,0.2); color:#f97316; border-color:rgba(249,115,22,0.4);">🦊 Rubah Aktif</span>
+                <span class="cinematic-badge" id="fox-status-badge" style="display:none; background:#33291e; color:#e68523; border-color:#5c3f1c;">Actor Active</span>
             </div>
 
             <!-- Transport Playback Controls -->
             <div class="cinematic-transport-controls">
-                <button type="button" id="btn-floating-stop" class="btn-cinematic-ctrl" style="width:30px; height:28px;" title="Reset ke Awal (0s)">■</button>
-                <button type="button" id="btn-floating-play" class="btn-cinematic-ctrl play-btn" style="width:84px; height:28px;" title="Play / Pause Current Scene (Space)">▶ Play</button>
-                <button type="button" id="btn-floating-play-all" class="btn-cinematic-ctrl btn-play-all" style="height:28px; padding:0 10px;" title="Play Bergantian Semua Scene (Scene 1, Scene 2, Scene 3...)">▶▶ Play All</button>
-                <button type="button" id="btn-floating-loop" class="btn-cinematic-ctrl active" style="width:30px; height:28px;" title="Toggle Loop (Ulangi)">⟳</button>
+                <button type="button" id="btn-floating-stop" class="btn-cinematic-ctrl" title="Reset (0s)">■</button>
+                <button type="button" id="btn-floating-play" class="btn-cinematic-ctrl play-btn" title="Play / Pause (Space)">▶ Play</button>
+                <button type="button" id="btn-floating-play-all" class="btn-cinematic-ctrl btn-play-all" title="Play All Scenes">▶▶ Play All</button>
+                <button type="button" id="btn-floating-loop" class="btn-cinematic-ctrl active" title="Toggle Loop">⟳</button>
 
-                <div class="divider" style="height:18px; margin:0 4px;"></div>
+                <div class="divider" style="height:14px; margin:0 3px;"></div>
 
-                <select id="select-cinematic-speed" class="cinematic-mini-select" title="Kecepatan Playback">
+                <select id="select-cinematic-speed" class="cinematic-mini-select" title="Speed">
                     <option value="0.5">0.5x</option>
                     <option value="1.0" selected>1.0x</option>
                     <option value="1.5">1.5x</option>
                     <option value="2.0">2.0x</option>
                 </select>
 
-                <select id="select-cinematic-easing" class="cinematic-mini-select" title="Kurva Easing Pergerakan">
+                <select id="select-cinematic-easing" class="cinematic-mini-select" title="Easing Curve">
                     <option value="smooth" selected>Smooth Cubic</option>
                     <option value="dramatic">Dramatic Slow</option>
                     <option value="linear">Linear</option>
                 </select>
 
-                <span class="cinematic-timecode" id="floating-timeline-timecode" style="margin-left:4px; margin-right:6px;">0.0s / 10.0s</span>
+                <span class="cinematic-timecode" id="floating-timeline-timecode" style="margin-left:3px; margin-right:4px;">0.0s / 10.0s</span>
 
-                <div class="divider" style="height:18px; margin:0 4px;"></div>
+                <div class="divider" style="height:14px; margin:0 3px;"></div>
 
                 <!-- Camera Quick Settings: Preset & Focus Target -->
-                <select id="select-cinematic-preset" class="cinematic-mini-select" title="Terapkan Preset Gerakan Kamera">
-                    <option value="" disabled selected>🎬 Preset...</option>
-                    <option value="orbit">🔄 Orbit 360°</option>
-                    <option value="flythrough">🦅 Fly-Through</option>
-                    <option value="spiral">🌪️ Crane Spiral</option>
-                    <option value="dolly">🎬 Low Dolly</option>
+                <select id="select-cinematic-preset" class="cinematic-mini-select" title="Camera Preset">
+                    <option value="" disabled selected>Preset...</option>
+                    <option value="orbit">Orbit 360°</option>
+                    <option value="flythrough">Fly-Through</option>
+                    <option value="spiral">Crane Spiral</option>
+                    <option value="dolly">Low Dolly</option>
                 </select>
 
-                <select id="select-cinematic-focus" class="cinematic-mini-select" title="Titik Fokus Kamera">
-                    <option value="angles" selected>📐 Angle Tiap Kamera</option>
-                    <option value="character">🦊 Fokus: Rubah</option>
-                    <option value="forward">🎯 Fokus: Depan</option>
-                    <option value="tree">🌲 Fokus: Pohon</option>
-                    <option value="center">🏛️ Fokus: Tengah</option>
+                <select id="select-cinematic-focus" class="cinematic-mini-select" title="Focus Target">
+                    <option value="angles" selected>Per-Camera Angle</option>
+                    <option value="character">Target: Actor</option>
+                    <option value="forward">Target: Forward</option>
+                    <option value="tree">Target: Tree</option>
+                    <option value="center">Target: Center</option>
                 </select>
 
                 <!-- Ketinggian Kamera & Durasi -->
-                <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted);" title="Tinggi Kamera dari Tanah">
-                    <span style="color:#38bdf8;">H:</span>
+                <div style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-muted);" title="Camera Height">
+                    <span>H:</span>
                     <input type="range" id="slider-cinematic-height" min="1.0" max="18.0" step="0.5" value="3.5" style="width:48px;">
-                    <span id="val-cinematic-height" style="color:#38bdf8; font-size:9.5px; min-width:24px;">3.5m</span>
+                    <span id="val-cinematic-height" style="color:var(--text-bright); font-size:10px; min-width:24px;">3.5m</span>
                 </div>
 
-                <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted);" title="Durasi Perjalanan Kamera">
-                    <span style="color:#38bdf8;">D:</span>
+                <div style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-muted);" title="Camera Duration">
+                    <span>D:</span>
                     <input type="range" id="slider-cinematic-duration" min="3" max="30" step="1" value="10" style="width:48px;">
-                    <span id="val-cinematic-duration" style="color:#38bdf8; font-size:9.5px; min-width:20px;">10s</span>
+                    <span id="val-cinematic-duration" style="color:var(--text-bright); font-size:10px; min-width:20px;">10s</span>
                 </div>
 
-                <div class="divider" style="height:18px; margin:0 4px;"></div>
+                <div class="divider" style="height:14px; margin:0 3px;"></div>
 
                 <!-- Optics: DoF Blur & Letterbox -->
-                <label style="display:flex; align-items:center; gap:3px; font-size:10px; cursor:pointer; color:#38bdf8;" title="Efek Blur Lensa Sinematik (DoF Bokeh)">
-                    <input type="checkbox" id="toggle-cinematic-dof" checked style="accent-color:#38bdf8; cursor:pointer;">
+                <label style="display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; color:var(--text-main);" title="Depth-of-Field Bokeh">
+                    <input type="checkbox" id="toggle-cinematic-dof" checked style="accent-color:var(--accent); cursor:pointer;">
                     <span>DoF</span>
                 </label>
-                <select id="select-cinematic-aperture" class="cinematic-mini-select" title="Aperture / Kekuatan Bokeh">
-                    <option value="0">Tanpa Blur (Off / Tajam)</option>
-                    <option value="3.5">f/2.8 (Lembut)</option>
-                    <option value="6.0" selected>f/1.8 (Standar)</option>
-                    <option value="10.0">f/1.2 (Sinematik Kuat)</option>
+                <select id="select-cinematic-aperture" class="cinematic-mini-select" title="Aperture / Bokeh Strength">
+                    <option value="0">Off (Sharp)</option>
+                    <option value="3.5">f/2.8 (Soft)</option>
+                    <option value="6.0" selected>f/1.8 (Medium)</option>
+                    <option value="10.0">f/1.2 (Deep)</option>
                 </select>
 
-                <label style="display:flex; align-items:center; gap:3px; font-size:10px; cursor:pointer; color:#e0f2fe;" title="Cinema 2.35:1 Letterbox Bars">
-                    <input type="checkbox" id="toggle-cinematic-letterbox" checked style="accent-color:#38bdf8; cursor:pointer;">
+                <label style="display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; color:var(--text-main);" title="2.35:1 Letterbox">
+                    <input type="checkbox" id="toggle-cinematic-letterbox" checked style="accent-color:var(--accent); cursor:pointer;">
                     <span>Letterbox</span>
                 </label>
             </div>
 
             <!-- Right Options & Exit -->
             <div class="cinematic-timeline-badges">
-                <button type="button" id="btn-floating-exit" class="btn-cinematic-exit" title="Tutup / Sembunyikan Footer Toolbar (C)">✕ Sembunyikan</button>
+                <button type="button" id="btn-floating-exit" class="btn-cinematic-exit" title="Close Timeline (C)">✕ Close</button>
             </div>
         </div>
 
@@ -489,51 +499,51 @@
                 <!-- Track 1: Kamera Header -->
                 <div class="cinematic-track-header camera-track">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-weight:700; font-size:11px; color:#38bdf8; display:flex; align-items:center; gap:5px;">
-                            <span>🎥</span> Jalur Kamera
+                        <span style="font-weight:500; font-size:11px; color:var(--text-bright); display:flex; align-items:center; gap:5px;">
+                            Camera Track
                         </span>
-                        <span id="camera-waypoints-badge" class="cinematic-badge">0 Titik</span>
+                        <span id="camera-waypoints-badge" class="cinematic-badge">0 WP</span>
                     </div>
                     <div style="display:flex; gap:4px; margin-top:2px;">
-                        <button type="button" id="btn-bottom-camera-draw" class="btn-cinematic-draw" style="padding:4px 7px; font-size:10px;">
-                            <span>✏️ Gambar Jalur</span>
+                        <button type="button" id="btn-bottom-camera-draw" class="btn-cinematic-draw" style="padding:2px 6px; font-size:11px;">
+                            <span>Draw Path</span>
                         </button>
-                        <button type="button" id="btn-bottom-camera-clear" class="btn-icon-only" style="width:24px; height:24px;" title="Reset Jalur Kamera">
+                        <button type="button" id="btn-bottom-camera-clear" class="btn-icon-only" style="width:22px; height:22px;" title="Reset Camera Track">
                             <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
                         </button>
                     </div>
 
                     <!-- Panel Arahkan Angle Kamera Tiap Titik Waypoint -->
-                    <div id="waypoint-angle-controls" style="display:flex; flex-direction:column; gap:3px; margin-top:4px; padding:6px 8px; background:rgba(0,0,0,0.4); border:1px solid rgba(56,189,248,0.25); border-radius:4px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:9.5px; color:#38bdf8;">
-                            <span id="txt-selected-wp-label" style="font-weight:700;">🎥 Angle Titik #1</span>
+                    <div id="waypoint-angle-controls" style="display:flex; flex-direction:column; gap:3px; margin-top:4px; padding:4px 6px; background:var(--bg-dark); border:1px solid var(--panel-border); border-radius:var(--radius-sm);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-main);">
+                            <span id="txt-selected-wp-label" style="font-weight:600;">Waypoint #1</span>
                             <div style="display:flex; gap:3px; align-items:center;">
-                                <button type="button" id="btn-drag-selected-wp" class="btn-compact" style="font-size:9px; padding:1px 6px; height:20px; background:rgba(56,189,248,0.18); border-color:#38bdf8; color:#e0f2fe;" title="Aktifkan geser posisi kamera terpilih bebas dengan mouse">✋ Geser</button>
-                                <button type="button" id="btn-snap-view-to-cam" class="btn-compact" style="font-size:9px; padding:1px 6px; height:20px; background:rgba(56,189,248,0.18); border-color:#38bdf8; color:#e0f2fe;" title="Arahkan sudut titik kamera ini ke sudut pandang editor saat ini">🎯 Set ke View</button>
-                                <button type="button" id="btn-delete-selected-wp" class="btn-icon-only" style="width:20px; height:20px; font-size:9px; border-color:rgba(239,68,68,0.4); color:#ef4444;" title="Hapus titik kamera ini">
+                                <button type="button" id="btn-drag-selected-wp" class="btn-compact" style="font-size:10px; padding:1px 5px; height:20px;" title="Drag selected camera waypoint freely">Move</button>
+                                <button type="button" id="btn-snap-view-to-cam" class="btn-compact" style="font-size:10px; padding:1px 5px; height:20px;" title="Align waypoint to current viewport angle">Align View</button>
+                                <button type="button" id="btn-delete-selected-wp" class="btn-icon-only" style="width:20px; height:20px; font-size:10px;" title="Delete this camera waypoint">
                                     <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
                                 </button>
                             </div>
                         </div>
-                        <div style="display:flex; align-items:center; gap:4px; font-size:9.5px; color:var(--text-muted);">
-                            <span style="min-width:30px;">Tinggi:</span>
-                            <input type="range" id="slider-wp-height" min="0.5" max="30.0" step="0.2" value="3.5" style="flex:1; height:4px; accent-color:#38bdf8;" title="Ketinggian kamera di atas tanah (Height Offset)">
-                            <span id="val-wp-height" style="min-width:32px; text-align:right; color:#38bdf8; font-family:'JetBrains Mono',monospace;">3.5m</span>
+                        <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted);">
+                            <span style="min-width:30px;">Height:</span>
+                            <input type="range" id="slider-wp-height" min="0.5" max="30.0" step="0.2" value="3.5" style="flex:1; height:4px;" title="Height offset">
+                            <span id="val-wp-height" style="min-width:32px; text-align:right; color:var(--text-bright); font-family:'JetBrains Mono',monospace;">3.5m</span>
                         </div>
-                        <div style="display:flex; align-items:center; gap:4px; font-size:9.5px; color:var(--text-muted);">
-                            <span style="min-width:30px;">Putar:</span>
-                            <input type="range" id="slider-wp-yaw" min="0" max="360" step="1" value="0" style="flex:1; height:4px; accent-color:#38bdf8;">
-                            <span id="val-wp-yaw" style="min-width:32px; text-align:right; color:#38bdf8; font-family:'JetBrains Mono',monospace;">0°</span>
+                        <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted);">
+                            <span style="min-width:30px;">Yaw:</span>
+                            <input type="range" id="slider-wp-yaw" min="0" max="360" step="1" value="0" style="flex:1; height:4px;">
+                            <span id="val-wp-yaw" style="min-width:32px; text-align:right; color:var(--text-bright); font-family:'JetBrains Mono',monospace;">0°</span>
                         </div>
-                        <div style="display:flex; align-items:center; gap:4px; font-size:9.5px; color:var(--text-muted);">
-                            <span style="min-width:30px;">Tilt:</span>
-                            <input type="range" id="slider-wp-pitch" min="-60" max="60" step="1" value="0" style="flex:1; height:4px; accent-color:#38bdf8;">
-                            <span id="val-wp-pitch" style="min-width:32px; text-align:right; color:#38bdf8; font-family:'JetBrains Mono',monospace;">0°</span>
+                        <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted);">
+                            <span style="min-width:30px;">Pitch:</span>
+                            <input type="range" id="slider-wp-pitch" min="-60" max="60" step="1" value="0" style="flex:1; height:4px;">
+                            <span id="val-wp-pitch" style="min-width:32px; text-align:right; color:var(--text-bright); font-family:'JetBrains Mono',monospace;">0°</span>
                         </div>
-                        <div style="display:flex; align-items:center; gap:4px; font-size:9.5px; color:var(--text-muted);">
-                            <span style="min-width:30px;">Zoom:</span>
-                            <input type="range" id="slider-wp-fov" min="15" max="90" step="1" value="45" style="flex:1; height:4px; accent-color:#38bdf8;" title="Level Zoom / FOV (15° Zoom Dekat - 90° Wide Angle)">
-                            <span id="val-wp-fov" style="min-width:32px; text-align:right; color:#38bdf8; font-family:'JetBrains Mono',monospace;">45°</span>
+                        <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted);">
+                            <span style="min-width:30px;">FOV:</span>
+                            <input type="range" id="slider-wp-fov" min="15" max="90" step="1" value="45" style="flex:1; height:4px;" title="FOV Angle">
+                            <span id="val-wp-fov" style="min-width:32px; text-align:right; color:var(--text-bright); font-family:'JetBrains Mono',monospace;">45°</span>
                         </div>
                     </div>
                 </div>
@@ -541,33 +551,33 @@
                 <!-- Track 2: Rubah Header -->
                 <div class="cinematic-track-header fox-track">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-weight:700; font-size:11px; color:#f97316; display:flex; align-items:center; gap:5px;">
-                            <span>🦊</span> Aktor Rubah
-                            <span id="fox-total-badge" style="font-size:9px; background:rgba(249,115,22,0.25); color:#fed7aa; padding:1px 5px; border-radius:10px; font-weight:normal;">1 Rubah</span>
+                        <span style="font-weight:500; font-size:11px; color:var(--text-bright); display:flex; align-items:center; gap:5px;">
+                            Actor Track
+                            <span id="fox-total-badge" style="font-size:9px; background:#383838; color:var(--text-muted); padding:1px 5px; border-radius:var(--radius-sm); font-weight:normal;">1 Fox</span>
                         </span>
-                        <label style="display:flex; align-items:center; gap:4px; font-size:10px; cursor:pointer; color:#fdba74;">
-                            <input type="checkbox" id="toggle-cinematic-fox" style="accent-color:#f97316; cursor:pointer;">
-                            <span>Aktif</span>
+                        <label style="display:flex; align-items:center; gap:4px; font-size:10px; cursor:pointer; color:var(--text-muted);">
+                            <input type="checkbox" id="toggle-cinematic-fox" style="accent-color:var(--accent); cursor:pointer;">
+                            <span>Active</span>
                         </label>
                     </div>
                     <div id="fox-track-controls" style="display:none; flex-direction:column; gap:4px; margin-top:2px;">
                         <!-- Multi-Fox Selection & Add/Delete Bar -->
                         <div style="display:flex; gap:3px; align-items:center;">
-                            <select id="select-cinematic-active-fox" class="cinematic-mini-select" style="flex:1; font-weight:600; color:#fed7aa; padding:2px 4px;" title="Pilih Aktor Rubah yang sedang diedit">
-                                <option value="0">🦊 Rubah 1</option>
+                            <select id="select-cinematic-active-fox" class="cinematic-mini-select" style="flex:1; font-weight:500; color:var(--text-bright); padding:2px 4px;" title="Active Actor">
+                                <option value="0">Fox 1</option>
                             </select>
-                            <button type="button" id="btn-cinematic-add-fox" class="btn-compact" style="font-size:9px; padding:3px 6px; background:rgba(249,115,22,0.25); border-color:#f97316; color:#fed7aa; white-space:nowrap;" title="Tambah Aktor Rubah Baru (Jalur Sendiri)">+ Rubah</button>
-                            <button type="button" id="btn-cinematic-delete-fox" class="btn-icon-only" style="width:22px; height:22px; border-color:rgba(239,68,68,0.4); color:#ef4444;" title="Hapus Aktor Rubah Ini">
+                            <button type="button" id="btn-cinematic-add-fox" class="btn-compact" style="font-size:10px; padding:2px 6px; white-space:nowrap;" title="Add Fox Actor">+ Actor</button>
+                            <button type="button" id="btn-cinematic-delete-fox" class="btn-icon-only" style="width:22px; height:22px;" title="Delete Fox Actor">
                                 <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
                             </button>
                         </div>
 
                         <!-- Draw & Clear Path for Active Fox -->
                         <div style="display:flex; gap:4px;">
-                            <button type="button" id="btn-cinematic-fox-draw" class="btn-cinematic-draw" style="flex:1; padding:4px 7px; font-size:10px; border-color:rgba(249,115,22,0.4); color:#f97316; background:rgba(249,115,22,0.15);">
-                                <span>✏️ Gambar Jalur</span>
+                            <button type="button" id="btn-cinematic-fox-draw" class="btn-cinematic-draw" style="flex:1; padding:2px 6px; font-size:11px;">
+                                <span>Draw Path</span>
                             </button>
-                            <button type="button" id="btn-cinematic-fox-clear" class="btn-icon-only" style="width:24px; height:24px;" title="Hapus Jalur Rubah Ini">
+                            <button type="button" id="btn-cinematic-fox-clear" class="btn-icon-only" style="width:22px; height:22px;" title="Reset Fox Path">
                                 <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
                             </button>
                         </div>
@@ -575,29 +585,29 @@
                         <!-- Active Fox Properties -->
                         <div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
                             <div style="display:flex; gap:4px;">
-                                <select id="select-cinematic-fox-species" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Pilih Spesies Rubah Ini">
-                                    <option value="red" selected>🦊 Red Fox</option>
-                                    <option value="arctic">❄️ Arctic Fox</option>
-                                    <option value="corsac">🌾 Corsac Fox</option>
-                                    <option value="swift">⚡ Swift Fox</option>
-                                    <option value="darwin">🌲 Darwin Fox</option>
-                                    <option value="fennec">🏜️ Fennec Fox</option>
-                                    <option value="silver">✨ Silver Fox</option>
+                                <select id="select-cinematic-fox-species" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Select Species">
+                                    <option value="red" selected>Red Fox</option>
+                                    <option value="arctic">Arctic Fox</option>
+                                    <option value="corsac">Corsac Fox</option>
+                                    <option value="swift">Swift Fox</option>
+                                    <option value="darwin">Darwin Fox</option>
+                                    <option value="fennec">Fennec Fox</option>
+                                    <option value="silver">Silver Fox</option>
                                 </select>
-                                <select id="select-cinematic-fox-gait" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Gait / Gaya Berlari Rubah Ini">
-                                    <option value="walk">🐾 Jalan</option>
-                                    <option value="trot" selected>🦊 Trot</option>
-                                    <option value="sprint">⚡ Sprint</option>
+                                <select id="select-cinematic-fox-gait" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Gait">
+                                    <option value="walk">Walk</option>
+                                    <option value="trot" selected>Trot</option>
+                                    <option value="sprint">Sprint</option>
                                 </select>
                             </div>
-                            <select id="select-cinematic-fox-idle" class="cinematic-mini-select" style="width:100%; box-sizing:border-box; max-width:100%;" title="Pose Idle Standby Rubah Ini">
-                                <option value="alert" selected>🦊 Pose: Waspada &amp; Nafas</option>
-                                <option value="sit">🐾 Pose: Duduk Santai</option>
-                                <option value="sleep">💤 Pose: Tidur Meringkuk</option>
+                            <select id="select-cinematic-fox-idle" class="cinematic-mini-select" style="width:100%; box-sizing:border-box; max-width:100%;" title="Idle Pose">
+                                <option value="alert" selected>Pose: Alert</option>
+                                <option value="sit">Pose: Sit</option>
+                                <option value="sleep">Pose: Sleep</option>
                             </select>
                             <div style="display:flex; gap:3px; margin-top:1px;">
-                                <button type="button" id="btn-fox-snap-wp1" class="btn-compact" style="flex:1; font-size:9px; padding:2px 4px; background:rgba(249,115,22,0.18); border-color:#f97316; color:#fed7aa;" title="Posisikan rubah ini tepat di Waypoint #1">🎯 Ke Titik #1</button>
-                                <button type="button" id="btn-fox-rotate-heading" class="btn-compact" style="font-size:9px; padding:2px 6px; background:rgba(249,115,22,0.18); border-color:#f97316; color:#fed7aa;" title="Putar arah hadap rubah ini 45°">↻ Putar Arah</button>
+                                <button type="button" id="btn-fox-snap-wp1" class="btn-compact" style="flex:1; font-size:10px; padding:2px 4px;" title="Snap Fox to Waypoint #1">Snap to #1</button>
+                                <button type="button" id="btn-fox-rotate-heading" class="btn-compact" style="font-size:10px; padding:2px 6px;" title="Rotate Heading 45°">Rotate 45°</button>
                             </div>
                         </div>
                     </div>
@@ -621,17 +631,17 @@
 
                 <!-- Camera Track Lane -->
                 <div class="cinematic-track-lane camera-lane" id="camera-track-lane">
-                    <span style="font-size:10px; color:#e0f2fe; font-weight:600; display:flex; align-items:center; gap:6px;">
-                        <span>📷</span> Jalur Kamera Spline
+                    <span style="font-size:11px; color:var(--text-bright); font-weight:500; display:flex; align-items:center; gap:6px;">
+                        Camera Spline
                     </span>
                     <div id="camera-waypoint-markers-lane" style="position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:none;"></div>
                 </div>
 
                 <!-- Fox Track Lane -->
                 <div class="cinematic-track-lane fox-lane" id="fox-track-lane">
-                    <span style="font-size:10px; color:#fed7aa; font-weight:600; display:flex; align-items:center; gap:6px;">
-                        <span>🦊</span> Pergerakan Rubah (Wolf Model)
-                        <span id="fox-lane-hint" style="font-size:9.5px; opacity:0.7; font-weight:normal;">(Centang 'Aktif' &amp; Gambar Jalur)</span>
+                    <span style="font-size:11px; color:var(--text-bright); font-weight:500; display:flex; align-items:center; gap:6px;">
+                        Actor Track
+                        <span id="fox-lane-hint" style="font-size:10px; color:var(--text-muted); font-weight:normal;">(Enable 'Active' &amp; Draw Path)</span>
                     </span>
                     <div id="fox-waypoint-markers-lane" style="position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:none;"></div>
                 </div>

@@ -3,23 +3,23 @@
    Professional Camera Path, Spline Sequencer & DoF Bokeh
    ========================================================= */
 
-/* --- CINEMATIC INSPECTOR STYLING --- */
+/* --- CINEMATIC INSPECTOR STYLING (Blender Desktop Style) --- */
 .cinematic-badge {
-    background: rgba(56, 189, 248, 0.18);
-    color: #38bdf8;
-    border: 1px solid rgba(56, 189, 248, 0.35);
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 9.5px;
-    font-weight: 700;
-    font-family: 'JetBrains Mono', monospace;
+    background: #3a3a3a;
+    color: #e6e6e6;
+    border: 1px solid #4a4a4a;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    font-weight: 500;
+    font-family: inherit;
 }
 
 .cinematic-toolbar-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
+    gap: 4px;
+    margin-bottom: 6px;
 }
 
 .btn-cinematic-draw {
@@ -28,73 +28,67 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 7px 10px;
-    background: rgba(56, 189, 248, 0.15);
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    padding: 4px 8px;
+    height: 24px;
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
     border-radius: var(--radius-sm);
-    color: #38bdf8;
+    color: var(--text-main);
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
+    transition: background 0.1s ease;
 }
 
 .btn-cinematic-draw:hover {
-    background: rgba(56, 189, 248, 0.28);
-    border-color: #38bdf8;
+    background: var(--bg-button-hover);
     color: #fff;
-    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
 }
 
 .btn-cinematic-draw.active {
-    background: #0284c7;
-    border-color: #38bdf8;
+    background: var(--accent);
+    border-color: var(--accent-hover);
     color: #fff;
-    box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
-    animation: pulseDrawingBorder 1.5s infinite alternate;
-}
-
-@keyframes pulseDrawingBorder {
-    from { box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
-    to { box-shadow: 0 0 20px rgba(56, 189, 248, 0.8); }
 }
 
 .cinematic-preset-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 5px;
-    margin-top: 6px;
+    gap: 4px;
+    margin-top: 4px;
 }
 
 .btn-cinematic-preset {
     display: flex;
     align-items: center;
-    gap: 5px;
-    padding: 5px 8px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--panel-border);
+    gap: 4px;
+    padding: 3px 6px;
+    height: 24px;
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
     border-radius: var(--radius-sm);
-    color: var(--text-muted);
-    font-size: 10.5px;
-    font-weight: 500;
+    color: var(--text-main);
+    font-size: 11px;
+    font-weight: 400;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.1s ease;
     text-align: left;
+    box-sizing: border-box;
 }
 
 .btn-cinematic-preset:hover {
-    background: rgba(56, 189, 248, 0.12);
-    border-color: rgba(56, 189, 248, 0.3);
-    color: #e0f2fe;
+    background: var(--bg-button-hover);
+    color: #fff;
 }
 
 /* Mini Timeline Inside Inspector */
 .cinematic-timeline-box {
-    background: rgba(11, 15, 25, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-dark);
+    border: 1px solid var(--panel-border);
     border-radius: var(--radius-sm);
-    padding: 10px;
-    margin-top: 10px;
+    padding: 8px;
+    margin-top: 8px;
 }
 
 .cinematic-time-header {
@@ -107,83 +101,82 @@
 
 .cinematic-timecode {
     font-family: 'JetBrains Mono', Consolas, monospace;
-    font-size: 12px;
-    font-weight: 700;
-    color: #38bdf8;
-    background: rgba(56, 189, 248, 0.12);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-bright);
+    background: #242424;
     padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: var(--radius-sm);
+    border: 1px solid #1a1a1a;
 }
 
 .cinematic-scrubber-slider {
     width: 100%;
-    height: 6px;
-    accent-color: #38bdf8;
+    height: 4px;
+    accent-color: var(--accent);
     cursor: pointer;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    background: #383838;
     outline: none;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .cinematic-play-controls {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 4px;
 }
 
 .btn-cinematic-ctrl {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    height: 24px;
+    min-width: 26px;
+    padding: 0 6px;
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid var(--panel-border);
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
     color: var(--text-main);
     cursor: pointer;
-    transition: all 0.15s ease;
+    font-size: 11px;
+    box-sizing: border-box;
+    transition: background 0.1s ease;
 }
 
 .btn-cinematic-ctrl:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: var(--panel-border-hover);
+    background: var(--bg-button-hover);
     color: #fff;
 }
 
 .btn-cinematic-ctrl.play-btn {
-    width: 80px;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.45));
-    border-color: rgba(56, 189, 248, 0.6);
-    color: #e0f2fe;
+    min-width: 65px;
+    gap: 4px;
+    font-weight: 500;
+    background: var(--bg-button);
+    border-color: var(--widget-border);
+    color: #fff;
 }
 
 .btn-cinematic-ctrl.play-btn:hover {
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.5), rgba(14, 165, 233, 0.65));
-    border-color: #38bdf8;
-    box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
+    background: var(--bg-button-hover);
 }
 
 .btn-cinematic-ctrl.active {
-    background: rgba(56, 189, 248, 0.3);
-    border-color: #38bdf8;
-    color: #38bdf8;
+    background: var(--accent);
+    border-color: var(--accent-hover);
+    color: #fff;
 }
 
 /* Waypoints List */
 .cinematic-waypoints-container {
     max-height: 140px;
     overflow-y: auto;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--bg-dark);
     border: 1px solid var(--panel-border);
     border-radius: var(--radius-sm);
-    padding: 4px;
+    padding: 2px;
     margin-top: 6px;
     scrollbar-width: thin;
 }
@@ -192,22 +185,21 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 6px;
-    border-radius: 4px;
-    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
     color: var(--text-muted);
-    transition: background 0.15s ease;
+    transition: background 0.1s ease;
 }
 
 .cinematic-waypoint-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: #333333;
     color: var(--text-main);
 }
 
 .cinematic-waypoint-item.active {
-    background: rgba(56, 189, 248, 0.15);
-    border: 1px solid rgba(56, 189, 248, 0.3);
-    color: #e0f2fe;
+    background: var(--accent);
+    color: #fff;
 }
 
 /* =========================================================
@@ -289,7 +281,7 @@
 
 /* =========================================================
    CINEMATIC BOTTOM PANEL (Docked Resizable Sequencer Footer Toolbar)
-   Full-width spanning left to right like top toolbar
+   Authentic Blender 4.x Timeline / Dope Sheet Desktop Aesthetic
    ========================================================= */
 .cinematic-bottom-panel {
     position: fixed;
@@ -303,16 +295,14 @@
     z-index: 95;
     display: none;
     flex-direction: column;
-    background: rgba(14, 18, 28, 0.96);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border-top: 1px solid rgba(56, 189, 248, 0.35);
+    background: #232323;
+    border-top: 1px solid var(--panel-border);
     border-left: none;
     border-right: none;
     border-bottom: none;
     border-radius: 0;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(56, 189, 248, 0.15);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+    box-shadow: none;
+    transition: transform 0.2s ease, opacity 0.15s ease;
     transform: translateY(105%);
     opacity: 0;
     user-select: none;
@@ -328,44 +318,42 @@
 /* Top Resizer Handle */
 .cinematic-bottom-resizer {
     position: absolute;
-    top: -5px;
+    top: -3px;
     left: 0;
     right: 0;
-    height: 10px;
+    height: 6px;
     cursor: row-resize;
     z-index: 105;
+    background: transparent;
 }
 
 .cinematic-bottom-resizer::after {
     content: '';
     position: absolute;
-    top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60px;
-    height: 3px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.25);
-    transition: all 0.2s ease;
+    top: 2px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--panel-border);
+    transition: background 0.1s ease;
 }
 
 .cinematic-bottom-resizer:hover::after,
 .cinematic-bottom-resizer.dragging::after {
-    width: 140px;
-    background: #38bdf8;
-    box-shadow: 0 0 12px rgba(56, 189, 248, 0.95);
+    background: var(--accent);
+    height: 2px;
 }
 
 /* Sequencer Header */
 .cinematic-bottom-header {
-    height: 38px;
-    min-height: 38px;
-    padding: 0 12px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: rgba(10, 14, 22, 0.9);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--panel-border);
     gap: 8px;
     overflow-x: auto;
     overflow-y: hidden;
@@ -379,11 +367,11 @@
 .cinematic-bottom-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: #e0f2fe;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    color: var(--text-bright);
     white-space: nowrap;
     flex-shrink: 0;
 }
@@ -392,46 +380,46 @@
 .cinematic-scene-tabs {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin-left: 8px;
+    gap: 2px;
+    margin-left: 6px;
     flex-shrink: 0;
 }
 
 .cinematic-scene-tab {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 3px 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    gap: 4px;
+    padding: 2px 7px;
+    height: 22px;
+    background: #383838;
+    border: 1px solid var(--widget-border);
     border-radius: var(--radius-sm);
     color: var(--text-muted);
-    font-size: 10.5px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 400;
     cursor: pointer;
-    transition: all 0.15s ease;
+    box-sizing: border-box;
+    transition: background 0.1s ease;
 }
 
 .cinematic-scene-tab:hover {
-    background: rgba(56, 189, 248, 0.12);
-    border-color: rgba(56, 189, 248, 0.35);
-    color: #e0f2fe;
+    background: #464646;
+    color: #fff;
 }
 
 .cinematic-scene-tab.active {
-    background: rgba(56, 189, 248, 0.22);
-    border-color: #38bdf8;
-    color: #38bdf8;
-    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+    background: var(--accent);
+    border-color: var(--accent-hover);
+    color: #fff;
 }
 
 .cinematic-scene-tab .btn-del-scene {
-    opacity: 0.5;
-    transition: all 0.12s ease;
+    opacity: 0.6;
+    transition: opacity 0.1s ease;
     border: none;
     background: transparent;
     color: inherit;
-    font-size: 10px;
+    font-size: 11px;
     cursor: pointer;
     padding: 0 1px;
     display: inline-flex;
@@ -440,29 +428,29 @@
 
 .cinematic-scene-tab .btn-del-scene:hover {
     opacity: 1;
-    color: #f87171;
+    color: #ff6b6b;
 }
 
 .btn-scene-add {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    padding: 3px 8px;
-    background: rgba(34, 197, 94, 0.12);
-    border: 1px solid rgba(34, 197, 94, 0.35);
-    color: #4ade80;
+    gap: 2px;
+    padding: 2px 6px;
+    height: 22px;
+    background: #383838;
+    border: 1px solid var(--widget-border);
+    color: var(--text-muted);
     border-radius: var(--radius-sm);
-    font-size: 10.5px;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 400;
     cursor: pointer;
-    transition: all 0.15s ease;
+    box-sizing: border-box;
+    transition: background 0.1s ease;
 }
 
 .btn-scene-add:hover {
-    background: rgba(34, 197, 94, 0.25);
-    border-color: #4ade80;
-    color: #86efac;
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+    background: #464646;
+    color: #fff;
 }
 
 .btn-play-all,
@@ -470,82 +458,82 @@
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 5px !important;
-    padding: 0 10px !important;
+    gap: 4px !important;
+    padding: 0 8px !important;
     width: auto !important;
-    min-width: 88px !important;
-    height: 28px !important;
+    min-width: 72px !important;
+    height: 22px !important;
     flex-shrink: 0 !important;
     margin: 0 2px !important;
-    background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
-    border: 1px solid #38bdf8 !important;
+    background: var(--bg-button) !important;
+    border: 1px solid var(--widget-border) !important;
     border-radius: var(--radius-sm) !important;
-    color: #fff !important;
+    color: var(--text-main) !important;
     font-size: 11px !important;
-    font-weight: 700 !important;
+    font-weight: 500 !important;
     cursor: pointer !important;
     white-space: nowrap !important;
-    transition: all 0.2s ease !important;
     box-sizing: border-box !important;
+    transition: background 0.1s ease !important;
 }
 
 .btn-play-all:hover,
 .btn-cinematic-ctrl.btn-play-all:hover {
-    background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%) !important;
-    box-shadow: 0 0 14px rgba(56, 189, 248, 0.65) !important;
-    transform: translateY(-1px);
+    background: var(--bg-button-hover) !important;
+    color: #fff !important;
 }
 
 .btn-play-all.playing,
 .btn-play-all.active,
 .btn-cinematic-ctrl.btn-play-all.playing,
 .btn-cinematic-ctrl.btn-play-all.active {
-    background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%) !important;
-    border-color: #fb923c !important;
-    box-shadow: 0 0 16px rgba(249, 115, 22, 0.75) !important;
+    background: var(--accent-orange) !important;
+    border-color: #d1751b !important;
+    color: #fff !important;
 }
 
 .cinematic-transport-controls {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 3px;
     white-space: nowrap;
     flex-shrink: 0;
 }
 
-/* Fix Native Select Option Popup: dark theme background & crisp white text */
+/* Native Select Option Popup: Blender Dark */
 select,
 .cinematic-mini-select {
     color-scheme: dark !important;
-    background-color: #0f172a !important;
-    color: #f1f5f9 !important;
+    background-color: var(--bg-button) !important;
+    color: var(--text-bright) !important;
 }
 
 select option,
 .cinematic-mini-select option,
 select optgroup,
 .cinematic-mini-select optgroup {
-    background: #0f172a !important;
-    background-color: #0f172a !important;
-    color: #f8fafc !important;
-    padding: 6px 10px !important;
+    background: #2a2a2a !important;
+    background-color: #2a2a2a !important;
+    color: #ffffff !important;
+    padding: 4px 8px !important;
 }
 
 .cinematic-mini-select {
-    padding: 3px 6px;
+    padding: 2px 6px;
+    height: 22px;
     border-radius: var(--radius-sm);
-    font-size: 10.5px;
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    color: #f1f5f9;
+    font-size: 11px;
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
+    color: var(--text-bright);
     outline: none;
     cursor: pointer;
     max-width: 135px;
+    box-sizing: border-box;
 }
 
 .cinematic-mini-select:hover {
-    border-color: rgba(56, 189, 248, 0.6);
-    background: rgba(30, 41, 59, 0.95);
+    background: var(--bg-button-hover);
 }
 
 /* Multi-Track Sequencer Body */
@@ -554,15 +542,17 @@ select optgroup,
     display: flex;
     overflow: hidden;
     position: relative;
+    background: #1f1f1f;
 }
 
 /* Left Tracks List / Controls Column (Resizable Width) */
 .cinematic-tracks-sidebar {
-    width: 260px;
-    min-width: 190px;
+    width: 250px;
+    min-width: 180px;
     max-width: 650px;
     flex-shrink: 0;
-    background: rgba(12, 16, 26, 0.85);
+    background: var(--bg-panel);
+    border-right: 1px solid var(--panel-border);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
@@ -572,43 +562,39 @@ select optgroup,
 
 /* Vertical Resizer Splitter between Controls Column and Timeline Tracks */
 .cinematic-tracks-resizer {
-    width: 6px;
-    min-width: 6px;
+    width: 4px;
+    min-width: 4px;
     cursor: col-resize;
-    background: rgba(255, 255, 255, 0.04);
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    border-right: 1px solid rgba(0, 0, 0, 0.6);
+    background: var(--panel-border);
     position: relative;
     z-index: 20;
     flex-shrink: 0;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: background 0.1s ease;
 }
 
 .cinematic-tracks-resizer:hover,
 .cinematic-tracks-resizer.dragging {
-    background: rgba(56, 189, 248, 0.5);
-    border-left-color: #38bdf8;
-    border-right-color: #38bdf8;
+    background: var(--accent);
 }
 
 .cinematic-track-header {
-    padding: 8px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--panel-border);
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     box-sizing: border-box;
     width: 100%;
 }
 
 .cinematic-track-header.camera-track {
-    background: rgba(56, 189, 248, 0.05);
-    border-left: 3px solid #38bdf8;
+    background: #242830;
+    border-left: 3px solid var(--accent);
 }
 
 .cinematic-track-header.fox-track {
-    background: rgba(249, 115, 22, 0.05);
-    border-left: 3px solid #f97316;
+    background: #2f2720;
+    border-left: 3px solid var(--accent-orange);
 }
 
 /* Right Tracks Timeline Lanes */
@@ -617,8 +603,8 @@ select optgroup,
     display: flex;
     flex-direction: column;
     position: relative;
-    padding: 6px 16px 12px 16px;
-    background: rgba(8, 11, 18, 0.65);
+    padding: 4px 12px 10px 12px;
+    background: #191919;
     overflow: hidden;
 }
 
@@ -626,61 +612,64 @@ select optgroup,
     height: 20px;
     min-height: 20px;
     position: relative;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+    border-bottom: 1px solid #282828;
     display: flex;
     align-items: center;
 }
 
 .cinematic-track-lane {
-    height: 44px;
-    min-height: 44px;
-    margin-top: 8px;
+    height: 42px;
+    min-height: 42px;
+    margin-top: 6px;
     position: relative;
     border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
-    padding: 0 10px;
-    transition: all 0.2s ease;
+    padding: 0 8px;
+    background: #212121;
+    border: 1px solid #2b2b2b;
 }
 
 .cinematic-track-lane.camera-lane {
-    background: rgba(56, 189, 248, 0.1);
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    background: #1c222b;
+    border-color: #273447;
 }
 
 .cinematic-track-lane.fox-lane {
-    background: rgba(249, 115, 22, 0.1);
-    border: 1px solid rgba(249, 115, 22, 0.25);
+    background: #261f18;
+    border-color: #3d2b1c;
 }
 
+/* Keyframe Diamonds (Blender Dope Sheet Keyframes) */
 .cinematic-keyframe-pip {
     position: absolute;
     top: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) rotate(45deg);
     width: 8px;
     height: 8px;
-    border-radius: 2px;
-    background: #38bdf8;
-    box-shadow: 0 0 6px #38bdf8;
+    border-radius: 1px;
+    background: #e6a122;
+    border: 1px solid #996b14;
+    box-shadow: none;
 }
 
 .cinematic-keyframe-pip.fox-pip {
-    background: #f97316;
-    box-shadow: 0 0 6px #f97316;
+    background: #e68523;
+    border-color: #995514;
+    box-shadow: none;
 }
 
-/* Global Playhead Scrubber Slider */
+/* Global Playhead Scrubber Slider (Blender Blue Bar) */
 .cinematic-dock-scrubber {
     position: absolute;
-    left: 16px;
-    right: 16px;
-    top: 8px;
-    bottom: 10px;
-    width: calc(100% - 32px);
+    left: 12px;
+    right: 12px;
+    top: 4px;
+    bottom: 8px;
+    width: calc(100% - 24px);
     margin: 0;
     height: 100%;
-    opacity: 0.85;
-    cursor: pointer;
+    cursor: ew-resize;
     background: transparent;
     appearance: none;
     -webkit-appearance: none;
@@ -694,12 +683,12 @@ select optgroup,
 
 .cinematic-dock-scrubber::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 3px;
+    width: 2px;
     height: 100%;
-    background: #fbbf24;
-    box-shadow: 0 0 10px #fbbf24, 0 0 16px rgba(251, 191, 36, 0.8);
+    background: #4772b3;
     cursor: ew-resize;
-    border-radius: 1px;
+    box-shadow: none;
+    border-radius: 0;
 }
 
 .cinematic-timeline-badges {
@@ -709,21 +698,24 @@ select optgroup,
 }
 
 .btn-cinematic-exit {
-    padding: 4px 10px;
+    padding: 2px 8px;
+    height: 22px;
     border-radius: var(--radius-sm);
     font-size: 11px;
-    font-weight: 600;
-    background: rgba(239, 68, 68, 0.18);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: #fca5a5;
+    font-weight: 400;
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
+    color: var(--text-main);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.1s ease;
     white-space: nowrap;
     flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 .btn-cinematic-exit:hover {
-    background: var(--danger);
-    border-color: var(--danger);
+    background: #5a3030;
     color: #fff;
+    border-color: #703838;
 }
+

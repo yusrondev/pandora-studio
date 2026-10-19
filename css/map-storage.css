@@ -1,16 +1,14 @@
 /* =========================================================
-   PANDORA EDITOR - MAP STORAGE & CUSTOM MODAL/ALERT THEME
+   PANDORA EDITOR - MAP STORAGE & DIALOG THEME
+   Authentic Blender 4.x Desktop Dialog & Dropdown Aesthetic
    ========================================================= */
 
-/* --- TOOLBAR MAP CONTROLS (Left of Play Demo) --- */
+/* --- TOOLBAR MAP CONTROLS --- */
 .toolbar-map-group {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    gap: 3px;
+    padding: 0 4px;
     flex-shrink: 0;
 }
 
@@ -18,8 +16,8 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 10.5px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 400;
     color: var(--text-muted);
     cursor: default;
     user-select: none;
@@ -34,88 +32,76 @@
 .map-select {
     appearance: none;
     -webkit-appearance: none;
-    background: rgba(20, 26, 40, 0.95);
-    color: var(--text-main);
-    border: 1px solid var(--panel-border);
+    background: var(--bg-button);
+    color: var(--text-bright);
+    border: 1px solid var(--widget-border);
     border-radius: var(--radius-sm);
-    padding: 4px 26px 4px 8px;
+    padding: 2px 22px 2px 6px;
     font-size: 11px;
-    font-weight: 500;
-    max-width: 155px;
-    height: 28px;
+    font-weight: 400;
+    max-width: 140px;
+    height: 22px;
     outline: none;
     cursor: pointer;
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
-    transition: all 0.15s ease;
+    box-sizing: border-box;
+    transition: background 0.1s ease;
 }
 
 .map-select:hover {
-    border-color: var(--panel-border-hover);
-    background: rgba(25, 33, 50, 0.98);
+    background: var(--bg-button-hover);
 }
 
 .map-select:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
 }
 
 .map-select-arrow {
     position: absolute;
-    right: 8px;
+    right: 6px;
     pointer-events: none;
-    color: var(--text-dim);
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.2s ease;
-}
-
-.map-select:hover ~ .map-select-arrow,
-.map-select:focus ~ .map-select-arrow {
-    color: var(--accent);
 }
 
 /* Save / Edit / Delete buttons in map group */
 .btn-map-save {
-    background: rgba(251, 191, 36, 0.15);
-    border-color: rgba(251, 191, 36, 0.35);
-    color: var(--accent);
-    font-weight: 600;
+    background: var(--bg-button);
+    border-color: var(--widget-border);
+    color: var(--text-main);
 }
 
 .btn-map-save:hover {
     background: var(--accent);
     border-color: var(--accent-hover);
-    color: #0b0f19;
-    box-shadow: 0 0 12px rgba(251, 191, 36, 0.35);
+    color: #fff;
 }
 
 .btn-map-edit {
-    color: #60a5fa;
-    border-color: rgba(96, 165, 250, 0.25);
-    background: rgba(96, 165, 250, 0.08);
+    color: var(--text-main);
+    border-color: var(--widget-border);
+    background: var(--bg-button);
 }
 
 .btn-map-edit:not(:disabled):hover {
-    background: rgba(96, 165, 250, 0.25);
-    border-color: #60a5fa;
-    color: #93c5fd;
-    box-shadow: 0 0 10px rgba(96, 165, 250, 0.25);
+    background: var(--bg-button-hover);
+    color: #fff;
 }
 
 .btn-map-delete {
-    color: #f87171;
-    border-color: rgba(239, 68, 68, 0.25);
-    background: rgba(239, 68, 68, 0.08);
+    color: var(--text-main);
+    border-color: var(--widget-border);
+    background: var(--bg-button);
 }
 
 .btn-map-delete:not(:disabled):hover {
-    background: var(--danger);
-    border-color: var(--danger);
+    background: #6a2a2a;
+    border-color: #7a3232;
     color: #fff;
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
 }
 
 .btn-icon-only:disabled,
@@ -125,23 +111,21 @@
     pointer-events: none;
 }
 
-/* --- CUSTOM PANDORA MODAL & ALERT SYSTEM --- */
+/* --- BLENDER STYLE MODAL POPUP & ALERT SYSTEM --- */
 .pandora-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(8, 11, 19, 0.72);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.55);
     z-index: 10000;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.15s ease;
 }
 
 .pandora-modal-overlay.active {
@@ -152,108 +136,92 @@
 .pandora-modal-card {
     position: relative;
     width: 90%;
-    max-width: 440px;
-    background: rgba(18, 23, 36, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+    max-width: 400px;
+    background: var(--bg-panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
     overflow: hidden;
-    transform: scale(0.92) translateY(10px);
-    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: scale(0.96);
+    transition: transform 0.15s ease;
 }
 
 .pandora-modal-overlay.active .pandora-modal-card {
-    transform: scale(1) translateY(0);
-}
-
-/* Top Accent Glow Border */
-.pandora-modal-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), #fb923c, transparent);
-    z-index: 2;
-}
-
-.pandora-modal-card.modal-danger::before {
-    background: linear-gradient(90deg, transparent, #ef4444, #f87171, transparent);
+    transform: scale(1);
 }
 
 .pandora-modal-header {
-    padding: 16px 20px 12px;
+    padding: 8px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--panel-border);
 }
 
 .pandora-modal-title {
     display: flex;
     align-items: center;
-    gap: 9px;
-    font-size: 13.5px;
-    font-weight: 700;
-    color: var(--text-main);
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-bright);
     letter-spacing: 0.2px;
 }
 
 .pandora-modal-title .modal-icon {
-    width: 20px;
-    height: 20px;
+    width: 14px;
+    height: 14px;
     color: var(--accent);
 }
 
 .pandora-modal-card.modal-danger .pandora-modal-title .modal-icon {
-    color: #ef4444;
+    color: var(--danger);
 }
 
 .pandora-modal-close {
     background: none;
     border: none;
-    color: var(--text-dim);
+    color: var(--text-muted);
     cursor: pointer;
-    padding: 4px;
+    padding: 2px 4px;
     border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
 }
 
 .pandora-modal-close:hover {
-    color: var(--text-main);
-    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    background: #3e3e3e;
 }
 
 .pandora-modal-body {
-    padding: 18px 20px;
-    font-size: 12px;
-    line-height: 1.55;
-    color: var(--text-muted);
+    padding: 12px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-main);
 }
 
 .pandora-modal-body p {
-    margin: 0 0 12px;
+    margin: 0 0 10px;
 }
 
 .pandora-modal-highlight {
-    color: var(--text-main);
+    color: #fff;
     font-weight: 600;
 }
 
 .pandora-modal-input-group {
-    margin-top: 14px;
+    margin-top: 10px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .pandora-modal-input-label {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-muted);
     display: flex;
     justify-content: space-between;
@@ -261,101 +229,101 @@
 
 .pandora-modal-input {
     width: 100%;
-    background: rgba(11, 15, 24, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--bg-dark);
+    border: 1px solid var(--widget-border);
     border-radius: var(--radius-sm);
-    padding: 8px 12px;
-    color: var(--text-main);
-    font-size: 12.5px;
+    padding: 4px 8px;
+    height: 24px;
+    color: #fff;
+    font-size: 11px;
     outline: none;
-    transition: all 0.15s ease;
+    box-sizing: border-box;
 }
 
 .pandora-modal-input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
 }
 
 .pandora-modal-meta-box {
-    margin-top: 12px;
-    padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    margin-top: 8px;
+    padding: 6px 8px;
+    background: var(--bg-dark);
+    border: 1px solid var(--panel-border);
     border-radius: var(--radius-sm);
     font-family: 'JetBrains Mono', Consolas, monospace;
-    font-size: 10.5px;
-    color: var(--text-dim);
+    font-size: 10px;
+    color: var(--text-muted);
     display: flex;
     justify-content: space-between;
 }
 
 .pandora-modal-actions {
-    padding: 12px 20px 16px;
+    padding: 8px 12px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 9px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(13, 17, 27, 0.6);
+    gap: 6px;
+    border-top: 1px solid var(--panel-border);
+    background: #242424;
 }
 
 .btn-modal-cancel {
-    padding: 6px 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--panel-border);
-    color: var(--text-muted);
+    padding: 3px 10px;
+    height: 24px;
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
+    color: var(--text-main);
     border-radius: var(--radius-sm);
-    font-size: 11.5px;
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 400;
     cursor: pointer;
-    transition: all 0.15s ease;
+    box-sizing: border-box;
 }
 
 .btn-modal-cancel:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: var(--text-main);
+    background: var(--bg-button-hover);
+    color: #fff;
 }
 
 .btn-modal-confirm {
-    padding: 6px 16px;
+    padding: 3px 12px;
+    height: 24px;
     background: var(--accent);
-    border: 1px solid var(--accent);
-    color: #0b0f19;
+    border: 1px solid var(--accent-hover);
+    color: #fff;
     border-radius: var(--radius-sm);
-    font-size: 11.5px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
+    box-sizing: border-box;
 }
 
 .btn-modal-confirm:hover {
     background: var(--accent-hover);
-    box-shadow: 0 0 14px rgba(251, 191, 36, 0.35);
 }
 
 .btn-modal-danger {
-    background: #ef4444 !important;
-    border-color: #ef4444 !important;
+    background: #7a2b2b !important;
+    border-color: #8c3535 !important;
     color: #fff !important;
 }
 
 .btn-modal-danger:hover {
-    background: #dc2626 !important;
-    box-shadow: 0 0 14px rgba(239, 68, 68, 0.45) !important;
+    background: #993333 !important;
 }
 
-/* --- TOAST NOTIFICATIONS --- */
+/* --- TOAST NOTIFICATIONS (Blender Status Notifications) --- */
 .pandora-toast-container {
     position: fixed;
-    top: 50px;
-    right: 18px;
+    top: 42px;
+    right: 12px;
     z-index: 10001;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     pointer-events: none;
 }
 
@@ -363,31 +331,29 @@
     pointer-events: auto;
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-width: 260px;
-    max-width: 380px;
-    padding: 10px 14px;
-    background: rgba(18, 23, 36, 0.95);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: var(--radius-md);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
-    color: var(--text-main);
-    font-size: 11.5px;
-    font-weight: 500;
+    gap: 8px;
+    min-width: 220px;
+    max-width: 340px;
+    padding: 6px 10px;
+    background: #2c2c2c;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    color: var(--text-bright);
+    font-size: 11px;
+    font-weight: 400;
     opacity: 0;
-    transform: translateX(30px);
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: translateY(-8px);
+    transition: all 0.15s ease;
 }
 
 .pandora-toast.show {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
 }
 
 .pandora-toast.toast-success {
-    border-left: 3px solid #10b981;
+    border-left: 3px solid #4ade80;
 }
 
 .pandora-toast.toast-danger {
@@ -399,11 +365,11 @@
 }
 
 .pandora-toast-icon {
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
 }
 
-.toast-success .pandora-toast-icon { color: #10b981; }
+.toast-success .pandora-toast-icon { color: #4ade80; }
 .toast-danger .pandora-toast-icon { color: #ef4444; }
 .toast-info .pandora-toast-icon { color: var(--accent); }

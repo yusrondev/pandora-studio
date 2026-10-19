@@ -1,67 +1,56 @@
-/* Minimalist Floating Fox Species Switcher & Play Mode Button */
+/* =========================================================
+   PANDORA EDITOR - PLAY HUD & FOX SWITCHER
+   Authentic Blender 4.x Desktop HUD Style
+   ========================================================= */
 
 .btn-play-mode {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.35)) !important;
-    border: 1px solid rgba(52, 211, 153, 0.6) !important;
-    color: #6ee7b7 !important;
-    font-weight: 700 !important;
-    padding: 5px 12px !important;
-    box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--bg-button) !important;
+    border: 1px solid var(--widget-border) !important;
+    color: var(--text-bright) !important;
+    font-weight: 500 !important;
+    padding: 0 10px !important;
+    height: 22px !important;
+    box-shadow: none !important;
+    border-radius: var(--radius-sm) !important;
+    transition: background 0.1s ease !important;
 }
 
 .btn-play-mode:hover {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.4), rgba(5, 150, 105, 0.5)) !important;
-    border-color: #34d399 !important;
+    background: var(--bg-button-hover) !important;
     color: #fff !important;
-    box-shadow: 0 0 22px rgba(16, 185, 129, 0.65);
-    transform: translateY(-1px) scale(1.02);
+    box-shadow: none !important;
+    transform: none !important;
 }
 
 .btn-play-mode.playing {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.35)) !important;
-    border-color: rgba(248, 113, 113, 0.65) !important;
-    color: #fca5a5 !important;
-    box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+    background: #7a2b2b !important;
+    border-color: #8c3535 !important;
+    color: #fff !important;
+    box-shadow: none !important;
 }
 
 .btn-play-mode.playing:hover {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.45), rgba(185, 28, 28, 0.55)) !important;
-    border-color: #ef4444 !important;
-    color: #fff !important;
-    box-shadow: 0 0 24px rgba(239, 68, 68, 0.7);
+    background: #993333 !important;
+    border-color: #aa3b3b !important;
+    box-shadow: none !important;
 }
 
-/* Minimalist Floating Fox Species Switcher */
+/* Floating Fox Species Switcher (Compact Desktop Bar) */
 .fox-species-bar {
     position: fixed;
-    top: 54px;
+    top: 44px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 9999;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    background: rgba(15, 23, 42, 0.78);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 9999px;
-    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5), 0 0 16px rgba(16, 185, 129, 0.15);
-    animation: speciesBarSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    gap: 4px;
+    padding: 3px 6px;
+    background: var(--bg-panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
     pointer-events: auto;
-}
-
-@keyframes speciesBarSlideDown {
-    from {
-        opacity: 0;
-        transform: translate(-50%, -12px);
-    }
-    to {
-        opacity: 1;
-        transform: translate(-50%, 0);
-    }
 }
 
 .species-bar-hint {
@@ -69,301 +58,246 @@
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    font-weight: 600;
-    color: #94a3b8;
-    padding-left: 6px;
-    padding-right: 4px;
+    font-weight: 400;
+    color: var(--text-muted);
+    padding: 0 4px;
 }
 
 .species-bar-hint kbd {
     font-family: 'JetBrains Mono', monospace;
     font-size: 9px;
-    font-weight: 700;
-    padding: 1px 5px;
-    background: rgba(255, 255, 255, 0.12);
-    color: #38bdf8;
-    border-radius: 4px;
-    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 1px 4px;
+    background: var(--bg-dark);
+    color: var(--text-bright);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--widget-border);
 }
 
 .btn-species-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: 9999px;
-    font-size: 11.5px;
-    font-weight: 600;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #cbd5e1;
+    gap: 4px;
+    padding: 2px 8px;
+    height: 22px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 400;
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
+    color: var(--text-main);
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+    transition: background 0.1s ease;
     user-select: none;
 }
 
 .btn-species-pill:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--bg-button-hover);
     color: #fff;
-    border-color: rgba(255, 255, 255, 0.25);
-    transform: translateY(-1px);
 }
 
 .btn-species-pill:active {
-    transform: scale(0.96);
+    transform: none;
 }
 
 .btn-species-pill.active {
-    background: linear-gradient(135deg, rgba(249, 115, 22, 0.3), rgba(234, 88, 12, 0.45));
-    border-color: rgba(251, 146, 60, 0.7);
-    color: #ffedd5;
-    box-shadow: 0 0 14px rgba(249, 115, 22, 0.4);
-    font-weight: 700;
-}
-
-/* Individual species colors when active */
-.btn-species-pill[data-species="arctic"].active {
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.45));
-    border-color: rgba(56, 189, 248, 0.7);
-    color: #e0f2fe;
-    box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
-}
-
-.btn-species-pill[data-species="corsac"].active {
-    background: linear-gradient(135deg, rgba(217, 119, 6, 0.3), rgba(180, 83, 9, 0.45));
-    border-color: rgba(245, 158, 11, 0.7);
-    color: #fef3c7;
-    box-shadow: 0 0 14px rgba(217, 119, 6, 0.4);
-}
-
-.btn-species-pill[data-species="swift"].active {
-    background: linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(202, 138, 4, 0.45));
-    border-color: rgba(250, 204, 21, 0.7);
-    color: #fef9c3;
-    box-shadow: 0 0 14px rgba(234, 179, 8, 0.4);
-}
-
-.btn-species-pill[data-species="darwin"].active {
-    background: linear-gradient(135deg, rgba(100, 116, 139, 0.35), rgba(71, 85, 105, 0.5));
-    border-color: rgba(148, 163, 184, 0.7);
-    color: #f8fafc;
-    box-shadow: 0 0 14px rgba(100, 116, 139, 0.4);
+    background: var(--accent);
+    border-color: var(--accent-hover);
+    color: #fff;
+    box-shadow: none;
+    font-weight: 500;
 }
 
 .btn-species-exit {
     display: inline-flex;
     align-items: center;
-    padding: 5px 11px;
-    border-radius: 9999px;
+    padding: 2px 8px;
+    height: 22px;
+    border-radius: var(--radius-sm);
     font-size: 11px;
-    font-weight: 600;
-    background: rgba(239, 68, 68, 0.18);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: #fca5a5;
+    font-weight: 400;
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
+    color: var(--text-main);
     cursor: pointer;
-    transition: all 0.2s ease;
-    margin-left: 4px;
+    transition: background 0.1s ease;
+    margin-left: 2px;
+    box-sizing: border-box;
 }
 
 .btn-species-exit:hover {
-    background: rgba(239, 68, 68, 0.35);
-    border-color: #ef4444;
+    background: #5a3030;
     color: #fff;
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    border-color: #703838;
 }
 
 /* =========================================================
-   FOX STATS & DYNAMIC STAMINA HUD (Genshin Style)
+   FOX STATS & STAMINA HUD (Compact Desktop Tool Overlay)
    ========================================================= */
 .fox-stats-hud {
     position: fixed;
-    bottom: 24px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 9999;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    min-width: 460px;
-    max-width: 540px;
-    padding: 10px 16px;
-    background: rgba(15, 23, 42, 0.88);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-    box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 0, 0, 0.35);
-    animation: statsHudSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    gap: 6px;
+    min-width: 420px;
+    max-width: 500px;
+    padding: 8px 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
     pointer-events: auto;
     user-select: none;
-}
-
-@keyframes statsHudSlideUp {
-    from {
-        opacity: 0;
-        transform: translate(-50%, 20px);
-    }
-    to {
-        opacity: 1;
-        transform: translate(-50%, 0);
-    }
 }
 
 .fox-stats-top-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
 }
 
 .fox-stats-profile {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .fox-stats-badge {
-    font-size: 16px;
+    font-size: 13px;
     line-height: 1;
 }
 
 .fox-stats-name {
-    font-size: 12.5px;
-    font-weight: 700;
-    color: #f8fafc;
-    letter-spacing: 0.3px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-bright);
 }
 
 .fox-stats-tagline {
     font-size: 10px;
-    font-weight: 500;
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 .fox-stats-chips {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 }
 
 .stat-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 3px;
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-dark);
+    border: 1px solid var(--panel-border);
     font-size: 10px;
-    color: #cbd5e1;
+    color: var(--text-muted);
 }
 
 .stat-chip-icon {
-    font-size: 11px;
+    font-size: 10px;
 }
 
 .stat-chip-val {
     font-family: 'JetBrains Mono', monospace;
-    font-weight: 600;
-    color: #fbbf24;
+    font-weight: 500;
+    color: var(--text-bright);
 }
 
 /* Stamina Bar Row */
 .fox-stamina-row {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
 }
 
 .fox-stamina-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 10.5px;
+    font-size: 10px;
 }
 
 .fox-stamina-label {
     display: flex;
     align-items: center;
     gap: 4px;
-    font-weight: 600;
-    color: #e2e8f0;
+    font-weight: 500;
+    color: var(--text-muted);
 }
 
 .fox-stamina-meta {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
 }
 
 .fox-stamina-val {
-    color: #94a3b8;
-    font-weight: 600;
+    color: var(--text-muted);
+    font-weight: 500;
 }
 
 .fox-stamina-state {
-    padding: 1px 6px;
-    border-radius: 4px;
+    padding: 0 4px;
+    border-radius: var(--radius-sm);
     font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
+    font-weight: 500;
     text-transform: uppercase;
 }
 
 .fox-stamina-state.normal {
-    background: rgba(16, 185, 129, 0.2);
-    color: #34d399;
-    border: 1px solid rgba(52, 211, 153, 0.4);
+    background: #203625;
+    color: #4ade80;
+    border: 1px solid #2a4c32;
 }
 
 .fox-stamina-state.full {
-    background: rgba(56, 189, 248, 0.2);
-    color: #38bdf8;
-    border: 1px solid rgba(56, 189, 248, 0.4);
+    background: #1e3348;
+    color: #60a5fa;
+    border: 1px solid #284767;
 }
 
 .fox-stamina-state.warning {
-    background: rgba(245, 158, 11, 0.2);
+    background: #3e3019;
     color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.4);
+    border: 1px solid #584422;
 }
 
 .fox-stamina-state.exhausted {
-    background: rgba(239, 68, 68, 0.25);
+    background: #471d1d;
     color: #f87171;
-    border: 1px solid rgba(239, 68, 68, 0.5);
-    animation: exhaustedPulse 0.8s infinite alternate;
-}
-
-@keyframes exhaustedPulse {
-    from { opacity: 0.7; transform: scale(0.98); }
-    to { opacity: 1; transform: scale(1.02); }
+    border: 1px solid #632828;
 }
 
 .fox-stamina-track {
     position: relative;
     width: 100%;
-    height: 7px;
-    background: rgba(0, 0, 0, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 9999px;
+    height: 4px;
+    background: var(--bg-dark);
+    border: 1px solid var(--panel-border);
+    border-radius: 2px;
     overflow: hidden;
 }
 
 .fox-stamina-fill {
     height: 100%;
     width: 100%;
-    background: linear-gradient(90deg, #10b981, #34d399, #fbbf24);
-    border-radius: 9999px;
-    box-shadow: 0 0 10px rgba(52, 211, 153, 0.5);
-    transition: width 0.08s linear, background 0.3s ease;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.08s linear;
 }
 
 .fox-stamina-fill.exhausted {
-    background: linear-gradient(90deg, #ef4444, #f87171);
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.7);
+    background: #ef4444;
 }
 
 /* Bottom Hint Row */
@@ -372,19 +306,18 @@
     align-items: center;
     justify-content: space-between;
     font-size: 9.5px;
-    color: #64748b;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    padding-top: 5px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--panel-border);
+    padding-top: 4px;
     margin-top: 2px;
 }
 
 .fox-stamina-hint kbd {
     font-family: 'JetBrains Mono', monospace;
     font-size: 8.5px;
-    padding: 1px 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #94a3b8;
-    border-radius: 3px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 1px 3px;
+    background: var(--bg-dark);
+    color: var(--text-muted);
+    border-radius: 2px;
+    border: 1px solid var(--widget-border);
 }
-

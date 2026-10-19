@@ -1,25 +1,25 @@
-/* Top toolbar - Full-width, Non-floating, Compact & Responsive */
-/* --- FULL-WIDTH APP HEADER / TOOLBAR --- */
+/* =========================================================
+   BLENDER 4.x DESKTOP APP HEADER / TOP TOOLBAR
+   Solid Matte, Compact 36px, Desktop Density
+   ========================================================= */
 #top-toolbar {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     width: 100%;
-    height: 42px;
-    background: rgba(14, 18, 28, 0.96);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    height: var(--header-height, 36px);
+    background: var(--bg-header);
     border: none;
     border-bottom: 1px solid var(--panel-border);
     border-radius: 0;
-    padding: 0 12px;
+    padding: 0 8px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     z-index: 100;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-    overflow-x: auto;
+    box-shadow: none;
+    overflow-x: hidden;
     overflow-y: hidden;
     scrollbar-width: none;
     white-space: nowrap;
@@ -33,14 +33,15 @@
 .toolbar-brand {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: var(--text-main);
-    padding: 3px 8px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: var(--text-bright);
+    padding: 2px 7px;
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.05);
+    background: #242424;
+    border: 1px solid var(--panel-border);
     white-space: nowrap;
     flex-shrink: 0;
 }
@@ -48,16 +49,16 @@
 .toolbar-brand .badge-tag {
     font-size: 9px;
     font-weight: 700;
-    color: var(--accent);
-    background: rgba(251, 191, 36, 0.15);
+    color: #ffffff;
+    background: var(--accent-orange);
     padding: 1px 4px;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 .toolbar-group {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     font-size: 10.5px;
     color: var(--text-muted);
     white-space: nowrap;
@@ -65,7 +66,7 @@
 }
 
 .toolbar-group label {
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 500;
     color: var(--text-muted);
     display: flex;
@@ -75,55 +76,213 @@
 }
 
 .toolbar-group input[type="range"] {
-    width: 58px;
-    height: 4px;
-    accent-color: var(--accent);
-    cursor: pointer;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.12);
+    width: 54px;
+    height: 16px;
+    background: var(--bg-input);
+    border: 1px solid var(--widget-border);
+    border-radius: var(--radius-sm);
+    appearance: none;
+    -webkit-appearance: none;
     outline: none;
-    transition: width 0.2s ease;
+    cursor: ew-resize;
+}
+
+.toolbar-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 6px;
+    height: 14px;
+    background: #808080;
+    border-radius: 1px;
+    cursor: ew-resize;
+}
+
+.toolbar-group input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--accent);
 }
 
 .val-badge {
     font-family: 'JetBrains Mono', Consolas, monospace;
     font-size: 9.5px;
     font-weight: 500;
-    color: var(--accent);
-    min-width: 26px;
+    color: var(--text-main);
+    background: #242424;
+    border: 1px solid var(--panel-border);
+    padding: 1px 4px;
+    border-radius: 2px;
+    min-width: 24px;
     text-align: right;
 }
 
 .divider {
     width: 1px;
-    height: 18px;
-    background: rgba(255, 255, 255, 0.1);
-    margin: 0 2px;
+    height: 16px;
+    background: var(--panel-border-subtle);
+    margin: 0 3px;
     flex-shrink: 0;
 }
 
-/* RESPONSIVE COMPACT RULES */
-@media (max-width: 1200px) {
-    .toolbar-group input[type="range"] {
-        width: 48px;
-    }
-    #top-toolbar {
-        gap: 5px;
-        padding: 0 8px;
-    }
+#top-toolbar > .divider:first-child,
+#top-toolbar > .divider:last-child,
+#top-toolbar > .divider + .divider {
+    display: none;
 }
 
-@media (max-width: 992px) {
-    .toolbar-group label span {
-        display: none;
-    }
-    .toolbar-brand span:not(.badge-tag) {
-        display: none;
-    }
-    .toolbar-group input[type="range"] {
-        width: 42px;
-    }
-    .val-badge {
-        display: none;
-    }
+/* =========================================================
+   TOOLBAR OVERFLOW DROPDOWN (Titik Tiga Desktop Menu)
+   ========================================================= */
+.toolbar-overflow-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: 2px;
+}
+
+.btn-toolbar-overflow {
+    display: none; /* Only visible when elements overflow */
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background 0.1s ease;
+}
+
+.btn-toolbar-overflow:hover {
+    background: var(--bg-button-hover);
+    color: #fff;
+}
+
+.btn-toolbar-overflow.active {
+    background: var(--accent);
+    border-color: var(--accent-hover);
+    color: #fff;
+}
+
+.toolbar-overflow-dropdown {
+    position: fixed;
+    top: var(--header-height, 36px);
+    right: 8px;
+    min-width: 280px;
+    max-width: 340px;
+    background: var(--bg-panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85);
+    z-index: 10000;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+}
+
+.toolbar-overflow-dropdown.open {
+    display: flex;
+}
+
+.overflow-dropdown-header {
+    padding: 6px 10px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.overflow-header-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    background: #383838;
+    color: var(--text-bright);
+    border-radius: 2px;
+}
+
+.toolbar-overflow-content {
+    display: flex;
+    flex-direction: column;
+    padding: 2px 0;
+    max-height: 480px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+}
+
+/* Controls layout inside overflow dropdown */
+.toolbar-overflow-content .toolbar-group {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    padding: 6px 10px !important;
+    border-bottom: 1px solid #242424 !important;
+    box-sizing: border-box !important;
+    gap: 8px !important;
+}
+
+.toolbar-overflow-content .toolbar-group label {
+    font-size: 11px !important;
+    color: var(--text-bright) !important;
+    min-width: 60px !important;
+}
+
+.toolbar-overflow-content .toolbar-group label span {
+    display: inline !important;
+}
+
+.toolbar-overflow-content .toolbar-group input[type="range"] {
+    flex: 1 !important;
+    width: 90px !important;
+    max-width: 120px !important;
+}
+
+.toolbar-overflow-content .toolbar-group select {
+    flex: 1 !important;
+    max-width: 150px !important;
+}
+
+.toolbar-overflow-content .val-badge {
+    display: inline-block !important;
+    min-width: 32px !important;
+}
+
+.toolbar-overflow-content .btn-icon-only,
+.toolbar-overflow-content .btn-compact {
+    width: calc(100% - 12px) !important;
+    margin: 3px 6px !important;
+    height: 26px !important;
+    justify-content: flex-start !important;
+    padding: 0 8px !important;
+    gap: 8px !important;
+    border: 1px solid var(--widget-border) !important;
+    background: var(--bg-button) !important;
+    font-size: 11px !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-bright) !important;
+    box-sizing: border-box !important;
+}
+
+.toolbar-overflow-content .btn-icon-only::after {
+    content: attr(title);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.toolbar-overflow-content .btn-icon-only:hover,
+.toolbar-overflow-content .btn-compact:hover {
+    background: var(--bg-button-hover) !important;
+}
+
+.toolbar-overflow-content .divider {
+    display: none !important;
 }

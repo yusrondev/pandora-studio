@@ -1,103 +1,130 @@
-/* Buttons */
-/* --- BUTTONS --- */
+/* =========================================================
+   BLENDER 4.x DESKTOP BUTTONS & WIDGETS
+   Compact, Solid Matte, Instant Response
+   ========================================================= */
 .btn-compact {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 5px;
-    padding: 5px 9px;
+    padding: 0 8px;
+    height: 24px;
     font-size: 11px;
     font-weight: 500;
     color: var(--text-main);
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--panel-border);
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.08s ease, border-color 0.08s ease, color 0.08s ease;
     white-space: nowrap;
     outline: none;
+    user-select: none;
 }
 
 .btn-compact:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: var(--panel-border-hover);
-    color: #fff;
+    background: var(--bg-button-hover);
+    border-color: var(--widget-border-hover);
+    color: var(--text-bright);
 }
 
-.btn-compact:active {
-    transform: scale(0.97);
+.btn-compact:active,
+.btn-compact.active {
+    background: var(--accent);
+    border-color: #385d94;
+    color: #ffffff;
 }
 
 .btn-icon-only {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     padding: 0;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--panel-border);
+    background: var(--bg-button);
+    border: 1px solid var(--widget-border);
     border-radius: var(--radius-sm);
-    color: var(--text-muted);
+    color: var(--text-main);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.08s ease, border-color 0.08s ease;
     outline: none;
     flex-shrink: 0;
 }
 
 .btn-icon-only:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: var(--panel-border-hover);
-    color: var(--text-main);
+    background: var(--bg-button-hover);
+    border-color: var(--widget-border-hover);
+    color: var(--text-bright);
 }
 
-.btn-icon-only:active {
-    transform: scale(0.95);
+.btn-icon-only:active,
+.btn-icon-only.active {
+    background: var(--accent);
+    border-color: #385d94;
+    color: #ffffff;
 }
 
 .btn-toggle {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-muted);
-    border: 1px solid var(--panel-border);
+    background: var(--bg-button);
+    color: var(--text-main);
+    border: 1px solid var(--widget-border);
+}
+
+.btn-toggle:hover {
+    background: var(--bg-button-hover);
+    border-color: var(--widget-border-hover);
+    color: var(--text-bright);
 }
 
 .btn-toggle.active {
-    background: rgba(16, 185, 129, 0.2);
-    color: #34d399;
-    border-color: rgba(16, 185, 129, 0.5);
-    font-weight: 600;
+    background: var(--accent);
+    color: #ffffff;
+    border-color: #385d94;
+    font-weight: 500;
 }
 
 .btn-action {
     width: 100%;
-    padding: 7px 10px;
-    background: var(--accent);
-    color: #0f172a;
-    border: none;
+    height: 26px;
+    padding: 0 10px;
+    background: var(--bg-button);
+    color: var(--text-bright);
+    border: 1px solid var(--widget-border);
     border-radius: var(--radius-sm);
-    font-weight: 600;
+    font-weight: 500;
     font-size: 11px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.08s ease, border-color 0.08s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
+    outline: none;
 }
 
 .btn-action:hover {
+    background: var(--bg-button-hover);
+    border-color: var(--widget-border-hover);
+}
+
+.btn-action.btn-primary {
+    background: var(--accent);
+    border-color: #385d94;
+    color: #ffffff;
+}
+
+.btn-action.btn-primary:hover {
     background: var(--accent-hover);
-    color: #000;
 }
 
 .btn-danger {
-    background: rgba(239, 68, 68, 0.18) !important;
-    border: 1px solid rgba(239, 68, 68, 0.35) !important;
-    color: #fca5a5 !important;
+    background: var(--danger) !important;
+    border: 1px solid #8e2b2b !important;
+    color: #ffffff !important;
 }
 
 .btn-danger:hover {
-    background: var(--danger) !important;
-    border-color: var(--danger) !important;
-    color: #fff !important;
+    background: var(--danger-hover) !important;
+    border-color: #a03030 !important;
 }

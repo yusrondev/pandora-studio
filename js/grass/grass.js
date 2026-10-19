@@ -1,0 +1,562 @@
+/* Dynamic grass system */
+// ==========================================
+// 7. DYNAMIC GRASS SYSTEM
+// ==========================================
+function createGenshinGrassTuftTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 512, 512);
+
+    ctx.fillStyle = '#ffffff';
+    // 9 bilah helai rumput dinamis & rimbun khas Genshin Impact
+    const blades = [
+        { x: 256, w: 22, h: 495, curve: 0 },
+        { x: 210, w: 20, h: 465, curve: -28 },
+        { x: 302, w: 20, h: 475, curve: 28 },
+        { x: 165, w: 18, h: 420, curve: -52 },
+        { x: 347, w: 18, h: 430, curve: 52 },
+        { x: 122, w: 16, h: 360, curve: -80 },
+        { x: 390, w: 16, h: 370, curve: 80 },
+        { x: 78,  w: 14, h: 285, curve: -110 },
+        { x: 434, w: 14, h: 295, curve: 110 }
+    ];
+
+    blades.forEach(b => {
+        ctx.beginPath();
+        ctx.moveTo(b.x - b.w / 2, 512);
+        ctx.quadraticCurveTo(b.x + b.curve * 0.5, 512 - b.h * 0.5, b.x + b.curve, 512 - b.h);
+        ctx.quadraticCurveTo(b.x + b.curve * 0.5 + b.w * 0.3, 512 - b.h * 0.5, b.x + b.w / 2, 512);
+        ctx.closePath();
+        ctx.fill();
+    });
+
+    return new THREE.CanvasTexture(canvas);
+}
+
+function createDenseGrassTuftGeometry() {
+    const tuftGeo = new THREE.BufferGeometry();
+    // Lebar kartu 1.45m & tinggi 1.15m: jauh lebih mekar dan rimbun sehingga tidak ada celah botak
+    const cardGeo = new THREE.PlaneGeometry(1.45, 1.15);
+    cardGeo.translate(0, 0.575, 0);
+
+    // Formasi Tri-Star Asterisk (0°, 60°, 120°): standar game AAA (Genshin / Zelda)
+    // Menghasilkan volume 360° penuh dari sudut pandang manapun tanpa ada sisi gepeng
+    // Memangkas 50% beban vertex & overdraw GPU dibanding konfigurasi 6-plane
+    const geometries = [];
+    const angles = [0, Math.PI / 3, (2 * Math.PI) / 3];
+    for (let i = 0; i < angles.length; i++) {
+        const g = cardGeo.clone();
+        g.rotateY(angles[i]);
+        geometries.push(g);
+    }
+
+    let totalVertices = 0;
+    let totalIndices = 0;
+
+    geometries.forEach(g => {
+        totalVertices += g.attributes.position.count;
+        totalIndices += g.index.count;
+    });
+
+    const posArray = new Float32Array(totalVertices * 3);
+    const uvArray = new Float32Array(totalVertices * 2);
+    const indexArray = new Uint32Array(totalIndices);
+
+    let vOffset = 0;
+    let iOffset = 0;
+
+    geometries.forEach(g => {
+        const pos = g.attributes.position.array;
+        const uv = g.attributes.uv.array;
+        const idx = g.index.array;
+
+        posArray.set(pos, vOffset * 3);
+        uvArray.set(uv, vOffset * 2);
+
+        for (let j = 0; j < idx.length; j++) {
+            indexArray[iOffset + j] = idx[j] + vOffset;
+        }
+
+        vOffset += g.attributes.position.count;
+        iOffset += idx.length;
+    });
+
+    tuftGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    tuftGeo.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
+    tuftGeo.setIndex(new THREE.BufferAttribute(indexArray, 1));
+
+    return tuftGeo;
+}
+
+const grassTuftTexture = createGenshinGrassTuftTexture();
+const maxGrassCapacity = 100000;
+let instancedGrassMesh;
+let grassActiveStates = new Uint8Array(maxGrassCapacity);
+let grassCoordsX = new Float32Array(maxGrassCapacity);
+let grassCoordsZ = new Float32Array(maxGrassCapacity);
+let grassScalesArray = new Float32Array(maxGrassCapacity);
+let grassRotYArray = new Float32Array(maxGrassCapacity);
+
+let userGrassHeightSetting = 1.0;
+let lastSearchIndex = 0;
+
+function createGrassGridSystem(count, areaSize) {
+    const tuftGeo = createDenseGrassTuftGeometry();
+    const tuftMat = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.clone(genshinGrassShader.uniforms),
+        vertexShader: genshinGrassShader.vertexShader,
+        fragmentShader: genshinGrassShader.fragmentShader,
+        side: THREE.DoubleSide,
+        lights: true,
+        fog: true
+    });
+
+    instancedGrassMesh = new THREE.InstancedMesh(tuftGeo, tuftMat, count);
+    instancedGrassMesh.receiveShadow = true;
+    instancedGrassMesh.count = 0; // Mulai dari 0 instance aktif (GPU draw call 0 saat kosong)
+
+    const dummy = new THREE.Object3D();
+    const colorsArray = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+        grassCoordsX[i] = (Math.random() - 0.5) * areaSize;
+        grassCoordsZ[i] = (Math.random() - 0.5) * areaSize;
+        grassScalesArray[i] = 0.65 + Math.pow(Math.random(), 1.5) * 0.45;
+        grassRotYArray[i] = Math.random() * Math.PI;
+
+        dummy.position.set(grassCoordsX[i], -500, grassCoordsZ[i]);
+        dummy.scale.set(0, 0, 0);
+        dummy.updateMatrix();
+        instancedGrassMesh.setMatrixAt(i, dummy.matrix);
+    }
+
+    tuftGeo.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorsArray, 3));
+    return { mesh: instancedGrassMesh, material: tuftMat };
+}
+
+const MAX_TRAMPLE_SEGMENTS = 36;
+const trampleSegABArray = [];
+const trampleSegDataArray = [];
+for (let i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
+    trampleSegABArray.push(new THREE.Vector4(0, 0, 0, 0));
+    trampleSegDataArray.push(new THREE.Vector4(0, 0, 0, 0));
+}
+
+const genshinGrassShader = {
+    uniforms: THREE.UniformsUtils.merge([
+        THREE.UniformsLib.lights,
+        THREE.UniformsLib.fog,
+        {
+            uTexture: { value: grassTuftTexture },
+            uTime: { value: 0 },
+            uWindSpeed: { value: 1.0 },
+            uTrampleSegAB: { value: trampleSegABArray },
+            uTrampleSegData: { value: trampleSegDataArray },
+            uTrampleCount: { value: 0 },
+            uTrampleCenter: { value: new THREE.Vector2(0, 0) },
+            uTrampleRadiusSq: { value: 0.0 }
+        }
+    ]),
+    vertexShader: `
+        #include <common>
+        #include <shadowmap_pars_vertex>
+        #include <fog_pars_vertex>
+
+        #define MAX_TRAMPLE_SEGMENTS 36
+        uniform float uTime;
+        uniform float uWindSpeed;
+        uniform vec4 uTrampleSegAB[MAX_TRAMPLE_SEGMENTS];   // xy = A(x, z), zw = B(x, z)
+        uniform vec4 uTrampleSegData[MAX_TRAMPLE_SEGMENTS]; // x = strength, y = radius
+        uniform int uTrampleCount;
+        uniform vec2 uTrampleCenter;
+        uniform float uTrampleRadiusSq;
+
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+        varying vec3 vInstanceColor;
+        varying float vTrample;
+
+        attribute vec3 instanceColor;
+
+        void main() {
+            vUv = uv;
+            vInstanceColor = instanceColor;
+            vec3 pos = position;
+
+            // Dapatkan posisi dasar rumpun rumput di koordinat dunia (world space)
+            vec2 instXZ = vec2(instanceMatrix[3][0], instanceMatrix[3][2]);
+
+            // Hitung deformasi injakan kaki rubah & kapsul jejak langkah (Trample & Capsule Trail)
+            float totalBend = 0.0;
+            vec2 bendDir = vec2(0.0);
+
+            // OPTIMASI RADIKAL O(1) BOUNDING CIRCLE:
+            // Hanya rumput yang berada di sekitar jejak aktif rubah yang mengevaluasi loop trample.
+            // 98% rumput di seluruh peta melewati loop ini sepenuhnya tanpa beban GPU!
+            vec2 trailDelta = instXZ - uTrampleCenter;
+            if (uTrampleCount > 0 && dot(trailDelta, trailDelta) <= uTrampleRadiusSq) {
+                for (int i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
+                    if (i >= uTrampleCount) break;
+                    float rawStrength = uTrampleSegData[i].x;
+                    if (rawStrength > 0.005) {
+                        vec2 a = uTrampleSegAB[i].xy;
+                        vec2 b = uTrampleSegAB[i].zw;
+                        float rad = uTrampleSegData[i].y;
+
+                        vec2 pa = instXZ - a;
+                        vec2 ba = b - a;
+                        float baLenSq = dot(ba, ba);
+                        float h = (baLenSq > 0.0001) ? clamp(dot(pa, ba) / baLenSq, 0.0, 1.0) : 0.0;
+                        vec2 diff = pa - ba * h;
+                        float distSq = dot(diff, diff);
+                        float radSq = rad * rad;
+
+                        if (distSq < radSq) {
+                            float dist = sqrt(distSq);
+                            float t = 1.0 - (dist / rad);
+                            // Hermite smoothstep untuk transisi tepian jejak dan pemulihan kenyal (elastic springback)
+                            float smoothStrength = rawStrength * rawStrength * (3.0 - 2.0 * rawStrength);
+                            float weight = (t * t * (3.0 - 2.0 * t)) * smoothStrength;
+                            totalBend = max(totalBend, weight);
+                            vec2 dir = (dist > 0.005) ? (diff / dist) : vec2(0.0, 1.0);
+                            bendDir += dir * weight;
+                        }
+                    }
+                }
+            }
+
+            float bendFactor = clamp(totalBend, 0.0, 1.0);
+            vTrample = bendFactor;
+
+            // Efek Angin (Meredam goyangan angin pada rumput yang sedang terinjak / roboh)
+            if (uWindSpeed > 0.0) {
+                float wave = sin(uTime * 3.2 * uWindSpeed + instanceMatrix[3][0] * 1.5 + instanceMatrix[3][2] * 1.5) * 0.22 * uWindSpeed;
+                wave *= (1.0 - bendFactor * 0.75);
+                pos.x += wave * pow(uv.y, 1.4);
+            }
+
+            // Efek Roboh Merunduk Alami (Bending):
+            // Rumput HANYA merunduk (tidak gepeng tembus tanah, dan tidak disingkirkan ke samping yang membuat celah botak).
+            // Pangkal rumput (uv.y = 0) tetap di tanah, ujungnya merunduk santai (~58% tinggi) sehingga tanah selalu tertutup hijau.
+            if (bendFactor > 0.001) {
+                float squash = mix(1.0, 0.58, bendFactor * pow(uv.y, 0.85));
+                pos.y *= squash;
+
+                // Lengkungkan ujung helai rumput merunduk lembut ke arah injakan (tanpa merusak formasi rumpun)
+                vec2 leanOffset = (length(bendDir) > 0.001) ? normalize(bendDir) * 0.12 * bendFactor * pow(uv.y, 1.2) : vec2(0.0);
+                pos.x += leanOffset.x;
+                pos.z += leanOffset.y;
+            }
+
+            vec4 worldPosition = modelMatrix * instanceMatrix * vec4(pos, 1.0);
+            vWorldPosition = worldPosition.xyz;
+
+            vec3 objectNormal = vec3(0.0, 1.0, 0.0);
+            vec3 transformedNormal = normalMatrix * objectNormal;
+
+            vec4 mvPosition = viewMatrix * worldPosition;
+            gl_Position = projectionMatrix * mvPosition;
+
+            #include <shadowmap_vertex>
+            #include <fog_vertex>
+        }
+    `,
+    fragmentShader: `
+        #include <common>
+        #include <packing>
+        #include <shadowmap_pars_fragment>
+        #include <fog_pars_fragment>
+
+        uniform sampler2D uTexture;
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+        varying vec3 vInstanceColor;
+        varying float vTrample;
+
+        void main() {
+            vec4 texColor = texture2D(uTexture, vUv);
+            if (texColor.a < 0.35) discard;
+
+            vec3 grassColor = mix(vInstanceColor * 0.7, vInstanceColor * 1.15, pow(vUv.y, 0.85));
+
+            // Efek bekas injakan: rumput yang terinjak tampak lebih gelap, pekat & berbayang (crushed tone)
+            // Rumput tetap tampak lebat di tanah, namun bernuansa hijau tua pekat sebagai tanda bekas pijakan
+            vec3 trampledShade = grassColor * vec3(0.50, 0.58, 0.44);
+            grassColor = mix(grassColor, trampledShade, vTrample * 0.85);
+
+            float shadowVal = 1.0;
+            #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+                shadowVal = getShadow(
+                    directionalShadowMap[0],
+                    directionalLightShadows[0].shadowMapSize,
+                    directionalLightShadows[0].shadowBias,
+                    directionalLightShadows[0].shadowRadius,
+                    vDirectionalShadowCoord[0]
+                );
+            #endif
+
+            float softShadow = smoothstep(0.0, 0.9, shadowVal);
+            vec3 finalLighting = mix(grassColor * 0.35, grassColor * 1.05, softShadow);
+
+            gl_FragColor = vec4(finalLighting, 1.0);
+            #include <fog_fragment>
+        }
+    `
+};
+
+const grassSystem = createGrassGridSystem(maxGrassCapacity, 72);
+scene.add(grassSystem.mesh);
+
+const worldUp = new THREE.Vector3(0, 1, 0);
+const blendedNormal = new THREE.Vector3();
+const quat = new THREE.Quaternion();
+
+function compactGrass() {
+    let writeIdx = 0;
+    const colorAttr = (instancedGrassMesh && instancedGrassMesh.geometry) ? instancedGrassMesh.geometry.attributes.instanceColor : null;
+
+    for (let readIdx = 0; readIdx < maxGrassCapacity; readIdx++) {
+        if (grassActiveStates[readIdx] === 1) {
+            if (writeIdx !== readIdx) {
+                grassActiveStates[writeIdx] = 1;
+                grassActiveStates[readIdx] = 0;
+                grassCoordsX[writeIdx] = grassCoordsX[readIdx];
+                grassCoordsZ[writeIdx] = grassCoordsZ[readIdx];
+                grassScalesArray[writeIdx] = grassScalesArray[readIdx];
+                grassRotYArray[writeIdx] = grassRotYArray[readIdx];
+                if (colorAttr) {
+                    colorAttr.setXYZ(
+                        writeIdx,
+                        colorAttr.getX(readIdx),
+                        colorAttr.getY(readIdx),
+                        colorAttr.getZ(readIdx)
+                    );
+                }
+            }
+            writeIdx++;
+        }
+    }
+    if (colorAttr) colorAttr.needsUpdate = true;
+    return writeIdx;
+}
+
+function rebuildGrassTransforms() {
+    // 1. Padatkan seluruh rumput aktif ke indeks awal secara teratur (0 ... activeCount - 1)
+    const activeCount = compactGrass();
+    const dummy = new THREE.Object3D();
+
+    // 2. Hanya hitung transformasi & matriks untuk instance yang BENAR-BENAR aktif
+    for (let i = 0; i < activeCount; i++) {
+        const gx = grassCoordsX[i];
+        const gz = grassCoordsZ[i];
+
+        const terrainY = getTerrainHeightFast(gx, gz);
+        const terrainNormal = getTerrainNormalAt(gx, gz);
+
+        blendedNormal.copy(terrainNormal).lerp(worldUp, 0.2).normalize();
+        quat.setFromUnitVectors(worldUp, blendedNormal);
+
+        dummy.position.set(gx, terrainY, gz);
+        dummy.rotation.setFromQuaternion(quat);
+        dummy.rotateY(grassRotYArray[i]);
+
+        const slopeFactor = 1.0 - terrainNormal.dot(worldUp);
+        const slopeScaleBoost = 1.0 + slopeFactor * 0.75;
+
+        const scaleXZ = 0.95 * slopeScaleBoost;
+        const scaleY = grassScalesArray[i] * slopeScaleBoost;
+        dummy.scale.set(scaleXZ, scaleY, scaleXZ);
+        dummy.updateMatrix();
+        instancedGrassMesh.setMatrixAt(i, dummy.matrix);
+    }
+
+    // 3. Batasi draw call WebGL HANYA sejumlah instance aktif (tidak menyiksa GPU memproses 100k slot kosong)
+    instancedGrassMesh.count = activeCount;
+    instancedGrassMesh.instanceMatrix.needsUpdate = true;
+}
+
+function updateTreesAndGrassPositions() {
+    rebuildGrassTransforms();
+    treesList.forEach(t => {
+        t.position.y = getTerrainHeightFast(t.position.x, t.position.z);
+    });
+}
+
+// ==========================================
+// REALISTIC GRASS TRAMPLING & CAPSULE TRAIL SIMULATION
+// ==========================================
+const trampleSegments = [];
+for (let i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
+    trampleSegments.push({
+        ax: 0, az: 0,
+        bx: 0, bz: 0,
+        strength: 0,
+        radius: 0.54
+    });
+}
+
+let activeSegmentIndex = -1;
+let prevFoxX = 99999;
+let prevFoxZ = 99999;
+let lastFwdX = 0;
+let lastFwdZ = 0;
+let stationaryTimer = 0;
+
+// Durasi robohnya rumput (7.5 detik hingga pulih tegak kembali normal)
+// Waktu pemulihan konsisten di setiap kecepatan (kecepatan lari fox tidak mempengaruhi durasi)
+const TRAMPLE_RECOVERY_TIME = 7.5;
+const MAX_SEG_LENGTH = 1.8; // Panjang maksimal satu kapsul sebelum membuat segmen baru (meter)
+
+function updateGrassTrample(dt) {
+    if (!grassSystem || !grassSystem.material || !grassSystem.material.uniforms) return;
+    const shaderUniforms = grassSystem.material.uniforms;
+    if (!shaderUniforms.uTrampleSegAB || !shaderUniforms.uTrampleSegData) return;
+
+    // 1. Reduksi bertahap (decay) semua segmen jejak yang sudah dilewati (berdasarkan waktu murni, bebas dari kecepatan lari)
+    for (let i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
+        const seg = trampleSegments[i];
+        if (i !== activeSegmentIndex && seg.strength > 0) {
+            seg.strength = Math.max(0, seg.strength - dt / TRAMPLE_RECOVERY_TIME);
+        }
+    }
+
+    // 2. Jika dalam Mode Play Demo & Karakter Rubah Aktif:
+    if (typeof isPlayMode !== 'undefined' && isPlayMode && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
+        const foxPos = wolfCharacter.root.position;
+        const grounded = typeof isGrounded !== 'undefined' ? isGrounded : true;
+
+        if (grounded) {
+            const rotY = wolfCharacter.root.rotation.y || 0;
+            // Arah hadap rubah (model rubah menghadap -X secara lokal)
+            const fwdX = -Math.cos(rotY);
+            const fwdZ = Math.sin(rotY);
+
+            // A. Kontak Kaki Depan (Dada / Tapak Depan)
+            trampleSegments[0].ax = foxPos.x + fwdX * 0.32;
+            trampleSegments[0].az = foxPos.z + fwdZ * 0.32;
+            trampleSegments[0].bx = trampleSegments[0].ax;
+            trampleSegments[0].bz = trampleSegments[0].az;
+            trampleSegments[0].strength = 1.0;
+            trampleSegments[0].radius = 0.52;
+
+            // B. Kontak Kaki Belakang (Panggul / Tapak Belakang)
+            trampleSegments[1].ax = foxPos.x - fwdX * 0.26;
+            trampleSegments[1].az = foxPos.z - fwdZ * 0.26;
+            trampleSegments[1].bx = trampleSegments[1].ax;
+            trampleSegments[1].bz = trampleSegments[1].az;
+            trampleSegments[1].strength = 1.0;
+            trampleSegments[1].radius = 0.48;
+
+            // C. Cek apakah rubah sedang bergerak atau diam
+            const distMoved = Math.hypot(foxPos.x - prevFoxX, foxPos.z - prevFoxZ);
+            prevFoxX = foxPos.x;
+            prevFoxZ = foxPos.z;
+
+            const isMoving = (distMoved > 0.008);
+
+            if (!isMoving) {
+                stationaryTimer += dt;
+                // Saat rubah berhenti diam, tutup segmen jejak aktif agar mulai proses pemulihan (decay)
+                if (stationaryTimer > 0.22 && activeSegmentIndex >= 2) {
+                    activeSegmentIndex = -1;
+                }
+            } else {
+                stationaryTimer = 0;
+
+                // D. Manajemen Kapsul Jejak Langkah (Continuous Capsule Trail)
+                if (activeSegmentIndex < 2) {
+                    // Cari slot dengan kekuatan terendah (yang sudah pulih 0 atau paling tua)
+                    let bestSlot = 2;
+                    let lowestStrength = 999;
+                    for (let i = 2; i < MAX_TRAMPLE_SEGMENTS; i++) {
+                        if (trampleSegments[i].strength < lowestStrength) {
+                            lowestStrength = trampleSegments[i].strength;
+                            bestSlot = i;
+                            if (lowestStrength <= 0.005) break;
+                        }
+                    }
+
+                    activeSegmentIndex = bestSlot;
+                    const cur = trampleSegments[activeSegmentIndex];
+                    cur.ax = foxPos.x;
+                    cur.az = foxPos.z;
+                    cur.bx = foxPos.x;
+                    cur.bz = foxPos.z;
+                    cur.strength = 1.0;
+                    cur.radius = 0.54;
+                    lastFwdX = fwdX;
+                    lastFwdZ = fwdZ;
+                } else {
+                    const cur = trampleSegments[activeSegmentIndex];
+                    cur.bx = foxPos.x;
+                    cur.bz = foxPos.z;
+                    cur.strength = 1.0;
+
+                    const segLen = Math.hypot(cur.bx - cur.ax, cur.bz - cur.az);
+                    const turnDot = fwdX * lastFwdX + fwdZ * lastFwdZ;
+
+                    // Jika kapsul sudah cukup panjang atau rubah berbelok arah tajam,
+                    // segel kapsul ini dan buat kapsul baru di frame berikutnya
+                    if (segLen >= MAX_SEG_LENGTH || (segLen > 0.45 && turnDot < 0.88)) {
+                        activeSegmentIndex = -1;
+                    }
+                }
+            }
+        } else {
+            // Jika melompat di udara, kaki tidak menginjak rumput
+            activeSegmentIndex = -1;
+            trampleSegments[0].strength = Math.max(0, trampleSegments[0].strength - dt * 2.5);
+            trampleSegments[1].strength = Math.max(0, trampleSegments[1].strength - dt * 2.5);
+        }
+    }
+
+    // 3. Masukkan data ke array uniform shader Three.js
+    const abArr = shaderUniforms.uTrampleSegAB.value;
+    const dataArr = shaderUniforms.uTrampleSegData.value;
+    let activeCount = 0;
+
+    let minX = 999999, maxX = -999999, minZ = 999999, maxZ = -999999;
+    let maxSegRadius = 0.55;
+
+    for (let i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
+        const seg = trampleSegments[i];
+        if (seg.strength > 0.005) {
+            if (abArr[activeCount]) {
+                abArr[activeCount].set(seg.ax, seg.az, seg.bx, seg.bz);
+            }
+            if (dataArr[activeCount]) {
+                dataArr[activeCount].set(seg.strength, seg.radius, 0, 0);
+            }
+
+            minX = Math.min(minX, seg.ax, seg.bx);
+            maxX = Math.max(maxX, seg.ax, seg.bx);
+            minZ = Math.min(minZ, seg.az, seg.bz);
+            maxZ = Math.max(maxZ, seg.az, seg.bz);
+            if (seg.radius > maxSegRadius) maxSegRadius = seg.radius;
+
+            activeCount++;
+        }
+    }
+
+    for (let i = activeCount; i < MAX_TRAMPLE_SEGMENTS; i++) {
+        if (abArr[i]) abArr[i].set(0, 0, 0, 0);
+        if (dataArr[i]) dataArr[i].set(0, 0, 0, 0);
+    }
+
+    shaderUniforms.uTrampleCount.value = activeCount;
+
+    // Perbarui koordinat Bounding Circle jejak rubah untuk O(1) early-rejection di GPU Vertex Shader
+    if (activeCount > 0 && shaderUniforms.uTrampleCenter && shaderUniforms.uTrampleRadiusSq) {
+        const cX = (minX + maxX) * 0.5;
+        const cZ = (minZ + maxZ) * 0.5;
+        const spanX = (maxX - minX) * 0.5 + maxSegRadius + 0.35;
+        const spanZ = (maxZ - minZ) * 0.5 + maxSegRadius + 0.35;
+        const boundRadius = Math.hypot(spanX, spanZ);
+        shaderUniforms.uTrampleCenter.value.set(cX, cZ);
+        shaderUniforms.uTrampleRadiusSq.value = boundRadius * boundRadius;
+    } else if (shaderUniforms.uTrampleRadiusSq) {
+        shaderUniforms.uTrampleRadiusSq.value = 0.0;
+    }
+}

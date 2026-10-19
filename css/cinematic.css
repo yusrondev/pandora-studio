@@ -1,0 +1,734 @@
+/* =========================================================
+   PANDORA EDITOR - CINEMATIC CAMERA & TIMELINE SYSTEM
+   Professional Camera Path, Spline Sequencer & DoF Bokeh
+   ========================================================= */
+
+/* --- CINEMATIC INSPECTOR STYLING --- */
+.cinematic-badge {
+    background: rgba(56, 189, 248, 0.18);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9.5px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.cinematic-toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.btn-cinematic-draw {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 10px;
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: var(--radius-sm);
+    color: #38bdf8;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-cinematic-draw:hover {
+    background: rgba(56, 189, 248, 0.28);
+    border-color: #38bdf8;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+}
+
+.btn-cinematic-draw.active {
+    background: #0284c7;
+    border-color: #38bdf8;
+    color: #fff;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+    animation: pulseDrawingBorder 1.5s infinite alternate;
+}
+
+@keyframes pulseDrawingBorder {
+    from { box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
+    to { box-shadow: 0 0 20px rgba(56, 189, 248, 0.8); }
+}
+
+.cinematic-preset-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 5px;
+    margin-top: 6px;
+}
+
+.btn-cinematic-preset {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.btn-cinematic-preset:hover {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.3);
+    color: #e0f2fe;
+}
+
+/* Mini Timeline Inside Inspector */
+.cinematic-timeline-box {
+    background: rgba(11, 15, 25, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.cinematic-time-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 6px;
+}
+
+.cinematic-timecode {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.cinematic-scrubber-slider {
+    width: 100%;
+    height: 6px;
+    accent-color: #38bdf8;
+    cursor: pointer;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    outline: none;
+    margin-bottom: 8px;
+}
+
+.cinematic-play-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-cinematic-ctrl {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--panel-border);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-cinematic-ctrl:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--panel-border-hover);
+    color: #fff;
+}
+
+.btn-cinematic-ctrl.play-btn {
+    width: 80px;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.45));
+    border-color: rgba(56, 189, 248, 0.6);
+    color: #e0f2fe;
+}
+
+.btn-cinematic-ctrl.play-btn:hover {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.5), rgba(14, 165, 233, 0.65));
+    border-color: #38bdf8;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
+}
+
+.btn-cinematic-ctrl.active {
+    background: rgba(56, 189, 248, 0.3);
+    border-color: #38bdf8;
+    color: #38bdf8;
+}
+
+/* Waypoints List */
+.cinematic-waypoints-container {
+    max-height: 140px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    margin-top: 6px;
+    scrollbar-width: thin;
+}
+
+.cinematic-waypoint-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--text-muted);
+    transition: background 0.15s ease;
+}
+
+.cinematic-waypoint-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.cinematic-waypoint-item.active {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #e0f2fe;
+}
+
+/* =========================================================
+   CINEMATIC VIEWPORT OVERLAY (Letterbox & Depth-of-Field Blur)
+   ========================================================= */
+
+/* Anamorphic 2.35:1 Cinema Black Bars */
+.cinematic-letterbox-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    height: 0;
+    background: #000;
+    z-index: 95;
+    pointer-events: none;
+    transition: height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cinematic-letterbox-top {
+    top: 0;
+}
+
+.cinematic-letterbox-bottom {
+    bottom: 0;
+}
+
+.cinematic-mode-active .cinematic-letterbox-top,
+.cinematic-mode-active .cinematic-letterbox-bottom {
+    height: 48px;
+}
+
+/* Depth-of-Field (DoF) Optical Lens Blur Overlay */
+.cinematic-dof-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 10; /* Di atas canvas 3D namun di bawah sidebar (z-index 90) & toolbar (z-index 100) */
+    opacity: 0;
+    display: none; /* Pastikan display none saat tidak aktif agar browser tidak blur layar editor */
+    transition: opacity 0.25s ease;
+}
+
+.cinematic-dof-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+.cinematic-dof-overlay::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    backdrop-filter: blur(var(--dof-blur-amount, 4px));
+    -webkit-backdrop-filter: blur(var(--dof-blur-amount, 4px));
+    mask-image: radial-gradient(circle at var(--dof-focus-x, 50%) var(--dof-focus-y, 50%), transparent 18%, rgba(0, 0, 0, 0.45) 45%, black 80%);
+    -webkit-mask-image: radial-gradient(circle at var(--dof-focus-x, 50%) var(--dof-focus-y, 50%), transparent 18%, rgba(0, 0, 0, 0.45) 45%, black 80%);
+}
+
+.cinematic-dof-overlay::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+:root {
+    --sidebar-left-actual-width: 285px;
+    --sidebar-right-actual-width: 285px;
+}
+
+/* =========================================================
+   CINEMATIC BOTTOM PANEL (Docked Resizable Sequencer)
+   Responsive width filling the empty space between sidebars
+   ========================================================= */
+.cinematic-bottom-panel {
+    position: fixed;
+    bottom: 0;
+    left: var(--sidebar-left-actual-width, 285px);
+    right: var(--sidebar-right-actual-width, 285px);
+    width: auto;
+    height: var(--cinematic-bottom-height, 250px);
+    min-height: 140px;
+    max-height: 520px;
+    z-index: 89;
+    display: none;
+    flex-direction: column;
+    background: rgba(14, 18, 28, 0.96);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid rgba(56, 189, 248, 0.35);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(56, 189, 248, 0.15);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, left 0.28s cubic-bezier(0.16, 1, 0.3, 1), right 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: translateY(105%);
+    opacity: 0;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Responsive adjustment when sidebars are collapsed */
+body:has(#sidebar-left.collapsed) .cinematic-bottom-panel {
+    left: 0;
+    border-left: none;
+}
+
+body:has(#sidebar-right.collapsed) .cinematic-bottom-panel {
+    right: 0;
+    border-right: none;
+}
+
+/* Instant 60fps tracking without transition delay during sidebar resizing */
+body.resizing-sidebar .cinematic-bottom-panel {
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, left 0s, right 0s !important;
+}
+
+.cinematic-bottom-panel.visible {
+    display: flex;
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Top Resizer Handle */
+.cinematic-bottom-resizer {
+    position: absolute;
+    top: -5px;
+    left: 0;
+    right: 0;
+    height: 10px;
+    cursor: row-resize;
+    z-index: 105;
+}
+
+.cinematic-bottom-resizer::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.25);
+    transition: all 0.2s ease;
+}
+
+.cinematic-bottom-resizer:hover::after,
+.cinematic-bottom-resizer.dragging::after {
+    width: 140px;
+    background: #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.95);
+}
+
+/* Sequencer Header */
+.cinematic-bottom-header {
+    height: 38px;
+    min-height: 38px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(10, 14, 22, 0.9);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+.cinematic-bottom-header::-webkit-scrollbar {
+    display: none;
+}
+
+.cinematic-bottom-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #e0f2fe;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Multi-Scene Management Tabs */
+.cinematic-scene-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.cinematic-scene-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cinematic-scene-tab:hover {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.35);
+    color: #e0f2fe;
+}
+
+.cinematic-scene-tab.active {
+    background: rgba(56, 189, 248, 0.22);
+    border-color: #38bdf8;
+    color: #38bdf8;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.cinematic-scene-tab .btn-del-scene {
+    opacity: 0.5;
+    transition: all 0.12s ease;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 10px;
+    cursor: pointer;
+    padding: 0 1px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.cinematic-scene-tab .btn-del-scene:hover {
+    opacity: 1;
+    color: #f87171;
+}
+
+.btn-scene-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 8px;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: #4ade80;
+    border-radius: var(--radius-sm);
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-scene-add:hover {
+    background: rgba(34, 197, 94, 0.25);
+    border-color: #4ade80;
+    color: #86efac;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.btn-play-all,
+.btn-cinematic-ctrl.btn-play-all {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    padding: 0 10px !important;
+    width: auto !important;
+    min-width: 88px !important;
+    height: 28px !important;
+    flex-shrink: 0 !important;
+    margin: 0 2px !important;
+    background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+    border: 1px solid #38bdf8 !important;
+    border-radius: var(--radius-sm) !important;
+    color: #fff !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    transition: all 0.2s ease !important;
+    box-sizing: border-box !important;
+}
+
+.btn-play-all:hover,
+.btn-cinematic-ctrl.btn-play-all:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.65) !important;
+    transform: translateY(-1px);
+}
+
+.btn-play-all.playing,
+.btn-play-all.active,
+.btn-cinematic-ctrl.btn-play-all.playing,
+.btn-cinematic-ctrl.btn-play-all.active {
+    background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%) !important;
+    border-color: #fb923c !important;
+    box-shadow: 0 0 16px rgba(249, 115, 22, 0.75) !important;
+}
+
+.cinematic-transport-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Fix Native Select Option Popup: dark theme background & crisp white text */
+select,
+.cinematic-mini-select {
+    color-scheme: dark !important;
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+}
+
+select option,
+.cinematic-mini-select option,
+select optgroup,
+.cinematic-mini-select optgroup {
+    background: #0f172a !important;
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
+    padding: 6px 10px !important;
+}
+
+.cinematic-mini-select {
+    padding: 3px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 10.5px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #f1f5f9;
+    outline: none;
+    cursor: pointer;
+    max-width: 135px;
+}
+
+.cinematic-mini-select:hover {
+    border-color: rgba(56, 189, 248, 0.6);
+    background: rgba(30, 41, 59, 0.95);
+}
+
+/* Multi-Track Sequencer Body */
+.cinematic-sequencer-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Left Tracks List / Controls Column (Resizable Width) */
+.cinematic-tracks-sidebar {
+    width: 260px;
+    min-width: 190px;
+    max-width: 650px;
+    flex-shrink: 0;
+    background: rgba(12, 16, 26, 0.85);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* Vertical Resizer Splitter between Controls Column and Timeline Tracks */
+.cinematic-tracks-resizer {
+    width: 6px;
+    min-width: 6px;
+    cursor: col-resize;
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(0, 0, 0, 0.6);
+    position: relative;
+    z-index: 20;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cinematic-tracks-resizer:hover,
+.cinematic-tracks-resizer.dragging {
+    background: rgba(56, 189, 248, 0.5);
+    border-left-color: #38bdf8;
+    border-right-color: #38bdf8;
+}
+
+.cinematic-track-header {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.cinematic-track-header.camera-track {
+    background: rgba(56, 189, 248, 0.05);
+    border-left: 3px solid #38bdf8;
+}
+
+.cinematic-track-header.fox-track {
+    background: rgba(249, 115, 22, 0.05);
+    border-left: 3px solid #f97316;
+}
+
+/* Right Tracks Timeline Lanes */
+.cinematic-tracks-timeline {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    padding: 6px 16px 12px 16px;
+    background: rgba(8, 11, 18, 0.65);
+    overflow: hidden;
+}
+
+.cinematic-timeline-ruler {
+    height: 20px;
+    min-height: 20px;
+    position: relative;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+    display: flex;
+    align-items: center;
+}
+
+.cinematic-track-lane {
+    height: 44px;
+    min-height: 44px;
+    margin-top: 8px;
+    position: relative;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    transition: all 0.2s ease;
+}
+
+.cinematic-track-lane.camera-lane {
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.cinematic-track-lane.fox-lane {
+    background: rgba(249, 115, 22, 0.1);
+    border: 1px solid rgba(249, 115, 22, 0.25);
+}
+
+.cinematic-keyframe-pip {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: #38bdf8;
+    box-shadow: 0 0 6px #38bdf8;
+}
+
+.cinematic-keyframe-pip.fox-pip {
+    background: #f97316;
+    box-shadow: 0 0 6px #f97316;
+}
+
+/* Global Playhead Scrubber Slider */
+.cinematic-dock-scrubber {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 8px;
+    bottom: 10px;
+    width: calc(100% - 32px);
+    margin: 0;
+    height: 100%;
+    opacity: 0.85;
+    cursor: pointer;
+    background: transparent;
+    appearance: none;
+    -webkit-appearance: none;
+    z-index: 10;
+}
+
+.cinematic-dock-scrubber::-webkit-slider-runnable-track {
+    background: transparent;
+    height: 100%;
+}
+
+.cinematic-dock-scrubber::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 3px;
+    height: 100%;
+    background: #fbbf24;
+    box-shadow: 0 0 10px #fbbf24, 0 0 16px rgba(251, 191, 36, 0.8);
+    cursor: ew-resize;
+    border-radius: 1px;
+}
+
+.btn-cinematic-exit {
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-cinematic-exit:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}

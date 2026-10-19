@@ -1,0 +1,2935 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Genshin × Ghibli Character Showcase - Serigala Orange</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-canvas: #0c0f17;
+            --panel-bg: rgba(16, 20, 31, 0.90);
+            --panel-bg-blur: blur(18px);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --panel-border-hover: rgba(255, 255, 255, 0.20);
+            --accent: #fbbf24;
+            --accent-rgb: 251, 191, 36;
+            --accent-hover: #f59e0b;
+            --accent-glow: rgba(251, 191, 36, 0.35);
+            --orange-fur: #f97316;
+            --orange-fur-rgb: 249, 115, 22;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --danger: #ef4444;
+            --success: #10b981;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-full: 9999px;
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', Consolas, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: var(--font-main);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            overflow: hidden;
+            background: var(--bg-canvas);
+            color: var(--text-main);
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        canvas#webgl-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+        }
+
+        /* --- UI OVERLAY LAYER --- */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 16px;
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        /* --- TOP HEADER / STUDIO NAVIGATION --- */
+        .top-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .brand-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--panel-bg);
+            backdrop-filter: var(--panel-bg-blur);
+            -webkit-backdrop-filter: var(--panel-bg-blur);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-lg);
+            padding: 8px 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .brand-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, #fbbf24, #ea580c);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0c0f17;
+            box-shadow: 0 0 14px var(--accent-glow);
+        }
+
+        .brand-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .brand-title {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .brand-tag {
+            font-size: 9.5px;
+            font-weight: 700;
+            color: var(--accent);
+            background: rgba(251, 191, 36, 0.15);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            padding: 1px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .brand-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .env-time-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--panel-bg);
+            backdrop-filter: var(--panel-bg-blur);
+            -webkit-backdrop-filter: var(--panel-bg-blur);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-lg);
+            padding: 5px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-pill {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            padding: 6px 12px;
+            font-size: 11.5px;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .btn-pill:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-pill.active {
+            color: #0c0f17;
+            background: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 16px rgba(251, 191, 36, 0.45);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-action-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--panel-bg);
+            backdrop-filter: var(--panel-bg-blur);
+            -webkit-backdrop-filter: var(--panel-bg-blur);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-action-icon:hover {
+            color: var(--text-main);
+            border-color: var(--panel-border-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-action-icon.active {
+            color: var(--accent);
+            border-color: rgba(251, 191, 36, 0.4);
+            background: rgba(251, 191, 36, 0.12);
+        }
+
+        /* --- SIDE PANELS --- */
+        .panels-wrapper {
+            position: absolute;
+            top: 76px;
+            left: 16px;
+            right: 16px;
+            bottom: 120px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .panel-card {
+            width: 280px;
+            background: var(--panel-bg);
+            backdrop-filter: var(--panel-bg-blur);
+            -webkit-backdrop-filter: var(--panel-bg-blur);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-lg);
+            padding: 14px;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: auto;
+            max-height: 100%;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding-bottom: 8px;
+        }
+
+        .panel-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        .char-hero-preview {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-md);
+            padding: 10px;
+        }
+
+        .char-avatar-ring {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fbbf24, #ea580c, #7c2d12);
+            padding: 2px;
+            box-shadow: 0 0 16px rgba(249, 115, 22, 0.5);
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .char-avatar-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: #111827;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .char-name-block {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .char-name {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.2px;
+        }
+
+        .char-title {
+            font-size: 10.5px;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: var(--radius-sm);
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .stat-label {
+            font-size: 9.5px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .stat-val {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .control-slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .slider-badge {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--accent);
+            background: rgba(251, 191, 36, 0.12);
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            accent-color: var(--accent);
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            margin: 3px 0;
+        }
+
+        /* --- STANCE / ANIMATION BUTTONS --- */
+        .anim-button-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .btn-anim {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 8px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-anim:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--panel-border-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-anim.active {
+            background: rgba(251, 191, 36, 0.18);
+            border-color: rgba(251, 191, 36, 0.5);
+            color: var(--accent);
+            box-shadow: 0 0 12px rgba(251, 191, 36, 0.2);
+        }
+
+        /* --- ASTRO BOT VISION PRO AMOLED VISOR UI --- */
+        .visor-badge {
+            font-size: 9px;
+            font-weight: 700;
+            color: #00f0ff;
+            background: rgba(0, 240, 255, 0.14);
+            border: 1px solid rgba(0, 240, 255, 0.35);
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+            letter-spacing: 0.5px;
+        }
+
+        .visor-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+
+        .btn-visor-exp {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 6px 4px;
+            border-radius: var(--radius-sm);
+            font-size: 10px;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-visor-exp:hover {
+            background: rgba(0, 240, 255, 0.1);
+            border-color: rgba(0, 240, 255, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn-visor-exp.active {
+            background: rgba(0, 240, 255, 0.22);
+            border-color: #00f0ff;
+            color: #00f0ff;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+        }
+
+        .color-dot-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 3px;
+        }
+
+        .color-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.18s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-dot:hover {
+            transform: scale(1.15);
+        }
+
+        .color-dot.active {
+            border-color: #ffffff;
+            transform: scale(1.22);
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        /* --- BOTTOM CONTROLS & HUD --- */
+        .bottom-hud {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            gap: 16px;
+            pointer-events: none;
+        }
+
+        /* Virtual Joypad / D-Pad */
+        .movement-cluster {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            pointer-events: auto;
+            background: var(--panel-bg);
+            backdrop-filter: var(--panel-bg-blur);
+            -webkit-backdrop-filter: var(--panel-bg-blur);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-lg);
+            padding: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .dpad-row {
+            display: flex;
+            gap: 5px;
+        }
+
+        .key-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            transition: all 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: none;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .key-btn .key-sub {
+            font-size: 8px;
+            color: var(--text-dim);
+            font-family: var(--font-main);
+            font-weight: 500;
+        }
+
+        .key-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .key-btn:active,
+        .key-btn.pressed {
+            transform: scale(0.93) translateY(2px);
+            background: var(--accent);
+            color: #0c0f17;
+            border-color: var(--accent);
+            box-shadow: 0 0 18px var(--accent-glow);
+        }
+
+        .key-btn:active .key-sub,
+        .key-btn.pressed .key-sub {
+            color: rgba(12, 15, 23, 0.8);
+        }
+
+        /* Action Buttons (Jump, Sprint, Howl, Sit) */
+        .action-cluster {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: auto;
+            background: var(--panel-bg);
+            backdrop-filter: var(--panel-bg-blur);
+            -webkit-backdrop-filter: var(--panel-bg-blur);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-lg);
+            padding: 8px 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-action-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+            border: none;
+        }
+
+        .btn-jump {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #0c0f17;
+            box-shadow: 0 6px 20px rgba(251, 191, 36, 0.35);
+        }
+
+        .btn-jump:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(251, 191, 36, 0.5);
+        }
+
+        .btn-jump:active,
+        .btn-jump.pressed {
+            transform: scale(0.95) translateY(2px);
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+        }
+
+        .btn-howl {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            color: #fff;
+            box-shadow: 0 6px 20px rgba(249, 115, 22, 0.35);
+        }
+
+        .btn-howl:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(249, 115, 22, 0.5);
+        }
+
+        .btn-howl:active,
+        .btn-howl.pressed {
+            transform: scale(0.95) translateY(2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 10px 14px;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--panel-border-hover);
+        }
+
+        .btn-secondary:active,
+        .btn-secondary.pressed {
+            background: rgba(251, 191, 36, 0.15);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Quick keyboard hint pills */
+        .hud-kbd-hint {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 1px 5px;
+            border-radius: 4px;
+            color: #fff;
+        }
+
+        /* Floating Sonic Ripple during Howl */
+        .howl-banner {
+            position: absolute;
+            top: 86px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            opacity: 0;
+            background: rgba(249, 115, 22, 0.2);
+            border: 1px solid rgba(249, 115, 22, 0.5);
+            backdrop-filter: blur(12px);
+            color: #ffedd5;
+            padding: 6px 18px;
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            box-shadow: 0 0 30px rgba(249, 115, 22, 0.4);
+        }
+
+        .howl-banner.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Camera mode pill switcher */
+        .camera-switcher {
+            display: flex;
+            gap: 4px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 3px;
+            border-radius: var(--radius-sm);
+        }
+
+        .camera-pill {
+            flex: 1;
+            text-align: center;
+            padding: 5px;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .camera-pill.active {
+            background: var(--accent);
+            color: #0c0f17;
+            font-weight: 700;
+        }
+
+        /* Mobile tweaks */
+        @media (max-width: 900px) {
+            .panels-wrapper {
+                flex-direction: column;
+                justify-content: flex-start;
+                gap: 10px;
+                bottom: 180px;
+                overflow-y: auto;
+                pointer-events: auto;
+            }
+
+            .panel-card {
+                width: 100%;
+                max-width: 320px;
+            }
+
+            .panel-card.hide-mobile {
+                display: none;
+            }
+
+            .bottom-hud {
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .movement-cluster {
+                transform: scale(0.9);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 3D Canvas -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Howl Notification Banner -->
+    <div id="howl-banner" class="howl-banner">
+        <span>✨</span>
+        <span id="howl-banner-text">Moro's Voice: Roar of the Ghibli Forest Spirit!</span>
+        <span>🐺</span>
+    </div>
+
+    <!-- UI Overlay Layer -->
+    <div class="ui-layer">
+        <!-- TOP HEADER -->
+        <header class="top-nav interactive">
+            <!-- Brand -->
+            <div class="brand-badge">
+                <div class="brand-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L4 7v10l8 5 8-5V7l-8-5z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                </div>
+                <div class="brand-info">
+                    <div class="brand-title">
+                        <span>Lupus Ignis</span>
+                        <span class="brand-tag">Genshin × Ghibli</span>
+                    </div>
+                    <div class="brand-sub">
+                        <span>Serigala Roh Oranye &bull; Studio Cel-Shade</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lighting / Time Presets (Tone warna serasi dengan index.html) -->
+            <div class="env-time-group">
+                <button id="btn-time-day" class="btn-pill active" title="Mondstadt Clear Day">
+                    <span>☀️</span>
+                    <span>Daylight</span>
+                </button>
+                <button id="btn-time-sunset" class="btn-pill" title="Liyue Golden Amber Sunset">
+                    <span>🌅</span>
+                    <span>Sunset Gold</span>
+                </button>
+                <button id="btn-time-night" class="btn-pill" title="Mystical Spirit Night">
+                    <span>🌌</span>
+                    <span>Night Aurora</span>
+                </button>
+            </div>
+
+            <!-- Header Quick Action Buttons -->
+            <div class="nav-actions">
+                <button id="btn-sound-toggle" class="btn-action-icon active" title="Toggle Sound FX (Web Audio)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                </button>
+                <button id="btn-cam-reset" class="btn-action-icon" title="Reset Kamera">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                        <path d="M3 3v5h5"></path>
+                    </svg>
+                </button>
+                <button id="btn-fullscreen" class="btn-action-icon" title="Toggle Fullscreen">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- FLOATING SIDE PANELS -->
+        <div class="panels-wrapper">
+            <!-- LEFT PANEL: Character Identity & Live Stats -->
+            <aside class="panel-card interactive">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        <span>Profil Karakter</span>
+                    </span>
+                    <span id="badge-motion" class="slider-badge">IDLE</span>
+                </div>
+
+                <div class="char-hero-preview">
+                    <div class="char-avatar-ring">
+                        <div class="char-avatar-inner">🦊</div>
+                    </div>
+                    <div class="char-name-block">
+                        <div class="char-name">Kitsune-Lupus</div>
+                        <div class="char-title">Penjaga Padang Rumput Emas</div>
+                    </div>
+                </div>
+
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <span class="stat-label">Elemen</span>
+                        <span class="stat-val" style="color: #fbbf24;">Pyro-Geo Amber</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Kecepatan</span>
+                        <span id="stat-speed" class="stat-val">0.0 m/s</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Stance</span>
+                        <span id="stat-state" class="stat-val">Berdiri (Idle)</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Tinggi Lompat</span>
+                        <span id="stat-altitude" class="stat-val">0.00 m</span>
+                    </div>
+                </div>
+
+                <!-- Customizer: Fur Tone, Tail Length, Ear Tilt -->
+                <div class="control-slider-group">
+                    <div class="control-slider-label">
+                        <span>Kilau Bulu Oranye (Ghibli Cel)</span>
+                        <span id="val-fur-glow" class="slider-badge">100%</span>
+                    </div>
+                    <input type="range" id="slider-fur-glow" min="60" max="150" value="100">
+                </div>
+
+                <div class="control-slider-group">
+                    <div class="control-slider-label">
+                        <span>Volume Ekor Mengembang</span>
+                        <span id="val-tail-size" class="slider-badge">1.0x</span>
+                    </div>
+                    <input type="range" id="slider-tail-size" min="0.7" max="1.5" step="0.05" value="1.0">
+                </div>
+
+                <div class="control-slider-group">
+                    <div class="control-slider-label">
+                        <span>Partikel Sihir Roh Dandelion</span>
+                        <span id="val-particles" class="slider-badge">Aktif</span>
+                    </div>
+                    <input type="range" id="slider-particles" min="0" max="1" step="1" value="1">
+                </div>
+
+                <!-- KACAMATA ASTRO BOT VISION PRO AMOLED -->
+                <div class="panel-header" style="margin-top: 4px;">
+                    <span class="panel-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" stroke-width="2">
+                            <rect x="2" y="7" width="20" height="10" rx="3"></rect>
+                            <circle cx="8" cy="12" r="2"></circle>
+                            <circle cx="16" cy="12" r="2"></circle>
+                        </svg>
+                        <span>Visor Vision Pro AMOLED</span>
+                    </span>
+                    <span id="badge-visor-exp" class="visor-badge">AUTO</span>
+                </div>
+
+                <div class="visor-grid">
+                    <button class="btn-visor-exp active" data-exp="auto" title="Ekspresi reaktif otomatis">
+                        <span style="font-size: 13px;">🤖</span>
+                        <span>Auto</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="happy" title="Senang / Joyful (^ ^)">
+                        <span style="font-size: 12px; font-weight:800; font-family:var(--font-mono);">^  ^</span>
+                        <span>Senang</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="star" title="Bintang Juara (★ ★)">
+                        <span style="font-size: 13px;">★  ★</span>
+                        <span>Bintang</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="focused" title="Fokus / Cepat (\ /)">
+                        <span style="font-size: 12px; font-weight:800; font-family:var(--font-mono);">\  /</span>
+                        <span>Fokus</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="surprised" title="Kaget / Wow (O O)">
+                        <span style="font-size: 12px; font-weight:800; font-family:var(--font-mono);">O  O</span>
+                        <span>Kaget</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="heart" title="Sayang / Love (♥ ♥)">
+                        <span style="font-size: 13px;">♥  ♥</span>
+                        <span>Love</span>
+                    </button>
+                </div>
+
+                <div class="control-slider-group">
+                    <div class="control-slider-label">
+                        <span>Warna Layar AMOLED</span>
+                        <div class="color-dot-group">
+                            <div class="color-dot active" data-color="#00f0ff" style="background: #00f0ff; color: #00f0ff;" title="Astro Bot Neon Cyan"></div>
+                            <div class="color-dot" data-color="#fbbf24" style="background: #fbbf24; color: #fbbf24;" title="Genshin Amber Gold"></div>
+                            <div class="color-dot" data-color="#10b981" style="background: #10b981; color: #10b981;" title="Emerald Matrix"></div>
+                            <div class="color-dot" data-color="#ec4899" style="background: #ec4899; color: #ec4899;" title="Cyberpunk Pink"></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- RIGHT PANEL: Kamera & Aksi Cepat -->
+            <aside class="panel-card hide-mobile interactive">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                            <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                        <span>Mode Kamera</span>
+                    </span>
+                </div>
+
+                <div class="camera-switcher">
+                    <div id="cam-follow" class="camera-pill active">Follow 3rd</div>
+                    <div id="cam-orbit" class="camera-pill">Free Orbit</div>
+                    <div id="cam-cinematic" class="camera-pill">Cinematic</div>
+                </div>
+
+                <div class="panel-header" style="margin-top: 6px;">
+                    <span class="panel-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span>Aksi Khusus</span>
+                    </span>
+                </div>
+
+                <div class="anim-button-list">
+                    <button id="btn-quick-howl" class="btn-anim">
+                        <span>🐺</span>
+                        <span>Mengaum (F)</span>
+                    </button>
+                    <button id="btn-quick-sit" class="btn-anim">
+                        <span>🐾</span>
+                        <span>Duduk (C)</span>
+                    </button>
+                    <button id="btn-quick-jump" class="btn-anim">
+                        <span>🦘</span>
+                        <span>Lompat (Space)</span>
+                    </button>
+                    <button id="btn-quick-pounce" class="btn-anim">
+                        <span>⚡</span>
+                        <span>Menerkam</span>
+                    </button>
+                </div>
+
+                <div style="font-size: 10px; color: var(--text-dim); line-height: 1.5; margin-top: 4px;">
+                    Tip: Gerakkan mouse / drag layar untuk memutar kamera Genshin 360°. Tekan <span class="hud-kbd-hint">Shift</span> untuk sprint cepat!
+                </div>
+            </aside>
+        </div>
+
+        <!-- BOTTOM HUD: Movement & Actions -->
+        <footer class="bottom-hud">
+            <!-- Left: WASD / Arrow Movement Buttons -->
+            <div class="movement-cluster interactive">
+                <div class="dpad-row">
+                    <button id="key-w" class="key-btn" title="Maju (W / Panah Atas)">
+                        <span>W</span>
+                        <span class="key-sub">Maju</span>
+                    </button>
+                </div>
+                <div class="dpad-row">
+                    <button id="key-a" class="key-btn" title="Kiri (A / Panah Kiri)">
+                        <span>A</span>
+                        <span class="key-sub">Kiri</span>
+                    </button>
+                    <button id="key-s" class="key-btn" title="Mundur (S / Panah Bawah)">
+                        <span>S</span>
+                        <span class="key-sub">Mundur</span>
+                    </button>
+                    <button id="key-d" class="key-btn" title="Kanan (D / Panah Kanan)">
+                        <span>D</span>
+                        <span class="key-sub">Kanan</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Action Buttons (Jump, Sprint, Howl, Sit) -->
+            <div class="action-cluster interactive">
+                <button id="btn-action-jump" class="btn-action-main btn-jump" title="Lompat Tinggi (Spasi)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                    <span>LOMPAT</span>
+                    <span class="hud-kbd-hint" style="background: rgba(0,0,0,0.25);">Space</span>
+                </button>
+
+                <button id="btn-action-howl" class="btn-action-main btn-howl" title="Mengaumkan Kekuatan Roh Serigala (F)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <span>MENGAUM</span>
+                    <span class="hud-kbd-hint" style="background: rgba(0,0,0,0.25);">F</span>
+                </button>
+
+                <button id="btn-action-sprint" class="btn-action-main btn-secondary" title="Sprint Cepat (Shift)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <span>SPRINT</span>
+                    <span class="hud-kbd-hint">Shift</span>
+                </button>
+
+                <button id="btn-action-sit" class="btn-action-main btn-secondary" title="Duduk Santai (C)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M3 20h18"></path>
+                    </svg>
+                    <span>DUDUK</span>
+                    <span class="hud-kbd-hint">C</span>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts: Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // =====================================================================
+        // 1. WEB AUDIO SYNTHESIZER (PROCEDURAL SOUND EFFECTS)
+        // =====================================================================
+        // Menghasilkan efek suara wolf howl, loncatan, langkah rumput tanpa file eksternal!
+        class WolfAudioSynthesizer {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+                this.initialized = false;
+            }
+
+            init() {
+                if (this.initialized) return;
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                    this.initialized = true;
+                } catch (e) {
+                    console.warn("AudioContext not supported");
+                }
+            }
+
+            playJump() {
+                if (this.muted || !this.ctx) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.exponentialRampToValueAtTime(380, now + 0.18);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(900, now);
+
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.24);
+            }
+
+            playLand() {
+                if (this.muted || !this.ctx) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                const now = this.ctx.currentTime;
+                const bufferSize = this.ctx.sampleRate * 0.12;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(450, now);
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start(now);
+            }
+
+            playFootstep() {
+                if (this.muted || !this.ctx) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(70 + Math.random() * 30, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.06);
+
+                gain.gain.setValueAtTime(0.09, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.08);
+            }
+
+            playHowl() {
+                if (this.muted || !this.ctx) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                const now = this.ctx.currentTime;
+
+                // Suara auman harmonik magis wolf spirit (Ghibli / Genshin Boreas vibe)
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+
+                osc1.type = 'sawtooth';
+                osc2.type = 'sine';
+
+                // Pitch envelope melengkung khas lolongan serigala
+                osc1.frequency.setValueAtTime(260, now);
+                osc1.frequency.linearRampToValueAtTime(360, now + 0.4);
+                osc1.frequency.exponentialRampToValueAtTime(540, now + 0.9);
+                osc1.frequency.linearRampToValueAtTime(500, now + 1.6);
+                osc1.frequency.exponentialRampToValueAtTime(220, now + 2.3);
+
+                osc2.frequency.setValueAtTime(130, now);
+                osc2.frequency.linearRampToValueAtTime(180, now + 0.4);
+                osc2.frequency.exponentialRampToValueAtTime(270, now + 0.9);
+                osc2.frequency.linearRampToValueAtTime(250, now + 1.6);
+                osc2.frequency.exponentialRampToValueAtTime(110, now + 2.3);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(650, now);
+                filter.frequency.linearRampToValueAtTime(1800, now + 0.9);
+                filter.frequency.exponentialRampToValueAtTime(500, now + 2.3);
+
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.35, now + 0.4);
+                gain.gain.setValueAtTime(0.35, now + 1.4);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 2.3);
+
+                osc1.connect(filter);
+                osc2.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 2.35);
+                osc2.stop(now + 2.35);
+            }
+        }
+
+        const soundFX = new WolfAudioSynthesizer();
+        document.body.addEventListener('click', () => soundFX.init(), { once: true });
+        document.body.addEventListener('keydown', () => soundFX.init(), { once: true });
+
+        // =====================================================================
+        // 2. SCENE, CAMERA, RENDERER, CEL LIGHTING
+        // =====================================================================
+        const canvas = document.getElementById('webgl-canvas');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1887e8);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.2, 500);
+        camera.position.set(0, 3.8, -8.5);
+
+        const renderer = new THREE.WebGLRenderer({
+            canvas: canvas,
+            antialias: true,
+            powerPreference: "high-performance"
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; // Mencegah kamera tembus tanah
+        controls.minDistance = 2.5;
+        controls.maxDistance = 35;
+        controls.target.set(0, 1.4, 0);
+
+        // Pencahayaan Cel-Shading ala Genshin Impact & Ghibli
+        const sunLight = new THREE.DirectionalLight(0xfffae6, 2.2);
+        sunLight.position.set(-20, 28, 20);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 80;
+        const shadowBound = 22;
+        sunLight.shadow.camera.left = -shadowBound;
+        sunLight.shadow.camera.right = shadowBound;
+        sunLight.shadow.camera.top = shadowBound;
+        sunLight.shadow.camera.bottom = -shadowBound;
+        sunLight.shadow.bias = -0.0003;
+        sunLight.shadow.normalBias = 0.03;
+        scene.add(sunLight);
+
+        const ambientLight = new THREE.AmbientLight(0x7397c0, 0.95);
+        scene.add(ambientLight);
+
+        // Rim Light untuk kilau tepi anime (Genshin Rim Light)
+        const rimLight = new THREE.DirectionalLight(0xffeedd, 1.1);
+        rimLight.position.set(18, 12, -18);
+        scene.add(rimLight);
+
+        // =====================================================================
+        // 3. SKY DOME & PRESETS (KONSISTEN DENGAN INDEX.HTML)
+        // =====================================================================
+        const skyGeo = new THREE.SphereGeometry(300, 32, 16);
+        const skyShader = {
+            uniforms: {
+                uTopColor: { value: new THREE.Color(0x1a75ff) },
+                uBottomColor: { value: new THREE.Color(0x66b3ff) }
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uTopColor;
+                uniform vec3 uBottomColor;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition).y;
+                    float mixFactor = clamp(h * 0.7 + 0.3, 0.0, 1.0);
+                    vec3 skyGradient = mix(uBottomColor, uTopColor, pow(mixFactor, 0.85));
+                    gl_FragColor = vec4(skyGradient, 1.0);
+                }
+            `
+        };
+        const skyMat = new THREE.ShaderMaterial({
+            uniforms: THREE.UniformsUtils.clone(skyShader.uniforms),
+            vertexShader: skyShader.vertexShader,
+            fragmentShader: skyShader.fragmentShader,
+            side: THREE.BackSide
+        });
+        const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+        scene.add(skyMesh);
+
+        // Preset Cuaca & Waktu (Day, Sunset Gold, Night Spirit)
+        const envPresets = {
+            day: {
+                topColor: 0x1a75ff,
+                bottomColor: 0x66b3ff,
+                sunColor: 0xfffae6,
+                sunIntensity: 2.2,
+                ambientColor: 0x7397c0,
+                ambientIntensity: 0.95,
+                rimColor: 0xffeedd,
+                fogColor: 0x66b3ff
+            },
+            sunset: {
+                topColor: 0x5e2b69,
+                bottomColor: 0xff8c42,
+                sunColor: 0xffaa42,
+                sunIntensity: 2.6,
+                ambientColor: 0x9c5e52,
+                ambientIntensity: 1.05,
+                rimColor: 0xffcc77,
+                fogColor: 0xff8c42
+            },
+            night: {
+                topColor: 0x070c1a,
+                bottomColor: 0x162c4a,
+                sunColor: 0x6888ff,
+                sunIntensity: 0.9,
+                ambientColor: 0x223555,
+                ambientIntensity: 0.85,
+                rimColor: 0x38bdf8,
+                fogColor: 0x162c4a
+            }
+        };
+
+        function setEnvironmentPreset(presetKey) {
+            const p = envPresets[presetKey];
+            if (!p) return;
+            skyMat.uniforms.uTopColor.value.setHex(p.topColor);
+            skyMat.uniforms.uBottomColor.value.setHex(p.bottomColor);
+            sunLight.color.setHex(p.sunColor);
+            sunLight.intensity = p.sunIntensity;
+            ambientLight.color.setHex(p.ambientColor);
+            ambientLight.intensity = p.ambientIntensity;
+            rimLight.color.setHex(p.rimColor);
+        }
+
+        // =====================================================================
+        // 4. CEL-SHADING TOON GRADIENTS (GHIBLI / GENSHIN PALETTE)
+        // =====================================================================
+        // Membuat tekstur gradien cel 3-tingkat untuk efek kartun anime mulus
+        function createCelGradientTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 4;
+            canvas.height = 1;
+            const ctx = canvas.getContext('2d');
+            // 4 level kuantisasi bayangan khas Genshin Toon Shader
+            ctx.fillStyle = '#666666'; ctx.fillRect(0, 0, 1, 1);
+            ctx.fillStyle = '#999999'; ctx.fillRect(1, 0, 1, 1);
+            ctx.fillStyle = '#cccccc'; ctx.fillRect(2, 0, 1, 1);
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(3, 0, 1, 1);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.minFilter = THREE.NearestFilter;
+            tex.magFilter = THREE.NearestFilter;
+            return tex;
+        }
+        const celGradientTex = createCelGradientTexture();
+
+        // =====================================================================
+        // ASTRO BOT VISION PRO AMOLED VISOR (TEXTURE & EXPRESSION GENERATOR)
+        // =====================================================================
+        const visorCanvas = document.createElement('canvas');
+        visorCanvas.width = 512;
+        visorCanvas.height = 256;
+        const visorCtx = visorCanvas.getContext('2d');
+        const visorTexture = new THREE.CanvasTexture(visorCanvas);
+        visorTexture.minFilter = THREE.LinearFilter;
+        visorTexture.magFilter = THREE.LinearFilter;
+
+        let currentVisorColor = '#00f0ff'; // Neon Cyan Astro Bot default
+        let currentVisorExp = 'auto';      // 'auto', 'happy', 'star', 'focused', 'surprised', 'heart', 'wink'
+
+        function roundRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+
+        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx;
+            let y = cy;
+            const step = Math.PI / spikes;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius);
+            ctx.closePath();
+        }
+
+        function drawHeart(ctx, x, y, size) {
+            ctx.beginPath();
+            const topCurveHeight = size * 0.3;
+            ctx.moveTo(x, y + topCurveHeight);
+            ctx.bezierCurveTo(x, y, x - size / 2, y, x - size / 2, y + topCurveHeight);
+            ctx.bezierCurveTo(x - size / 2, y + (size + topCurveHeight) / 2, x, y + (size + topCurveHeight) / 1.4, x, y + size);
+            ctx.bezierCurveTo(x, y + (size + topCurveHeight) / 1.4, x + size / 2, y + (size + topCurveHeight) / 2, x + size / 2, y + topCurveHeight);
+            ctx.bezierCurveTo(x + size / 2, y, x, y, x, y + topCurveHeight);
+            ctx.closePath();
+        }
+
+        function renderAstroBotScreen(expName, blinkProgress = 0, lookOffsetX = 0, lookOffsetY = 0) {
+            visorCtx.save();
+
+            // 1. True AMOLED Deep Black
+            visorCtx.fillStyle = '#010206';
+            visorCtx.fillRect(0, 0, 512, 256);
+
+            // 2. Center coordinates for Left & Right Astro Bot Eyes
+            const lx = 145 + lookOffsetX * 16;
+            const rx = 367 + lookOffsetX * 16;
+            const cy = 128 + lookOffsetY * 10;
+
+            const glowColor = currentVisorColor;
+
+            function drawSingleEye(cx, isRight = false) {
+                visorCtx.save();
+                visorCtx.translate(cx, cy);
+
+                if (expName === 'happy') {
+                    // ^ ^ Astro Bot Smiling Eyes (Ultra Bright Neon Arches)
+                    visorCtx.shadowColor = glowColor;
+                    visorCtx.shadowBlur = 45;
+                    visorCtx.strokeStyle = glowColor;
+                    visorCtx.lineWidth = 36;
+                    visorCtx.lineCap = 'round';
+                    visorCtx.beginPath();
+                    visorCtx.arc(0, 16, 44, Math.PI * 1.15, Math.PI * 1.85, false);
+                    visorCtx.stroke();
+
+                    visorCtx.shadowBlur = 20;
+                    visorCtx.lineWidth = 26;
+                    visorCtx.stroke();
+
+                    visorCtx.shadowBlur = 8;
+                    visorCtx.shadowColor = '#ffffff';
+                    visorCtx.strokeStyle = '#ffffff';
+                    visorCtx.lineWidth = 14;
+                    visorCtx.stroke();
+                } else if (expName === 'star') {
+                    // ★ ★ Astro Bot Level-Up Stars (Super Bright)
+                    visorCtx.shadowColor = glowColor;
+                    visorCtx.shadowBlur = 50;
+                    visorCtx.fillStyle = glowColor;
+                    drawStar(visorCtx, 0, 0, 5, 60, 26);
+                    visorCtx.fill();
+
+                    visorCtx.shadowColor = '#ffffff';
+                    visorCtx.shadowBlur = 15;
+                    visorCtx.fillStyle = '#ffffff';
+                    drawStar(visorCtx, 0, 0, 5, 36, 15);
+                    visorCtx.fill();
+
+                    visorCtx.fillStyle = '#ffffff';
+                    visorCtx.fillRect(isRight ? 48 : -48, -38, 8, 8);
+                    visorCtx.fillRect(isRight ? -45 : 45, 36, 6, 6);
+                } else if (expName === 'focused') {
+                    // \ / Sharp Sporty Astro Bot Eyes
+                    const dir = isRight ? 1 : -1;
+                    visorCtx.shadowColor = glowColor;
+                    visorCtx.shadowBlur = 45;
+                    visorCtx.fillStyle = glowColor;
+                    visorCtx.beginPath();
+                    visorCtx.moveTo(-45 * dir, -42);
+                    visorCtx.lineTo(52 * dir, -14);
+                    visorCtx.lineTo(40 * dir, 44);
+                    visorCtx.lineTo(-52 * dir, 26);
+                    visorCtx.closePath();
+                    visorCtx.fill();
+
+                    visorCtx.shadowColor = '#ffffff';
+                    visorCtx.shadowBlur = 12;
+                    visorCtx.fillStyle = '#ffffff';
+                    visorCtx.beginPath();
+                    visorCtx.moveTo(-32 * dir, -30);
+                    visorCtx.lineTo(40 * dir, -10);
+                    visorCtx.lineTo(30 * dir, 32);
+                    visorCtx.lineTo(-40 * dir, 18);
+                    visorCtx.closePath();
+                    visorCtx.fill();
+                } else if (expName === 'surprised') {
+                    // O O Wide Excited Astro Eyes
+                    visorCtx.shadowColor = glowColor;
+                    visorCtx.shadowBlur = 45;
+                    visorCtx.strokeStyle = glowColor;
+                    visorCtx.lineWidth = 28;
+                    visorCtx.beginPath();
+                    visorCtx.arc(0, 0, 50, 0, Math.PI * 2);
+                    visorCtx.stroke();
+
+                    visorCtx.shadowColor = '#ffffff';
+                    visorCtx.shadowBlur = 12;
+                    visorCtx.strokeStyle = '#ffffff';
+                    visorCtx.lineWidth = 14;
+                    visorCtx.stroke();
+
+                    visorCtx.fillStyle = '#ffffff';
+                    visorCtx.beginPath();
+                    visorCtx.arc(0, 0, 18, 0, Math.PI * 2);
+                    visorCtx.fill();
+                } else if (expName === 'heart') {
+                    // ♥ ♥ Digital Heart Eyes
+                    visorCtx.shadowColor = glowColor;
+                    visorCtx.shadowBlur = 45;
+                    visorCtx.fillStyle = glowColor;
+                    drawHeart(visorCtx, 0, -10, 56);
+                    visorCtx.fill();
+
+                    visorCtx.shadowColor = '#ffffff';
+                    visorCtx.shadowBlur = 12;
+                    visorCtx.fillStyle = '#ffffff';
+                    drawHeart(visorCtx, 0, -10, 32);
+                    visorCtx.fill();
+                } else if (expName === 'wink' && !isRight) {
+                    // Left eye wink ^, right eye normal
+                    visorCtx.shadowColor = glowColor;
+                    visorCtx.shadowBlur = 45;
+                    visorCtx.strokeStyle = glowColor;
+                    visorCtx.lineWidth = 32;
+                    visorCtx.lineCap = 'round';
+                    visorCtx.beginPath();
+                    visorCtx.arc(0, 16, 42, Math.PI * 1.15, Math.PI * 1.85, false);
+                    visorCtx.stroke();
+
+                    visorCtx.strokeStyle = '#ffffff';
+                    visorCtx.lineWidth = 14;
+                    visorCtx.stroke();
+                } else {
+                    // Normal Astro Bot Eyes: Rounded Squircle Pill with Dynamic Blink
+                    const eyeW = 90;
+                    const fullH = 126;
+                    const eyeH = Math.max(10, fullH * (1.0 - blinkProgress));
+                    const r = Math.min(eyeW / 2, eyeH / 2);
+
+                    // Layer 1: Outer Neon Bloom Halo
+                    visorCtx.shadowColor = glowColor;
+                    visorCtx.shadowBlur = 45;
+                    visorCtx.fillStyle = glowColor;
+                    roundRect(visorCtx, -eyeW / 2, -eyeH / 2, eyeW, eyeH, r);
+                    visorCtx.fill();
+
+                    // Layer 2: Vivid Mid Glow
+                    visorCtx.shadowBlur = 20;
+                    visorCtx.strokeStyle = glowColor;
+                    visorCtx.lineWidth = 8;
+                    roundRect(visorCtx, -eyeW / 2, -eyeH / 2, eyeW, eyeH, r);
+                    visorCtx.stroke();
+
+                    // Layer 3: Ultra Bright Pure White Core
+                    if (eyeH > 24) {
+                        visorCtx.shadowColor = '#ffffff';
+                        visorCtx.shadowBlur = 10;
+                        visorCtx.fillStyle = '#ffffff';
+                        const coreInset = 12;
+                        roundRect(visorCtx, -eyeW / 2 + coreInset, -eyeH / 2 + coreInset, eyeW - coreInset * 2, eyeH - coreInset * 2, Math.max(3, r - coreInset));
+                        visorCtx.fill();
+
+                        // Layer 4: Astro Bot Iconic Specular Gloss Catchlights
+                        visorCtx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+                        visorCtx.beginPath();
+                        visorCtx.arc(-16, -eyeH / 2 + 28, 12, 0, Math.PI * 2);
+                        visorCtx.fill();
+
+                        visorCtx.beginPath();
+                        visorCtx.arc(18, eyeH / 2 - 25, 7, 0, Math.PI * 2);
+                        visorCtx.fill();
+                    }
+                }
+
+                visorCtx.restore();
+            }
+
+            drawSingleEye(lx, false);
+            drawSingleEye(rx, true);
+
+            visorCtx.restore();
+            visorTexture.needsUpdate = true;
+        }
+
+        renderAstroBotScreen('normal');
+
+        // Palet Material Bulu Serigala (Orange Fox/Wolf Ghibli Tone)
+        const furBaseOrange = new THREE.Color('#f97316'); // Vibrant Orange
+        const furWarmAmber = new THREE.Color('#fbbf24');  // Golden Accent
+        const furWhiteCream = new THREE.Color('#fffbeb'); // Creamy underbelly & chest
+        const darkSnoutColor = new THREE.Color('#292524'); // Hidung & cakar
+        const innerEarPink = new THREE.Color('#fed7aa');  // Telinga dalam
+
+        // Material Toon
+        const furOrangeMat = new THREE.MeshToonMaterial({
+            color: furBaseOrange,
+            gradientMap: celGradientTex,
+            roughness: 0.6
+        });
+
+        const furWhiteMat = new THREE.MeshToonMaterial({
+            color: furWhiteCream,
+            gradientMap: celGradientTex,
+            roughness: 0.6
+        });
+
+        const darkAccentsMat = new THREE.MeshToonMaterial({
+            color: darkSnoutColor,
+            gradientMap: celGradientTex,
+            roughness: 0.4
+        });
+
+        const earInnerMat = new THREE.MeshToonMaterial({
+            color: innerEarPink,
+            gradientMap: celGradientTex,
+            roughness: 0.7
+        });
+
+        const goldRuneMat = new THREE.MeshStandardMaterial({
+            color: 0xfbbf24,
+            metalness: 0.85,
+            roughness: 0.25,
+            emissive: 0xd97706,
+            emissiveIntensity: 0.35
+        });
+
+        // Material Kacamata Vision Pro Astro Bot AMOLED
+        const visorScreenMat = new THREE.MeshBasicMaterial({
+            map: visorTexture,
+            side: THREE.DoubleSide,
+            toneMapped: false // Memastikan pancaran neon AMOLED menyala 100% terang
+        });
+
+        // Kaca depan kristal bening ultra-transparan (tidak menggelapkan layar)
+        const visorGlassMat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            metalness: 0.1,
+            roughness: 0.02,
+            transparent: true,
+            opacity: 0.08,
+            depthWrite: false
+        });
+
+        const visorTitaniumMat = new THREE.MeshStandardMaterial({
+            color: 0x1f2430,
+            metalness: 0.90,
+            roughness: 0.18,
+            side: THREE.DoubleSide
+        });
+
+        const visorChromeRimMat = new THREE.MeshStandardMaterial({
+            color: 0xe2e8f0,
+            metalness: 0.95,
+            roughness: 0.10
+        });
+
+        const visorFoamMat = new THREE.MeshStandardMaterial({
+            color: 0x090c14,
+            roughness: 0.95
+        });
+
+        // =====================================================================
+        // 5. MODELLING KARAKTER SERIGALA ORANGE (GHIBLI & GENSHIN AESTHETIC)
+        // =====================================================================
+        // Hirarki Skeletal Procedural:
+        // wolfRoot
+        //   -> mainBody
+        //        -> chestMane (bulu leher putih mekar khas Moro & Genshin)
+        //        -> neck & head
+        //             -> snout, nose, eyes, fluffy ears, jaw
+        //             -> genshinSpiritCollar (amulet emas dengan pita melambai)
+        //        -> 4 articulated legs (thigh -> shin -> paw)
+        //        -> 5-segment fluffy tail (ayunan fisika sekunder)
+
+        const wolfRoot = new THREE.Group();
+        wolfRoot.position.set(0, 0, 0);
+        scene.add(wolfRoot);
+
+        // Kontainer Badan Utama
+        const bodyGroup = new THREE.Group();
+        wolfRoot.add(bodyGroup);
+
+        // 1. Torso Atletis Ramping Khas Rubah (Taper halus dari dada ke panggul)
+        const torsoGeo = new THREE.CylinderGeometry(0.50, 0.42, 1.38, 24);
+        torsoGeo.rotateX(Math.PI / 2);
+        const torsoMesh = new THREE.Mesh(torsoGeo, furOrangeMat);
+        torsoMesh.castShadow = true;
+        torsoMesh.receiveShadow = true;
+        torsoMesh.position.set(0, 1.25, 0);
+        bodyGroup.add(torsoMesh);
+
+        // Tutup panggul/pantat belakang yang pas dan ramping (tidak menggembung besar atau turun ke bawah)
+        const rumpCapGeo = new THREE.SphereGeometry(0.41, 16, 12);
+        rumpCapGeo.scale(0.98, 0.95, 0.45);
+        const rumpCapMesh = new THREE.Mesh(rumpCapGeo, furOrangeMat);
+        rumpCapMesh.position.set(0, 1.25, -0.62);
+        rumpCapMesh.castShadow = true;
+        rumpCapMesh.receiveShadow = true;
+        bodyGroup.add(rumpCapMesh);
+
+        // Perut Bawah Putih Ramping (Underbelly)
+        const bellyGeo = new THREE.CylinderGeometry(0.46, 0.38, 1.32, 16);
+        bellyGeo.rotateX(Math.PI / 2);
+        const bellyMesh = new THREE.Mesh(bellyGeo, furWhiteMat);
+        bellyMesh.position.set(0, 1.16, 0);
+        bellyMesh.scale.set(0.92, 0.9, 0.98);
+        bodyGroup.add(bellyMesh);
+
+        // 2. Dada Megah & Surai Bulu Fluff Ghibli (Moro Chest Mane)
+        const chestGroup = new THREE.Group();
+        chestGroup.position.set(0, 1.35, 0.6);
+        bodyGroup.add(chestGroup);
+
+        const chestBaseGeo = new THREE.SphereGeometry(0.58, 14, 12);
+        chestBaseGeo.scale(1.0, 1.15, 0.9);
+        const chestBaseMesh = new THREE.Mesh(chestBaseGeo, furWhiteMat);
+        chestBaseMesh.castShadow = true;
+        chestGroup.add(chestBaseMesh);
+
+        // Rumbai-rumbai bulu dada putih berlayer (Stylized Fur Tufts)
+        for (let i = 0; i < 7; i++) {
+            const tuftGeo = new THREE.ConeGeometry(0.18, 0.45, 5);
+            tuftGeo.rotateX(Math.PI / 3);
+            const tuftMesh = new THREE.Mesh(tuftGeo, furWhiteMat);
+            const angle = (i / 6 - 0.5) * 1.5;
+            tuftMesh.position.set(Math.sin(angle) * 0.4, -0.25 + Math.cos(angle) * 0.1, 0.28);
+            tuftMesh.rotation.y = angle * 0.7;
+            tuftMesh.castShadow = true;
+            chestGroup.add(tuftMesh);
+        }
+
+        // 3. Leher & Kepala
+        const neckGroup = new THREE.Group();
+        neckGroup.position.set(0, 1.5, 0.85);
+        bodyGroup.add(neckGroup);
+
+        const neckGeo = new THREE.CylinderGeometry(0.36, 0.46, 0.65, 10);
+        neckGeo.rotateX(Math.PI / 4);
+        const neckMesh = new THREE.Mesh(neckGeo, furOrangeMat);
+        neckMesh.position.set(0, 0.15, 0.1);
+        neckMesh.castShadow = true;
+        neckGroup.add(neckMesh);
+
+        const headGroup = new THREE.Group();
+        headGroup.position.set(0, 0.42, 0.32);
+        neckGroup.add(headGroup);
+
+        // Kalung Genshin Spirit Amulet & Pita Melambai (Genshin Spirit Collar)
+        const collarGroup = new THREE.Group();
+        collarGroup.position.set(0, 0.05, 0.18);
+        collarGroup.rotation.x = Math.PI / 4;
+        neckGroup.add(collarGroup);
+
+        const collarMat = new THREE.MeshToonMaterial({
+            color: 0xd9383a, // Merah Shinto / Genshin Vermilion
+            gradientMap: celGradientTex,
+            roughness: 0.5
+        });
+        const collarBandGeo = new THREE.TorusGeometry(0.42, 0.038, 8, 24);
+        const collarBandMesh = new THREE.Mesh(collarBandGeo, collarMat);
+        collarBandMesh.castShadow = true;
+        collarGroup.add(collarBandMesh);
+
+        // Amulet / Lonceng Emas Roh (Golden Spirit Amulet)
+        const amuletBellGeo = new THREE.SphereGeometry(0.1, 10, 8);
+        amuletBellGeo.scale(1.0, 1.1, 0.85);
+        const amuletBellMesh = new THREE.Mesh(amuletBellGeo, goldRuneMat);
+        amuletBellMesh.position.set(0, -0.4, 0.05);
+        amuletBellMesh.castShadow = true;
+        collarGroup.add(amuletBellMesh);
+
+        // Ring Emas Aksen Lonceng
+        const bellRingGeo = new THREE.TorusGeometry(0.085, 0.018, 6, 16);
+        const bellRingMesh = new THREE.Mesh(bellRingGeo, goldRuneMat);
+        bellRingMesh.position.set(0, -0.4, 0.05);
+        collarGroup.add(bellRingMesh);
+
+        // Batok Kepala Serigala Anime (Stylized Wolf Cranium)
+        const headGeo = new THREE.SphereGeometry(0.48, 14, 12);
+        headGeo.scale(1.05, 0.95, 1.15);
+        const headMesh = new THREE.Mesh(headGeo, furOrangeMat);
+        headMesh.castShadow = true;
+        headGroup.add(headMesh);
+
+        // Pipih Samping Fluffy (Cheek Fur Tufts khas anime)
+        for (let side of [-1, 1]) {
+            const cheekTuftGeo = new THREE.ConeGeometry(0.16, 0.42, 5);
+            cheekTuftGeo.rotateZ(side * Math.PI / 2.8);
+            cheekTuftGeo.rotateY(0.2);
+            const cheekTuft = new THREE.Mesh(cheekTuftGeo, furWhiteMat);
+            cheekTuft.position.set(side * 0.45, -0.08, 0.05);
+            headGroup.add(cheekTuft);
+
+            const cheekTuft2 = cheekTuft.clone();
+            cheekTuft2.position.set(side * 0.48, 0.08, -0.05);
+            cheekTuft2.scale.set(0.8, 0.8, 0.8);
+            headGroup.add(cheekTuft2);
+        }
+
+        // Moncong Serigala (Snout & Muzzle)
+        const snoutGeo = new THREE.ConeGeometry(0.28, 0.58, 8);
+        snoutGeo.rotateX(Math.PI / 2);
+        snoutGeo.scale(1.1, 0.85, 1.0);
+        const snoutMesh = new THREE.Mesh(snoutGeo, furOrangeMat);
+        snoutMesh.position.set(0, -0.08, 0.48);
+        snoutMesh.castShadow = true;
+        headGroup.add(snoutMesh);
+
+        // Bagian Bawah Moncong Putih
+        const muzzleWhiteGeo = new THREE.SphereGeometry(0.22, 10, 8);
+        muzzleWhiteGeo.scale(1.1, 0.7, 1.3);
+        const muzzleWhiteMesh = new THREE.Mesh(muzzleWhiteGeo, furWhiteMat);
+        muzzleWhiteMesh.position.set(0, -0.16, 0.42);
+        headGroup.add(muzzleWhiteMesh);
+
+        // Hidung Segitiga Hitam Berkilau
+        const noseGeo = new THREE.SphereGeometry(0.085, 8, 8);
+        noseGeo.scale(1.2, 0.85, 1.0);
+        const noseMesh = new THREE.Mesh(noseGeo, darkAccentsMat);
+        noseMesh.position.set(0, -0.02, 0.78);
+        headGroup.add(noseMesh);
+
+        // Rahang Bawah (Pivoting Jaw saat Mengaum / Howl)
+        const jawGroup = new THREE.Group();
+        jawGroup.position.set(0, -0.18, 0.28);
+        headGroup.add(jawGroup);
+
+        const jawGeo = new THREE.ConeGeometry(0.18, 0.42, 6);
+        jawGeo.rotateX(Math.PI / 2);
+        jawGeo.scale(1.0, 0.6, 1.0);
+        const jawMesh = new THREE.Mesh(jawGeo, furWhiteMat);
+        jawMesh.position.set(0, 0, 0.18);
+        jawGroup.add(jawMesh);
+
+        // Lidah Merah Muda
+        const tongueGeo = new THREE.BoxGeometry(0.12, 0.04, 0.22);
+        const tongueMat = new THREE.MeshToonMaterial({ color: 0xf43f5e });
+        const tongueMesh = new THREE.Mesh(tongueGeo, tongueMat);
+        tongueMesh.position.set(0, 0.04, 0.16);
+        tongueMesh.visible = false;
+        jawGroup.add(tongueMesh);
+
+        // =====================================================================
+        // KACAMATA ASTRO BOT VISION PRO AMOLED (PERSEGI PANJANG MELENGKUNG)
+        // =====================================================================
+        // Diposisikan kokoh di depan wajah & samping pipi (bebas clipping/tenggelam)
+        const visorGroup = new THREE.Group();
+        visorGroup.position.set(0, 0.14, -0.02);
+        visorGroup.rotation.x = -0.05;
+        headGroup.add(visorGroup);
+
+        const vArcStart = -0.82;
+        const vArcLen = 1.64;
+        const vRadius = 0.605; // Radius kaca depan
+        const vHeight = 0.30;  // Tinggi kacamata persegi panjang
+
+        // 1. Bantalan Busa Kedap Cahaya (Light-Seal Face Cushion) - Menghubungkan ke wajah
+        const foamGeo = new THREE.CylinderGeometry(0.565, 0.565, vHeight * 0.94, 32, 1, true, vArcStart, vArcLen);
+        const foamMesh = new THREE.Mesh(foamGeo, visorFoamMat);
+        visorGroup.add(foamMesh);
+
+        // 2. Layar Lengkung Persegi Panjang AMOLED Display
+        const screenGeo = new THREE.CylinderGeometry(0.592, 0.592, vHeight * 0.92, 32, 1, true, vArcStart + 0.02, vArcLen - 0.04);
+        const screenMesh = new THREE.Mesh(screenGeo, visorScreenMat);
+        visorGroup.add(screenMesh);
+
+        // 3. Kaca Depan Mengkilap Apple Vision Pro (3D Curved AMOLED Glass Lens)
+        const glassGeo = new THREE.CylinderGeometry(vRadius, vRadius, vHeight, 32, 1, true, vArcStart, vArcLen);
+        const glassMesh = new THREE.Mesh(glassGeo, visorGlassMat);
+        visorGroup.add(glassMesh);
+
+        const ledRingsList = [];
+
+        // 7. Pendaran Cahaya Layar AMOLED ke Depan (Visor Front Glow)
+        const visorLight = new THREE.PointLight(0x00f0ff, 0.95, 2.6);
+        visorLight.position.set(0, 0, vRadius + 0.15);
+        visorGroup.add(visorLight);
+
+        // Telinga Serigala Gagah Berbulu (Ears with twitch articulation)
+        const leftEarGroup = new THREE.Group();
+        leftEarGroup.position.set(-0.32, 0.4, -0.05);
+        headGroup.add(leftEarGroup);
+
+        const rightEarGroup = new THREE.Group();
+        rightEarGroup.position.set(0.32, 0.4, -0.05);
+        headGroup.add(rightEarGroup);
+
+        function buildEar(earGrp, side) {
+            // Cangkang Luar Oranye
+            const earGeo = new THREE.ConeGeometry(0.22, 0.62, 4);
+            earGeo.scale(0.8, 1.0, 0.4);
+            const earOuter = new THREE.Mesh(earGeo, furOrangeMat);
+            earOuter.position.set(0, 0.28, 0);
+            earOuter.rotation.y = side * 0.3;
+            earOuter.castShadow = true;
+            earGrp.add(earOuter);
+
+            // Lapisan Dalam Telinga Krem-Pink Lembut
+            const earInnerGeo = new THREE.ConeGeometry(0.16, 0.48, 4);
+            earInnerGeo.scale(0.65, 0.9, 0.3);
+            const earInner = new THREE.Mesh(earInnerGeo, earInnerMat);
+            earInner.position.set(0, 0.24, 0.04);
+            earInner.rotation.y = side * 0.3;
+            earGrp.add(earInner);
+
+            // Bulu Halus di Dasar Telinga
+            const earFluffGeo = new THREE.ConeGeometry(0.1, 0.22, 4);
+            const earFluff = new THREE.Mesh(earFluffGeo, furWhiteMat);
+            earFluff.position.set(side * -0.06, 0.08, 0.08);
+            earFluff.rotation.z = side * -0.4;
+            earGrp.add(earFluff);
+        }
+        buildEar(leftEarGroup, -1);
+        buildEar(rightEarGroup, 1);
+        leftEarGroup.rotation.z = 0.25;
+        rightEarGroup.rotation.z = -0.25;
+
+        // 4. KAKI 4 ARTIKULASI (Proporsional Ramping, Ukuran Oranye dan Putih Selaras)
+        function createLimb(isBackLeg, side) {
+            const hipPivot = new THREE.Group();
+            const upperLen = 0.58;
+            const upperRadiusTop = isBackLeg ? 0.155 : 0.145;
+            const kneeRadius = isBackLeg ? 0.130 : 0.125;
+            // Paha oranye: meramping halus ke bawah menuju sendi lutut
+            const upperGeo = new THREE.CylinderGeometry(upperRadiusTop, kneeRadius, upperLen, 12);
+            const upperMesh = new THREE.Mesh(upperGeo, furOrangeMat);
+            upperMesh.position.set(0, -upperLen / 2, 0);
+            upperMesh.castShadow = true;
+            upperMesh.receiveShadow = true;
+            hipPivot.add(upperMesh);
+
+            const kneePivot = new THREE.Group();
+            kneePivot.position.set(0, -upperLen, 0);
+            hipPivot.add(kneePivot);
+
+            const lowerLen = 0.56;
+            const pawRadius = isBackLeg ? 0.108 : 0.105;
+            // Kaus kaki putih: ukuran atasnya sama persis dengan lutut oranye (0.130 / 0.125)
+            const lowerGeo = new THREE.CylinderGeometry(kneeRadius, pawRadius, lowerLen, 12);
+            const lowerMesh = new THREE.Mesh(lowerGeo, furWhiteMat);
+            lowerMesh.position.set(0, -lowerLen / 2, 0);
+            lowerMesh.castShadow = true;
+            lowerMesh.receiveShadow = true;
+            kneePivot.add(lowerMesh);
+
+            const pawPivot = new THREE.Group();
+            pawPivot.position.set(0, -lowerLen, 0);
+            kneePivot.add(pawPivot);
+
+            const pawGeo = new THREE.SphereGeometry(0.14, 10, 8);
+            pawGeo.scale(1.0, 0.55, 1.35);
+            const pawMesh = new THREE.Mesh(pawGeo, furWhiteMat);
+            pawMesh.position.set(0, 0, 0.08);
+            pawMesh.castShadow = true;
+            pawMesh.receiveShadow = true;
+            pawPivot.add(pawMesh);
+
+            const clawGeo = new THREE.BoxGeometry(0.038, 0.026, 0.08);
+            for (let c = -1; c <= 1; c++) {
+                const claw = new THREE.Mesh(clawGeo, darkAccentsMat);
+                claw.position.set(c * 0.055, -0.035, 0.20);
+                claw.castShadow = true;
+                claw.receiveShadow = true;
+                pawPivot.add(claw);
+            }
+
+            return {
+                hip: hipPivot,
+                knee: kneePivot,
+                paw: pawPivot,
+                isBackLeg: isBackLeg,
+                side: side
+            };
+        }
+
+        // Posisi 4 Kaki (Sejajar tanah)
+        const frontLeftLeg = createLimb(false, -1);
+        frontLeftLeg.hip.position.set(-0.36, 1.22, 0.48);
+        bodyGroup.add(frontLeftLeg.hip);
+
+        const frontRightLeg = createLimb(false, 1);
+        frontRightLeg.hip.position.set(0.36, 1.22, 0.48);
+        bodyGroup.add(frontRightLeg.hip);
+
+        const backLeftLeg = createLimb(true, -1);
+        backLeftLeg.hip.position.set(-0.36, 1.22, -0.50);
+        bodyGroup.add(backLeftLeg.hip);
+
+        const backRightLeg = createLimb(true, 1);
+        backRightLeg.hip.position.set(0.36, 1.22, -0.50);
+        bodyGroup.add(backRightLeg.hip);
+
+        // 6. EKOR MEKAR 6 SEGMEN DENGAN UJUNG RUNCING KHAS RUBAH
+        const tailSegments = [];
+        const tailBase = new THREE.Group();
+        tailBase.position.set(0, 1.25, -0.72);
+        tailBase.rotation.x = -Math.PI / 4;
+        bodyGroup.add(tailBase);
+
+        let parentTail = tailBase;
+        const tailSegmentCount = 6;
+        // Profil ketebalan ekor rubah: mekar lebat di tengah dan meruncing tajam ke ujung
+        const tailRadii = [0.22, 0.32, 0.38, 0.32, 0.23, 0.14];
+
+        for (let i = 0; i < tailSegmentCount; i++) {
+            const seg = new THREE.Group();
+            seg.position.set(0, 0.22, -0.07);
+            parentTail.add(seg);
+            tailSegments.push(seg);
+
+            const isWhiteTip = (i >= 3);
+            const mat = isWhiteTip ? furWhiteMat : furOrangeMat;
+
+            if (i === tailSegmentCount - 1) {
+                // Segmen paling ujung: Bentuk KERUCUT RUNCING (Pointed Cone) khas rubah
+                const coneHeight = 0.46;
+                const coneRadius = 0.16;
+                const tipGeo = new THREE.ConeGeometry(coneRadius, coneHeight, 14);
+                tipGeo.translate(0, coneHeight / 2, 0);
+                const tipMesh = new THREE.Mesh(tipGeo, furWhiteMat);
+                tipMesh.castShadow = true;
+                tipMesh.receiveShadow = true;
+                seg.add(tipMesh);
+            } else {
+                const radius = tailRadii[i];
+                const segGeo = new THREE.SphereGeometry(radius, 12, 10);
+                segGeo.scale(1.0, 1.35, 1.0);
+                const segMesh = new THREE.Mesh(segGeo, mat);
+                segMesh.position.set(0, 0.12, 0);
+                segMesh.castShadow = true;
+                segMesh.receiveShadow = true;
+                seg.add(segMesh);
+            }
+
+            parentTail = seg;
+        }
+
+        // 7. EFEK SHOCKWAVE GELOMBANG AUMAN (HOWL SONIC RINGS)
+        const howlWaveGroup = new THREE.Group();
+        howlWaveGroup.position.set(0, 2.2, 1.2);
+        wolfRoot.add(howlWaveGroup);
+
+        const howlRings = [];
+        for (let i = 0; i < 3; i++) {
+            const ringGeo = new THREE.RingGeometry(0.2, 0.35, 32);
+            ringGeo.rotateX(Math.PI / 2);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0xfbbf24,
+                transparent: true,
+                opacity: 0,
+                side: THREE.DoubleSide
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            howlWaveGroup.add(ring);
+            howlRings.push(ring);
+        }
+
+        // Bayangan aktif pada semua mesh karakter (menghasilkan dan menerima bayangan)
+        wolfRoot.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                if (child.material !== visorGlassMat) {
+                    child.receiveShadow = true;
+                }
+            }
+        });
+
+        // =====================================================================
+        // 6. MEADOW ENVIRONMENT (PADANG RUMPUT ALUR GHIBLI & GENSHIN)
+        // =====================================================================
+        // Tanah bergelombang lembut dengan gradasi warna tanah / rumput cerah
+        const groundSize = 120;
+        const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, 40, 40);
+        groundGeo.rotateX(-Math.PI / 2);
+
+        // Modulasi ketinggian bukit kecil lembut
+        const posArr = groundGeo.attributes.position.array;
+        for (let i = 0; i < posArr.length; i += 3) {
+            const x = posArr[i];
+            const z = posArr[i + 2];
+            const dist = Math.sqrt(x * x + z * z);
+            if (dist > 8) {
+                posArr[i + 1] = Math.sin(x * 0.08) * Math.cos(z * 0.08) * 1.5;
+            } else {
+                posArr[i + 1] = 0; // Dataran tengah datar untuk aksi serigala
+            }
+        }
+        groundGeo.computeVertexNormals();
+
+        const groundMat = new THREE.MeshToonMaterial({
+            color: 0x4ade80, // Hijau rumput segar khas Mondstadt / Totoro
+            gradientMap: celGradientTex,
+            roughness: 0.8
+        });
+        const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+        groundMesh.receiveShadow = true;
+        scene.add(groundMesh);
+
+
+
+        // Instanced Clumps of Anime Grass (Rumput Bergoyang)
+        const grassCount = 1200;
+        const grassBladeGeo = new THREE.ConeGeometry(0.12, 0.75, 3);
+        const grassInstanced = new THREE.InstancedMesh(
+            grassBladeGeo,
+            new THREE.MeshToonMaterial({
+                color: 0x22c55e,
+                gradientMap: celGradientTex
+            }),
+            grassCount
+        );
+        grassInstanced.receiveShadow = true;
+
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < grassCount; i++) {
+            const r = 2.5 + Math.random() * 45;
+            const theta = Math.random() * Math.PI * 2;
+            const gx = Math.cos(theta) * r;
+            const gz = Math.sin(theta) * r;
+            dummy.position.set(gx, 0.35, gz);
+            dummy.rotation.y = Math.random() * Math.PI;
+            dummy.rotation.z = (Math.random() - 0.5) * 0.25;
+            const s = 0.6 + Math.random() * 0.8;
+            dummy.scale.set(s, s * 1.2, s);
+            dummy.updateMatrix();
+            grassInstanced.setMatrixAt(i, dummy.matrix);
+        }
+        scene.add(grassInstanced);
+
+        // Dandelion Spores & Glowing Amber Firefly Particles
+        const particleCount = 200;
+        const particleGeo = new THREE.BufferGeometry();
+        const particlePositions = new Float32Array(particleCount * 3);
+        const particleVelocities = [];
+
+        for (let i = 0; i < particleCount; i++) {
+            particlePositions[i * 3] = (Math.random() - 0.5) * 60;
+            particlePositions[i * 3 + 1] = Math.random() * 10 + 0.2;
+            particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 60;
+            particleVelocities.push({
+                x: (Math.random() - 0.5) * 0.04 + 0.02,
+                y: Math.random() * 0.02 + 0.005,
+                z: (Math.random() - 0.5) * 0.04,
+                wobble: Math.random() * Math.PI * 2
+            });
+        }
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+
+        // Tekstur Glowing Particle
+        function createParticleGlowTexture() {
+            const pCanvas = document.createElement('canvas');
+            pCanvas.width = 64;
+            pCanvas.height = 64;
+            const pCtx = pCanvas.getContext('2d');
+            const g = pCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            g.addColorStop(0, 'rgba(255, 250, 200, 1)');
+            g.addColorStop(0.3, 'rgba(251, 191, 36, 0.8)');
+            g.addColorStop(0.7, 'rgba(249, 115, 22, 0.2)');
+            g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            pCtx.fillStyle = g;
+            pCtx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(pCanvas);
+        }
+
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.65,
+            map: createParticleGlowTexture(),
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const particlesSystem = new THREE.Points(particleGeo, particleMat);
+        scene.add(particlesSystem);
+
+        // =====================================================================
+        // 7. CHARACTER CONTROLLER, PHYSICS & STATE MACHINE
+        // =====================================================================
+        const wolfState = {
+            // Transform & Motion
+            position: new THREE.Vector3(0, 0, 0),
+            velocity: new THREE.Vector3(0, 0, 0),
+            heading: 0,           // Sudut rotasi serigala
+            speed: 0,             // Kecepatan gerak saat ini
+            baseWalkSpeed: 3.8,
+            baseRunSpeed: 8.5,
+
+            // Jump & Vertical Physics
+            isGrounded: true,
+            velocityY: 0,
+            jumpStrength: 8.2,
+            gravity: 21.0,
+
+            // Action States
+            isSprinting: false,
+            isHowling: false,
+            isSitting: false,
+            howlTimer: 0,
+            blinkTimer: 0,
+            earTwitchTimer: 0,
+
+            // Input Flags
+            forward: false,
+            backward: false,
+            left: false,
+            right: false,
+            jumpQueued: false,
+
+            // Camera Settings
+            cameraMode: 'follow', // 'follow', 'orbit', 'cinematic'
+            cinematicAngle: 0,
+
+            // State Gerakan Ekor Otonom & Alami (Flick acak kiri-kanan & gelombang perambatan)
+            tailFlickTimer: 2.0,
+            tailFlickTargetY: 0,
+            tailFlickTargetX: -0.5,
+            tailCurrentAngleY: 0,
+            tailCurrentAngleX: -0.5,
+
+            // Dinamika Gerak Alami Hewan (Smooth Turning, Banking, Jump Trajectory & Landing Cushion)
+            bankAngle: 0,          // Sudut kemiringan badan saat belok (lean/roll ke dalam tikungan)
+            neckTurnY: 0,          // Antisipasi leher & kepala menoleh lebih dulu ke arah belok
+            jumpBlend: 0,          // Transisi mulus melayang di udara dan menapak tanah
+            landingSquash: 0,      // Meredam tumbukan pendaratan (kompresi sendi & pantulan alami)
+            gaitPhase: 0,          // Fase siklus langkah berbasis perpindahan jarak & kecepatan
+            idleTimer: 0           // Timer auto-sit setelah 5 detik diam
+        };
+
+        // Keyboard & Key Press Listeners
+        const activeKeys = {};
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            activeKeys[key] = true;
+
+            if (key === 'w' || key === 'arrowup') wolfState.forward = true;
+            if (key === 's' || key === 'arrowdown') wolfState.backward = true;
+            if (key === 'a' || key === 'arrowleft') wolfState.left = true;
+            if (key === 'd' || key === 'arrowright') wolfState.right = true;
+            if (key === 'shift') wolfState.isSprinting = true;
+            if (key === ' ' || e.code === 'Space') {
+                e.preventDefault();
+                triggerJump();
+            }
+            if (key === 'f') triggerHowl();
+            if (key === 'c') toggleSit();
+
+            updateDpadUI();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            activeKeys[key] = false;
+
+            if (key === 'w' || key === 'arrowup') wolfState.forward = false;
+            if (key === 's' || key === 'arrowdown') wolfState.backward = false;
+            if (key === 'a' || key === 'arrowleft') wolfState.left = false;
+            if (key === 'd' || key === 'arrowright') wolfState.right = false;
+            if (key === 'shift') wolfState.isSprinting = false;
+
+            updateDpadUI();
+        });
+
+        function updateDpadUI() {
+            document.getElementById('key-w').classList.toggle('pressed', wolfState.forward);
+            document.getElementById('key-s').classList.toggle('pressed', wolfState.backward);
+            document.getElementById('key-a').classList.toggle('pressed', wolfState.left);
+            document.getElementById('key-d').classList.toggle('pressed', wolfState.right);
+            document.getElementById('btn-action-sprint').classList.toggle('pressed', wolfState.isSprinting);
+        }
+
+        // On-screen D-Pad Mouse & Touch Handlers
+        function bindPressButton(elemId, onPress, onRelease) {
+            const el = document.getElementById(elemId);
+            if (!el) return;
+
+            const handleDown = (e) => {
+                e.preventDefault();
+                onPress();
+                el.classList.add('pressed');
+            };
+            const handleUp = (e) => {
+                e.preventDefault();
+                onRelease();
+                el.classList.remove('pressed');
+            };
+
+            el.addEventListener('mousedown', handleDown);
+            el.addEventListener('touchstart', handleDown, { passive: false });
+            window.addEventListener('mouseup', handleUp);
+            window.addEventListener('touchend', handleUp);
+        }
+
+        bindPressButton('key-w', () => { wolfState.forward = true; }, () => { wolfState.forward = false; });
+        bindPressButton('key-s', () => { wolfState.backward = true; }, () => { wolfState.backward = false; });
+        bindPressButton('key-a', () => { wolfState.left = true; }, () => { wolfState.left = false; });
+        bindPressButton('key-d', () => { wolfState.right = true; }, () => { wolfState.right = false; });
+
+        // Action Trigger Functions
+        function triggerJump() {
+            if (wolfState.isGrounded && !wolfState.isHowling) {
+                wolfState.isSitting = false;
+                wolfState.idleTimer = 0;
+                const btnSit = document.getElementById('btn-action-sit');
+                if (btnSit) btnSit.classList.remove('pressed');
+                wolfState.velocityY = wolfState.jumpStrength;
+                wolfState.isGrounded = false;
+                soundFX.playJump();
+                document.getElementById('btn-action-jump').classList.add('pressed');
+                setTimeout(() => document.getElementById('btn-action-jump').classList.remove('pressed'), 250);
+            }
+        }
+
+        function triggerHowl() {
+            if (wolfState.isHowling) return;
+            wolfState.isHowling = true;
+            wolfState.howlTimer = 2.4;
+            wolfState.isSitting = false;
+            wolfState.idleTimer = 0;
+            const btnSit = document.getElementById('btn-action-sit');
+            if (btnSit) btnSit.classList.remove('pressed');
+            soundFX.playHowl();
+
+            const banner = document.getElementById('howl-banner');
+            banner.classList.add('active');
+            tongueMesh.visible = true;
+
+            setTimeout(() => {
+                banner.classList.remove('active');
+                tongueMesh.visible = false;
+            }, 2400);
+        }
+
+        function toggleSit() {
+            if (!wolfState.isGrounded || wolfState.isHowling) return;
+            wolfState.isSitting = !wolfState.isSitting;
+            wolfState.idleTimer = 0;
+            document.getElementById('btn-action-sit').classList.toggle('pressed', wolfState.isSitting);
+        }
+
+        // Bind Action Buttons
+        document.getElementById('btn-action-jump').addEventListener('click', triggerJump);
+        document.getElementById('btn-action-howl').addEventListener('click', triggerHowl);
+        document.getElementById('btn-action-sit').addEventListener('click', toggleSit);
+        document.getElementById('btn-action-sprint').addEventListener('click', () => {
+            wolfState.isSprinting = !wolfState.isSprinting;
+            updateDpadUI();
+        });
+
+        // Quick panel buttons
+        document.getElementById('btn-quick-howl').addEventListener('click', triggerHowl);
+        document.getElementById('btn-quick-sit').addEventListener('click', toggleSit);
+        document.getElementById('btn-quick-jump').addEventListener('click', triggerJump);
+        document.getElementById('btn-quick-pounce').addEventListener('click', () => {
+            triggerJump();
+            wolfState.speed = wolfState.baseRunSpeed * 1.3;
+        });
+
+        // Header controls (Sound, Time of Day, Reset Cam, Fullscreen)
+        const btnSound = document.getElementById('btn-sound-toggle');
+        btnSound.addEventListener('click', () => {
+            soundFX.muted = !soundFX.muted;
+            btnSound.classList.toggle('active', !soundFX.muted);
+        });
+
+        const timeBtns = {
+            day: document.getElementById('btn-time-day'),
+            sunset: document.getElementById('btn-time-sunset'),
+            night: document.getElementById('btn-time-night')
+        };
+        Object.keys(timeBtns).forEach(k => {
+            timeBtns[k].addEventListener('click', () => {
+                Object.values(timeBtns).forEach(b => b.classList.remove('active'));
+                timeBtns[k].classList.add('active');
+                setEnvironmentPreset(k);
+            });
+        });
+
+        document.getElementById('btn-cam-reset').addEventListener('click', () => {
+            camera.position.set(0, 3.8, -8.5);
+            controls.target.copy(wolfRoot.position).add(new THREE.Vector3(0, 1.4, 0));
+        });
+
+        document.getElementById('btn-fullscreen').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => { });
+            } else {
+                document.exitFullscreen().catch(() => { });
+            }
+        });
+
+        // Camera Switcher
+        const camPills = {
+            follow: document.getElementById('cam-follow'),
+            orbit: document.getElementById('cam-orbit'),
+            cinematic: document.getElementById('cam-cinematic')
+        };
+        Object.keys(camPills).forEach(mode => {
+            camPills[mode].addEventListener('click', () => {
+                Object.values(camPills).forEach(p => p.classList.remove('active'));
+                camPills[mode].classList.add('active');
+                wolfState.cameraMode = mode;
+            });
+        });
+
+        // Customizer Slider Listeners
+        const sliderFurGlow = document.getElementById('slider-fur-glow');
+        sliderFurGlow.addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.getElementById('val-fur-glow').innerText = `${val}%`;
+            const mult = val / 100;
+            furOrangeMat.color.copy(furBaseOrange).multiplyScalar(mult);
+        });
+
+        const sliderTailSize = document.getElementById('slider-tail-size');
+        sliderTailSize.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('val-tail-size').innerText = `${val.toFixed(1)}x`;
+            tailBase.scale.set(val, val, val);
+        });
+
+        const sliderParticles = document.getElementById('slider-particles');
+        sliderParticles.addEventListener('input', (e) => {
+            const val = e.target.value === '1';
+            document.getElementById('val-particles').innerText = val ? 'Aktif' : 'Nonaktif';
+            particlesSystem.visible = val;
+        });
+
+        // Visor Expression & Color Event Listeners
+        const visorExpButtons = document.querySelectorAll('.btn-visor-exp');
+        const badgeVisorExp = document.getElementById('badge-visor-exp');
+        visorExpButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                visorExpButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentVisorExp = btn.dataset.exp;
+                if (badgeVisorExp) badgeVisorExp.innerText = currentVisorExp.toUpperCase();
+            });
+        });
+
+        const visorColorDots = document.querySelectorAll('.color-dot');
+        visorColorDots.forEach(dot => {
+            dot.addEventListener('click', () => {
+                visorColorDots.forEach(d => d.classList.remove('active'));
+                dot.classList.add('active');
+                currentVisorColor = dot.dataset.color;
+                if (visorLight) visorLight.color.set(currentVisorColor);
+                ledRingsList.forEach(r => r.material.color.set(currentVisorColor));
+                if (badgeVisorExp) {
+                    badgeVisorExp.style.color = currentVisorColor;
+                    badgeVisorExp.style.borderColor = currentVisorColor;
+                }
+            });
+        });
+
+        // =====================================================================
+        // 8. ANIMATION LOOP & KINEMATICS
+        // =====================================================================
+        const clock = new THREE.Clock();
+        let stepSoundTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const dt = Math.min(clock.getDelta(), 0.1);
+            const time = clock.getElapsedTime();
+
+            // 1. UPDATE PHYSICAL MOVEMENT
+            let moveX = 0;
+            let moveZ = 0;
+
+            const hasMoveInput = (wolfState.forward || wolfState.backward || wolfState.left || wolfState.right);
+            if (hasMoveInput && !wolfState.isHowling) {
+                // Sentuhan tombol gerak langsung membatalkan posisi duduk
+                wolfState.isSitting = false;
+                wolfState.idleTimer = 0;
+                const btnSit = document.getElementById('btn-action-sit');
+                if (btnSit) btnSit.classList.remove('pressed');
+            }
+
+            // Auto-sit setelah idle (diam tanpa input) selama 5 detik
+            if (wolfState.isGrounded && !hasMoveInput && !wolfState.isHowling && wolfState.speed < 0.1) {
+                wolfState.idleTimer += dt;
+                if (wolfState.idleTimer >= 5.0 && !wolfState.isSitting) {
+                    wolfState.isSitting = true;
+                    const btnSit = document.getElementById('btn-action-sit');
+                    if (btnSit) btnSit.classList.add('pressed');
+                }
+            } else {
+                wolfState.idleTimer = 0;
+            }
+
+            if (!wolfState.isHowling && !wolfState.isSitting) {
+                if (wolfState.forward) moveZ -= 1;
+                if (wolfState.backward) moveZ += 1;
+                if (wolfState.left) moveX -= 1;
+                if (wolfState.right) moveX += 1;
+            }
+
+            const isMoving = (moveX !== 0 || moveZ !== 0);
+            if (isMoving) {
+                wolfState.isSitting = false;
+                wolfState.idleTimer = 0;
+            }
+
+            // Arah gerak relatif terhadap orientasi kamera
+            let diff = 0;
+            if (isMoving) {
+                const camAngle = Math.atan2(
+                    wolfRoot.position.x - camera.position.x,
+                    wolfRoot.position.z - camera.position.z
+                );
+                const inputAngle = Math.atan2(moveX, -moveZ);
+                const targetHeading = camAngle + inputAngle;
+
+                // Rotasi halus ke arah gerak (slerp heading dengan inersia bobot tubuh)
+                diff = targetHeading - wolfState.heading;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+
+                const turnSpeed = wolfState.isSprinting ? 9.5 : 11.5;
+                wolfState.heading += diff * Math.min(1.0, turnSpeed * dt);
+
+                const targetSpeed = wolfState.isSprinting ? wolfState.baseRunSpeed : wolfState.baseWalkSpeed;
+                wolfState.speed += (targetSpeed - wolfState.speed) * 8.5 * dt;
+            } else {
+                wolfState.speed += (0 - wolfState.speed) * 10.0 * dt;
+            }
+
+            // Damping kemiringan badan (banking lean/roll) saat berbelok layaknya hewan asli
+            const maxSpeed = wolfState.baseRunSpeed;
+            const speedRatio = Math.min(1.0, wolfState.speed / maxSpeed);
+            const targetBank = isMoving ? THREE.MathUtils.clamp(-diff * speedRatio * 0.40, -0.22, 0.22) : 0;
+            wolfState.bankAngle += (targetBank - wolfState.bankAngle) * Math.min(1.0, 8.0 * dt);
+
+            // Leher dan kepala menoleh duluan mengikuti arah belokan (Antisipasi visual alami)
+            const targetNeckTurn = isMoving ? THREE.MathUtils.clamp(diff * 0.38, -0.32, 0.32) : 0;
+            wolfState.neckTurnY += (targetNeckTurn - wolfState.neckTurnY) * Math.min(1.0, 10.0 * dt);
+
+            // Gerakkan wolfRoot pada sumbu X & Z
+            const forwardVector = new THREE.Vector3(
+                Math.sin(wolfState.heading),
+                0,
+                Math.cos(wolfState.heading)
+            );
+            wolfRoot.position.addScaledVector(forwardVector, wolfState.speed * dt);
+            wolfRoot.rotation.y = wolfState.heading;
+
+            // 2. LOMPAT & GRAVITASI (VERTICAL MOTION & PENDARATAN SQUASH)
+            if (!wolfState.isGrounded) {
+                wolfState.velocityY -= wolfState.gravity * dt;
+                wolfRoot.position.y += wolfState.velocityY * dt;
+
+                if (wolfRoot.position.y <= 0) {
+                    wolfRoot.position.y = 0;
+                    wolfState.velocityY = 0;
+                    wolfState.isGrounded = true;
+                    // Trigger efek peredam kejut / squash saat menapak tanah
+                    wolfState.landingSquash = 0.18;
+                    soundFX.playLand();
+                }
+            }
+
+            // Redam efek benturan pendaratan secara bertahap (suspensi sendi alami)
+            wolfState.landingSquash *= Math.max(0, 1.0 - 14.0 * dt);
+
+            // Efek suara langkah kaki berkala saat berlari di rumput
+            if (wolfState.isGrounded && wolfState.speed > 0.5) {
+                stepSoundTimer += dt * (wolfState.speed * 2.2);
+                if (stepSoundTimer > Math.PI) {
+                    soundFX.playFootstep();
+                    stepSoundTimer = 0;
+                }
+            }
+
+            // 3. ANIMATION GAIT CYCLE (TROT / GALLOP PROCEDURAL SKELETON)
+            if (isMoving) {
+                wolfState.gaitPhase += dt * (wolfState.isSprinting ? 14 : 9) * Math.min(1.0, wolfState.speed / (wolfState.isSprinting ? wolfState.baseRunSpeed : wolfState.baseWalkSpeed) + 0.15);
+            }
+            const cycle = wolfState.gaitPhase;
+
+            if (wolfState.isHowling) {
+                // Posisi Mengaum: Kepala tegak mendongak ke langit, mulut terbuka
+                wolfState.howlTimer -= dt;
+                if (wolfState.howlTimer <= 0) wolfState.isHowling = false;
+
+                headGroup.rotation.x = -0.7 + Math.sin(time * 8) * 0.04;
+                neckGroup.rotation.x = -0.4;
+                jawGroup.rotation.x = 0.55 + Math.sin(time * 12) * 0.08;
+                bodyGroup.position.y = 0.1;
+
+                // Shockwave rings expanding
+                howlRings.forEach((ring, idx) => {
+                    const wavePhase = (time * 2.5 + idx * 0.3) % 1.0;
+                    const scale = 0.5 + wavePhase * 3.5;
+                    ring.scale.set(scale, scale, scale);
+                    ring.material.opacity = (1.0 - wavePhase) * 0.8;
+                    ring.position.z = 0.2 + wavePhase * 1.8;
+                });
+            } else if (wolfState.isSitting) {
+                // Posisi Duduk Santai Bahagia
+                bodyGroup.position.y = -0.42;
+                bodyGroup.rotation.x = -0.32;
+                neckGroup.rotation.x = 0.22 + Math.sin(time * 3.0) * 0.02;
+                headGroup.rotation.x = 0.08;
+                headGroup.rotation.z = Math.sin(time * 2.5) * 0.05; // Gelengan kepala manis
+                jawGroup.rotation.x = 0;
+
+                frontLeftLeg.hip.rotation.x = 0.32;
+                frontRightLeg.hip.rotation.x = 0.32;
+                frontLeftLeg.knee.rotation.x = -0.15;
+                frontRightLeg.knee.rotation.x = -0.15;
+
+                backLeftLeg.hip.rotation.x = -1.25;
+                backRightLeg.hip.rotation.x = -1.25;
+                backLeftLeg.knee.rotation.x = 1.6;
+                backRightLeg.knee.rotation.x = 1.6;
+
+                // Ekor bergoyang cepat ke kanan dan kiri (Happy Wag Response)
+                const happyWagCycle = time * 12.0;
+                tailBase.rotation.x = -0.35 + Math.cos(happyWagCycle * 2.0) * 0.08;
+                tailBase.rotation.y = Math.sin(happyWagCycle) * 0.72;
+                tailBase.rotation.z = Math.cos(happyWagCycle) * 0.12;
+            } else if (!wolfState.isGrounded) {
+                // Posisi Melayang di Udara (Airborne Jump Pose yang Kontinu & Alami Tanpa Patah)
+                const vNorm = THREE.MathUtils.clamp(wolfState.velocityY / wolfState.jumpStrength, -1.0, 1.0);
+
+                // Elevasi & Pitch mengalir secara aerodinamis mengikuti kurva parabola
+                bodyGroup.position.y = vNorm * 0.14 - wolfState.landingSquash;
+                bodyGroup.rotation.x = -vNorm * 0.22;
+                bodyGroup.rotation.z = wolfState.bankAngle;
+
+                // Kaki depan: menjulur lentur saat naik, bersiap menapak saat turun
+                frontLeftLeg.hip.rotation.x = -0.15 - vNorm * 0.45;
+                frontRightLeg.hip.rotation.x = -0.10 - vNorm * 0.45;
+                frontLeftLeg.knee.rotation.x = Math.max(0, -vNorm * 0.45) + wolfState.landingSquash * 1.6;
+                frontRightLeg.knee.rotation.x = Math.max(0, -vNorm * 0.45) + wolfState.landingSquash * 1.6;
+
+                // Kaki belakang: mendorong kuat ke belakang saat awal lompat, melipat ke bawah panggul saat turun
+                backLeftLeg.hip.rotation.x = 0.20 + vNorm * 0.52;
+                backRightLeg.hip.rotation.x = 0.25 + vNorm * 0.52;
+                backLeftLeg.knee.rotation.x = Math.max(0, (vNorm + 0.25) * 0.55) + wolfState.landingSquash * 1.8;
+                backRightLeg.knee.rotation.x = Math.max(0, (vNorm + 0.25) * 0.55) + wolfState.landingSquash * 1.8;
+
+                // Kepala, Leher & Ekor mengikuti kurva lompatan dan mengimbangi arah belokan
+                neckGroup.rotation.x = -vNorm * 0.14;
+                neckGroup.rotation.y = wolfState.neckTurnY;
+                headGroup.rotation.x = -vNorm * 0.08;
+                headGroup.rotation.y = wolfState.neckTurnY * 0.55;
+
+                tailBase.rotation.x = -0.45 - vNorm * 0.35;
+                tailBase.rotation.y = Math.sin(time * 4) * 0.15 - wolfState.bankAngle * 1.4;
+            } else if (isMoving) {
+                // Berjalan / Berlari: Siklus Trot Alami dengan Bobbing & Lean
+                bodyGroup.position.y = Math.abs(Math.sin(cycle)) * 0.10 - wolfState.landingSquash;
+                bodyGroup.rotation.z = Math.sin(cycle * 0.5) * 0.035 + wolfState.bankAngle;
+                bodyGroup.rotation.x = Math.sin(cycle) * 0.045;
+
+                const legSwing = (wolfState.isSprinting ? 0.82 : 0.52) * Math.min(1.0, wolfState.speed / 1.5);
+                frontLeftLeg.hip.rotation.x = Math.sin(cycle) * legSwing;
+                frontRightLeg.hip.rotation.x = -Math.sin(cycle) * legSwing;
+                backLeftLeg.hip.rotation.x = -Math.sin(cycle) * legSwing;
+                backRightLeg.hip.rotation.x = Math.sin(cycle) * legSwing;
+
+                frontLeftLeg.knee.rotation.x = Math.max(0, -Math.cos(cycle) * 0.65) + wolfState.landingSquash * 1.5;
+                frontRightLeg.knee.rotation.x = Math.max(0, Math.cos(cycle) * 0.65) + wolfState.landingSquash * 1.5;
+                backLeftLeg.knee.rotation.x = Math.max(0, Math.cos(cycle) * 0.75) + wolfState.landingSquash * 1.5;
+                backRightLeg.knee.rotation.x = Math.max(0, -Math.cos(cycle) * 0.75) + wolfState.landingSquash * 1.5;
+
+                // Kepala & Leher mengayun seirama langkah + antisipasi menoleh saat belok
+                neckGroup.rotation.x = Math.sin(cycle) * 0.05;
+                neckGroup.rotation.y = wolfState.neckTurnY;
+                headGroup.rotation.x = -Math.sin(cycle) * 0.045;
+                headGroup.rotation.y = wolfState.neckTurnY * 0.55;
+                jawGroup.rotation.x = wolfState.isSprinting ? 0.16 : 0;
+
+                // Ekor terangkat dan mengimbangi pergerakan lari serta berbelok
+                tailBase.rotation.y = Math.sin(cycle * 0.5) * 0.35 - wolfState.bankAngle * 1.35;
+                tailBase.rotation.x = -0.38 + Math.cos(cycle) * 0.10;
+            } else {
+                // Posisi Diam (Kaki tetap kokoh menapak tanah, nafas berdetak hanya pada area perut)
+                bodyGroup.position.y = -wolfState.landingSquash;
+                bodyGroup.rotation.set(0, 0, wolfState.bankAngle);
+                neckGroup.rotation.x = Math.sin(time * 2.0) * 0.02;
+                neckGroup.rotation.y = wolfState.neckTurnY;
+                headGroup.rotation.x = -Math.sin(time * 2.0) * 0.015 + 0.04;
+                headGroup.rotation.y = wolfState.neckTurnY * 0.55;
+                jawGroup.rotation.x = 0;
+
+                // Efek nafas halus hanya pada perut & torso tanpa membuat kaki tenggelam
+                const breathCycle = Math.sin(time * 2.4);
+                bellyMesh.scale.x = 0.92 + breathCycle * 0.035;
+                bellyMesh.scale.y = 0.90 + breathCycle * 0.030;
+                torsoMesh.scale.x = 1.0 + breathCycle * 0.016;
+                torsoMesh.scale.y = 1.0 + breathCycle * 0.016;
+
+                // Haluskan posisi sendi kaki kembali ke netral saat berhenti (tidak teleport mendadak)
+                const settleSpeed = Math.min(1.0, 12.0 * dt);
+                frontLeftLeg.hip.rotation.x += (0 - frontLeftLeg.hip.rotation.x) * settleSpeed;
+                frontRightLeg.hip.rotation.x += (0 - frontRightLeg.hip.rotation.x) * settleSpeed;
+                backLeftLeg.hip.rotation.x += (0 - backLeftLeg.hip.rotation.x) * settleSpeed;
+                backRightLeg.hip.rotation.x += (0 - backRightLeg.hip.rotation.x) * settleSpeed;
+
+                const kneeFlex = wolfState.landingSquash * 1.5;
+                frontLeftLeg.knee.rotation.x += (kneeFlex - frontLeftLeg.knee.rotation.x) * settleSpeed;
+                frontRightLeg.knee.rotation.x += (kneeFlex - frontRightLeg.knee.rotation.x) * settleSpeed;
+                backLeftLeg.knee.rotation.x += (kneeFlex - backLeftLeg.knee.rotation.x) * settleSpeed;
+                backRightLeg.knee.rotation.x += (kneeFlex - backRightLeg.knee.rotation.x) * settleSpeed;
+
+                // EKOR BERGERAK SENDIRI SECARA OTONOM (FLICK ACAK KANAN/KIRI & ORGANIK SEPERTI RUBAH ASLI)
+                wolfState.tailFlickTimer -= dt;
+                if (wolfState.tailFlickTimer <= 0) {
+                    // Interval acak antara 1.2 hingga 4.5 detik
+                    wolfState.tailFlickTimer = 1.2 + Math.random() * 3.3;
+                    const flickDir = Math.random() > 0.5 ? 1 : -1;
+                    const flickPower = 0.25 + Math.random() * 0.55;
+                    wolfState.tailFlickTargetY = flickDir * flickPower;
+                    wolfState.tailFlickTargetX = -0.42 - Math.random() * 0.28;
+
+                    // 30% kesempatan melakukan double flick cepat
+                    if (Math.random() < 0.3) {
+                        wolfState.tailFlickTimer = 0.35 + Math.random() * 0.25;
+                    }
+                } else {
+                    // Perlahan kembali ke posisi tengah netral
+                    wolfState.tailFlickTargetY *= Math.max(0, 1.0 - 1.4 * dt);
+                }
+
+                // Ayunan mikro multi-frekuensi yang tidak monoton
+                const gentleNoiseY = Math.sin(time * 0.85) * 0.12 + Math.cos(time * 1.73 + 0.4) * 0.08 + Math.sin(time * 0.38) * 0.06;
+                const gentleNoiseX = Math.cos(time * 0.72) * 0.05 + Math.sin(time * 1.45) * 0.03;
+
+                wolfState.tailCurrentAngleY += (wolfState.tailFlickTargetY + gentleNoiseY - wolfState.tailCurrentAngleY) * Math.min(1.0, 7.0 * dt);
+                wolfState.tailCurrentAngleX += (wolfState.tailFlickTargetX + gentleNoiseX - wolfState.tailCurrentAngleX) * Math.min(1.0, 5.0 * dt);
+
+                tailBase.rotation.x = wolfState.tailCurrentAngleX;
+                tailBase.rotation.y = wolfState.tailCurrentAngleY;
+            }
+
+            // 4. FISIKA SEKUNDER RANTAI EKOR (WAG SPREAD & SPRING LAG HINGGA UJUNG RUNCING)
+            tailSegments.forEach((seg, idx) => {
+                const lag = idx + 1;
+                if (wolfState.isSitting) {
+                    // Kibasan ekor bahagia berombak cepat dari pangkal hingga ujung runcing
+                    const lagFactor = lag * 0.42;
+                    seg.rotation.y = Math.sin(time * 12.0 - lagFactor) * 0.36;
+                    seg.rotation.z = Math.cos(time * 12.0 - lagFactor) * 0.14;
+                    seg.rotation.x = (idx * 0.04) + Math.cos(time * 24.0 - lagFactor) * 0.05;
+                } else if (isMoving) {
+                    const lagFactor = lag * 0.14;
+                    seg.rotation.y = Math.sin(cycle * 0.5 - lagFactor) * 0.20 - wolfState.bankAngle * 0.22;
+                    seg.rotation.z = Math.cos(cycle * 0.5 - lagFactor) * 0.09;
+                    seg.rotation.x = 0.04 * idx;
+                } else {
+                    const waveY = Math.sin(time * 2.2 - lag * 0.6) * 0.07;
+                    const waveZ = Math.cos(time * 1.8 - lag * 0.5) * 0.05;
+                    seg.rotation.y = (wolfState.tailCurrentAngleY * 0.35) + waveY;
+                    seg.rotation.z = (wolfState.tailCurrentAngleY * 0.18) + waveZ;
+                    seg.rotation.x = (idx * 0.05) + Math.sin(time * 1.5 - lag * 0.4) * 0.04;
+                }
+            });
+
+            // 5. UPDATE EKSPRESI KACAMATA ASTRO BOT VISION PRO AMOLED
+            let activeExp = currentVisorExp;
+            if (activeExp === 'auto') {
+                if (wolfState.isHowling) activeExp = 'star';
+                else if (wolfState.isSitting) activeExp = 'happy';
+                else if (!wolfState.isGrounded) activeExp = 'surprised';
+                else if (wolfState.isSprinting && isMoving) activeExp = 'focused';
+                else if (isMoving) activeExp = 'normal';
+                else activeExp = 'normal';
+            }
+
+            // Animasi Kedip Layar AMOLED pada ekspresi normal
+            let blinkVal = 0;
+            if (activeExp === 'normal') {
+                wolfState.blinkTimer -= dt;
+                if (wolfState.blinkTimer < 0.16) {
+                    blinkVal = Math.sin((wolfState.blinkTimer / 0.16) * Math.PI);
+                }
+                if (wolfState.blinkTimer <= 0) {
+                    wolfState.blinkTimer = 2.5 + Math.random() * 3.0;
+                }
+            }
+
+            // Gerakan mata digital melirik mengikuti pergerakan
+            const lookX = isMoving ? Math.sin(cycle * 0.5) * 0.4 : Math.sin(time * 0.8) * 0.25;
+            const lookY = !wolfState.isGrounded ? -0.35 : 0;
+
+            renderAstroBotScreen(activeExp, blinkVal, lookX, lookY);
+
+            // Gerakan kedut telinga penasaran
+            wolfState.earTwitchTimer += dt;
+            if (wolfState.earTwitchTimer > 3.0) {
+                leftEarGroup.rotation.y = Math.sin(time * 20) * 0.18;
+                if (wolfState.earTwitchTimer > 3.4) wolfState.earTwitchTimer = 0;
+            } else {
+                leftEarGroup.rotation.y = 0;
+            }
+
+            // 6. UPDATE DANDELION / FIREFLY PARTICLES
+            const pPositions = particleGeo.attributes.position.array;
+            for (let i = 0; i < particleCount; i++) {
+                const vel = particleVelocities[i];
+                vel.wobble += dt * 2.0;
+
+                pPositions[i * 3] += vel.x + Math.sin(vel.wobble) * 0.02;
+                pPositions[i * 3 + 1] += vel.y;
+                pPositions[i * 3 + 2] += vel.z + Math.cos(vel.wobble) * 0.02;
+
+                if (pPositions[i * 3 + 1] > 14) {
+                    pPositions[i * 3 + 1] = 0.2;
+                    pPositions[i * 3] = wolfRoot.position.x + (Math.random() - 0.5) * 50;
+                    pPositions[i * 3 + 2] = wolfRoot.position.z + (Math.random() - 0.5) * 50;
+                }
+            }
+            particleGeo.attributes.position.needsUpdate = true;
+
+            // 7. CAMERA SYSTEM (SMOOTH 3RD PERSON FOLLOW / ORBIT / CINEMATIC)
+            if (wolfState.cameraMode === 'follow') {
+                const targetLookAt = wolfRoot.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+                controls.target.lerp(targetLookAt, 0.1);
+
+                // Offset kamera di belakang punggung serigala
+                const idealOffset = new THREE.Vector3(0, 2.8, -7.5);
+                idealOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), wolfState.heading);
+                const idealCameraPos = wolfRoot.position.clone().add(idealOffset);
+
+                // Lerp kamera halus
+                camera.position.lerp(idealCameraPos, 0.065);
+                controls.update();
+            } else if (wolfState.cameraMode === 'cinematic') {
+                wolfState.cinematicAngle += dt * 0.45;
+                const dist = 7.5;
+                camera.position.x = wolfRoot.position.x + Math.sin(wolfState.cinematicAngle) * dist;
+                camera.position.z = wolfRoot.position.z + Math.cos(wolfState.cinematicAngle) * dist;
+                camera.position.y = wolfRoot.position.y + 2.4 + Math.sin(time * 0.8) * 0.4;
+                controls.target.copy(wolfRoot.position).add(new THREE.Vector3(0, 1.3, 0));
+                controls.update();
+            } else {
+                // Free Orbit mode
+                controls.target.lerp(wolfRoot.position.clone().add(new THREE.Vector3(0, 1.4, 0)), 0.05);
+                controls.update();
+            }
+
+            if (camera.position.y < 0.5) camera.position.y = 0.5;
+
+            // 8. UPDATE STATS UI
+            document.getElementById('stat-speed').innerText = `${wolfState.speed.toFixed(1)} m/s`;
+            document.getElementById('stat-altitude').innerText = `${wolfRoot.position.y.toFixed(2)} m`;
+
+            let stateText = 'Berdiri (Idle)';
+            if (wolfState.isHowling) stateText = 'Mengaum (Howl)';
+            else if (!wolfState.isGrounded) stateText = 'Melompat (Jump)';
+            else if (wolfState.isSitting) stateText = 'Duduk Santai';
+            else if (wolfState.isSprinting && isMoving) stateText = 'Berlari Kencang (Sprint)';
+            else if (isMoving) stateText = 'Melangkah (Walk)';
+            document.getElementById('stat-state').innerText = stateText;
+            document.getElementById('badge-motion').innerText = stateText.toUpperCase().split(' ')[0];
+
+            renderer.render(scene, camera);
+        }
+
+        // Window Resize Handling
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Mulai Loop Animasi
+        animate();
+    </script>
+</body>
+
+</html>

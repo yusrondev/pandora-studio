@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genshin Sandbox World Editor - Professional Studio UI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/icons.css">
+    <link rel="stylesheet" href="css/header.css">
+    <link rel="stylesheet" href="css/buttons.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/play-hud.css">
+    <link rel="stylesheet" href="css/map-storage.css">
+    <link rel="stylesheet" href="css/cinematic.css">
+</head>
+
+<body>
+
+    <!-- TOP COMPACT TOOLBAR -->
+    <header id="top-toolbar">
+        <div class="toolbar-brand">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path
+                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+                    </path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+            </span>
+            <span>PANDORA</span>
+            <span class="badge-tag">3D</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- MAP STORAGE & SELECTOR (DI KIRI PLAY DEMO) -->
+        <div class="toolbar-map-group" id="toolbar-map-group">
+            <label class="toolbar-map-label" title="Pilih & Kelola Map yang Tersimpan">
+                <span class="svg-icon" style="color:var(--accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                        <line x1="8" y1="2" x2="8" y2="18"></line>
+                        <line x1="16" y1="6" x2="16" y2="22"></line>
+                    </svg>
+                </span>
+                <span>Map</span>
+            </label>
+            <div class="map-select-wrapper">
+                <select id="select-saved-maps" class="map-select" title="Pilih Map Tersimpan">
+                    <option value="" disabled selected>-- Memuat Map... --</option>
+                </select>
+                <span class="map-select-arrow">
+                    <svg style="width:12px; height:12px;" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </span>
+            </div>
+
+            <!-- Tombol Simpan Map Baru / Perubahan -->
+            <button id="btn-save-map" class="btn-compact btn-map-save" title="Simpan Map Ini ke Folder maps/">
+                <span class="svg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                </span>
+                <span id="txt-save-map">Simpan</span>
+            </button>
+
+            <!-- Tombol Edit / Ganti Nama Map -->
+            <button id="btn-edit-map" class="btn-icon-only btn-map-edit" title="Edit / Ganti Nama Map Terpilih"
+                disabled>
+                <span class="svg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </span>
+            </button>
+
+            <!-- Tombol Hapus Map -->
+            <button id="btn-delete-map" class="btn-icon-only btn-map-delete" title="Hapus Map Terpilih dari Project"
+                disabled>
+                <span class="svg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                </span>
+            </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <button id="btn-play-mode" class="btn-compact btn-play-mode"
+            title="Mainkan Demo Jelajah Map dengan Karakter Rubah (P)">
+            <span class="svg-icon" id="play-mode-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="6 3 20 12 6 21 6 3"></polygon>
+                </svg>
+            </span>
+            <span id="txt-play-mode">Play Demo</span>
+        </button>
+
+        <div class="divider"></div>
+
+        <button id="btn-toggle-left-sidebar" class="btn-compact" title="Toggle Inspector Panel (I)">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <line x1="4" y1="21" x2="4" y2="14"></line>
+                    <line x1="4" y1="10" x2="4" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12" y2="3"></line>
+                    <line x1="20" y1="21" x2="20" y2="16"></line>
+                    <line x1="20" y1="12" x2="20" y2="3"></line>
+                    <line x1="1" y1="14" x2="7" y2="14"></line>
+                    <line x1="9" y1="8" x2="15" y2="8"></line>
+                    <line x1="17" y1="16" x2="23" y2="16"></line>
+                </svg>
+            </span>
+            <span>Inspector</span>
+        </button>
+
+        <button id="btn-toggle-cinematic-dock" class="btn-compact btn-toggle active" title="Buka/Tutup Cinematic Sequencer Bawah (C)">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="m22 8-6 4 6 4V8Z"></path>
+                    <rect x="2" y="6" width="14" height="12" rx="2" ry="2"></rect>
+                </svg>
+            </span>
+            <span>Cinematic</span>
+        </button>
+
+        <div class="divider"></div>
+
+        <button id="btn-hand-mode" class="btn-compact btn-toggle" title="Hand / Pan Mode (Space)">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path>
+                    <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path>
+                    <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path>
+                    <path
+                        d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15">
+                    </path>
+                </svg>
+            </span>
+            <span>Hand Tool</span>
+        </button>
+
+        <button id="btn-reset-camera" class="btn-icon-only" title="Reset Viewport Camera">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="22" y1="12" x2="18" y2="12"></line>
+                    <line x1="6" y1="12" x2="2" y2="12"></line>
+                    <line x1="12" y1="6" x2="12" y2="2"></line>
+                    <line x1="12" y1="22" x2="12" y2="18"></line>
+                </svg>
+            </span>
+        </button>
+
+        <button id="btn-undo" class="btn-icon-only" title="Undo (Ctrl+Z)">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <polyline points="1 4 1 10 7 10"></polyline>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                </svg>
+            </span>
+        </button>
+        <button id="btn-redo" class="btn-icon-only" title="Redo (Ctrl+Y)">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+            </span>
+        </button>
+
+        <button id="btn-cancel-esc" class="btn-compact btn-cancel-esc" title="Batal / Unset Semua Pilihan & Mode (Esc)">
+            <span class="esc-kbd">ESC</span>
+            <span>Batal</span>
+        </button>
+
+        <div class="divider"></div>
+
+        <div class="toolbar-group" title="Pilih Suasana Waktu Genshin Impact">
+            <label>
+                <span class="svg-icon" style="color:var(--accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </span>
+                <span>Sky</span>
+            </label>
+            <select id="select-sky-preset"
+                style="background:rgba(24,30,46,0.85); color:var(--text-main); border:1px solid var(--panel-border); padding:3px 6px; border-radius:var(--radius-sm); outline:none; font-size:10.5px; cursor:pointer;">
+                <option value="day" selected>Siang</option>
+                <option value="sunset">Sore</option>
+                <option value="night">Malam (Aurora & Bintang)</option>
+            </select>
+        </div>
+
+        <div class="toolbar-group" title="Posisi Sudut Matahari (Azimuth)">
+            <label><span>Azim</span></label>
+            <input type="range" id="slider-azimuth" min="0" max="360" value="300">
+            <span id="val-azimuth" class="val-badge">300°</span>
+        </div>
+
+        <div class="toolbar-group" title="Ketinggian Sudut Matahari (Elevation)">
+            <label><span>Elev</span></label>
+            <input type="range" id="slider-elevation" min="5" max="85" value="45">
+            <span id="val-elevation" class="val-badge">45°</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="toolbar-group" title="Kecepatan Angin">
+            <label>
+                <span class="svg-icon" style="color:#38bdf8;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path
+                            d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2">
+                        </path>
+                    </svg>
+                </span>
+                <span>Angin</span>
+            </label>
+            <input type="range" id="slider-wind-speed" min="0.0" max="3.0" step="0.1" value="1.0">
+        </div>
+
+        <div class="toolbar-group" title="Intensitas Daun Rontok">
+            <label>
+                <span class="svg-icon" style="color:#fb923c;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z">
+                        </path>
+                        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+                    </svg>
+                </span>
+                <span>Rontok</span>
+            </label>
+            <input type="range" id="slider-leaf-fall" min="0.0" max="3.0" step="0.2" value="1.0">
+        </div>
+
+        <div class="divider"></div>
+
+        <button id="btn-toggle-fullscreen" class="btn-icon-only" title="Toggle Fullscreen (F)">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path
+                        d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
+                    </path>
+                </svg>
+            </span>
+        </button>
+
+        <button id="btn-toggle-right-sidebar" class="btn-compact" title="Toggle Layers Panel (L)">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                    <polyline points="2 17 12 22 22 17"></polyline>
+                    <polyline points="2 12 12 17 22 12"></polyline>
+                </svg>
+            </span>
+            <span>Layers</span>
+        </button>
+    </header>
+
+    <!-- ACTIVE MODE FLOATING HUD BANNER -->
+    <div id="active-mode-banner" class="mode-banner">
+        <span class="mode-pulse-dot"></span>
+        <span id="mode-banner-text">Mode Aktif</span>
+        <button id="btn-banner-esc" class="banner-esc-btn" title="Batal / Unset (Esc)">
+            <span class="esc-kbd">ESC</span> Batal
+        </button>
+    </div>
+
+    <!-- MINIMALIST FLOATING SPECIES SWITCHER (Hanya tampil saat Demo Mode) -->
+    <div id="fox-species-bar" class="fox-species-bar" style="display: none;">
+        <span class="species-bar-hint"><kbd>1-5</kbd> Spesies:</span>
+        <button class="btn-species-pill active" data-species="red" title="Red Fox (Vulpes vulpes) - Tekan 1">
+            <span class="species-icon">🦊</span>
+            <span class="species-label">Red</span>
+        </button>
+        <button class="btn-species-pill" data-species="arctic" title="Arctic Fox (Vulpes lagopus) - Tekan 2">
+            <span class="species-icon">❄️</span>
+            <span class="species-label">Arctic</span>
+        </button>
+        <button class="btn-species-pill" data-species="corsac" title="Corsac Fox (Vulpes corsac) - Tekan 3">
+            <span class="species-icon">🌾</span>
+            <span class="species-label">Corsac</span>
+        </button>
+        <button class="btn-species-pill" data-species="swift" title="Swift Fox (Vulpes velox) - Tekan 4">
+            <span class="species-icon">⚡</span>
+            <span class="species-label">Swift</span>
+        </button>
+        <button class="btn-species-pill" data-species="darwin" title="Darwin Fox (Lycalopex fulvipes) - Tekan 5">
+            <span class="species-icon">🌲</span>
+            <span class="species-label">Darwin</span>
+        </button>
+        <button id="btn-exit-demo-mode" class="btn-species-exit" title="Keluar Mode Demo (ESC)">
+            <span>✕ Keluar (ESC)</span>
+        </button>
+    </div>
+
+    <!-- FLOATING FOX STATS & STAMINA HUD (Hanya tampil saat Demo Mode) -->
+    <div id="fox-stats-hud" class="fox-stats-hud" style="display: none;">
+        <div class="fox-stats-top-row">
+            <div class="fox-stats-profile">
+                <span class="fox-stats-badge" id="fox-stats-hud-badge">🦊</span>
+                <div>
+                    <div class="fox-stats-name" id="fox-stats-hud-name">Red Fox</div>
+                    <div class="fox-stats-tagline" id="fox-stats-hud-tagline">Seimbang &amp; Adaptif</div>
+                </div>
+            </div>
+            <div class="fox-stats-chips">
+                <div class="stat-chip" title="Kecepatan Sprint / Lari Maksimum">
+                    <span class="stat-chip-icon">⚡</span>
+                    <span>Speed:</span>
+                    <span class="stat-chip-val" id="stat-val-speed">9.6 m/s</span>
+                </div>
+                <div class="stat-chip" title="Ketangkasan &amp; Kecepatan Waktu Belok">
+                    <span class="stat-chip-icon">🔄</span>
+                    <span>Agility:</span>
+                    <span class="stat-chip-val" id="stat-val-agility">2.6 rad/s</span>
+                </div>
+                <div class="stat-chip" title="Daya / Ketinggian Lompatan">
+                    <span class="stat-chip-icon">🦘</span>
+                    <span>Jump:</span>
+                    <span class="stat-chip-val" id="stat-val-jump">9.6</span>
+                </div>
+                <div class="stat-chip" title="Kapasitas Stamina Maksimum">
+                    <span class="stat-chip-icon">🔋</span>
+                    <span>Stamina:</span>
+                    <span class="stat-chip-val" id="stat-val-stamina">100</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- STAMINA BAR ROW -->
+        <div class="fox-stamina-row">
+            <div class="fox-stamina-header">
+                <span class="fox-stamina-label">
+                    <span>⚡ Stamina Karakter</span>
+                </span>
+                <div class="fox-stamina-meta">
+                    <span class="fox-stamina-val" id="fox-stamina-val-text">100 / 100</span>
+                    <span class="fox-stamina-state full" id="fox-stamina-state-badge">PENUH</span>
+                </div>
+            </div>
+            <div class="fox-stamina-track">
+                <div class="fox-stamina-fill" id="fox-stamina-bar-fill" style="width: 100%;"></div>
+            </div>
+        </div>
+
+        <!-- CONTROLS & RECOVERY HINT -->
+        <div class="fox-stamina-hint">
+            <span><kbd>Shift</kbd> Lari (kuras stamina) &bull; <kbd>W</kbd> Jalan pelan (tambah stamina) &bull; <kbd>Space</kbd> Lompat</span>
+            <span><kbd>1-5</kbd> Ganti Rubah</span>
+        </div>
+    </div>
+
+    <!-- BOTTOM CINEMATIC SEQUENCER PANEL (FOOTER TOOLBAR - DOCKED & RESIZABLE HEIGHT) -->
+    <div id="cinematic-bottom-panel" class="cinematic-bottom-panel visible">
+        <!-- Top Resizer Handle -->
+        <div id="resizer-cinematic-bottom" class="cinematic-bottom-resizer" title="Tarik untuk atur tinggi Timeline Sequencer"></div>
+
+        <!-- Sequencer Top Header Bar -->
+        <div class="cinematic-bottom-header">
+            <div class="cinematic-bottom-title">
+                <span class="svg-icon" style="color:#38bdf8;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="m22 8-6 4 6 4V8Z"></path>
+                        <rect x="2" y="6" width="14" height="12" rx="2" ry="2"></rect>
+                    </svg>
+                </span>
+                <span style="font-weight:700;">CINEMATIC SEQUENCER</span>
+                <div class="cinematic-scene-tabs" id="cinematic-scene-tabs"></div>
+                <span class="cinematic-badge" id="fox-status-badge" style="display:none; background:rgba(249,115,22,0.2); color:#f97316; border-color:rgba(249,115,22,0.4);">🦊 Rubah Aktif</span>
+            </div>
+
+            <!-- Transport Playback Controls -->
+            <div class="cinematic-transport-controls">
+                <button type="button" id="btn-floating-stop" class="btn-cinematic-ctrl" style="width:30px; height:28px;" title="Reset ke Awal (0s)">■</button>
+                <button type="button" id="btn-floating-play" class="btn-cinematic-ctrl play-btn" style="width:84px; height:28px;" title="Play / Pause Current Scene (Space)">▶ Play</button>
+                <button type="button" id="btn-floating-play-all" class="btn-cinematic-ctrl btn-play-all" style="height:28px; padding:0 10px;" title="Play Bergantian Semua Scene (Scene 1, Scene 2, Scene 3...)">▶▶ Play All</button>
+                <button type="button" id="btn-floating-loop" class="btn-cinematic-ctrl active" style="width:30px; height:28px;" title="Toggle Loop (Ulangi)">⟳</button>
+
+                <div class="divider" style="height:18px; margin:0 4px;"></div>
+
+                <select id="select-cinematic-speed" class="cinematic-mini-select" title="Kecepatan Playback">
+                    <option value="0.5">0.5x</option>
+                    <option value="1.0" selected>1.0x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2.0">2.0x</option>
+                </select>
+
+                <select id="select-cinematic-easing" class="cinematic-mini-select" title="Kurva Easing Pergerakan">
+                    <option value="smooth" selected>Smooth Cubic</option>
+                    <option value="dramatic">Dramatic Slow</option>
+                    <option value="linear">Linear</option>
+                </select>
+
+                <span class="cinematic-timecode" id="floating-timeline-timecode" style="margin-left:4px; margin-right:6px;">0.0s / 10.0s</span>
+
+                <div class="divider" style="height:18px; margin:0 4px;"></div>
+
+                <!-- Camera Quick Settings: Preset & Focus Target -->
+                <select id="select-cinematic-preset" class="cinematic-mini-select" title="Terapkan Preset Gerakan Kamera">
+                    <option value="" disabled selected>🎬 Preset...</option>
+                    <option value="orbit">🔄 Orbit 360°</option>
+                    <option value="flythrough">🦅 Fly-Through</option>
+                    <option value="spiral">🌪️ Crane Spiral</option>
+                    <option value="dolly">🎬 Low Dolly</option>
+                </select>
+
+                <select id="select-cinematic-focus" class="cinematic-mini-select" title="Titik Fokus Kamera">
+                    <option value="angles" selected>📐 Angle Tiap Kamera</option>
+                    <option value="character">🦊 Fokus: Rubah</option>
+                    <option value="forward">🎯 Fokus: Depan</option>
+                    <option value="tree">🌲 Fokus: Pohon</option>
+                    <option value="center">🏛️ Fokus: Tengah</option>
+                </select>
+
+                <!-- Ketinggian Kamera & Durasi -->
+                <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted);" title="Tinggi Kamera dari Tanah">
+                    <span style="color:#38bdf8;">H:</span>
+                    <input type="range" id="slider-cinematic-height" min="1.0" max="18.0" step="0.5" value="3.5" style="width:48px;">
+                    <span id="val-cinematic-height" style="color:#38bdf8; font-size:9.5px; min-width:24px;">3.5m</span>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted);" title="Durasi Perjalanan Kamera">
+                    <span style="color:#38bdf8;">D:</span>
+                    <input type="range" id="slider-cinematic-duration" min="3" max="30" step="1" value="10" style="width:48px;">
+                    <span id="val-cinematic-duration" style="color:#38bdf8; font-size:9.5px; min-width:20px;">10s</span>
+                </div>
+
+                <div class="divider" style="height:18px; margin:0 4px;"></div>
+
+                <!-- Optics: DoF Blur & Letterbox -->
+                <label style="display:flex; align-items:center; gap:3px; font-size:10px; cursor:pointer; color:#38bdf8;" title="Efek Blur Lensa Sinematik (DoF Bokeh)">
+                    <input type="checkbox" id="toggle-cinematic-dof" checked style="accent-color:#38bdf8; cursor:pointer;">
+                    <span>DoF</span>
+                </label>
+                <select id="select-cinematic-aperture" class="cinematic-mini-select" title="Aperture / Kekuatan Bokeh">
+                    <option value="0">Tanpa Blur (Off / Tajam)</option>
+                    <option value="3.5">f/2.8 (Lembut)</option>
+                    <option value="6.0" selected>f/1.8 (Standar)</option>
+                    <option value="10.0">f/1.2 (Sinematik Kuat)</option>
+                </select>
+
+                <label style="display:flex; align-items:center; gap:3px; font-size:10px; cursor:pointer; color:#e0f2fe;" title="Cinema 2.35:1 Letterbox Bars">
+                    <input type="checkbox" id="toggle-cinematic-letterbox" checked style="accent-color:#38bdf8; cursor:pointer;">
+                    <span>Letterbox</span>
+                </label>
+            </div>
+
+            <!-- Right Options & Exit -->
+            <div class="cinematic-timeline-badges">
+                <button type="button" id="btn-floating-exit" class="btn-cinematic-exit" title="Tutup / Sembunyikan Footer Toolbar (C)">✕ Sembunyikan</button>
+            </div>
+        </div>
+
+        <!-- Sequencer Multi-Track Content -->
+        <div class="cinematic-sequencer-body">
+            <!-- Left Tracks Sidebar -->
+            <div class="cinematic-tracks-sidebar">
+                <!-- Track 1: Kamera Header -->
+                <div class="cinematic-track-header camera-track">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; font-size:11px; color:#38bdf8; display:flex; align-items:center; gap:5px;">
+                            <span>🎥</span> Jalur Kamera
+                        </span>
+                        <span id="camera-waypoints-badge" class="cinematic-badge">0 Titik</span>
+                    </div>
+                    <div style="display:flex; gap:4px; margin-top:2px;">
+                        <button type="button" id="btn-bottom-camera-draw" class="btn-cinematic-draw" style="padding:4px 7px; font-size:10px;">
+                            <span>✏️ Gambar Jalur</span>
+                        </button>
+                        <button type="button" id="btn-bottom-camera-clear" class="btn-icon-only" style="width:24px; height:24px;" title="Reset Jalur Kamera">
+                            <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+                        </button>
+                    </div>
+
+                    <!-- Panel Arahkan Angle Kamera Tiap Titik Waypoint -->
+                    <div id="waypoint-angle-controls" style="display:flex; flex-direction:column; gap:3px; margin-top:4px; padding:6px 8px; background:rgba(0,0,0,0.4); border:1px solid rgba(56,189,248,0.25); border-radius:4px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:9.5px; color:#38bdf8;">
+                            <span id="txt-selected-wp-label" style="font-weight:700;">🎥 Angle Titik #1</span>
+                            <div style="display:flex; gap:3px; align-items:center;">
+                                <button type="button" id="btn-drag-selected-wp" class="btn-compact" style="font-size:9px; padding:1px 6px; height:20px; background:rgba(56,189,248,0.18); border-color:#38bdf8; color:#e0f2fe;" title="Aktifkan geser posisi kamera terpilih bebas dengan mouse">✋ Geser</button>
+                                <button type="button" id="btn-snap-view-to-cam" class="btn-compact" style="font-size:9px; padding:1px 6px; height:20px; background:rgba(56,189,248,0.18); border-color:#38bdf8; color:#e0f2fe;" title="Arahkan sudut titik kamera ini ke sudut pandang editor saat ini">🎯 Set ke View</button>
+                                <button type="button" id="btn-delete-selected-wp" class="btn-icon-only" style="width:20px; height:20px; font-size:9px; border-color:rgba(239,68,68,0.4); color:#ef4444;" title="Hapus titik kamera ini">
+                                    <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+                                </button>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:4px; font-size:9.5px; color:var(--text-muted);">
+                            <span style="min-width:30px;">Tinggi:</span>
+                            <input type="range" id="slider-wp-height" min="0.5" max="30.0" step="0.2" value="3.5" style="flex:1; height:4px; accent-color:#38bdf8;" title="Ketinggian kamera di atas tanah (Height Offset)">
+                            <span id="val-wp-height" style="min-width:32px; text-align:right; color:#38bdf8; font-family:'JetBrains Mono',monospace;">3.5m</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:4px; font-size:9.5px; color:var(--text-muted);">
+                            <span style="min-width:30px;">Putar:</span>
+                            <input type="range" id="slider-wp-yaw" min="0" max="360" step="1" value="0" style="flex:1; height:4px; accent-color:#38bdf8;">
+                            <span id="val-wp-yaw" style="min-width:32px; text-align:right; color:#38bdf8; font-family:'JetBrains Mono',monospace;">0°</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:4px; font-size:9.5px; color:var(--text-muted);">
+                            <span style="min-width:30px;">Tilt:</span>
+                            <input type="range" id="slider-wp-pitch" min="-60" max="60" step="1" value="0" style="flex:1; height:4px; accent-color:#38bdf8;">
+                            <span id="val-wp-pitch" style="min-width:32px; text-align:right; color:#38bdf8; font-family:'JetBrains Mono',monospace;">0°</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:4px; font-size:9.5px; color:var(--text-muted);">
+                            <span style="min-width:30px;">Zoom:</span>
+                            <input type="range" id="slider-wp-fov" min="15" max="90" step="1" value="45" style="flex:1; height:4px; accent-color:#38bdf8;" title="Level Zoom / FOV (15° Zoom Dekat - 90° Wide Angle)">
+                            <span id="val-wp-fov" style="min-width:32px; text-align:right; color:#38bdf8; font-family:'JetBrains Mono',monospace;">45°</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Track 2: Rubah Header -->
+                <div class="cinematic-track-header fox-track">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; font-size:11px; color:#f97316; display:flex; align-items:center; gap:5px;">
+                            <span>🦊</span> Aktor Rubah
+                            <span id="fox-total-badge" style="font-size:9px; background:rgba(249,115,22,0.25); color:#fed7aa; padding:1px 5px; border-radius:10px; font-weight:normal;">1 Rubah</span>
+                        </span>
+                        <label style="display:flex; align-items:center; gap:4px; font-size:10px; cursor:pointer; color:#fdba74;">
+                            <input type="checkbox" id="toggle-cinematic-fox" style="accent-color:#f97316; cursor:pointer;">
+                            <span>Aktif</span>
+                        </label>
+                    </div>
+                    <div id="fox-track-controls" style="display:none; flex-direction:column; gap:4px; margin-top:2px;">
+                        <!-- Multi-Fox Selection & Add/Delete Bar -->
+                        <div style="display:flex; gap:3px; align-items:center;">
+                            <select id="select-cinematic-active-fox" class="cinematic-mini-select" style="flex:1; font-weight:600; color:#fed7aa; padding:2px 4px;" title="Pilih Aktor Rubah yang sedang diedit">
+                                <option value="0">🦊 Rubah 1</option>
+                            </select>
+                            <button type="button" id="btn-cinematic-add-fox" class="btn-compact" style="font-size:9px; padding:3px 6px; background:rgba(249,115,22,0.25); border-color:#f97316; color:#fed7aa; white-space:nowrap;" title="Tambah Aktor Rubah Baru (Jalur Sendiri)">+ Rubah</button>
+                            <button type="button" id="btn-cinematic-delete-fox" class="btn-icon-only" style="width:22px; height:22px; border-color:rgba(239,68,68,0.4); color:#ef4444;" title="Hapus Aktor Rubah Ini">
+                                <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+                            </button>
+                        </div>
+
+                        <!-- Draw & Clear Path for Active Fox -->
+                        <div style="display:flex; gap:4px;">
+                            <button type="button" id="btn-cinematic-fox-draw" class="btn-cinematic-draw" style="flex:1; padding:4px 7px; font-size:10px; border-color:rgba(249,115,22,0.4); color:#f97316; background:rgba(249,115,22,0.15);">
+                                <span>✏️ Gambar Jalur</span>
+                            </button>
+                            <button type="button" id="btn-cinematic-fox-clear" class="btn-icon-only" style="width:24px; height:24px;" title="Hapus Jalur Rubah Ini">
+                                <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+                            </button>
+                        </div>
+
+                        <!-- Active Fox Properties -->
+                        <div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
+                            <div style="display:flex; gap:4px;">
+                                <select id="select-cinematic-fox-species" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Pilih Spesies Rubah Ini">
+                                    <option value="red" selected>🦊 Red Fox</option>
+                                    <option value="arctic">❄️ Arctic Fox</option>
+                                    <option value="corsac">🌾 Corsac Fox</option>
+                                    <option value="swift">⚡ Swift Fox</option>
+                                    <option value="darwin">🌲 Darwin Fox</option>
+                                    <option value="fennec">🏜️ Fennec Fox</option>
+                                    <option value="silver">✨ Silver Fox</option>
+                                </select>
+                                <select id="select-cinematic-fox-gait" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Gait / Gaya Berlari Rubah Ini">
+                                    <option value="walk">🐾 Jalan</option>
+                                    <option value="trot" selected>🦊 Trot</option>
+                                    <option value="sprint">⚡ Sprint</option>
+                                </select>
+                            </div>
+                            <select id="select-cinematic-fox-idle" class="cinematic-mini-select" style="width:100%; box-sizing:border-box; max-width:100%;" title="Pose Idle Standby Rubah Ini">
+                                <option value="alert" selected>🦊 Pose: Waspada &amp; Nafas</option>
+                                <option value="sit">🐾 Pose: Duduk Santai</option>
+                                <option value="sleep">💤 Pose: Tidur Meringkuk</option>
+                            </select>
+                            <div style="display:flex; gap:3px; margin-top:1px;">
+                                <button type="button" id="btn-fox-snap-wp1" class="btn-compact" style="flex:1; font-size:9px; padding:2px 4px; background:rgba(249,115,22,0.18); border-color:#f97316; color:#fed7aa;" title="Posisikan rubah ini tepat di Waypoint #1">🎯 Ke Titik #1</button>
+                                <button type="button" id="btn-fox-rotate-heading" class="btn-compact" style="font-size:9px; padding:2px 6px; background:rgba(249,115,22,0.18); border-color:#f97316; color:#fed7aa;" title="Putar arah hadap rubah ini 45°">↻ Putar Arah</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Resizer Splitter Handle between Controls Sidebar and Timeline -->
+            <div id="resizer-cinematic-tracks" class="cinematic-tracks-resizer" title="Tarik untuk atur lebar panel kontrol (Drag to resize width)"></div>
+
+            <!-- Right Tracks Timeline Lanes -->
+            <div class="cinematic-tracks-timeline">
+                <!-- Time Ruler -->
+                <div class="cinematic-timeline-ruler">
+                    <span style="position:absolute; left:0; font-size:9px; color:var(--text-dim);">0.0s</span>
+                    <span style="position:absolute; left:25%; font-size:9px; color:var(--text-dim);">2.5s</span>
+                    <span style="position:absolute; left:50%; font-size:9px; color:var(--text-dim);">5.0s</span>
+                    <span style="position:absolute; left:75%; font-size:9px; color:var(--text-dim);">7.5s</span>
+                    <span style="position:absolute; right:0; font-size:9px; color:var(--text-dim);">10.0s</span>
+                </div>
+
+                <!-- Camera Track Lane -->
+                <div class="cinematic-track-lane camera-lane" id="camera-track-lane">
+                    <span style="font-size:10px; color:#e0f2fe; font-weight:600; display:flex; align-items:center; gap:6px;">
+                        <span>📷</span> Jalur Kamera Spline
+                    </span>
+                    <div id="camera-waypoint-markers-lane" style="position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:none;"></div>
+                </div>
+
+                <!-- Fox Track Lane -->
+                <div class="cinematic-track-lane fox-lane" id="fox-track-lane">
+                    <span style="font-size:10px; color:#fed7aa; font-weight:600; display:flex; align-items:center; gap:6px;">
+                        <span>🦊</span> Pergerakan Rubah (Wolf Model)
+                        <span id="fox-lane-hint" style="font-size:9.5px; opacity:0.7; font-weight:normal;">(Centang 'Aktif' &amp; Gambar Jalur)</span>
+                    </span>
+                    <div id="fox-waypoint-markers-lane" style="position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:none;"></div>
+                </div>
+
+                <!-- Global Playhead Slider Overlay across all tracks -->
+                <input type="range" id="floating-timeline-slider" class="cinematic-timeline-slider cinematic-dock-scrubber" min="0" max="1" step="0.001" value="0" title="Scrub Timeline Sinematik">
+            </div>
+        </div>
+    </div>
+
+    <!-- FLOATING DOCK TRIGGERS -->
+    <button id="dock-toggle-left" class="dock-trigger" title="Buka Inspector Panel (I)">
+        <span class="svg-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <line x1="4" y1="21" x2="4" y2="14"></line>
+                <line x1="4" y1="10" x2="4" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12" y2="3"></line>
+                <line x1="20" y1="21" x2="20" y2="16"></line>
+                <line x1="20" y1="12" x2="20" y2="3"></line>
+                <line x1="1" y1="14" x2="7" y2="14"></line>
+                <line x1="9" y1="8" x2="15" y2="8"></line>
+                <line x1="17" y1="16" x2="23" y2="16"></line>
+            </svg>
+        </span>
+        <span>Inspector</span>
+    </button>
+
+    <button id="dock-toggle-right" class="dock-trigger" title="Buka Layers Panel (L)">
+        <span class="svg-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+        </span>
+        <span>Layers</span>
+    </button>
+
+    <!-- LEFT SIDEBAR: INSPECTOR -->
+    <aside id="sidebar-left" class="sidebar">
+        <div id="resizer-sidebar-left" class="sidebar-resizer sidebar-resizer-right" title="Tarik untuk ubah lebar Inspector"></div>
+        <div class="sidebar-header">
+            <div class="sidebar-header-title">
+                <span class="svg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <line x1="4" y1="21" x2="4" y2="14"></line>
+                        <line x1="4" y1="10" x2="4" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12" y2="3"></line>
+                        <line x1="20" y1="21" x2="20" y2="16"></line>
+                        <line x1="20" y1="12" x2="20" y2="3"></line>
+                        <line x1="1" y1="14" x2="7" y2="14"></line>
+                        <line x1="9" y1="8" x2="15" y2="8"></line>
+                        <line x1="17" y1="16" x2="23" y2="16"></line>
+                    </svg>
+                </span>
+                <span>Inspector</span>
+            </div>
+            <div class="sidebar-header-actions">
+                <button id="btn-close-left-sidebar" class="btn-icon-only" style="width:22px; height:22px;"
+                    title="Sembunyikan Panel (I)">
+                    <span class="svg-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </span>
+                </button>
+            </div>
+        </div>
+        <div class="sidebar-content">
+            <!-- CANVAS / PLAIN FLOOR SETTINGS -->
+            <div class="accordion collapsed">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#f28c48;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="3" y1="9" x2="21" y2="9"></line>
+                                <line x1="9" y1="21" x2="9" y2="9"></line>
+                            </svg>
+                        </span>
+                        <span>Canvas / Plain Floor</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>
+                            <span>Warna Plain</span>
+                            <span id="label-plane-color" class="val-badge">#cbb6b8</span>
+                        </label>
+                        <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+                            <input type="color" id="picker-plane-color" value="#cbb6b8"
+                                style="width:40px; height:28px; padding:0; border:1px solid var(--panel-border); border-radius:4px; cursor:pointer; background:none;">
+                            <span style="font-size:11px; color:var(--text-muted);">Pilih warna alas studio canvas</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Preset Warna Studio</label>
+                        <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:4px; margin-top:4px;">
+                            <button type="button" class="btn-color-preset" data-color="#cbb6b8"
+                                style="background:#cbb6b8; height:24px; border-radius:4px; border:1px solid rgba(0,0,0,0.25); cursor:pointer;"
+                                title="Studio Canvas"></button>
+                            <button type="button" class="btn-color-preset" data-color="#d8c6b4"
+                                style="background:#d8c6b4; height:24px; border-radius:4px; border:1px solid rgba(0,0,0,0.25); cursor:pointer;"
+                                title="Warm Sand"></button>
+                            <button type="button" class="btn-color-preset" data-color="#9c867e"
+                                style="background:#9c867e; height:24px; border-radius:4px; border:1px solid rgba(0,0,0,0.25); cursor:pointer;"
+                                title="Soft Clay"></button>
+                            <button type="button" class="btn-color-preset" data-color="#7aa859"
+                                style="background:#7aa859; height:24px; border-radius:4px; border:1px solid rgba(0,0,0,0.25); cursor:pointer;"
+                                title="Meadow Green"></button>
+                            <button type="button" class="btn-color-preset" data-color="#2a262e"
+                                style="background:#2a262e; height:24px; border-radius:4px; border:1px solid rgba(0,0,0,0.25); cursor:pointer;"
+                                title="Cyber Dark"></button>
+                        </div>
+                    </div>
+                    <div class="control-group"
+                        style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                        <label style="margin:0; cursor:pointer;" for="toggle-studio-grid">Tampilkan Grid Lines</label>
+                        <input type="checkbox" id="toggle-studio-grid" checked
+                            style="cursor:pointer; accent-color:var(--accent);">
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- TERRAIN -->
+            <div class="accordion collapsed">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#10b981;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="m8 3 4 8 5-5 5 15H2L8 3z"></path>
+                            </svg>
+                        </span>
+                        <span>Landscape / Sculpt</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>Mode Sculpter</label>
+                        <select id="select-terrain-mode">
+                            <option value="none">Off</option>
+                            <option value="raise">Naikkan Tanah</option>
+                            <option value="lower">Turunkan Tanah</option>
+                        </select>
+                    </div>
+                    <div class="shortcut-hint">
+                        <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </span>
+                        <span>Klik & seret tanah untuk memahat. Tekan <span class="esc-kbd">Esc</span> untuk
+                            batal.</span>
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Radius Sculpter</span>
+                            <span id="val-sculpt-radius" class="val-badge">5.0</span>
+                        </label>
+                        <input type="range" id="slider-sculpt-radius" min="2.0" max="15.0" step="0.5" value="5.0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROAD BRUSH -->
+            <div class="accordion collapsed">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#d97706;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                <line x1="4" y1="22" x2="4" y2="15"></line>
+                            </svg>
+                        </span>
+                        <span>Road Brush (Jalan)</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>Kuas Jalan</label>
+                        <select id="select-road-brush">
+                            <option value="none">Off</option>
+                            <option value="road_brown">Jalan Tanah Kecoklatan (Dirt Path)</option>
+                            <option value="road_green">Jalan Berlumut Hijau (Mossy Path)</option>
+                            <option value="remove">Hapus Jalan (Reset Rumput)</option>
+                        </select>
+                    </div>
+                    <div class="shortcut-hint">
+                        <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </span>
+                        <span>Gambar jalan setapak bertekstur ala Genshin. Tekan <span class="esc-kbd">Esc</span> untuk
+                            batal.</span>
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Radius Kuas Jalan</span>
+                            <span id="val-road-radius" class="val-badge">4.0</span>
+                        </label>
+                        <input type="range" id="slider-road-radius" min="1.5" max="12.0" step="0.5" value="4.0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- GRASS -->
+            <div class="accordion collapsed">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#84cc16;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M7 20h10"></path>
+                                <path d="M10 20c5.5-2.5.8-6.4 3-10"></path>
+                                <path
+                                    d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z">
+                                </path>
+                                <path
+                                    d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4.1.9-4.9 2z">
+                                </path>
+                            </svg>
+                        </span>
+                        <span>Grass Brush</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>Pilihan Kuas Rumput</label>
+                        <select id="select-grass-brush" style="display:none;">
+                            <option value="none">Off</option>
+                            <option value="spawn_green">Rumput Hijau</option>
+                            <option value="spawn_yellow">Rumput Kuning</option>
+                            <option value="spawn_white">Rumput Putih</option>
+                            <option value="remove">Hapus Rumput</option>
+                        </select>
+                        <div class="spawner-card-grid grass-grid" id="grass-picker-grid">
+                            <button type="button" class="spawner-card active" data-value="none"
+                                title="Matikan Kuas Rumput">
+                                <div class="card-preview">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <circle cx="20" cy="20" r="13" fill="none" stroke="#64748b" stroke-width="2.5"
+                                            stroke-dasharray="4 2" />
+                                        <line x1="12" y1="28" x2="28" y2="12" stroke="#ef4444" stroke-width="2.5"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Off</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="spawn_green"
+                                title="Tanam Rumput Hijau Segar">
+                                <div class="card-preview grass-green-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="14" ry="3" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M12 35 C11 25 10 18 6 12 C10 18 13 25 14 35 Z" fill="#22c55e" />
+                                        <path d="M17 35 C17 22 15 12 11 6 C17 14 19 22 19 35 Z" fill="#4ade80" />
+                                        <path d="M20 35 C20 20 21 11 24 5 C22 13 22 22 21 35 Z" fill="#86efac" />
+                                        <path d="M22 35 C23 23 26 14 31 8 C27 16 25 24 24 35 Z" fill="#22c55e" />
+                                        <path d="M25 35 C27 26 31 19 35 14 C31 21 28 27 27 35 Z" fill="#15803d" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Rumput Hijau</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="spawn_yellow"
+                                title="Tanam Rumput Kuning Keemasan">
+                                <div class="card-preview grass-yellow-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="14" ry="3" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M12 35 C11 25 10 18 6 12 C10 18 13 25 14 35 Z" fill="#ca8a04" />
+                                        <path d="M17 35 C17 22 15 12 11 6 C17 14 19 22 19 35 Z" fill="#eab308" />
+                                        <path d="M20 35 C20 20 21 11 24 5 C22 13 22 22 21 35 Z" fill="#facc15" />
+                                        <path d="M22 35 C23 23 26 14 31 8 C27 16 25 24 24 35 Z" fill="#fef08a" />
+                                        <path d="M25 35 C27 26 31 19 35 14 C31 21 28 27 27 35 Z" fill="#a16207" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Rumput Kuning</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="spawn_white"
+                                title="Tanam Rumput Putih Salju / Ethereal White">
+                                <div class="card-preview grass-white-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="14" ry="3" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M12 35 C11 25 10 18 6 12 C10 18 13 25 14 35 Z" fill="#94a3b8" />
+                                        <path d="M17 35 C17 22 15 12 11 6 C17 14 19 22 19 35 Z" fill="#cbd5e1" />
+                                        <path d="M20 35 C20 20 21 11 24 5 C22 13 22 22 21 35 Z" fill="#ffffff" />
+                                        <path d="M22 35 C23 23 26 14 31 8 C27 16 25 24 24 35 Z" fill="#e2e8f0" />
+                                        <path d="M25 35 C27 26 31 19 35 14 C31 21 28 27 27 35 Z" fill="#64748b" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Rumput Putih</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="remove"
+                                title="Hapus / Pangkas Rumput">
+                                <div class="card-preview grass-remove-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="12" ry="2.5" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M14 35 C15 26 17 21 19 18 C18 24 17 29 16 35 Z" fill="#64748b"
+                                            opacity="0.6" />
+                                        <path d="M21 35 C22 26 24 20 26 17 C24 23 23 29 22 35 Z" fill="#64748b"
+                                            opacity="0.6" />
+                                        <circle cx="20" cy="18" r="10" fill="#ef4444" opacity="0.2" />
+                                        <circle cx="20" cy="18" r="9" fill="none" stroke="#ef4444" stroke-width="2" />
+                                        <line x1="14" y1="24" x2="26" y2="12" stroke="#ef4444" stroke-width="2.5"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Hapus Rumput</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="shortcut-hint">
+                        <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </span>
+                        <span>Klik kiri seret untuk menumbuhkan rumput, klik kanan seret untuk menghapus. Scroll mouse
+                            untuk zoom. Tekan <span class="esc-kbd">Esc</span> selesai.</span>
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Radius Kuas</span>
+                            <span id="val-grass-radius" class="val-badge">4.0</span>
+                        </label>
+                        <input type="range" id="slider-grass-radius" min="1.0" max="10.0" step="0.5" value="4.0">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Kepadatan</span>
+                            <span id="val-grass-density" class="val-badge">180</span>
+                        </label>
+                        <input type="range" id="slider-grass-density" min="30" max="350" step="10" value="180">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Tinggi Rumput</span>
+                            <span id="val-grass-height" class="val-badge">1.0</span>
+                        </label>
+                        <input type="range" id="slider-grass-height" min="0.4" max="2.2" step="0.1" value="1.0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TREE SPAWNER -->
+            <div class="accordion collapsed">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#22c55e;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M12 22v-7"></path>
+                                <path
+                                    d="M17 14c1.7 0 3-1.3 3-3a3 3 0 0 0-1.5-2.6A4 4 0 0 0 14 3.5a4 4 0 0 0-4 0 4 4 0 0 0-4.5 4.9A3 3 0 0 0 4 11c0 1.7 1.3 3 3 3h10z">
+                                </path>
+                            </svg>
+                        </span>
+                        <span>Tree Spawner</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>Pilih Jenis Pohon (Klik untuk Tanam)</label>
+                        <select id="select-tree-mode" style="display:none;">
+                            <option value="none">Off</option>
+                            <option value="oak">Oak Tree (Hijau)</option>
+                            <option value="birch_yellow">Birch Yellow</option>
+                            <option value="birch_teal">Birch Teal</option>
+                            <option value="birch_red">Birch Autumn</option>
+                            <option value="pine">Pine Tree (Cemara)</option>
+                        </select>
+                        <div class="spawner-card-grid tree-grid" id="tree-picker-grid">
+                            <button type="button" class="spawner-card active" data-value="none"
+                                title="Matikan Mode Tanam Pohon">
+                                <div class="card-preview">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <circle cx="20" cy="20" r="13" fill="none" stroke="#64748b" stroke-width="2.5"
+                                            stroke-dasharray="4 2" />
+                                        <line x1="12" y1="28" x2="28" y2="12" stroke="#ef4444" stroke-width="2.5"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Off</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="oak"
+                                title="Oak Tree (Pohon Hijau Teduh)">
+                                <div class="card-preview oak-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M18 35 L18.8 23 L21.2 23 L22 35 Z" fill="#6d4c41" />
+                                        <circle cx="15" cy="18" r="8" fill="#15803d" />
+                                        <circle cx="25" cy="18" r="8" fill="#16a34a" />
+                                        <circle cx="20" cy="13" r="8.5" fill="#22c55e" />
+                                        <circle cx="18" cy="11" r="5" fill="#4ade80" opacity="0.8" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Oak Hijau</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="birch_yellow"
+                                title="Birch Yellow (Pohon Emas Gugur)">
+                                <div class="card-preview yellow-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
+                                        <line x1="19" y1="31" x2="21" y2="31" stroke="#334155" stroke-width="0.8" />
+                                        <line x1="19" y1="27" x2="21" y2="27" stroke="#334155" stroke-width="0.8" />
+                                        <circle cx="15" cy="17" r="8" fill="#ca8a04" />
+                                        <circle cx="25" cy="17" r="8" fill="#d97706" />
+                                        <circle cx="20" cy="12" r="8.5" fill="#eab308" />
+                                        <circle cx="18" cy="10" r="5" fill="#fef08a" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Birch Yellow</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="birch_teal"
+                                title="Birch Teal (Pohon Fantasi Cyan)">
+                                <div class="card-preview teal-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
+                                        <line x1="19" y1="30" x2="21" y2="30" stroke="#334155" stroke-width="0.8" />
+                                        <circle cx="15" cy="17" r="8" fill="#0f766e" />
+                                        <circle cx="25" cy="17" r="8" fill="#0d9488" />
+                                        <circle cx="20" cy="12" r="8.5" fill="#14b8a6" />
+                                        <circle cx="18" cy="10" r="5" fill="#5eead4" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Birch Teal</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="birch_red"
+                                title="Birch Autumn (Pohon Merah Membara)">
+                                <div class="card-preview autumn-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
+                                        <line x1="19" y1="29" x2="21" y2="29" stroke="#334155" stroke-width="0.8" />
+                                        <circle cx="15" cy="17" r="8" fill="#991b1b" />
+                                        <circle cx="25" cy="17" r="8" fill="#b91c1c" />
+                                        <circle cx="20" cy="12" r="8.5" fill="#dc2626" />
+                                        <circle cx="18" cy="10" r="5" fill="#fca5a5" opacity="0.85" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Birch Autumn</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="pine"
+                                title="Pine Tree (Pohon Cemara Salju/Genshin)">
+                                <div class="card-preview pine-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <rect x="18.8" y="27" width="2.4" height="8" rx="0.8" fill="#451a03" />
+                                        <polygon points="20 18, 9 28, 31 28" fill="#14532d" />
+                                        <polygon points="20 12, 12 21, 28 21" fill="#15803d" />
+                                        <polygon points="20 5, 14 14, 26 14" fill="#16a34a" />
+                                        <polygon points="20 5, 17 10, 23 10" fill="#4ade80" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Pine Cemara</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="shortcut-hint">
+                        <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </span>
+                        <span>Klik kiri tanah untuk menanam pohon, klik kanan untuk menghapus pohon. Scroll mouse untuk
+                            zoom. Tekan <span class="esc-kbd">Esc</span> selesai.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SELECTED TREE INSPECTOR -->
+            <div class="accordion collapsed">
+                <div class="accordion-title" style="color:var(--accent);">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="5 9 2 12 5 15"></polyline>
+                                <polyline points="9 5 12 2 15 5"></polyline>
+                                <polyline points="15 19 12 22 9 19"></polyline>
+                                <polyline points="19 9 22 12 19 15"></polyline>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <line x1="12" y1="2" x2="12" y2="22"></line>
+                            </svg>
+                        </span>
+                        <span>Transformasi Pohon</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>
+                            <span>Tinggi Batang</span>
+                            <span id="val-tree-height" class="val-badge">1.0</span>
+                        </label>
+                        <input type="range" id="slider-tree-height" min="0.5" max="2.5" step="0.05" value="1.0">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Tebal Batang</span>
+                            <span id="val-tree-thickness" class="val-badge">1.0</span>
+                        </label>
+                        <input type="range" id="slider-tree-thickness" min="0.4" max="2.5" step="0.05" value="1.0">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Kelokan Batang</span>
+                            <span id="val-tree-curvature" class="val-badge">0.5</span>
+                        </label>
+                        <input type="range" id="slider-tree-curvature" min="0.0" max="1.0" step="0.05" value="0.5">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Jumlah Ranting</span>
+                            <span id="val-branch-count" class="val-badge">3</span>
+                        </label>
+                        <input type="range" id="slider-branch-count" min="1" max="6" step="1" value="3">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Jumlah Daun</span>
+                            <span id="val-leaf-count" class="val-badge">1200</span>
+                        </label>
+                        <input type="range" id="slider-leaf-count" min="300" max="3200" step="50" value="1200">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Posisi X</span>
+                            <span id="val-pos-x" class="val-badge">0.0</span>
+                        </label>
+                        <input type="range" id="slider-pos-x" min="-35" max="35" step="0.2" value="0">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Posisi Z</span>
+                            <span id="val-pos-z" class="val-badge">0.0</span>
+                        </label>
+                        <input type="range" id="slider-pos-z" min="-35" max="35" step="0.2" value="0">
+                    </div>
+                    <button id="btn-delete-tree" class="btn-action btn-danger" style="margin-top:6px;">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path
+                                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                                </path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                        </span>
+                        <span>Hapus Pohon</span>
+                    </button>
+                </div>
+            </div>
+
+
+
+        </div>
+    </aside>
+
+    <!-- RIGHT SIDEBAR: LAYERS -->
+    <aside id="sidebar-right" class="sidebar">
+        <div id="resizer-sidebar-right" class="sidebar-resizer sidebar-resizer-left" title="Tarik untuk ubah lebar Layers"></div>
+        <div class="sidebar-header">
+            <div class="sidebar-header-title">
+                <span class="svg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                </span>
+                <span>Layers (Pohon)</span>
+            </div>
+            <div class="sidebar-header-actions">
+                <span id="layer-count" class="header-badge">0</span>
+                <button id="btn-close-right-sidebar" class="btn-icon-only" style="width:22px; height:22px;"
+                    title="Sembunyikan Panel (L)">
+                    <span class="svg-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </span>
+                </button>
+            </div>
+        </div>
+        <div class="sidebar-content">
+            <ul id="tree-layer-list" class="layer-list"></ul>
+            <div id="layer-empty-msg" class="layer-empty-hint">
+                <span class="svg-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M12 22v-7"></path>
+                        <path
+                            d="M17 14c1.7 0 3-1.3 3-3a3 3 0 0 0-1.5-2.6A4 4 0 0 0 14 3.5a4 4 0 0 0-4 0 4 4 0 0 0-4.5 4.9A3 3 0 0 0 4 11c0 1.7 1.3 3 3 3h10z">
+                        </path>
+                    </svg>
+                </span>
+                Belum ada pohon di scene.<br>Pilih jenis pohon di Inspector & klik tanah untuk menanam.
+            </div>
+        </div>
+    </aside>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script src="js/core/random.js"></script>
+    <script src="js/core/scene.js"></script>
+    <script src="js/environment/sky.js"></script>
+    <script src="js/editor/history.js"></script>
+    <script src="js/terrain/terrain.js"></script>
+    <script src="js/trees/foliage-materials.js"></script>
+    <script src="js/trees/falling-leaves.js"></script>
+    <script src="js/trees/tree-generators.js"></script>
+    <script src="js/grass/grass.js"></script>
+    <script src="js/trees/tree-manager.js"></script>
+    <script src="js/editor/selection-outline.js"></script>
+    <script src="js/editor/ui-controls.js"></script>
+    <script src="js/editor/brush.js"></script>
+    <script src="js/environment/sun.js"></script>
+    <script src="js/character/play-state.js"></script>
+    <script src="js/character/fox-sound.js"></script>
+    <script src="js/character/fox-species.js"></script>
+    <script src="js/character/fox-materials.js"></script>
+    <script src="js/character/fox-model.js"></script>
+    <script src="js/character/fox-stats.js"></script>
+    <script src="js/character/fox-physics.js"></script>
+    <script src="js/character/play-mode.js"></script>
+    <script src="js/core/render-loop.js"></script>
+    <script src="js/editor/ui-handlers.js"></script>
+    <script src="js/editor/map-storage.js"></script>
+    <script src="js/editor/cinematic.js"></script>
+</body>
+
+</html>

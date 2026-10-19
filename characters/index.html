@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Genshin × Ghibli Character Showcase - Character Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/showcase.css">
+</head>
+
+<body>
+    <!-- 3D Canvas -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Howl Notification Banner -->
+    <div id="howl-banner" class="howl-banner">
+        <span>✨</span>
+        <span id="howl-banner-text">Moro's Voice: Roar of the Ghibli Forest Spirit!</span>
+        <span>🐺</span>
+    </div>
+
+    <!-- UI Overlay Layer -->
+    <div class="ui-layer">
+        <!-- TOP HEADER -->
+        <header class="top-nav interactive">
+            <!-- Brand -->
+            
+            <!-- Tombol Kembali ke Editor -->
+            <a href="../index.html" class="btn-pill" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:var(--text-main); font-weight:600; padding:6px 14px;" title="Kembali ke Pandora 3D World Editor">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span>Editor Dunia</span>
+            </a>
+
+            <div class="brand-badge">
+                <div class="brand-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L4 7v10l8 5 8-5V7l-8-5z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                </div>
+                <div class="brand-info">
+                    <div class="brand-title">
+                        <span>Lupus Ignis</span>
+                        <span class="brand-tag">Genshin × Ghibli</span>
+                        <select id="char-selector" onchange="selectCharacter(this.value)" style="margin-left:8px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.2); color:#fbbf24; border-radius:6px; padding:2px 8px; font-size:12px; cursor:pointer;">
+                            <option value="lupus-ignis">🦊 Lupus Ignis (Serigala Oranye)</option>
+                            <option value="custom-slot-1">+ Tambah Karakter Baru...</option>
+                        </select>
+
+                    </div>
+                    <div class="brand-sub">
+                        <span>Serigala Roh Oranye &bull; Studio Cel-Shade</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lighting / Time Presets (Tone warna serasi dengan index.html) -->
+            <div class="env-time-group">
+                <button id="btn-time-day" class="btn-pill active" title="Mondstadt Clear Day">
+                    <span>☀️</span>
+                    <span>Daylight</span>
+                </button>
+                <button id="btn-time-sunset" class="btn-pill" title="Liyue Golden Amber Sunset">
+                    <span>🌅</span>
+                    <span>Sunset Gold</span>
+                </button>
+                <button id="btn-time-night" class="btn-pill" title="Mystical Spirit Night">
+                    <span>🌌</span>
+                    <span>Night Aurora</span>
+                </button>
+            </div>
+
+            <!-- Header Quick Action Buttons -->
+            <div class="nav-actions">
+                <button id="btn-sound-toggle" class="btn-action-icon active" title="Toggle Sound FX (Web Audio)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                </button>
+                <button id="btn-cam-reset" class="btn-action-icon" title="Reset Kamera">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                        <path d="M3 3v5h5"></path>
+                    </svg>
+                </button>
+                <button id="btn-fullscreen" class="btn-action-icon" title="Toggle Fullscreen">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- FLOATING SIDE PANELS -->
+        <div class="panels-wrapper">
+            <!-- LEFT PANEL: Character Identity & Live Stats -->
+            <aside class="panel-card interactive">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        <span>Profil Karakter</span>
+                    </span>
+                    <span id="badge-motion" class="slider-badge">IDLE</span>
+                </div>
+
+                <div class="char-hero-preview">
+                    <div class="char-avatar-ring">
+                        <div class="char-avatar-inner">🦊</div>
+                    </div>
+                    <div class="char-name-block">
+                        <div class="char-name">Kitsune-Lupus</div>
+                        <div class="char-title">Penjaga Padang Rumput Emas</div>
+                    </div>
+                </div>
+
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <span class="stat-label">Elemen</span>
+                        <span class="stat-val" style="color: #fbbf24;">Pyro-Geo Amber</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Kecepatan</span>
+                        <span id="stat-speed" class="stat-val">0.0 m/s</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Stance</span>
+                        <span id="stat-state" class="stat-val">Berdiri (Idle)</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Tinggi Lompat</span>
+                        <span id="stat-altitude" class="stat-val">0.00 m</span>
+                    </div>
+                </div>
+
+                <!-- Customizer: Fur Tone, Tail Length, Ear Tilt -->
+                <div class="control-slider-group">
+                    <div class="control-slider-label">
+                        <span>Kilau Bulu Oranye (Ghibli Cel)</span>
+                        <span id="val-fur-glow" class="slider-badge">100%</span>
+                    </div>
+                    <input type="range" id="slider-fur-glow" min="60" max="150" value="100">
+                </div>
+
+                <div class="control-slider-group">
+                    <div class="control-slider-label">
+                        <span>Volume Ekor Mengembang</span>
+                        <span id="val-tail-size" class="slider-badge">1.0x</span>
+                    </div>
+                    <input type="range" id="slider-tail-size" min="0.7" max="1.5" step="0.05" value="1.0">
+                </div>
+
+                <div class="control-slider-group">
+                    <div class="control-slider-label">
+                        <span>Partikel Sihir Roh Dandelion</span>
+                        <span id="val-particles" class="slider-badge">Aktif</span>
+                    </div>
+                    <input type="range" id="slider-particles" min="0" max="1" step="1" value="1">
+                </div>
+
+                <!-- KACAMATA ASTRO BOT VISION PRO AMOLED -->
+                <div class="panel-header" style="margin-top: 4px;">
+                    <span class="panel-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" stroke-width="2">
+                            <rect x="2" y="7" width="20" height="10" rx="3"></rect>
+                            <circle cx="8" cy="12" r="2"></circle>
+                            <circle cx="16" cy="12" r="2"></circle>
+                        </svg>
+                        <span>Visor Vision Pro AMOLED</span>
+                    </span>
+                    <span id="badge-visor-exp" class="visor-badge">AUTO</span>
+                </div>
+
+                <div class="visor-grid">
+                    <button class="btn-visor-exp active" data-exp="auto" title="Ekspresi reaktif otomatis">
+                        <span style="font-size: 13px;">🤖</span>
+                        <span>Auto</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="happy" title="Senang / Joyful (^ ^)">
+                        <span style="font-size: 12px; font-weight:800; font-family:var(--font-mono);">^  ^</span>
+                        <span>Senang</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="star" title="Bintang Juara (★ ★)">
+                        <span style="font-size: 13px;">★  ★</span>
+                        <span>Bintang</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="focused" title="Fokus / Cepat (\ /)">
+                        <span style="font-size: 12px; font-weight:800; font-family:var(--font-mono);">\  /</span>
+                        <span>Fokus</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="surprised" title="Kaget / Wow (O O)">
+                        <span style="font-size: 12px; font-weight:800; font-family:var(--font-mono);">O  O</span>
+                        <span>Kaget</span>
+                    </button>
+                    <button class="btn-visor-exp" data-exp="heart" title="Sayang / Love (♥ ♥)">
+                        <span style="font-size: 13px;">♥  ♥</span>
+                        <span>Love</span>
+                    </button>
+                </div>
+
+                <div class="control-slider-group">
+                    <div class="control-slider-label">
+                        <span>Warna Layar AMOLED</span>
+                        <div class="color-dot-group">
+                            <div class="color-dot active" data-color="#00f0ff" style="background: #00f0ff; color: #00f0ff;" title="Astro Bot Neon Cyan"></div>
+                            <div class="color-dot" data-color="#fbbf24" style="background: #fbbf24; color: #fbbf24;" title="Genshin Amber Gold"></div>
+                            <div class="color-dot" data-color="#10b981" style="background: #10b981; color: #10b981;" title="Emerald Matrix"></div>
+                            <div class="color-dot" data-color="#ec4899" style="background: #ec4899; color: #ec4899;" title="Cyberpunk Pink"></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- RIGHT PANEL: Kamera & Aksi Cepat -->
+            <aside class="panel-card hide-mobile interactive">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                            <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                        <span>Mode Kamera</span>
+                    </span>
+                </div>
+
+                <div class="camera-switcher">
+                    <div id="cam-follow" class="camera-pill active">Follow 3rd</div>
+                    <div id="cam-orbit" class="camera-pill">Free Orbit</div>
+                    <div id="cam-cinematic" class="camera-pill">Cinematic</div>
+                </div>
+
+                <div class="panel-header" style="margin-top: 6px;">
+                    <span class="panel-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span>Aksi Khusus</span>
+                    </span>
+                </div>
+
+                <div class="anim-button-list">
+                    <button id="btn-quick-howl" class="btn-anim">
+                        <span>🐺</span>
+                        <span>Mengaum (F)</span>
+                    </button>
+                    <button id="btn-quick-sit" class="btn-anim">
+                        <span>🐾</span>
+                        <span>Duduk (C)</span>
+                    </button>
+                    <button id="btn-quick-jump" class="btn-anim">
+                        <span>🦘</span>
+                        <span>Lompat (Space)</span>
+                    </button>
+                    <button id="btn-quick-pounce" class="btn-anim">
+                        <span>⚡</span>
+                        <span>Menerkam</span>
+                    </button>
+                </div>
+
+                <div style="font-size: 10px; color: var(--text-dim); line-height: 1.5; margin-top: 4px;">
+                    Tip: Gerakkan mouse / drag layar untuk memutar kamera Genshin 360°. Tekan <span class="hud-kbd-hint">Shift</span> untuk sprint cepat!
+                </div>
+            </aside>
+        </div>
+
+        <!-- BOTTOM HUD: Movement & Actions -->
+        <footer class="bottom-hud">
+            <!-- Left: WASD / Arrow Movement Buttons -->
+            <div class="movement-cluster interactive">
+                <div class="dpad-row">
+                    <button id="key-w" class="key-btn" title="Maju (W / Panah Atas)">
+                        <span>W</span>
+                        <span class="key-sub">Maju</span>
+                    </button>
+                </div>
+                <div class="dpad-row">
+                    <button id="key-a" class="key-btn" title="Kiri (A / Panah Kiri)">
+                        <span>A</span>
+                        <span class="key-sub">Kiri</span>
+                    </button>
+                    <button id="key-s" class="key-btn" title="Mundur (S / Panah Bawah)">
+                        <span>S</span>
+                        <span class="key-sub">Mundur</span>
+                    </button>
+                    <button id="key-d" class="key-btn" title="Kanan (D / Panah Kanan)">
+                        <span>D</span>
+                        <span class="key-sub">Kanan</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Action Buttons (Jump, Sprint, Howl, Sit) -->
+            <div class="action-cluster interactive">
+                <button id="btn-action-jump" class="btn-action-main btn-jump" title="Lompat Tinggi (Spasi)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                    <span>LOMPAT</span>
+                    <span class="hud-kbd-hint" style="background: rgba(0,0,0,0.25);">Space</span>
+                </button>
+
+                <button id="btn-action-howl" class="btn-action-main btn-howl" title="Mengaumkan Kekuatan Roh Serigala (F)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <span>MENGAUM</span>
+                    <span class="hud-kbd-hint" style="background: rgba(0,0,0,0.25);">F</span>
+                </button>
+
+                <button id="btn-action-sprint" class="btn-action-main btn-secondary" title="Sprint Cepat (Shift)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <span>SPRINT</span>
+                    <span class="hud-kbd-hint">Shift</span>
+                </button>
+
+                <button id="btn-action-sit" class="btn-action-main btn-secondary" title="Duduk Santai (C)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M3 20h18"></path>
+                    </svg>
+                    <span>DUDUK</span>
+                    <span class="hud-kbd-hint">C</span>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+
+    <!-- Scripts: Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Character Showcase Modules -->
+    <script src="js/audio.js"></script>
+    <script src="js/scene.js"></script>
+    <script src="models/fox/fox-visor.js"></script>
+    <script src="models/fox/fox-model.js"></script>
+    <script src="js/registry.js"></script>
+    <script src="js/controller.js"></script>
+</body>
+
+</html>

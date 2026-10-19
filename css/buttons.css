@@ -1,0 +1,103 @@
+/* Buttons */
+/* --- BUTTONS --- */
+.btn-compact {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 5px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    outline: none;
+}
+
+.btn-compact:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: var(--panel-border-hover);
+    color: #fff;
+}
+
+.btn-compact:active {
+    transform: scale(0.97);
+}
+
+.btn-icon-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.btn-icon-only:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: var(--panel-border-hover);
+    color: var(--text-main);
+}
+
+.btn-icon-only:active {
+    transform: scale(0.95);
+}
+
+.btn-toggle {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    border: 1px solid var(--panel-border);
+}
+
+.btn-toggle.active {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.5);
+    font-weight: 600;
+}
+
+.btn-action {
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--accent);
+    color: #0f172a;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.btn-action:hover {
+    background: var(--accent-hover);
+    color: #000;
+}
+
+.btn-danger {
+    background: rgba(239, 68, 68, 0.18) !important;
+    border: 1px solid rgba(239, 68, 68, 0.35) !important;
+    color: #fca5a5 !important;
+}
+
+.btn-danger:hover {
+    background: var(--danger) !important;
+    border-color: var(--danger) !important;
+    color: #fff !important;
+}

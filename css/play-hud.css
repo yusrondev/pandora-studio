@@ -1,0 +1,390 @@
+/* Minimalist Floating Fox Species Switcher & Play Mode Button */
+
+.btn-play-mode {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.35)) !important;
+    border: 1px solid rgba(52, 211, 153, 0.6) !important;
+    color: #6ee7b7 !important;
+    font-weight: 700 !important;
+    padding: 5px 12px !important;
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-play-mode:hover {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.4), rgba(5, 150, 105, 0.5)) !important;
+    border-color: #34d399 !important;
+    color: #fff !important;
+    box-shadow: 0 0 22px rgba(16, 185, 129, 0.65);
+    transform: translateY(-1px) scale(1.02);
+}
+
+.btn-play-mode.playing {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.35)) !important;
+    border-color: rgba(248, 113, 113, 0.65) !important;
+    color: #fca5a5 !important;
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+}
+
+.btn-play-mode.playing:hover {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.45), rgba(185, 28, 28, 0.55)) !important;
+    border-color: #ef4444 !important;
+    color: #fff !important;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.7);
+}
+
+/* Minimalist Floating Fox Species Switcher */
+.fox-species-bar {
+    position: fixed;
+    top: 54px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(15, 23, 42, 0.78);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5), 0 0 16px rgba(16, 185, 129, 0.15);
+    animation: speciesBarSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto;
+}
+
+@keyframes speciesBarSlideDown {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -12px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.species-bar-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    padding-left: 6px;
+    padding-right: 4px;
+}
+
+.species-bar-hint kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #38bdf8;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.btn-species-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 9999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+.btn-species-pill:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.btn-species-pill:active {
+    transform: scale(0.96);
+}
+
+.btn-species-pill.active {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.3), rgba(234, 88, 12, 0.45));
+    border-color: rgba(251, 146, 60, 0.7);
+    color: #ffedd5;
+    box-shadow: 0 0 14px rgba(249, 115, 22, 0.4);
+    font-weight: 700;
+}
+
+/* Individual species colors when active */
+.btn-species-pill[data-species="arctic"].active {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.45));
+    border-color: rgba(56, 189, 248, 0.7);
+    color: #e0f2fe;
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
+}
+
+.btn-species-pill[data-species="corsac"].active {
+    background: linear-gradient(135deg, rgba(217, 119, 6, 0.3), rgba(180, 83, 9, 0.45));
+    border-color: rgba(245, 158, 11, 0.7);
+    color: #fef3c7;
+    box-shadow: 0 0 14px rgba(217, 119, 6, 0.4);
+}
+
+.btn-species-pill[data-species="swift"].active {
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(202, 138, 4, 0.45));
+    border-color: rgba(250, 204, 21, 0.7);
+    color: #fef9c3;
+    box-shadow: 0 0 14px rgba(234, 179, 8, 0.4);
+}
+
+.btn-species-pill[data-species="darwin"].active {
+    background: linear-gradient(135deg, rgba(100, 116, 139, 0.35), rgba(71, 85, 105, 0.5));
+    border-color: rgba(148, 163, 184, 0.7);
+    color: #f8fafc;
+    box-shadow: 0 0 14px rgba(100, 116, 139, 0.4);
+}
+
+.btn-species-exit {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 11px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-left: 4px;
+}
+
+.btn-species-exit:hover {
+    background: rgba(239, 68, 68, 0.35);
+    border-color: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+/* =========================================================
+   FOX STATS & DYNAMIC STAMINA HUD (Genshin Style)
+   ========================================================= */
+.fox-stats-hud {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 460px;
+    max-width: 540px;
+    padding: 10px 16px;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 0, 0, 0.35);
+    animation: statsHudSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto;
+    user-select: none;
+}
+
+@keyframes statsHudSlideUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.fox-stats-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.fox-stats-profile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fox-stats-badge {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.fox-stats-name {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: 0.3px;
+}
+
+.fox-stats-tagline {
+    font-size: 10px;
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+.fox-stats-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    color: #cbd5e1;
+}
+
+.stat-chip-icon {
+    font-size: 11px;
+}
+
+.stat-chip-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: #fbbf24;
+}
+
+/* Stamina Bar Row */
+.fox-stamina-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.fox-stamina-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10.5px;
+}
+
+.fox-stamina-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.fox-stamina-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+}
+
+.fox-stamina-val {
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.fox-stamina-state {
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.fox-stamina-state.normal {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.fox-stamina-state.full {
+    background: rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.fox-stamina-state.warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.fox-stamina-state.exhausted {
+    background: rgba(239, 68, 68, 0.25);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    animation: exhaustedPulse 0.8s infinite alternate;
+}
+
+@keyframes exhaustedPulse {
+    from { opacity: 0.7; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1.02); }
+}
+
+.fox-stamina-track {
+    position: relative;
+    width: 100%;
+    height: 7px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.fox-stamina-fill {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #10b981, #34d399, #fbbf24);
+    border-radius: 9999px;
+    box-shadow: 0 0 10px rgba(52, 211, 153, 0.5);
+    transition: width 0.08s linear, background 0.3s ease;
+}
+
+.fox-stamina-fill.exhausted {
+    background: linear-gradient(90deg, #ef4444, #f87171);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.7);
+}
+
+/* Bottom Hint Row */
+.fox-stamina-hint {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 9.5px;
+    color: #64748b;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 5px;
+    margin-top: 2px;
+}
+
+.fox-stamina-hint kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px;
+    padding: 1px 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+

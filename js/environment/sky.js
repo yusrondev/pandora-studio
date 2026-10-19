@@ -167,11 +167,11 @@ let globalPuffIndex = 0;
 const tempDummy = new THREE.Object3D();
 
 // Fungsi untuk menghasilkan satu formasi awan cumulonimbus (ratusan partikel dirangkai)
-// Fungsi untuk menghasilkan satu formasi awan yang lebih ramping dan terpisah
+// Fungsi untuk menghasilkan satu formasi awan yang lebih ramping, horizontal, dan ramah POV rendah
 function spawnCumulonimbus(centerX, baseY, centerZ, scaleBase) {
-    const numPuffs = Math.floor(220 + Math.random() * 150); // Dikurangi agar tidak terlalu pekat
-    const maxRadius = 90 * scaleBase;                       // Radius dipersempit (dari 150 ke 90) agar ada gap
-    const maxHeight = 130 * scaleBase;
+    const numPuffs = Math.floor(190 + Math.random() * 120);
+    const maxRadius = 105 * scaleBase;                       // Bentuk lebih melebar & megah
+    const maxHeight = 52 * scaleBase;                        // Ketinggian vertikal proporsional (tidak menjulang tinggi ke luar layar)
 
     for (let i = 0; i < numPuffs; i++) {
         if (globalPuffIndex >= maxTotalPuffs) break;
@@ -185,14 +185,14 @@ function spawnCumulonimbus(centerX, baseY, centerZ, scaleBase) {
 
         // Kubah awan
         const heightProfile = 1.0 - Math.pow(r / maxRadius, 1.8);
-        const ly = (Math.random() * maxHeight * heightProfile) + (Math.random() * 15);
+        const ly = (Math.random() * maxHeight * heightProfile) + (Math.random() * 8);
 
         const px = centerX + lx;
         const py = baseY + ly;
         const pz = centerZ + lz;
 
-        // Ukuran partikel puff diperkecil agar tepi awan lebih tegas & berongga
-        const puffScale = (18 + Math.random() * 28) * scaleBase * (0.6 + 0.4 * heightProfile);
+        // Ukuran partikel puff proporsional
+        const puffScale = (18 + Math.random() * 26) * scaleBase * (0.6 + 0.4 * heightProfile);
 
         tempDummy.position.set(px, py, pz);
         tempDummy.scale.set(puffScale, puffScale, puffScale);
@@ -208,18 +208,19 @@ function spawnCumulonimbus(centerX, baseY, centerZ, scaleBase) {
     }
 }
 
-// Hasilkan awan dengan jarak (gap) yang lega di langit
+// Hasilkan awan dengan posisi ketinggian (Y) yang disesuaikan agar terlihat jelas dari POV Fox
 function buildSkyDomeClouds() {
     globalPuffIndex = 0;
-    const numberOfClouds = 34; // Diturunkan dari 16 menjadi 7 agar ada ruang kosong luas antar awan
+    const numberOfClouds = 34;
 
     for (let c = 0; c < numberOfClouds; c++) {
         // Beri jarak sudut yang rata antar awan
         const angle = (c / numberOfClouds) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
-        const distance = 460 + Math.random() * 60; // Jarak agak dijauhkan sedikit
+        const distance = 430 + Math.random() * 60;
 
         const px = Math.cos(angle) * distance;
-        const py = 35 + Math.random() * 20;
+        // Ketinggian dasar awan diturunkan (dari 35-55 menjadi 2-10) agar masuk ke dalam frame kamera Fox
+        const py = 2 + Math.random() * 8;
         const pz = Math.sin(angle) * distance;
 
         const scale = 0.85 + Math.random() * 0.4;

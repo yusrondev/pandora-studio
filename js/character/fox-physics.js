@@ -34,6 +34,128 @@ let userPreferredDist = 4.8;
 let currentCamDist = 4.8;
 let isCameraOccluded = false;
 
+// ========================================================
+// SISTEM VISUAL EAGLE VISION OUTLINE & SILUET (ASSASSIN'S CREED)
+// ========================================================
+let eagleVisionMaterial = null;
+let eagleVisionMeshList = [];
+let currentEagleVisionAlpha = 0.0;
+let lastEagleVisionRoot = null;
+const _occlusionRaycaster = new THREE.Raycaster();
+const _occlusionRayDir = new THREE.Vector3();
+
+function getOrCreateEagleVisionMaterial() {
+    if (!eagleVisionMaterial) {
+        eagleVisionMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                uColor: { value: new THREE.Color(0xff2238) },    // Assassin's Creed crimson-red base
+                uRimColor: { value: new THREE.Color(0xffaa33) }, // Intense orange-amber edge glow
+                uTime: { value: 0.0 },
+                uAlpha: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vViewPosition;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    // Ekspansi normal mikro untuk outline siluet luar yang presisi & tajam
+                    vec3 expanded = position + normal * 0.012;
+                    vec4 mvPosition = modelViewMatrix * vec4(expanded, 1.0);
+                    vViewPosition = -mvPosition.xyz;
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor;
+                uniform vec3 uRimColor;
+                uniform float uTime;
+                uniform float uAlpha;
+                varying vec3 vNormal;
+                varying vec3 vViewPosition;
+                void main() {
+                    if (uAlpha <= 0.001) discard;
+                    vec3 normal = normalize(vNormal);
+                    vec3 viewDir = normalize(vViewPosition);
+                    
+                    // Fresnel rim highlight (Eagle Vision edge radiance khas Assassin's Creed)
+                    float NdotV = max(0.0, dot(normal, viewDir));
+                    float rim = 1.0 - NdotV;
+                    float rimFactor = pow(rim, 2.0);
+
+                    // Scanline / Holographic subtle pulse
+                    float pulse = 0.88 + 0.12 * sin(uTime * 4.5);
+                    
+                    vec3 col = mix(uColor, uRimColor, rimFactor * 0.90) * pulse;
+                    // Siluet dalam transparan elegan, tepi luar berpendar terang
+                    float alpha = (0.42 + 0.58 * rimFactor) * uAlpha;
+                    
+                    gl_FragColor = vec4(col, alpha);
+                }
+            `,
+            transparent: true,
+            depthTest: false,  // Tembus rintangan 3D (X-Ray Eagle Vision)
+            depthWrite: false, // Tidak merusak z-buffer scene
+            side: THREE.DoubleSide
+        });
+    }
+    return eagleVisionMaterial;
+}
+
+function ensureFoxEagleVisionSystem(wolfChar) {
+    if (!wolfChar || !wolfChar.root) return;
+    const root = wolfChar.root;
+
+    const mat = getOrCreateEagleVisionMaterial();
+
+    // Jika model rubah berganti (spesies baru atau respawn)
+    if (lastEagleVisionRoot !== root || !root.userData.hasEagleVisionTwins) {
+        eagleVisionMeshList = [];
+        const meshesToTwin = [];
+
+        root.traverse((child) => {
+            if (child.isMesh && !child.userData.isEagleVisionTwin) {
+                meshesToTwin.push(child);
+            }
+        });
+
+        for (let i = 0; i < meshesToTwin.length; i++) {
+            const origMesh = meshesToTwin[i];
+            const twin = new THREE.Mesh(origMesh.geometry, mat);
+            twin.name = 'eagleVisionTwin_' + i;
+            twin.userData.isEagleVisionTwin = true;
+            twin.renderOrder = 999999;
+            twin.position.copy(origMesh.position);
+            twin.rotation.copy(origMesh.rotation);
+            twin.scale.copy(origMesh.scale);
+            twin.visible = false;
+            origMesh.parent.add(twin);
+            eagleVisionMeshList.push(twin);
+        }
+
+        root.userData.hasEagleVisionTwins = true;
+        lastEagleVisionRoot = root;
+    }
+}
+
+function updateFoxEagleVisionVisibility(isOccluded, dt, elapsed) {
+    if (!eagleVisionMaterial) return;
+
+    const targetAlpha = isOccluded ? 1.0 : 0.0;
+    const fadeRate = isOccluded ? 10.0 : 8.0;
+    currentEagleVisionAlpha += (targetAlpha - currentEagleVisionAlpha) * Math.min(1.0, fadeRate * dt);
+
+    eagleVisionMaterial.uniforms.uAlpha.value = currentEagleVisionAlpha;
+    eagleVisionMaterial.uniforms.uTime.value = elapsed;
+
+    const shouldShow = (currentEagleVisionAlpha > 0.01);
+    for (let i = 0; i < eagleVisionMeshList.length; i++) {
+        const twin = eagleVisionMeshList[i];
+        if (twin && twin.visible !== shouldShow) {
+            twin.visible = shouldShow;
+        }
+    }
+}
+
 // Deteksi saat user menahan / menggeser kamera secara manual (Multi-Touch & Mouse)
 let isUserHoldingCamera = false;
 let userHoldingCameraTimer = 0;
@@ -607,31 +729,35 @@ function updateWolfPhysics(dt, elapsed) {
     const MIN_ALLOWED_PITCH = THREE.MathUtils.degToRad(6.0);
     curPitch = THREE.MathUtils.clamp(curPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
 
+    const isCharacterMoving = (Math.abs(currentSpeed) > 0.15 || Math.abs(currentTurnRate) > 0.15 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.15 || Math.abs(analogTurn) > 0.15);
+
     if (isUserHoldingCamera) {
-        // SAAT USER MENGGERAKKAN KAMERA:
-        // Putar orientasi rubah secara dinamis mengikuti arah pandangan kamera, sehingga
-        // kamera SELALU berada di belakang kepala rubah dan user selalu melihat pandangan depan
-        const desiredFoxRotY = Math.atan2(-Math.cos(curYaw), Math.sin(curYaw));
-        let rotDiff = (desiredFoxRotY - foxRoot.rotation.y) % (Math.PI * 2);
-        if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-        if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-        const alignSpeed = (Math.abs(currentSpeed) > 0.1) ? 14.0 : 10.0;
-        foxRoot.rotation.y += rotDiff * Math.min(1.0, alignSpeed * dt);
+        // SAAT USER MENGGESER KAMERA:
+        // HANYA jika fox sedang bergerak / berjalan, hadap fox diselaraskan dengan kamera.
+        // Jika fox sedang DIAM (idle), fox TIDAK IKUT BERPUTAR (user bebas memutar kamera 360 derajat mengelilingi fox).
+        if (isCharacterMoving) {
+            const desiredFoxRotY = Math.atan2(-Math.cos(curYaw), Math.sin(curYaw));
+            let rotDiff = (desiredFoxRotY - foxRoot.rotation.y) % (Math.PI * 2);
+            if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+            if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+            foxRoot.rotation.y += rotDiff * Math.min(1.0, 14.0 * dt);
+        }
     } else {
         // SAAT TIDAK DIGERAKKAN SECARA MANUAL:
-        // Kamera secara otomatis mengikuti di belakang kepala rubah (auto-follow third person)
-        const targetYaw = Math.atan2(Math.cos(foxRoot.rotation.y), -Math.sin(foxRoot.rotation.y));
-        let diff = (targetYaw - curYaw) % (Math.PI * 2);
-        if (diff < -Math.PI) diff += Math.PI * 2;
-        if (diff > Math.PI) diff -= Math.PI * 2;
+        // Kamera secara otomatis mengikuti di belakang kepala rubah HANYA jika rubah sedang bergerak
+        if (isCharacterMoving) {
+            const targetYaw = Math.atan2(Math.cos(foxRoot.rotation.y), -Math.sin(foxRoot.rotation.y));
+            let diff = (targetYaw - curYaw) % (Math.PI * 2);
+            if (diff < -Math.PI) diff += Math.PI * 2;
+            if (diff > Math.PI) diff -= Math.PI * 2;
 
-        const isMoving = (Math.abs(currentSpeed) > 0.1 || Math.abs(currentTurnRate) > 0.1 || keys.w || keys.s || keys.a || keys.d);
-        const chaseSpeed = isMoving ? ((huntBlend > 0.4) ? 5.5 : 4.2) : 3.0;
-        const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
-        curYaw += diff * smoothT;
+            const chaseSpeed = (huntBlend > 0.4) ? 5.5 : 4.2;
+            const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
+            curYaw += diff * smoothT;
 
-        const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
-        curPitch = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)), MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
+            const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
+            curPitch = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)), MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
+        }
     }
 
     const cosP = Math.cos(curPitch);
@@ -639,168 +765,18 @@ function updateWolfPhysics(dt, elapsed) {
     const rayDir = new THREE.Vector3(Math.sin(curYaw) * cosP, sinP, Math.cos(curYaw) * cosP).normalize();
     const rayStart = controls.target;
 
-    const minSafeDist = 2.4; // Jarak minimal aman kamera saat terhalang objek
-    const userTargetDist = THREE.MathUtils.clamp(userPreferredDist, minSafeDist, 18.0);
-    let obstacleHitDist = userTargetDist;
-
-    // A. Deteksi Obstacle: Batang dan Ranting Daun Pohon (Line-of-Sight)
-    if (Array.isArray(treesList) && treesList.length > 0) {
-        for (let i = 0; i < treesList.length; i++) {
-            const tree = treesList[i];
-            if (!tree || !tree.visible) continue;
-
-            const dx = tree.position.x - rayStart.x;
-            const dz = tree.position.z - rayStart.z;
-            if (dx * dx + dz * dz > (obstacleHitDist + 6.0) * (obstacleHitDist + 6.0)) continue;
-
-            const treeScale = (tree.userData && tree.userData.trunkGroup) ? tree.userData.trunkGroup.scale.x : 1.0;
-            const trunkScaleY = (tree.userData && tree.userData.trunkGroup) ? tree.userData.trunkGroup.scale.y : 1.0;
-            const heightOffset = (tree.userData && tree.userData.baseTrunkHeight || 3.5) * (trunkScaleY - 1.0);
-            const treeRotY = tree.rotation.y || 0;
-            const cosY = Math.cos(treeRotY);
-            const sinY = Math.sin(treeRotY);
-
-            // Periksa kanopi daun (foliage clusters)
-            let clusters = tree.userData.clusters;
-            if (!clusters || !clusters.length) {
-                if (tree.userData && tree.userData.isPine) {
-                    clusters = [
-                        { center: new THREE.Vector3(0, 2.0, 0), radius: 1.6 },
-                        { center: new THREE.Vector3(0, 3.4, 0), radius: 1.3 },
-                        { center: new THREE.Vector3(0, 4.6, 0), radius: 0.9 }
-                    ];
-                } else {
-                    clusters = [{ center: new THREE.Vector3(0, 3.2, 0), radius: 2.0 }];
-                }
-            }
-
-            for (let c = 0; c < clusters.length; c++) {
-                const cl = clusters[c];
-                const lx = cl.center.x * treeScale;
-                const ly = cl.center.y + heightOffset;
-                const lz = cl.center.z * treeScale;
-
-                const cWorldX = tree.position.x + (lx * cosY + lz * sinY);
-                const cWorldY = tree.position.y + ly;
-                const cWorldZ = tree.position.z + (-lx * sinY + lz * cosY);
-                const clRadius = (cl.radius * treeScale) + 0.35; // Buffer 35cm
-
-                const vx = cWorldX - rayStart.x;
-                const vy = cWorldY - rayStart.y;
-                const vz = cWorldZ - rayStart.z;
-                const t = vx * rayDir.x + vy * rayDir.y + vz * rayDir.z;
-
-                if (t > 0 && (t - clRadius) < obstacleHitDist) {
-                    const vLenSq = vx * vx + vy * vy + vz * vz;
-                    const perpSq = vLenSq - t * t;
-                    if (perpSq < clRadius * clRadius) {
-                        const dIn = Math.sqrt(Math.max(0, clRadius * clRadius - perpSq));
-                        const hitDist = t - dIn;
-                        if (hitDist > 0 && hitDist < obstacleHitDist) {
-                            obstacleHitDist = Math.max(minSafeDist, hitDist);
-                        }
-                    }
-                }
-            }
-
-            // Periksa batang pohon (trunk capsule)
-            const trunkRadius = 0.45 * treeScale + 0.20;
-            const trunkTopY = tree.position.y + ((tree.userData && tree.userData.baseTrunkHeight) ? tree.userData.baseTrunkHeight * trunkScaleY : 4.0);
-            const rx = tree.position.x - rayStart.x;
-            const rz = tree.position.z - rayStart.z;
-            const len2D = Math.hypot(rayDir.x, rayDir.z);
-
-            if (len2D > 0.001) {
-                const ndx = rayDir.x / len2D;
-                const ndz = rayDir.z / len2D;
-                const t2D = rx * ndx + rz * ndz;
-
-                if (t2D > 0) {
-                    const perpSq2D = (rx * rx + rz * rz) - t2D * t2D;
-                    if (perpSq2D < trunkRadius * trunkRadius) {
-                        const dIn2D = Math.sqrt(Math.max(0, trunkRadius * trunkRadius - perpSq2D));
-                        const tHit2D = t2D - dIn2D;
-                        const sHit = tHit2D / len2D;
-                        const yAtHit = rayStart.y + rayDir.y * sHit;
-
-                        if (yAtHit >= tree.position.y - 0.2 && yAtHit <= trunkTopY + 0.3) {
-                            if (sHit > 0 && sHit < obstacleHitDist) {
-                                obstacleHitDist = Math.max(minSafeDist, sHit);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // A2. Deteksi Bebatuan Menghalangi Garis Pandang Kamera
-    if (activeRocks.length > 0) {
-        for (let r = 0; r < activeRocks.length; r++) {
-            const rock = activeRocks[r];
-            if (!rock || !rock.visible) continue;
-            const rData = rock.userData || {};
-            const rMaxR = (rData.radiusMax || Math.max(rock.scale.x, rock.scale.z) * 1.15) + 0.3;
-            const rx = rock.position.x - rayStart.x;
-            const rz = rock.position.z - rayStart.z;
-            const len2D = Math.hypot(rayDir.x, rayDir.z);
-            if (len2D > 0.001) {
-                const ndx = rayDir.x / len2D;
-                const ndz = rayDir.z / len2D;
-                const t2D = rx * ndx + rz * ndz;
-                if (t2D > 0 && t2D < obstacleHitDist * len2D + rMaxR) {
-                    const perpSq2D = (rx * rx + rz * rz) - t2D * t2D;
-                    if (perpSq2D < rMaxR * rMaxR) {
-                        const sHit = (t2D - Math.sqrt(Math.max(0, rMaxR * rMaxR - perpSq2D))) / len2D;
-                        const yAtHit = rayStart.y + rayDir.y * sHit;
-                        const hScale = rData.heightScale || rock.scale.y;
-                        if (yAtHit >= rock.position.y - hScale * 0.95 && yAtHit <= rock.position.y + hScale * 0.90) {
-                            if (sHit > 0 && sHit < obstacleHitDist) {
-                                obstacleHitDist = Math.max(minSafeDist, sHit - 0.25);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // B. Deteksi Tebing / Bukit Menghalangi Garis Pandang Kamera
-    if (typeof getTerrainHeightFast === 'function') {
-        const hillStep = 0.35;
-        const maxHillSteps = Math.floor(obstacleHitDist / hillStep);
-        for (let sIdx = 2; sIdx <= maxHillSteps; sIdx++) {
-            const s = sIdx * hillStep;
-            const sx = rayStart.x + rayDir.x * s;
-            const sz = rayStart.z + rayDir.z * s;
-            const terrainH = getTerrainHeightFast(sx, sz);
-            const rayH = rayStart.y + rayDir.y * s;
-            if (rayH < terrainH + 0.45) {
-                obstacleHitDist = Math.max(minSafeDist, s - 0.30);
-                break;
-            }
-        }
-    }
-
-    // C. Perhitungan Target Zoom Spring-Arm Sangat Halus & Proporsional
-    let targetDist = userTargetDist;
-
-    if (obstacleHitDist < userTargetDist - 0.15) {
-        // Objek menutupi garis pandang: kamera mendekat di depan objek secara aman (minimal minSafeDist)
-        targetDist = THREE.MathUtils.clamp(obstacleHitDist - 0.20, minSafeDist, userTargetDist);
-        isCameraOccluded = true;
-    } else {
-        isCameraOccluded = false;
-    }
-
-    // Mendekat dengan sangat smooth dan pelan saat tertutup objek (zoomLerpRate: 4.5),
-    // dan mundur kembali dengan sangat lembut & sinematik (zoomLerpRate: 3.0)
-    const zoomLerpRate = (targetDist < currentCamDist) ? 4.5 : 3.0;
-    currentCamDist += (targetDist - currentCamDist) * Math.min(1.0, zoomLerpRate * dt);
+    // ========================================================
+    // 3A. PERHITUNGAN JARAK KAMERA (ZOOM-IN OTOMATIS DINONAKTIFKAN)
+    // Sesuai permintaan user: Kamera TIDAK LAGI maju / zoom-in secara otomatis saat tertutup objek 3D.
+    // Kamera tetap berada pada jarak stabil yang dipilih oleh user.
+    // ========================================================
+    const userTargetDist = THREE.MathUtils.clamp(userPreferredDist, 2.4, 18.0);
+    const zoomLerpRate = 5.0;
+    currentCamDist += (userTargetDist - currentCamDist) * Math.min(1.0, zoomLerpRate * dt);
 
     camera.position.copy(controls.target).addScaledVector(rayDir, currentCamDist);
 
-    // Mencegah kamera tenggelam ke bawah tanah
+    // Mencegah kamera menembus lantai tanah (ground floor clamp)
     if (typeof getTerrainHeightFast === 'function') {
         const groundFloor = getTerrainHeightFast(camera.position.x, camera.position.z) + 0.45;
         if (camera.position.y < groundFloor) {
@@ -809,6 +785,88 @@ function updateWolfPhysics(dt, elapsed) {
     }
 
     camera.lookAt(controls.target);
+
+    // ========================================================
+    // 3B. SISTEM VISUAL EAGLE VISION OUTLINE & SILUET (ASSASSIN'S CREED)
+    // Syarat Kemunculan: HANYA muncul jika Fox 100% tertutup (occluded) oleh objek 3D lain.
+    // Pengecekan status tertutup didasarkan pada raycast dari kamera aktif (Main Camera).
+    // ========================================================
+    ensureFoxEagleVisionSystem(wolfCharacter);
+
+    const leftVec = new THREE.Vector3(-forward.z, 0, forward.x);
+    // 9 titik sampel anatomis tubuh rubah (ketinggian terkalibrasi aman di atas permukaan tanah/batu)
+    const foxOcclusionPoints = [
+        new THREE.Vector3(foxRoot.position.x + forward.x * (0.85 * foxScale), foxRoot.position.y + 0.75, foxRoot.position.z + forward.z * (0.85 * foxScale)), // Ujung moncong & hidung
+        new THREE.Vector3(foxRoot.position.x + forward.x * (0.55 * foxScale), foxRoot.position.y + 0.98, foxRoot.position.z + forward.z * (0.55 * foxScale)), // Batok kepala & telinga atas
+        new THREE.Vector3(foxRoot.position.x + forward.x * (0.35 * foxScale), foxRoot.position.y + 0.78, foxRoot.position.z + forward.z * (0.35 * foxScale)), // Dada & leher depan
+        new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.80, foxRoot.position.z),                                                                    // Pusat torso badan
+        new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 1.05, foxRoot.position.z),                                                                    // Punggung atas
+        new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.70, foxRoot.position.z + leftVec.z * (0.22 * foxScale)),    // Sisi rusuk kiri
+        new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.70, foxRoot.position.z - leftVec.z * (0.22 * foxScale)),    // Sisi rusuk kanan
+        new THREE.Vector3(foxRoot.position.x - forward.x * (0.45 * foxScale), foxRoot.position.y + 0.75, foxRoot.position.z - forward.z * (0.45 * foxScale)),   // Panggul & pangkal ekor
+        new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.35, foxRoot.position.z)                                                                     // Kaki atas / perut bawah
+    ];
+
+    const camPos = camera.position;
+    let occludedPointsCount = 0;
+
+    for (let p = 0; p < foxOcclusionPoints.length; p++) {
+        const pt = foxOcclusionPoints[p];
+        const dx = pt.x - camPos.x;
+        const dy = pt.y - camPos.y;
+        const dz = pt.z - camPos.z;
+        const rayDist = Math.hypot(dx, dy, dz);
+        if (rayDist < 0.3) continue;
+
+        _occlusionRayDir.set(dx / rayDist, dy / rayDist, dz / rayDist);
+        _occlusionRaycaster.set(camPos, _occlusionRayDir);
+        _occlusionRaycaster.near = 0.4;
+        _occlusionRaycaster.far = Math.max(0.4, rayDist - 0.30); // Berhenti 30cm sebelum tubuh rubah
+
+        let isPointBlocked = false;
+
+        // 1. Uji Raycast Geometri Presisi Bebatuan (Polygon Mesh Real - Mencegah False Positive di samping batu)
+        if (activeRocks.length > 0) {
+            const rockHits = _occlusionRaycaster.intersectObjects(activeRocks, false);
+            if (rockHits.length > 0) {
+                isPointBlocked = true;
+            }
+        }
+
+        // 2. Uji Raycast Pepohonan (Batang & Ranting Daun)
+        if (!isPointBlocked && Array.isArray(treesList) && treesList.length > 0) {
+            const treeHits = _occlusionRaycaster.intersectObjects(treesList, true);
+            if (treeHits.length > 0) {
+                isPointBlocked = true;
+            }
+        }
+
+        // 3. Uji Bukit / Terrain
+        if (!isPointBlocked && typeof getTerrainHeightFast === 'function') {
+            const stepSize = 0.45;
+            const maxSteps = Math.floor((rayDist - 0.30) / stepSize);
+            for (let sIdx = 1; sIdx <= maxSteps; sIdx++) {
+                const s = sIdx * stepSize;
+                const sx = camPos.x + _occlusionRayDir.x * s;
+                const sz = camPos.z + _occlusionRayDir.z * s;
+                const terrainH = getTerrainHeightFast(sx, sz);
+                const rayH = camPos.y + _occlusionRayDir.y * s;
+                if (rayH < terrainH + 0.15) {
+                    isPointBlocked = true;
+                    break;
+                }
+            }
+        }
+
+        if (isPointBlocked) {
+            occludedPointsCount++;
+        }
+    }
+
+    // SYARAT MUTLAK: Hanya muncul jika Fox 100% tertutup oleh objek 3D lain
+    const isFox100PercentOccluded = (occludedPointsCount === foxOcclusionPoints.length);
+    isCameraOccluded = isFox100PercentOccluded;
+    updateFoxEagleVisionVisibility(isFox100PercentOccluded, dt, elapsed);
 }
 
 // ========================================================

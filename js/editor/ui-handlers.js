@@ -8,20 +8,31 @@ const btnToggleLeftSidebar = document.getElementById('btn-toggle-left-sidebar');
 const btnToggleRightSidebar = document.getElementById('btn-toggle-right-sidebar');
 const btnCloseLeftSidebar = document.getElementById('btn-close-left-sidebar');
 const btnCloseRightSidebar = document.getElementById('btn-close-right-sidebar');
-const dockToggleLeft = document.getElementById('dock-toggle-left');
-const dockToggleRight = document.getElementById('dock-toggle-right');
 
 function updateSidebarCSSVariables() {
+    const isMobile = window.innerWidth <= 768;
     const sLeft = document.getElementById('sidebar-left');
     const sRight = document.getElementById('sidebar-right');
     const isLeftOpen = sLeft && !sLeft.classList.contains('collapsed');
     const isRightOpen = sRight && !sRight.classList.contains('collapsed');
 
-    const leftW = isLeftOpen ? (sLeft.offsetWidth || parseFloat(sLeft.style.width) || 285) : 0;
-    const rightW = isRightOpen ? (sRight.offsetWidth || parseFloat(sRight.style.width) || 285) : 0;
+    // Pada mobile, sidebar menjadi overlay drawer di atas viewport (tidak memperkecil viewport)
+    const leftW = (!isMobile && isLeftOpen) ? (sLeft.offsetWidth || parseFloat(sLeft.style.width) || 285) : 0;
+    const rightW = (!isMobile && isRightOpen) ? (sRight.offsetWidth || parseFloat(sRight.style.width) || 285) : 0;
 
     document.documentElement.style.setProperty('--sidebar-left-actual-width', leftW + 'px');
     document.documentElement.style.setProperty('--sidebar-right-actual-width', rightW + 'px');
+
+    // Sinkronkan backdrop mobile saat salah satu drawer terbuka
+    const backdrop = document.getElementById('mobile-sidebar-backdrop');
+    if (backdrop) {
+        if (isMobile && (isLeftOpen || isRightOpen)) {
+            backdrop.classList.add('visible');
+        } else {
+            backdrop.classList.remove('visible');
+        }
+    }
+
     if (typeof updateViewportSize === 'function') updateViewportSize();
     if (typeof window.checkToolbarOverflow === 'function') window.checkToolbarOverflow();
 }
@@ -31,12 +42,14 @@ function toggleLeftSidebar(forceState) {
     const willCollapse = forceState !== undefined ? !forceState : !sidebarLeft.classList.contains('collapsed');
     if (willCollapse) {
         sidebarLeft.classList.add('collapsed');
-        dockToggleLeft.classList.add('visible');
         btnToggleLeftSidebar.classList.remove('active');
     } else {
         sidebarLeft.classList.remove('collapsed');
-        dockToggleLeft.classList.remove('visible');
         btnToggleLeftSidebar.classList.add('active');
+        // Di mobile, jika buka panel kiri, otomatis tutup panel kanan agar rapi
+        if (window.innerWidth <= 768 && sidebarRight && !sidebarRight.classList.contains('collapsed')) {
+            toggleRightSidebar(false);
+        }
     }
     updateSidebarCSSVariables();
 }
@@ -45,23 +58,32 @@ function toggleRightSidebar(forceState) {
     const willCollapse = forceState !== undefined ? !forceState : !sidebarRight.classList.contains('collapsed');
     if (willCollapse) {
         sidebarRight.classList.add('collapsed');
-        dockToggleRight.classList.add('visible');
         btnToggleRightSidebar.classList.remove('active');
     } else {
         sidebarRight.classList.remove('collapsed');
-        dockToggleRight.classList.remove('visible');
         btnToggleRightSidebar.classList.add('active');
+        // Di mobile, jika buka panel kanan, otomatis tutup panel kiri agar rapi
+        if (window.innerWidth <= 768 && sidebarLeft && !sidebarLeft.classList.contains('collapsed')) {
+            toggleLeftSidebar(false);
+        }
     }
     updateSidebarCSSVariables();
 }
 
 btnToggleLeftSidebar.addEventListener('click', () => toggleLeftSidebar());
 btnCloseLeftSidebar.addEventListener('click', () => toggleLeftSidebar(false));
-dockToggleLeft.addEventListener('click', () => toggleLeftSidebar(true));
 
 btnToggleRightSidebar.addEventListener('click', () => toggleRightSidebar());
 btnCloseRightSidebar.addEventListener('click', () => toggleRightSidebar(false));
-dockToggleRight.addEventListener('click', () => toggleRightSidebar(true));
+
+// Tutup sidebar saat backdrop di-tap di mobile
+const mobileBackdrop = document.getElementById('mobile-sidebar-backdrop');
+if (mobileBackdrop) {
+    mobileBackdrop.addEventListener('click', () => {
+        toggleLeftSidebar(false);
+        toggleRightSidebar(false);
+    });
+}
 
 btnToggleLeftSidebar.classList.add('active');
 btnToggleRightSidebar.classList.add('active');
@@ -140,7 +162,18 @@ if (resizerRight && sidebarRight) {
     });
 }
 
-// Inisialisasi awal sinkronisasi CSS variable untuk panel cinematic bawah
+// Inisialisasi awal sinkronisasi: sembunyikan panel timeline cinematic di awal
+const bottomPanel = document.getElementById('cinematic-bottom-panel');
+if (bottomPanel && bottomPanel.classList.contains('visible')) {
+    bottomPanel.classList.remove('visible');
+    document.body.classList.remove('cinematic-footer-open');
+    const btnCinematicDock = document.getElementById('btn-toggle-cinematic-dock');
+    if (btnCinematicDock) btnCinematicDock.classList.remove('active');
+}
+if (window.innerWidth <= 768) {
+    if (sidebarLeft && !sidebarLeft.classList.contains('collapsed')) toggleLeftSidebar(false);
+    if (sidebarRight && !sidebarRight.classList.contains('collapsed')) toggleRightSidebar(false);
+}
 updateSidebarCSSVariables();
 window.addEventListener('resize', updateSidebarCSSVariables);
 
@@ -608,10 +641,12 @@ function initToolbarOverflowManager() {
         // 3. Update visibility of overflow button and dropdown
         if (overflowedItems.length === 0) {
             overflowBtn.style.display = 'none';
+            toolbar.classList.remove('has-overflow');
             overflowDropdown.classList.remove('open');
             overflowBtn.classList.remove('active');
         } else {
             overflowBtn.style.display = 'inline-flex';
+            toolbar.classList.add('has-overflow');
         }
     }
 
@@ -624,16 +659,41 @@ function initToolbarOverflowManager() {
             overflowBtn.classList.remove('active');
         } else {
             const rect = overflowBtn.getBoundingClientRect();
-            overflowDropdown.style.top = (rect.bottom + 4) + 'px';
-            overflowDropdown.style.right = Math.max(6, window.innerWidth - rect.right) + 'px';
+            const topPos = rect.bottom + 4;
+            overflowDropdown.style.top = topPos + 'px';
+            if (window.innerWidth <= 768) {
+                overflowDropdown.style.left = '8px';
+                overflowDropdown.style.right = '8px';
+            } else {
+                overflowDropdown.style.left = '';
+                overflowDropdown.style.right = Math.max(6, window.innerWidth - rect.right) + 'px';
+            }
+            // Batasi tinggi dropdown secara dinamis agar pas di dalam layar HP dan scrollable
+            const availableHeight = Math.max(160, window.innerHeight - topPos - 12);
+            overflowDropdown.style.maxHeight = availableHeight + 'px';
+
             overflowDropdown.classList.add('open');
             overflowBtn.classList.add('active');
         }
     });
 
     overflowDropdown.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (btn && (btn.id === 'btn-play-mode' || btn.classList.contains('btn-compact') || btn.classList.contains('btn-icon-only'))) {
+            // Tutup dropdown otomatis jika tombol aksi utama diklik
+            overflowDropdown.classList.remove('open');
+            overflowBtn.classList.remove('active');
+        }
         e.stopPropagation();
     });
+
+    // Cegah event swipe/scroll di dropdown mengganggu OrbitControls kamera 3D
+    overflowDropdown.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+    }, { passive: true });
+    overflowDropdown.addEventListener('touchmove', (e) => {
+        e.stopPropagation();
+    }, { passive: true });
 
     // Close when clicking outside
     document.addEventListener('click', (e) => {

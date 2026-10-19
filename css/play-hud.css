@@ -3,6 +3,32 @@
    Authentic Blender 4.x Desktop HUD Style
    ========================================================= */
 
+/* Play Mode Full-Screen Isolation: Sembunyikan semua panel editor, footer, sidebar, resizer, dsb */
+body.play-mode-active #sidebar-left,
+body.play-mode-active #sidebar-right,
+body.play-mode-active .sidebar,
+body.play-mode-active .sidebar-resizer,
+body.play-mode-active #resizer-left,
+body.play-mode-active #resizer-right,
+body.play-mode-active .mobile-sidebar-backdrop,
+body.play-mode-active #cinematic-bottom-panel,
+body.play-mode-active #cinematic-overflow-dropdown,
+body.play-mode-active .cinematic-bottom-resizer,
+body.play-mode-active .cinematic-bottom-panel,
+body.play-mode-active .floating-timeline,
+body.play-mode-active #timeline-floating-panel,
+body.play-mode-active #active-mode-banner,
+body.play-mode-active .mode-banner {
+    display: none !important;
+}
+
+body.play-mode-active #viewport-container {
+    top: var(--header-height, 36px) !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+}
+
 .btn-play-mode {
     background: var(--bg-button) !important;
     border: 1px solid var(--widget-border) !important;
@@ -45,11 +71,13 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 6px;
-    background: var(--bg-panel);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--radius-sm);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    padding: 3px 8px;
+    background: rgba(18, 20, 26, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 20px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
     pointer-events: auto;
 }
 
@@ -143,13 +171,15 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    min-width: 420px;
-    max-width: 500px;
+    min-width: 380px;
+    max-width: 450px;
     padding: 8px 12px;
-    background: var(--bg-panel);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--radius-sm);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    background: rgba(18, 20, 26, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     pointer-events: auto;
     user-select: none;
 }
@@ -320,4 +350,226 @@
     color: var(--text-muted);
     border-radius: 2px;
     border: 1px solid var(--widget-border);
+}
+
+.fox-stats-hud {
+    display: none !important;
+}
+
+/* =========================================================
+   MOBILE PLAY TOUCH CONTROLS (VIRTUAL JOYSTICK & BUTTONS)
+   Ultra-sleek, minimalist translucent floating touch layout
+   ========================================================= */
+.mobile-play-controls {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9998;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* 1. Virtual Joystick Zone (Bottom-Left) - ENLARGED ARCADE SIZE */
+.mobile-joystick-zone {
+    position: absolute;
+    bottom: 24px;
+    left: 20px;
+    width: 160px;
+    height: 160px;
+    pointer-events: auto;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-joystick-base {
+    position: relative;
+    width: 136px;
+    height: 136px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(15, 23, 42, 0.55) 100%);
+    border: 2px solid rgba(255, 255, 255, 0.32);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 16px rgba(56, 189, 248, 0.15);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mobile-joystick-base.active {
+    border-color: rgba(56, 189, 248, 0.8);
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(15, 23, 42, 0.65) 100%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 24px rgba(56, 189, 248, 0.35);
+}
+
+/* Center guide point */
+.mobile-joystick-base::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+}
+
+.mobile-joystick-stick {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.16) 100%);
+    border: 2.5px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 12px rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: none;
+    will-change: transform;
+    transform: translate(-50%, -50%);
+}
+
+/* 2. Action Buttons (Bottom-Right) - ARCADE GAMING STYLE */
+.mobile-action-buttons {
+    position: absolute;
+    bottom: 24px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    pointer-events: auto;
+    touch-action: none;
+}
+
+.mobile-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 0.08s ease, filter 0.12s ease, box-shadow 0.12s ease;
+    color: #ffffff;
+}
+
+.mobile-action-btn:active {
+    transform: scale(0.92);
+}
+
+/* Jump Button - Arcade Electric Blue */
+.mobile-jump-btn {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
+    border: 2.5px solid rgba(191, 219, 254, 0.9);
+    box-shadow: 0 6px 20px rgba(29, 78, 216, 0.6), 0 0 16px rgba(2, 132, 199, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.5);
+}
+
+.mobile-jump-btn:active,
+.mobile-jump-btn.active {
+    background: linear-gradient(135deg, #1e40af 0%, #0369a1 100%);
+    box-shadow: 0 2px 10px rgba(29, 78, 216, 0.8), 0 0 22px rgba(56, 189, 248, 0.8), inset 0 0 6px rgba(255, 255, 255, 0.4);
+}
+
+/* Sprint Button - Arcade Fiery Amber/Orange */
+.mobile-sprint-btn {
+    width: 54px;
+    height: 54px;
+    background: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
+    border: 2.5px solid rgba(254, 215, 170, 0.9);
+    box-shadow: 0 6px 20px rgba(234, 88, 12, 0.6), 0 0 16px rgba(217, 119, 6, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.5);
+    color: #ffffff;
+}
+
+.mobile-sprint-btn:active,
+.mobile-sprint-btn.active {
+    background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+    box-shadow: 0 0 24px rgba(249, 115, 22, 0.95), inset 0 0 8px rgba(255, 255, 255, 0.7);
+    border-color: #ffffff;
+}
+
+/* Exit Demo Button - Arcade Crimson */
+.mobile-exit-btn {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    border: 2px solid rgba(254, 202, 202, 0.85);
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    color: #ffffff;
+}
+
+.mobile-exit-btn:active {
+    background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.8);
+}
+
+/* =========================================================
+   MOBILE RESPONSIVE MEDIA QUERIES (Smartphone / Xiaomi 15)
+   Compact HUD, Non-blocking, Proportional Layout
+   ========================================================= */
+@media (max-width: 768px) {
+    /* Fox Stats HUD: Completely hidden per user request */
+    .fox-stats-hud {
+        display: none !important;
+    }
+
+    body.play-mode-active #mobile-play-controls {
+        display: block !important;
+    }
+
+    /* Species switcher bar: Slim transparent pill capsule di tengah atas */
+    .fox-species-bar {
+        top: 42px !important;
+        left: 50% !important;
+        right: auto !important;
+        bottom: auto !important;
+        transform: translateX(-50%) !important;
+        max-width: calc(100vw - 32px) !important;
+        height: 28px !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
+        padding: 2px 6px !important;
+        background: rgba(18, 20, 26, 0.45) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.16) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+        white-space: nowrap !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+    }
+
+    .fox-species-bar::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    .species-bar-hint,
+    .btn-species-exit {
+        display: none !important;
+    }
+
+    .btn-species-pill {
+        padding: 1px 7px !important;
+        font-size: 10px !important;
+        height: 22px !important;
+        border-radius: 11px !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        color: #cbd5e1 !important;
+    }
+
+    .btn-species-pill.active {
+        background: var(--accent) !important;
+        border-color: rgba(255, 255, 255, 0.3) !important;
+        color: #ffffff !important;
+    }
 }

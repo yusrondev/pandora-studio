@@ -10,5 +10,6 @@ let savedEditorCamera = {
 };
 let wasLeftSidebarCollapsed = false;
 let wasRightSidebarCollapsed = false;
+let wasCinematicBottomOpen = false;
 
 // Sound Controller berbasis Web Audio API murni

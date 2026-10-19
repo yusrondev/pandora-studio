@@ -17,6 +17,12 @@ function toggleWolfSprint() {
 function startPlayMode() {
     if (typeof cancelAllSelections === 'function') cancelAllSelections();
 
+    // Pastikan menu overflow tertutup
+    const overflowDropdown = document.getElementById('toolbar-overflow-menu');
+    if (overflowDropdown) overflowDropdown.classList.remove('open');
+    const overflowBtn = document.getElementById('btn-toolbar-overflow');
+    if (overflowBtn) overflowBtn.classList.remove('active');
+
     // Simpan posisi kamera editor
     savedEditorCamera.position.copy(camera.position);
     savedEditorCamera.target.copy(controls.target);
@@ -34,6 +40,34 @@ function startPlayMode() {
     }
     if (typeof updateSidebarCSSVariables === 'function') {
         updateSidebarCSSVariables();
+    }
+
+    // Sembunyikan panel footer timeline cinematic & upward dropdown jika sedang terbuka
+    const bottomPanel = document.getElementById('cinematic-bottom-panel');
+    if (bottomPanel) {
+        wasCinematicBottomOpen = bottomPanel.classList.contains('visible');
+        bottomPanel.classList.remove('visible');
+    }
+    const cinematicOverflow = document.getElementById('cinematic-overflow-dropdown');
+    if (cinematicOverflow) cinematicOverflow.classList.remove('open');
+
+    // HILANGKAN SEMUA GARIS DAN PENANDA DARI CINEMATIC CAMERA & ACTOR SAAT PLAY MODE
+    if (typeof CinematicManager !== 'undefined') {
+        if (CinematicManager.pathGroup) CinematicManager.pathGroup.visible = false;
+        if (CinematicManager.previewMarker) CinematicManager.previewMarker.visible = false;
+        if (CinematicManager.foxes) {
+            CinematicManager.foxes.forEach(f => {
+                if (f && f.pathGroup) f.pathGroup.visible = false;
+            });
+        }
+        if (CinematicManager.foxPreviewMarker) CinematicManager.foxPreviewMarker.visible = false;
+    }
+    if (typeof SelectionOutlineManager !== 'undefined') {
+        SelectionOutlineManager.clearSelection();
+        if (SelectionOutlineManager.group) SelectionOutlineManager.group.visible = false;
+    }
+    if (typeof brushReticleGroup !== 'undefined' && brushReticleGroup) {
+        brushReticleGroup.visible = false;
     }
 
     // Inisialisasi model rubah jika belum ada
@@ -70,16 +104,17 @@ function startPlayMode() {
     controls.enablePan = false;
     controls.enableZoom = true;
     controls.enableDamping = false; // Matikan damping bawaan OrbitControls agar rotasi kamera chase halus tanpa jitter
-    controls.minDistance = 2.0;
+    controls.minDistance = 2.4;
     controls.maxDistance = 25.0;
-    controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    controls.minPolarAngle = Math.PI * 0.28; // ~50.4 deg dari vertikal (Kamera TIDAK BISA menukik top-down 90 deg)
+    controls.maxPolarAngle = Math.PI / 2 - 0.04;
 
     userPreferredDist = 4.8;
     currentCamDist = 4.8;
     isCameraOccluded = false;
 
     controls.target.set(spawnX, spawnY + 0.85, spawnZ);
-    camera.position.set(spawnX - 3.4, spawnY + 2.2, spawnZ + 3.4);
+    camera.position.set(spawnX - 3.2, spawnY + 2.7, spawnZ + 3.2);
     controls.update();
 
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
@@ -101,17 +136,17 @@ function startPlayMode() {
     if (speciesBar) speciesBar.style.display = 'flex';
 
     const statsHud = document.getElementById('fox-stats-hud');
-    if (statsHud) statsHud.style.display = 'flex';
-
-    if (typeof updateFoxStatsDisplay === 'function') {
-        updateFoxStatsDisplay(currentFoxSpeciesKey);
-    }
+    if (statsHud) statsHud.style.display = 'none';
 
     const activeBanner = document.getElementById('active-mode-banner');
     if (activeBanner) activeBanner.style.display = 'none';
 
     if (typeof foxSoundFX !== 'undefined' && foxSoundFX.init) {
         foxSoundFX.init();
+    }
+
+    if (typeof showMobileControls === 'function') {
+        showMobileControls();
     }
 }
 
@@ -123,6 +158,10 @@ function stopPlayMode() {
     keys.d = false;
     keys.shift = false;
     keys.space = false;
+
+    if (typeof hideMobileControls === 'function') {
+        hideMobileControls();
+    }
 
     if (wolfCharacter) {
         wolfCharacter.root.visible = false;
@@ -159,6 +198,23 @@ function stopPlayMode() {
     if (sidebarRight && !wasRightSidebarCollapsed) sidebarRight.classList.remove('collapsed');
     if (typeof updateSidebarCSSVariables === 'function') {
         updateSidebarCSSVariables();
+    }
+
+    // Kembalikan panel timeline jika sebelumnya terbuka
+    if (wasCinematicBottomOpen) {
+        const bottomPanel = document.getElementById('cinematic-bottom-panel');
+        if (bottomPanel) bottomPanel.classList.add('visible');
+    }
+
+    // Kembalikan tampilan penanda cinematic camera & actor ke kondisi editor
+    if (typeof CinematicManager !== 'undefined') {
+        if (CinematicManager.pathGroup && !CinematicManager.isPlaying) CinematicManager.pathGroup.visible = true;
+        if (CinematicManager.previewMarker && !CinematicManager.isPlaying) CinematicManager.previewMarker.visible = true;
+        if (CinematicManager.foxes && CinematicManager.isFoxEnabled && !CinematicManager.isPlaying) {
+            CinematicManager.foxes.forEach(f => {
+                if (f && f.pathGroup) f.pathGroup.visible = true;
+            });
+        }
     }
 
     controls.enabled = true;

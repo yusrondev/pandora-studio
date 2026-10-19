@@ -473,7 +473,7 @@ const starMat = new THREE.ShaderMaterial({
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-    depthTest: false
+    depthTest: true
 });
 
 const starGroup = new THREE.Group();
@@ -635,6 +635,7 @@ function updateNightSky(elapsedTime, delta) {
     if (starGroup && starGroup.visible) {
         starMat.uniforms.uTime.value = elapsedTime;
         starGroup.rotation.y = elapsedTime * 0.0012;
+        starGroup.position.copy(camera.position);
     }
 }
 

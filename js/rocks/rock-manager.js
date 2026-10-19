@@ -12,6 +12,7 @@ if (typeof scene !== 'undefined') {
 }
 
 const rocksList = [];
+window.rocksList = rocksList;
 
 // Parameter brush bebatuan
 const rockParams = {
@@ -134,11 +135,11 @@ function placeRocksAt(intersectPoint, rockType = 'spawn_rock') {
         const rockGeo = getRandomRockGeometry();
         const rock = new THREE.Mesh(rockGeo, rockMaterial);
 
-        // Rotasi acak penuh
+        // Rotasi natural: rotasi penuh pada sumbu vertikal Y, dengan kemiringan organik halus pada X & Z
         rock.rotation.set(
-            Math.random() * Math.PI,
-            Math.random() * Math.PI,
-            Math.random() * Math.PI
+            (Math.random() - 0.5) * 0.2,
+            Math.random() * Math.PI * 2,
+            (Math.random() - 0.5) * 0.2
         );
 
         let scaleBase = rockParams.minSize + Math.random() * (rockParams.maxSize - rockParams.minSize);
@@ -162,11 +163,26 @@ function placeRocksAt(intersectPoint, rockType = 'spawn_rock') {
         rock.castShadow = true;
         rock.receiveShadow = true;
 
+        rock.updateMatrixWorld(true);
+        const bb = new THREE.Box3().setFromObject(rock);
+        const rx = (bb.max.x - bb.min.x) * 0.5 * 1.04;
+        const rz = (bb.max.z - bb.min.z) * 0.5 * 1.04;
+
         rock.userData = {
             isRock: true,
             rockType: rockType,
             scaleBase: scaleBase,
-            heightScale: heightScale
+            heightScale: heightScale,
+            minX: bb.min.x, maxX: bb.max.x,
+            minY: bb.min.y, maxY: bb.max.y,
+            minZ: bb.min.z, maxZ: bb.max.z,
+            centerX: (bb.min.x + bb.max.x) * 0.5,
+            centerZ: (bb.min.z + bb.max.z) * 0.5,
+            radiusX: rx,
+            radiusZ: rz,
+            radiusMax: Math.max(rx, rz) * 1.25,
+            topY: bb.max.y,
+            bottomY: bb.min.y
         };
 
         rocksGroup.add(rock);
@@ -224,20 +240,59 @@ function recreateRock(data) {
 
     rock.castShadow = true;
     rock.receiveShadow = true;
-    rock.userData = { isRock: true };
+
+    rock.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(rock);
+    const rx = (bb.max.x - bb.min.x) * 0.5 * 1.04;
+    const rz = (bb.max.z - bb.min.z) * 0.5 * 1.04;
+
+    rock.userData = {
+        isRock: true,
+        minX: bb.min.x, maxX: bb.max.x,
+        minY: bb.min.y, maxY: bb.max.y,
+        minZ: bb.min.z, maxZ: bb.max.z,
+        centerX: (bb.min.x + bb.max.x) * 0.5,
+        centerZ: (bb.min.z + bb.max.z) * 0.5,
+        radiusX: rx,
+        radiusZ: rz,
+        radiusMax: Math.max(rx, rz) * 1.25,
+        topY: bb.max.y,
+        bottomY: bb.min.y
+    };
 
     rocksGroup.add(rock);
     rocksList.push(rock);
     updateRockCountUI();
 }
 
-// 8. UPDATE UI COUNTER
+// 8. UPDATE UI COUNTER & LAYER OUTLINER
 function updateRockCountUI() {
     const countBadge = document.getElementById('val-rock-count');
     if (countBadge) {
         countBadge.textContent = `${rocksList.length} Batu`;
     }
+    if (typeof refreshLayerUI === 'function') {
+        refreshLayerUI();
+    }
 }
+
+// 8B. HAPUS BATU BERDASARKAN INDEX LAYER
+function deleteRockByIndex(idx) {
+    if (idx < 0 || idx >= rocksList.length) return;
+    if (typeof saveState === 'function') saveState();
+    const rockToRemove = rocksList[idx];
+    if (typeof SelectionOutlineManager !== 'undefined') {
+        SelectionOutlineManager.clear();
+    }
+    rocksGroup.remove(rockToRemove);
+    rocksList.splice(idx, 1);
+    if (typeof selectedRockIndex !== 'undefined') {
+        if (selectedRockIndex === idx) selectedRockIndex = -1;
+        else if (selectedRockIndex > idx) selectedRockIndex--;
+    }
+    updateRockCountUI();
+}
+window.deleteRockByIndex = deleteRockByIndex;
 
 // 9. SET TEMA WARNA GRADASI BATU
 function setRockTheme(themeName) {

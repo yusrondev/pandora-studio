@@ -113,6 +113,13 @@ body.resizing-cinematic-bottom #viewport-container {
     transition: none !important;
 }
 
+@media (max-width: 768px) {
+    #viewport-container {
+        left: 0 !important;
+        right: 0 !important;
+    }
+}
+
 #viewport-container canvas,
 canvas {
     display: block;

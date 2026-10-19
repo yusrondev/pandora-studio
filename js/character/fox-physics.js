@@ -34,30 +34,107 @@ let userPreferredDist = 4.8;
 let currentCamDist = 4.8;
 let isCameraOccluded = false;
 
-// Deteksi saat user menahan / menggeser kamera secara manual
+// Deteksi saat user menahan / menggeser kamera secara manual (Multi-Touch & Mouse)
 let isUserHoldingCamera = false;
+let userHoldingCameraTimer = 0;
+let activeCameraTouches = new Map();
+let lastPinchDistance = null;
 
-window.addEventListener('pointerdown', (e) => {
-    if (!isPlayMode) return;
-    if (e.target && e.target.tagName === 'CANVAS') {
+// Multi-Touch listener pada Canvas (Kamera bebas digerakkan bersamaan dengan Analog Joystick)
+window.addEventListener('touchstart', (e) => {
+    if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const inJoystick = el && el.closest && el.closest('#mobile-joystick-zone');
+        const inActionBtn = el && el.closest && el.closest('.mobile-action-buttons');
+        const inToolbar = el && el.closest && el.closest('#top-toolbar');
+        const inSpecies = el && el.closest && el.closest('#fox-species-bar');
+
+        if (!inJoystick && !inActionBtn && !inToolbar && !inSpecies) {
+            activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+            isUserHoldingCamera = true;
+            userHoldingCameraTimer = 1.6;
+        }
+    }
+
+    if (activeCameraTouches.size >= 2) {
+        const touches = Array.from(activeCameraTouches.values());
+        lastPinchDistance = Math.hypot(touches[0].x - touches[1].x, touches[0].y - touches[1].y);
+    } else {
+        lastPinchDistance = null;
+    }
+}, { passive: true });
+
+window.addEventListener('touchmove', (e) => {
+    if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
+    let cameraTouchMoved = false;
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (activeCameraTouches.has(touch.identifier)) {
+            activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+            cameraTouchMoved = true;
+        }
+    }
+
+    if (cameraTouchMoved) {
         isUserHoldingCamera = true;
+        userHoldingCameraTimer = 1.6;
+    }
+
+    // Cubit layar (Pinch-to-zoom) pada smartphone
+    if (activeCameraTouches.size >= 2) {
+        const touches = Array.from(activeCameraTouches.values());
+        const currentPinch = Math.hypot(touches[0].x - touches[1].x, touches[0].y - touches[1].y);
+        if (lastPinchDistance !== null && lastPinchDistance > 5 && currentPinch > 5) {
+            const pinchRatio = currentPinch / lastPinchDistance;
+            const zoomDelta = (1.0 - pinchRatio) * userPreferredDist * 1.5;
+            userPreferredDist = THREE.MathUtils.clamp(userPreferredDist + zoomDelta, 3.0, 18.0);
+        }
+        lastPinchDistance = currentPinch;
+    }
+}, { passive: true });
+
+function removeCameraTouches(e) {
+    if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        activeCameraTouches.delete(e.changedTouches[i].identifier);
+    }
+    if (activeCameraTouches.size < 2) {
+        lastPinchDistance = null;
+    }
+    if (activeCameraTouches.size === 0) {
+        userHoldingCameraTimer = 1.6;
+    }
+}
+
+window.addEventListener('touchend', removeCameraTouches, { passive: true });
+window.addEventListener('touchcancel', removeCameraTouches, { passive: true });
+
+// Mouse fallback untuk desktop
+window.addEventListener('pointerdown', (e) => {
+    if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
+    if (e.pointerType === 'mouse' && e.target && e.target.tagName === 'CANVAS') {
+        isUserHoldingCamera = true;
+        userHoldingCameraTimer = 1.6;
     }
 }, { capture: true });
 
-window.addEventListener('pointerup', () => {
-    isUserHoldingCamera = false;
-});
-
-window.addEventListener('pointermove', (e) => {
-    if (!isPlayMode) return;
-    // Jika tidak ada tombol mouse yang ditekan, pastikan status tahan nonaktif
-    if (e.buttons === 0 && isUserHoldingCamera) {
-        isUserHoldingCamera = false;
+window.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'mouse') {
+        userHoldingCameraTimer = 1.6;
     }
 });
 
-window.addEventListener('pointercancel', () => {
-    isUserHoldingCamera = false;
+window.addEventListener('pointermove', (e) => {
+    if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
+    if (e.pointerType === 'mouse') {
+        if (e.buttons > 0) {
+            isUserHoldingCamera = true;
+            userHoldingCameraTimer = 1.6;
+        }
+    }
 });
 
 // Listener langsung ke OrbitControls
@@ -65,18 +142,19 @@ if (typeof controls !== 'undefined' && controls && controls.addEventListener) {
     controls.addEventListener('start', () => {
         if (typeof isPlayMode !== 'undefined' && isPlayMode) {
             isUserHoldingCamera = true;
+            userHoldingCameraTimer = 1.6;
         }
     });
     controls.addEventListener('end', () => {
         if (typeof isPlayMode !== 'undefined' && isPlayMode) {
-            isUserHoldingCamera = false;
+            userHoldingCameraTimer = 1.6;
         }
     });
 }
 
 window.addEventListener('wheel', (e) => {
-    if (!isPlayMode) return;
-    userPreferredDist = THREE.MathUtils.clamp(userPreferredDist + e.deltaY * 0.005, 1.8, 18.0);
+    if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
+    userPreferredDist = THREE.MathUtils.clamp(userPreferredDist + e.deltaY * 0.005, 3.0, 18.0);
 }, { passive: true });
 
 let currentSpeed = 0;
@@ -168,9 +246,12 @@ function updateWolfPhysics(dt, elapsed) {
         jumpPower: 9.6
     };
 
+    const analogFwd = (typeof mobileJoystickForward !== 'undefined') ? mobileJoystickForward : 0;
+    const analogTurn = (typeof mobileJoystickTurn !== 'undefined') ? mobileJoystickTurn : 0;
+
     // Update Sistem Stamina:
-    // Berkurang saat dipaksa lari (Shift + W), bertambah saat jalan pelan (W) atau diam
-    const isMovingForward = keys.w;
+    // Berkurang saat dipaksa lari (Shift + W / Joystick), bertambah saat jalan pelan atau diam
+    const isMovingForward = keys.w || (analogFwd > 0.15);
     const isSprintingAllowed = (typeof FoxStaminaState !== 'undefined')
         ? FoxStaminaState.update(dt, keys.shift, isMovingForward)
         : keys.shift;
@@ -181,12 +262,23 @@ function updateWolfPhysics(dt, elapsed) {
     const walkSpeed = stats.walkSpeed;
     const huntRunSpeed = stats.runSpeed;
     let targetSpeed = 0;
-    if (keys.w) targetSpeed = isHunting ? huntRunSpeed : walkSpeed;
-    else if (keys.s) targetSpeed = -stats.reverseSpeed;
+    if (Math.abs(analogFwd) > 0.05) {
+        targetSpeed = (analogFwd > 0)
+            ? (analogFwd * (isHunting ? huntRunSpeed : walkSpeed))
+            : (analogFwd * stats.reverseSpeed);
+    } else if (keys.w) {
+        targetSpeed = isHunting ? huntRunSpeed : walkSpeed;
+    } else if (keys.s) {
+        targetSpeed = -stats.reverseSpeed;
+    }
 
     let targetTurn = 0;
-    if (keys.a) targetTurn = stats.turnRate;
-    if (keys.d) targetTurn = -stats.turnRate;
+    if (Math.abs(analogTurn) > 0.05) {
+        targetTurn = -analogTurn * stats.turnRate;
+    } else {
+        if (keys.a) targetTurn = stats.turnRate;
+        if (keys.d) targetTurn = -stats.turnRate;
+    }
 
     currentSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, 8.0 * dt);
     currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, targetTurn, stats.turnAccel * dt);
@@ -300,6 +392,132 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
+    // 1B. COLLISION ANATOMI PRESISI TERHADAP BEBATUAN (DENGAN KEMAMPUAN MENAIKI BEBATUAN)
+    const activeRocks = (typeof rocksList !== 'undefined' && Array.isArray(rocksList) && rocksList.length > 0)
+        ? rocksList
+        : ((typeof rocksGroup !== 'undefined' && rocksGroup.children) ? rocksGroup.children : (window.rocksList || []));
+    let rockGroundSupportY = -999;
+
+    if (activeRocks.length > 0) {
+        // Cek apakah rubah bisa menaiki / berdiri / berjalan di atas permukaan batu
+        for (let r = 0; r < activeRocks.length; r++) {
+            const rock = activeRocks[r];
+            if (!rock || !rock.visible) continue;
+
+            let rData = rock.userData;
+            if (!rData || !rData.radiusMax) {
+                rock.updateMatrixWorld(true);
+                const bb = new THREE.Box3().setFromObject(rock);
+                const rx = Math.max(0.15, (bb.max.x - bb.min.x) * 0.5 * 1.04);
+                const rz = Math.max(0.15, (bb.max.z - bb.min.z) * 0.5 * 1.04);
+                if (!rock.userData) rock.userData = {};
+                rData = rock.userData;
+                rData.isRock = true;
+                rData.centerX = (bb.min.x + bb.max.x) * 0.5;
+                rData.centerZ = (bb.min.z + bb.max.z) * 0.5;
+                rData.radiusX = rx;
+                rData.radiusZ = rz;
+                rData.radiusMax = Math.max(rx, rz) * 1.25;
+                rData.topY = bb.max.y;
+                rData.bottomY = bb.min.y;
+            }
+
+            const cX = rData.centerX !== undefined ? rData.centerX : rock.position.x;
+            const cZ = rData.centerZ !== undefined ? rData.centerZ : rock.position.z;
+            const rdx = foxRoot.position.x - cX;
+            const rdz = foxRoot.position.z - cZ;
+            const maxR = (rData.radiusMax || 1.8) + 0.6;
+            if (rdx * rdx + rdz * rdz > maxR * maxR) continue;
+
+            const rx = Math.max(0.15, rData.radiusX || (rock.scale.x * 1.04));
+            const rz = Math.max(0.15, rData.radiusZ || (rock.scale.z * 1.04));
+            const normSq = (rdx / rx) * (rdx / rx) + (rdz / rz) * (rdz / rz);
+
+            if (normSq <= 1.15) {
+                const rTopY = rData.topY !== undefined ? rData.topY : (rock.position.y + (rData.heightScale || rock.scale.y) * 0.90);
+                const rBottomY = rData.bottomY !== undefined ? rData.bottomY : (rock.position.y - (rData.heightScale || rock.scale.y) * 0.95);
+                const dome = Math.sqrt(Math.max(0, 1.0 - Math.min(1.0, normSq)));
+                const surfaceY = rBottomY + (rTopY - rBottomY) * (0.22 + 0.78 * dome);
+
+                // Step-up height: Rubah bisa menaiki bebatuan yang wajar / landai setinggi s/d 0.75m
+                const maxStepUp = (huntBlend > 0.4) ? 0.90 : 0.75;
+                const heightDiff = surfaceY - foxRoot.position.y;
+
+                if (heightDiff <= maxStepUp && surfaceY >= rBottomY - 0.2) {
+                    if (surfaceY > rockGroundSupportY) {
+                        rockGroundSupportY = surfaceY;
+                    }
+                }
+            }
+        }
+
+        // Horizontal Solid Collision:
+        // HANYA mendorong rubah menjauh jika permukaan batu di titik kontak itu TERLALU TINGGI / MENUKIK TAJAM (cliff tebing tegak)
+        // Jika batu landai / slate / ketinggiannya masih wajar terjangkau kaki rubah (heightDiff <= maxStepUp), rubah dibiarkan menaikinya!
+        const allCollisionNodes = [
+            ...foxCollisionNodes,
+            { offset: 0.0, radius: 0.36 * foxScale } // Simpul pusat rubah untuk proteksi absolut
+        ];
+
+        for (let iter = 0; iter < 3; iter++) {
+            for (let r = 0; r < activeRocks.length; r++) {
+                const rock = activeRocks[r];
+                if (!rock || !rock.visible) continue;
+
+                const rData = rock.userData || {};
+                const cX = rData.centerX !== undefined ? rData.centerX : rock.position.x;
+                const cZ = rData.centerZ !== undefined ? rData.centerZ : rock.position.z;
+                const rx = Math.max(0.15, rData.radiusX || (rock.scale.x * 1.04));
+                const rz = Math.max(0.15, rData.radiusZ || (rock.scale.z * 1.04));
+                const maxR = (rData.radiusMax || Math.max(rx, rz) * 1.25) + 1.0;
+                const rockTopY = rData.topY !== undefined ? rData.topY : (rock.position.y + (rData.heightScale || rock.scale.y) * 0.95);
+                const rockBottomY = rData.bottomY !== undefined ? rData.bottomY : (rock.position.y - (rData.heightScale || rock.scale.y) * 0.95);
+
+                for (let n = 0; n < allCollisionNodes.length; n++) {
+                    const node = allCollisionNodes[n];
+                    const nodeX = foxRoot.position.x + fwdX * node.offset;
+                    const nodeZ = foxRoot.position.z + fwdZ * node.offset;
+
+                    const dx = nodeX - cX;
+                    const dz = nodeZ - cZ;
+                    if (dx * dx + dz * dz > maxR * maxR) continue;
+
+                    const angle = Math.atan2(dz, dx);
+                    const cosA = Math.cos(angle);
+                    const sinA = Math.sin(angle);
+                    const denom = Math.hypot(rz * cosA, rx * sinA);
+                    const rockPerimeter = (denom > 0.0001) ? ((rx * rz) / denom) : Math.max(rx, rz);
+                    const worldDist = Math.hypot(dx, dz);
+                    const minAllowedDist = rockPerimeter + node.radius;
+
+                    if (worldDist < minAllowedDist) {
+                        // Periksa apakah di titik kontak ini batunya bisa dinaiki (landai / terjangkau kaki rubah)
+                        const contactNormSq = (dx / rx) * (dx / rx) + (dz / rz) * (dz / rz);
+                        const dome = Math.sqrt(Math.max(0, 1.0 - Math.min(1.0, contactNormSq)));
+                        const contactSurfaceY = rockBottomY + (rockTopY - rockBottomY) * (0.22 + 0.78 * dome);
+
+                        const maxStepUp = (huntBlend > 0.4) ? 0.90 : 0.75;
+                        const canStepOntoRock = (contactSurfaceY - foxRoot.position.y) <= maxStepUp;
+                        const isAlreadyAboveSurface = (foxRoot.position.y >= contactSurfaceY - 0.25);
+
+                        // HANYA dorong menjauh jika batu menukik tajam ke atas (cliff wall)
+                        // dan rubah tidak cukup tinggi untuk melangkahinya.
+                        // Jika bisa dinaiki, rubah dibiarkan melangkah naik!
+                        if (!canStepOntoRock && !isAlreadyAboveSurface) {
+                            const pushDist = minAllowedDist - worldDist;
+                            if (worldDist > 0.0001) {
+                                foxRoot.position.x += (dx / worldDist) * pushDist;
+                                foxRoot.position.z += (dz / worldDist) * pushDist;
+                            } else {
+                                foxRoot.position.x += minAllowedDist;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Batas tepi pulau/map (mencegah rubah jatuh ke ruang hampa)
     const mapHalf = (typeof groundSize !== 'undefined' ? groundSize : 80) / 2;
     foxRoot.position.x = THREE.MathUtils.clamp(foxRoot.position.x, -mapHalf + 1.2, mapHalf - 1.2);
@@ -319,12 +537,13 @@ function updateWolfPhysics(dt, elapsed) {
     foxRoot.position.y += velocityY * dt;
 
     const groundH = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(foxRoot.position.x, foxRoot.position.z) : 0;
-    if (foxRoot.position.y <= groundH) {
+    const effectiveGroundH = Math.max(groundH, rockGroundSupportY);
+    if (foxRoot.position.y <= effectiveGroundH) {
         if (!wasGrounded && velocityY < -3) {
             landingSquash = 0.18;
             if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playLand) foxSoundFX.playLand();
         }
-        foxRoot.position.y = groundH;
+        foxRoot.position.y = effectiveGroundH;
         velocityY = 0;
         isGrounded = true;
     } else {
@@ -358,40 +577,57 @@ function updateWolfPhysics(dt, elapsed) {
         measuredDist = camRay.length();
     }
 
+    // Update status penahanan manual kamera (Multi-touch / Mouse drag)
+    if (activeCameraTouches.size > 0) {
+        isUserHoldingCamera = true;
+        userHoldingCameraTimer = 1.6;
+    } else if (userHoldingCameraTimer > 0) {
+        userHoldingCameraTimer -= dt;
+        isUserHoldingCamera = true;
+    } else {
+        isUserHoldingCamera = false;
+    }
+
     // Auto-align kamera selalu berada di belakang fox pada saat berjalan,
     // Mengayun dengan efek tertinggal (camera trailing lag) khas game modern,
-    // KECUALI jika user sedang menahan tombol mouse (isUserHoldingCamera)
+    // KECUALI jika user sedang menahan/menggeser kamera manual
     const isWalking = (keys.w || keys.s || keys.a || keys.d || Math.abs(currentSpeed) > 0.15);
     const canAutoFollowBehind = isWalking && !isUserHoldingCamera;
 
+    let hDist = Math.hypot(camRay.x, camRay.z);
+    let curYaw = (hDist > 0.02) ? Math.atan2(camRay.x, camRay.z) : (foxRoot.rotation.y + Math.PI);
+    let curPitch = Math.atan2(camRay.y, Math.max(0.05, hDist));
+
+    // PENTING: Batasi sudut pitch maksimal ke 30 derajat dari horizontal
+    // (Kamera TIDAK BISA menukik ke atas kepala / up-to-down top-down under ANY circumstance)
+    const MAX_ALLOWED_PITCH = THREE.MathUtils.degToRad(30.0);
+    const MIN_ALLOWED_PITCH = THREE.MathUtils.degToRad(6.0);
+    curPitch = THREE.MathUtils.clamp(curPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
+
     if (canAutoFollowBehind) {
-        const hDist = Math.hypot(camRay.x, camRay.z);
-        if (hDist > 0.05) {
-            const curYaw = Math.atan2(camRay.x, camRay.z);
-            // Arah hadap rubah: model lokal menghadap -X, sehingga arah belakang adalah +X secara lokal
-            const targetYaw = Math.atan2(Math.cos(foxRoot.rotation.y), -Math.sin(foxRoot.rotation.y));
+        // Arah hadap rubah: model lokal menghadap -X, sehingga arah belakang adalah +X secara lokal
+        const targetYaw = Math.atan2(Math.cos(foxRoot.rotation.y), -Math.sin(foxRoot.rotation.y));
+        let diff = (targetYaw - curYaw) % (Math.PI * 2);
+        if (diff < -Math.PI) diff += Math.PI * 2;
+        if (diff > Math.PI) diff -= Math.PI * 2;
 
-            let diff = (targetYaw - curYaw) % (Math.PI * 2);
-            if (diff < -Math.PI) diff += Math.PI * 2;
-            if (diff > Math.PI) diff -= Math.PI * 2;
+        const baseChase = (huntBlend > 0.4) ? 1.2 : 0.85;
+        const angleRatio = Math.abs(diff) / Math.PI;
+        const chaseSpeed = baseChase + Math.pow(angleRatio, 1.5) * 0.9;
+        const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
+        curYaw += diff * smoothT;
 
-            // Transisi kurva eksponensial halus dengan trailing lag (efek tertinggal khas game AAA modern)
-            // Kamera membiarkan karakter berbelok lebih dulu sebelum mengayun anggun mengejar ke belakang
-            const baseChase = (huntBlend > 0.4) ? 2.2 : 1.75;
-            const angleRatio = Math.abs(diff) / Math.PI; // 0..1
-            const chaseSpeed = baseChase + Math.pow(angleRatio, 1.3) * 1.4;
-            const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
-            const newYaw = curYaw + diff * smoothT;
-
-            camRay.x = Math.sin(newYaw) * hDist;
-            camRay.z = Math.cos(newYaw) * hDist;
-        }
+        const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
+        curPitch = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curPitch, targetPitch, 1.0 - Math.exp(-2.2 * dt)), MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
     }
 
-    const rayDir = camRay.clone().normalize();
+    const cosP = Math.cos(curPitch);
+    const sinP = Math.sin(curPitch);
+    const rayDir = new THREE.Vector3(Math.sin(curYaw) * cosP, sinP, Math.cos(curYaw) * cosP).normalize();
     const rayStart = controls.target;
 
-    const userTargetDist = THREE.MathUtils.clamp(userPreferredDist, 1.8, 18.0);
+    const minSafeDist = 2.4; // Jarak minimal aman kamera saat terhalang objek
+    const userTargetDist = THREE.MathUtils.clamp(userPreferredDist, minSafeDist, 18.0);
     let obstacleHitDist = userTargetDist;
 
     // A. Deteksi Obstacle: Batang dan Ranting Daun Pohon (Line-of-Sight)
@@ -448,7 +684,7 @@ function updateWolfPhysics(dt, elapsed) {
                         const dIn = Math.sqrt(Math.max(0, clRadius * clRadius - perpSq));
                         const hitDist = t - dIn;
                         if (hitDist > 0 && hitDist < obstacleHitDist) {
-                            obstacleHitDist = hitDist;
+                            obstacleHitDist = Math.max(minSafeDist, hitDist);
                         }
                     }
                 }
@@ -476,7 +712,38 @@ function updateWolfPhysics(dt, elapsed) {
 
                         if (yAtHit >= tree.position.y - 0.2 && yAtHit <= trunkTopY + 0.3) {
                             if (sHit > 0 && sHit < obstacleHitDist) {
-                                obstacleHitDist = sHit;
+                                obstacleHitDist = Math.max(minSafeDist, sHit);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // A2. Deteksi Bebatuan Menghalangi Garis Pandang Kamera
+    if (activeRocks.length > 0) {
+        for (let r = 0; r < activeRocks.length; r++) {
+            const rock = activeRocks[r];
+            if (!rock || !rock.visible) continue;
+            const rData = rock.userData || {};
+            const rMaxR = (rData.radiusMax || Math.max(rock.scale.x, rock.scale.z) * 1.15) + 0.3;
+            const rx = rock.position.x - rayStart.x;
+            const rz = rock.position.z - rayStart.z;
+            const len2D = Math.hypot(rayDir.x, rayDir.z);
+            if (len2D > 0.001) {
+                const ndx = rayDir.x / len2D;
+                const ndz = rayDir.z / len2D;
+                const t2D = rx * ndx + rz * ndz;
+                if (t2D > 0 && t2D < obstacleHitDist * len2D + rMaxR) {
+                    const perpSq2D = (rx * rx + rz * rz) - t2D * t2D;
+                    if (perpSq2D < rMaxR * rMaxR) {
+                        const sHit = (t2D - Math.sqrt(Math.max(0, rMaxR * rMaxR - perpSq2D))) / len2D;
+                        const yAtHit = rayStart.y + rayDir.y * sHit;
+                        const hScale = rData.heightScale || rock.scale.y;
+                        if (yAtHit >= rock.position.y - hScale * 0.95 && yAtHit <= rock.position.y + hScale * 0.90) {
+                            if (sHit > 0 && sHit < obstacleHitDist) {
+                                obstacleHitDist = Math.max(minSafeDist, sHit - 0.25);
                             }
                         }
                     }
@@ -496,31 +763,33 @@ function updateWolfPhysics(dt, elapsed) {
             const terrainH = getTerrainHeightFast(sx, sz);
             const rayH = rayStart.y + rayDir.y * s;
             if (rayH < terrainH + 0.45) {
-                obstacleHitDist = Math.max(1.5, s - 0.30);
+                obstacleHitDist = Math.max(minSafeDist, s - 0.30);
                 break;
             }
         }
     }
 
-    // C. Perhitungan Target Zoom Spring-Arm Sangat Halus & Pelan
+    // C. Perhitungan Target Zoom Spring-Arm Sangat Halus & Proporsional
     let targetDist = userTargetDist;
+
     if (obstacleHitDist < userTargetDist - 0.15) {
-        targetDist = Math.min(targetDist, Math.max(1.4, obstacleHitDist - 0.25));
+        // Objek menutupi garis pandang: kamera mendekat di depan objek secara aman (minimal minSafeDist)
+        targetDist = THREE.MathUtils.clamp(obstacleHitDist - 0.20, minSafeDist, userTargetDist);
         isCameraOccluded = true;
     } else {
         isCameraOccluded = false;
     }
 
-    // Mendekat dengan sangat smooth dan pelan saat tertutup objek (zoomLerpRate: 3.5),
-    // dan mundur kembali dengan sangat lembut & sinematik (zoomLerpRate: 2.8)
-    const zoomLerpRate = (targetDist < currentCamDist) ? 3.5 : 2.8;
+    // Mendekat dengan sangat smooth dan pelan saat tertutup objek (zoomLerpRate: 4.5),
+    // dan mundur kembali dengan sangat lembut & sinematik (zoomLerpRate: 3.0)
+    const zoomLerpRate = (targetDist < currentCamDist) ? 4.5 : 3.0;
     currentCamDist += (targetDist - currentCamDist) * Math.min(1.0, zoomLerpRate * dt);
 
     camera.position.copy(controls.target).addScaledVector(rayDir, currentCamDist);
 
     // Mencegah kamera tenggelam ke bawah tanah
     if (typeof getTerrainHeightFast === 'function') {
-        const groundFloor = getTerrainHeightFast(camera.position.x, camera.position.z) + 0.50;
+        const groundFloor = getTerrainHeightFast(camera.position.x, camera.position.z) + 0.45;
         if (camera.position.y < groundFloor) {
             camera.position.y = groundFloor;
         }

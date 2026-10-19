@@ -143,8 +143,8 @@ const CinematicManager = {
         this.renderFoxSelectorUI();
         this.syncActiveFoxControlsUI();
 
-        // Di awal cinematic sudah di bawah, sebagai footer toolbar yang aktif
-        this.toggleBottomPanel(true);
+        // Di awal game/editor, tab cinematic disembunyikan (bisa dibuka via tombol Cinematic atau tekan 'C')
+        this.toggleBottomPanel(false);
 
         // Inisialisasi sistem multi-scene (Scene 1, Scene 2, Scene 3...)
         this.initScenes();
@@ -1132,7 +1132,9 @@ const CinematicManager = {
             const opt = document.createElement('option');
             opt.value = String(idx);
             const stats = this.getFoxStatsForSpecies(fox.species);
-            opt.text = `${fox.name} (${stats.name} - ${wpCount} WP)`;
+            const wpCount = (fox.waypoints && Array.isArray(fox.waypoints)) ? fox.waypoints.length : 0;
+            const speciesLabel = (stats && stats.name) ? stats.name : (fox.species || 'Fox');
+            opt.text = `${fox.name} (${speciesLabel} - ${wpCount} WP)`;
             opt.selected = (idx === this.activeFoxIndex);
             selectActive.appendChild(opt);
         });
@@ -1357,6 +1359,11 @@ const CinematicManager = {
     },
 
     addFoxWaypoint(x, z) {
+        if (!this.isFoxEnabled) {
+            this.toggleFoxEnabled(true);
+            const toggleFox = document.getElementById('toggle-cinematic-fox');
+            if (toggleFox) toggleFox.checked = true;
+        }
         const fox = this.getActiveFox();
         if (!fox) return;
         const groundY = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(x, z) : 0;
@@ -1396,8 +1403,9 @@ const CinematicManager = {
 
         if (fox.waypoints.length === 0) {
             fox.curve = null;
-            if (this.foxes.indexOf(fox) > 0 || (typeof isPlayMode === 'undefined' || !isPlayMode)) {
-                if (fox.model && fox.model.root) fox.model.root.visible = false;
+            // Jika fox aktif diaktifkan, tampilkan di posisi standby
+            if (fox.model && fox.model.root) {
+                fox.model.root.visible = this.isFoxEnabled;
             }
             return;
         }
@@ -1411,7 +1419,7 @@ const CinematicManager = {
             if (fox.model && fox.model.root) {
                 fox.model.root.position.set(wp1.x, gy, wp1.z);
                 fox.model.root.rotation.y = fox.heading || 0;
-                fox.model.root.visible = this.isFoxEnabled;
+                fox.model.root.visible = true; // Selalu tampilkan rubah di titik awal jalur
             }
             this.updateFoxLaneHintUI();
             this.renderTimelineLanePips();
@@ -1499,6 +1507,11 @@ const CinematicManager = {
         this.isDrawingFoxMode = forcedState !== undefined ? forcedState : !this.isDrawingFoxMode;
         if (this.isDrawingFoxMode) {
             this.toggleDrawingMode(false);
+            if (!this.isFoxEnabled) {
+                this.toggleFoxEnabled(true);
+                const toggleFox = document.getElementById('toggle-cinematic-fox');
+                if (toggleFox) toggleFox.checked = true;
+            }
         }
         const btnDraw = document.getElementById('btn-cinematic-fox-draw');
         if (btnDraw) btnDraw.classList.toggle('active', this.isDrawingFoxMode);
@@ -3326,6 +3339,175 @@ const CinematicManager = {
             });
         }
 
+        // 12C. UPWARD CINEMATIC TOOLS DROPDOWN (Mobile / Compact Viewports)
+        const btnCinematicOverflow = document.getElementById('btn-cinematic-overflow');
+        const cinematicOverflowDropdown = document.getElementById('cinematic-overflow-dropdown');
+        const btnCloseCinematicOverflow = document.getElementById('btn-close-cinematic-overflow');
+
+        const updateCinematicOverflowPosition = () => {
+            if (!cinematicOverflowDropdown) return;
+            const bottomPanel = document.getElementById('cinematic-bottom-panel');
+            const panelHeight = bottomPanel ? (bottomPanel.offsetHeight || 220) : 220;
+            cinematicOverflowDropdown.style.bottom = (panelHeight + 6) + 'px';
+            const availableHeight = Math.max(160, window.innerHeight - panelHeight - 20);
+            cinematicOverflowDropdown.style.maxHeight = availableHeight + 'px';
+        };
+
+        if (btnCinematicOverflow && cinematicOverflowDropdown) {
+            btnCinematicOverflow.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = cinematicOverflowDropdown.classList.contains('open');
+                if (isOpen) {
+                    cinematicOverflowDropdown.classList.remove('open');
+                    cinematicOverflowDropdown.style.display = 'none';
+                    btnCinematicOverflow.classList.remove('active');
+                } else {
+                    updateCinematicOverflowPosition();
+                    cinematicOverflowDropdown.style.display = 'flex';
+                    cinematicOverflowDropdown.classList.add('open');
+                    btnCinematicOverflow.classList.add('active');
+                }
+            });
+
+            if (btnCloseCinematicOverflow) {
+                btnCloseCinematicOverflow.addEventListener('click', () => {
+                    cinematicOverflowDropdown.classList.remove('open');
+                    cinematicOverflowDropdown.style.display = 'none';
+                    btnCinematicOverflow.classList.remove('active');
+                });
+            }
+
+            // Cegah scroll / sentuhan di dalam menu mengganggu kontrol kamera 3D
+            cinematicOverflowDropdown.addEventListener('pointerdown', (e) => e.stopPropagation());
+            cinematicOverflowDropdown.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+            cinematicOverflowDropdown.addEventListener('touchmove', (e) => e.stopPropagation(), { passive: true });
+            cinematicOverflowDropdown.addEventListener('click', (e) => e.stopPropagation());
+
+            // Tutup jika klik di luar
+            document.addEventListener('click', (e) => {
+                if (!btnCinematicOverflow.contains(e.target) && !cinematicOverflowDropdown.contains(e.target)) {
+                    cinematicOverflowDropdown.classList.remove('open');
+                    cinematicOverflowDropdown.style.display = 'none';
+                    btnCinematicOverflow.classList.remove('active');
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                if (cinematicOverflowDropdown.classList.contains('open')) {
+                    updateCinematicOverflowPosition();
+                }
+            });
+
+            // Sinkronkan kontrol di dalam dropdown ke sistem Cinematic
+            const selPresetOver = document.getElementById('select-cinematic-preset-overflow');
+            if (selPresetOver) {
+                selPresetOver.addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        this.applyPreset(e.target.value);
+                        e.target.value = '';
+                    }
+                });
+            }
+
+            const selFocusOver = document.getElementById('select-cinematic-focus-overflow');
+            if (selFocusOver) {
+                selFocusOver.addEventListener('change', (e) => {
+                    this.focusMode = e.target.value;
+                    const selectFocus = document.getElementById('select-cinematic-focus');
+                    if (selectFocus) selectFocus.value = e.target.value;
+                });
+            }
+
+            const selSpeedOver = document.getElementById('select-cinematic-speed-overflow');
+            if (selSpeedOver) {
+                selSpeedOver.addEventListener('change', (e) => {
+                    this.playbackSpeed = parseFloat(e.target.value);
+                    const selectSpeed = document.getElementById('select-cinematic-speed');
+                    if (selectSpeed) selectSpeed.value = e.target.value;
+                });
+            }
+
+            const selEasingOver = document.getElementById('select-cinematic-easing-overflow');
+            if (selEasingOver) {
+                selEasingOver.addEventListener('change', (e) => {
+                    this.easing = e.target.value;
+                    const selectEasing = document.getElementById('select-cinematic-easing');
+                    if (selectEasing) selectEasing.value = e.target.value;
+                });
+            }
+
+            const sliderHeightOver = document.getElementById('slider-cinematic-height-overflow');
+            const valHeightOver = document.getElementById('val-cinematic-height-overflow');
+            if (sliderHeightOver) {
+                sliderHeightOver.addEventListener('input', (e) => {
+                    this.cameraHeightOffset = parseFloat(e.target.value);
+                    if (valHeightOver) valHeightOver.innerText = this.cameraHeightOffset.toFixed(1) + 'm';
+                    const sliderH = document.getElementById('slider-cinematic-height');
+                    const valH = document.getElementById('val-cinematic-height');
+                    if (sliderH) sliderH.value = e.target.value;
+                    if (valH) valH.innerText = this.cameraHeightOffset.toFixed(1) + 'm';
+                });
+            }
+
+            const sliderDurOver = document.getElementById('slider-cinematic-duration-overflow');
+            const valDurOver = document.getElementById('val-cinematic-duration-overflow');
+            if (sliderDurOver) {
+                sliderDurOver.addEventListener('input', (e) => {
+                    this.duration = parseFloat(e.target.value);
+                    if (valDurOver) valDurOver.innerText = this.duration + 's';
+                    const sliderD = document.getElementById('slider-cinematic-duration');
+                    const valD = document.getElementById('val-cinematic-duration');
+                    if (sliderD) sliderD.value = e.target.value;
+                    if (valD) valD.innerText = this.duration + 's';
+                    this.updateTimelineUI();
+                });
+            }
+
+            const toggleDofOver = document.getElementById('toggle-cinematic-dof-overflow');
+            if (toggleDofOver) {
+                toggleDofOver.addEventListener('change', (e) => {
+                    this.setDoFActive(e.target.checked);
+                    const toggleDoF = document.getElementById('toggle-cinematic-dof');
+                    if (toggleDoF) toggleDoF.checked = e.target.checked;
+                });
+            }
+
+            const selApertureOver = document.getElementById('select-cinematic-aperture-overflow');
+            if (selApertureOver) {
+                selApertureOver.addEventListener('change', (e) => {
+                    this.blurAmount = parseFloat(e.target.value);
+                    if (this.blurAmount <= 0.1) {
+                        this.setDoFActive(false);
+                    } else {
+                        this.setDoFActive(true);
+                        if (toggleDofOver) toggleDofOver.checked = true;
+                    }
+                    const selectAperture = document.getElementById('select-cinematic-aperture');
+                    if (selectAperture) selectAperture.value = e.target.value;
+                    this.saveCurrentSceneState();
+                });
+            }
+
+            const toggleLetterboxOver = document.getElementById('toggle-cinematic-letterbox-overflow');
+            if (toggleLetterboxOver) {
+                toggleLetterboxOver.addEventListener('change', (e) => {
+                    this.setLetterboxActive(e.target.checked);
+                    const toggleLetterbox = document.getElementById('toggle-cinematic-letterbox');
+                    if (toggleLetterbox) toggleLetterbox.checked = e.target.checked;
+                });
+            }
+
+            const btnOverflowPlayAll = document.getElementById('btn-overflow-play-all');
+            if (btnOverflowPlayAll) {
+                btnOverflowPlayAll.addEventListener('click', () => {
+                    cinematicOverflowDropdown.classList.remove('open');
+                    cinematicOverflowDropdown.style.display = 'none';
+                    btnCinematicOverflow.classList.remove('active');
+                    this.playAll();
+                });
+            }
+        }
+
         // 12B. Waypoint Camera Angle, Height & Zoom (FOV) Controls
         const sliderHeight = document.getElementById('slider-wp-height');
         if (sliderHeight) {
@@ -3388,7 +3570,8 @@ const CinematicManager = {
 
         // 13. Pointerdown: Tambah waypoint / Seleksi & Geser Kamera Waypoint / Adjust Ketinggian dengan Mouse
         window.addEventListener('pointerdown', (e) => {
-            if (e.button !== 0) return; // Hanya klik kiri
+            if (e.pointerType === 'mouse' && e.button !== 0) return; // Hanya klik kiri untuk mouse, touch diizinkan
+            if (e.target && e.target.tagName !== 'CANVAS') return; // Abaikan klik/tap pada UI atau tombol
             if (typeof updateMouseCoords === 'function') {
                 updateMouseCoords(e, mouse);
             } else {

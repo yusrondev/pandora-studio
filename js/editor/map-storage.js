@@ -195,52 +195,16 @@ const PandoraModal = {
     }
 };
 
-// --- 2. TOAST NOTIFICATION SYSTEM ---
+// --- 2. TOAST NOTIFICATION SYSTEM (Disabled per user request) ---
 const PandoraToast = {
     container: null,
 
     init() {
-        if (this.container) return;
-        const c = document.createElement('div');
-        c.className = 'pandora-toast-container';
-        document.body.appendChild(c);
-        this.container = c;
+        // Disabled: all notifications removed
     },
 
     show(message, type = 'info', duration = 3200) {
-        this.init();
-
-        const toast = document.createElement('div');
-        toast.className = `pandora-toast toast-${type}`;
-
-        let iconSvg = '';
-        if (type === 'success') {
-            iconSvg = `<svg class="pandora-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
-        } else if (type === 'danger') {
-            iconSvg = `<svg class="pandora-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
-        } else {
-            iconSvg = `<svg class="pandora-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
-        }
-
-        toast.innerHTML = `
-            ${iconSvg}
-            <span style="flex:1;">${message}</span>
-        `;
-
-        this.container.appendChild(toast);
-
-        // Slide in
-        requestAnimationFrame(() => {
-            toast.classList.add('show');
-        });
-
-        // Auto remove
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => {
-                if (toast.parentNode) toast.parentNode.removeChild(toast);
-            }, 300);
-        }, duration);
+        // Disabled: all notifications removed
     }
 };
 

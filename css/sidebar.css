@@ -91,53 +91,6 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
     background: var(--accent);
 }
 
-.dock-trigger {
-    position: absolute;
-    top: calc(var(--header-height, 36px) + 8px);
-    background: var(--bg-panel-header);
-    border: 1px solid var(--panel-border);
-    padding: 4px 8px;
-    display: none;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text-main);
-    cursor: pointer;
-    z-index: 85;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    transition: background 0.08s ease, color 0.08s ease;
-}
-
-.dock-trigger:hover {
-    color: var(--text-bright);
-    background: var(--bg-button-hover);
-    border-color: var(--widget-border-hover);
-}
-
-#dock-toggle-left {
-    left: 0;
-    border-left: none;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-top-right-radius: var(--radius-sm);
-    border-bottom-right-radius: var(--radius-sm);
-}
-
-#dock-toggle-right {
-    right: 0;
-    border-right: none;
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-    border-top-left-radius: var(--radius-sm);
-    border-bottom-left-radius: var(--radius-sm);
-}
-
-.dock-trigger.visible {
-    display: inline-flex;
-    animation: fadeIn 0.15s ease;
-}
-
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -214,6 +167,123 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
     margin: 0;
 }
 
+/* Layer Grouping (Outliner Hierarchical Tree View) */
+.layer-group {
+    margin-bottom: 6px;
+    border-radius: var(--radius-xs);
+}
+
+.layer-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    background: #252525;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-bright);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s ease;
+}
+
+.layer-group-header:hover {
+    background: #2e2e2e;
+}
+
+.layer-group-chevron {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: transform 0.14s ease;
+    flex-shrink: 0;
+}
+
+.layer-group-chevron svg {
+    width: 10px;
+    height: 10px;
+}
+
+.layer-group.collapsed .layer-group-chevron {
+    transform: rotate(-90deg);
+}
+
+.layer-group-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.layer-group-badge {
+    font-size: 9.5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    background: var(--bg-dark);
+    padding: 1px 5px;
+    border-radius: 8px;
+    border: 1px solid var(--widget-border);
+    color: var(--text-muted);
+}
+
+.layer-group-actions {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+}
+
+.btn-group-action {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-xs);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    opacity: 0.6;
+}
+
+.btn-group-action:hover {
+    opacity: 1;
+    color: var(--text-bright);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.btn-group-action.muted {
+    color: #ef4444;
+    opacity: 0.9;
+}
+
+.btn-group-action svg {
+    width: 12px;
+    height: 12px;
+}
+
+.layer-group-children {
+    list-style: none;
+    padding: 0;
+    margin: 3px 0 3px 12px;
+    border-left: 1px dashed rgba(255, 255, 255, 0.12);
+    padding-left: 6px;
+}
+
+.layer-group.collapsed .layer-group-children {
+    display: none;
+}
+
 .layer-item {
     padding: 3px 8px;
     margin-bottom: 1px;
@@ -279,11 +349,7 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
 }
 
 .layer-empty-hint {
-    text-align: center;
-    padding: 30px 12px;
-    color: var(--text-muted);
-    font-size: 11px;
-    line-height: 1.5;
+    display: none !important;
 }
 
 .layer-empty-hint .svg-icon {
@@ -692,5 +758,60 @@ body:has(#cinematic-bottom-panel.visible) .mode-banner {
     color: #ffffff;
     border: 1px solid var(--widget-border);
     font-weight: 600;
+}
+
+/* =========================================================
+   MOBILE RESPONSIVE SIDEBAR DRAWERS & BACKDROP
+   Smooth slide-in overlay without displacing 3D canvas
+   ========================================================= */
+.mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 850;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+}
+
+.mobile-sidebar-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed !important;
+        top: var(--header-height, 36px) !important;
+        bottom: 0 !important;
+        height: calc(100vh - var(--header-height, 36px)) !important;
+        width: 86vw !important;
+        max-width: 320px !important;
+        z-index: 1000 !important;
+        box-shadow: 0 0 24px rgba(0, 0, 0, 0.85) !important;
+    }
+
+    body.cinematic-footer-open .sidebar,
+    body:has(#cinematic-bottom-panel.visible) .sidebar {
+        bottom: 0 !important;
+        height: calc(100vh - var(--header-height, 36px)) !important;
+    }
+
+    .sidebar-resizer {
+        display: none !important;
+    }
+
+    .sidebar-content {
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+        overscroll-behavior-y: contain;
+    }
+
+    .layer-list {
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
 }
 

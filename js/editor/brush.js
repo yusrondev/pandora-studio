@@ -27,6 +27,7 @@ function updateToolControlsState() {
         (typeof selectTerrainMode !== 'undefined' && selectTerrainMode.value !== 'none') ||
         (typeof selectRoadBrush !== 'undefined' && selectRoadBrush.value !== 'none') ||
         (typeof selectGrassBrush !== 'undefined' && selectGrassBrush.value !== 'none') ||
+        (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
         (typeof selectTreeMode !== 'undefined' && selectTreeMode.value !== 'none')
     );
 
@@ -171,6 +172,17 @@ function handleBrushAction(event) {
                 rebuildGrassTransforms();
             }
         }
+
+        const rockBrush = (typeof selectRockBrush !== 'undefined') ? selectRockBrush.value : 'none';
+        if (rockBrush !== 'none') {
+            const radius = (typeof sliderRockRadius !== 'undefined') ? parseFloat(sliderRockRadius.value) : 4.0;
+            if (rockBrush === 'remove') {
+                removeRocksInRadius(hitPoint, radius);
+            } else {
+                placeRocksAt(hitPoint, rockBrush);
+            }
+            return;
+        }
     }
 }
 
@@ -266,6 +278,19 @@ function handleCanvasPointerDown(e) {
             return;
         }
 
+        // 4. Mode Rock Brush: Klik kanan = hapus bebatuan dalam radius kursor
+        if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
+            const groundHits = raycaster.intersectObject(ground);
+            if (groundHits.length > 0) {
+                saveState();
+                isRightMouseDown = true;
+                const radius = (typeof sliderRockRadius !== 'undefined') ? (parseFloat(sliderRockRadius.value) || 4.0) : 4.0;
+                removeRocksInRadius(groundHits[0].point, radius);
+            }
+            if (e.stopPropagation) e.stopPropagation();
+            return;
+        }
+
         return;
     }
 
@@ -284,7 +309,7 @@ function handleCanvasPointerDown(e) {
                 return;
             }
 
-            if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || selectGrassBrush.value !== 'none') {
+            if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none')) {
                 saveState();
                 isMouseDown = true;
                 if (typeof controls !== 'undefined') controls.enabled = false;
@@ -299,6 +324,7 @@ function handleCanvasPointerDown(e) {
             (selectTerrainMode && selectTerrainMode.value !== 'none') ||
             (selectRoadBrush && selectRoadBrush.value !== 'none') ||
             (selectGrassBrush && selectGrassBrush.value !== 'none') ||
+            (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
             (typeof CinematicManager !== 'undefined' && (CinematicManager.isDrawingMode || CinematicManager.isDrawingFoxMode));
 
         if (!isBrushActive) {
@@ -409,9 +435,10 @@ function updateBrushReticle(hitPoint, normal) {
     const sculptMode = selectTerrainMode.value;
     const roadBrush = selectRoadBrush.value;
     const grassBrush = selectGrassBrush.value;
+    const rockBrush = (typeof selectRockBrush !== 'undefined') ? selectRockBrush.value : 'none';
     const treeMode = selectTreeMode.value;
 
-    const isActive = (sculptMode !== 'none' || roadBrush !== 'none' || grassBrush !== 'none' || treeMode !== 'none');
+    const isActive = (sculptMode !== 'none' || roadBrush !== 'none' || grassBrush !== 'none' || rockBrush !== 'none' || treeMode !== 'none');
     if (!isActive || !hitPoint) {
         brushReticleGroup.visible = false;
         return;
@@ -445,6 +472,11 @@ function updateBrushReticle(hitPoint, normal) {
         if (grassBrush === 'remove') colorHex = 0xef4444;       // Merah hapus rumput
         else if (grassBrush === 'spawn_yellow') colorHex = 0xfacc15; // Kuning emas padang rumput
         else colorHex = 0x10b981;                               // Hijau zamrud rumput segar
+    } else if (rockBrush !== 'none') {
+        radius = (typeof sliderRockRadius !== 'undefined') ? (parseFloat(sliderRockRadius.value) || 4.0) : 4.0;
+        if (rockBrush === 'remove') colorHex = 0xef4444;       // Merah hapus batu
+        else if (rockBrush === 'spawn_boulder') colorHex = 0x475569; // Slate gelap boulder
+        else colorHex = 0x94a3b8;                              // Abu-abu terang batu anime
     } else if (treeMode !== 'none') {
         radius = 1.8; // Radius tajuk pohon rata-rata
         treeReticleGroup.visible = true;
@@ -498,12 +530,18 @@ function handleCanvasPointerMove(e) {
         if (brushReticleGroup.visible) brushReticleGroup.visible = false;
     }
 
-    // Left mouse drag (Sculpt, Road paint, Grass paint)
-    if (isMouseDown && (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || selectGrassBrush.value !== 'none')) {
-        handleBrushAction(e);
+    // Left mouse drag (Sculpt, Road paint, Grass paint, Rock paint)
+    if (isMouseDown && (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none'))) {
+        if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
+            if (selectRockBrush.value === 'remove' || Math.random() > 0.65) {
+                handleBrushAction(e);
+            }
+        } else {
+            handleBrushAction(e);
+        }
     }
 
-    // Right mouse drag (Grass erase, Road erase continuous drag)
+    // Right mouse drag (Grass erase, Road erase, Rock erase continuous drag)
     if (isRightMouseDown && intersects.length > 0) {
         const hitPoint = intersects[0].point;
         if (selectGrassBrush.value !== 'none') {
@@ -512,6 +550,9 @@ function handleCanvasPointerMove(e) {
         } else if (selectRoadBrush.value !== 'none') {
             const radius = parseFloat(sliderRoadRadius.value) || 4.0;
             paintRoadOnTerrain(hitPoint, 'remove', radius);
+        } else if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
+            const radius = (typeof sliderRockRadius !== 'undefined') ? (parseFloat(sliderRockRadius.value) || 4.0) : 4.0;
+            removeRocksInRadius(hitPoint, radius);
         }
     }
 }
@@ -550,6 +591,16 @@ if (typeof sliderGrassRadius !== 'undefined') {
     sliderGrassRadius.addEventListener('input', () => {
         if (selectGrassBrush.value !== 'none') {
             const r = parseFloat(sliderGrassRadius.value) || 4.0;
+            reticleOuterMesh.scale.set(r, 1, r);
+            reticleFillMesh.scale.set(r, 1, r);
+        }
+    });
+}
+
+if (typeof sliderRockRadius !== 'undefined') {
+    sliderRockRadius.addEventListener('input', () => {
+        if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
+            const r = parseFloat(sliderRockRadius.value) || 4.0;
             reticleOuterMesh.scale.set(r, 1, r);
             reticleFillMesh.scale.set(r, 1, r);
         }

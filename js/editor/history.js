@@ -50,6 +50,17 @@ function captureStateSnapshot() {
                 seed: t.userData.seed // Menyimpan seed pohon untuk menjaga konsistensi bentuk
             };
         }),
+        rocks: (typeof rocksList !== 'undefined') ? rocksList.map(r => ({
+            posX: r.position.x,
+            posY: r.position.y,
+            posZ: r.position.z,
+            rotX: r.rotation.x,
+            rotY: r.rotation.y,
+            rotZ: r.rotation.z,
+            scaleX: r.scale.x,
+            scaleY: r.scale.y,
+            scaleZ: r.scale.z
+        })) : [],
         cinematic: (typeof CinematicManager !== 'undefined') ? {
             activeSceneIndex: CinematicManager.activeSceneIndex,
             waypoints: JSON.parse(JSON.stringify(CinematicManager.waypoints || [])),
@@ -193,6 +204,12 @@ function applyState(state) {
 
         refreshLayerUI();
         updateEditorUI();
+    }
+
+    // 3b. Restore Bebatuan (Rocks)
+    if (state.rocks && typeof rocksList !== 'undefined' && typeof recreateRock === 'function') {
+        clearAllRocks();
+        state.rocks.forEach(rData => recreateRock(rData));
     }
 
     // 4. Restore Cinematic Camera Waypoints / Multi-Scene State

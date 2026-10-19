@@ -37,6 +37,20 @@ const btnHandMode = document.getElementById('btn-hand-mode');
 const selectTerrainMode = document.getElementById('select-terrain-mode');
 const selectRoadBrush = document.getElementById('select-road-brush');
 const selectGrassBrush = document.getElementById('select-grass-brush');
+const selectRockBrush = document.getElementById('select-rock-brush');
+const sliderRockRadius = document.getElementById('slider-rock-radius');
+const sliderRockDensity = document.getElementById('slider-rock-density');
+const sliderRockMinSize = document.getElementById('slider-rock-min-size');
+const sliderRockMaxSize = document.getElementById('slider-rock-max-size');
+const sliderRockHeightScale = document.getElementById('slider-rock-height-scale');
+const selectRockTheme = document.getElementById('select-rock-theme');
+const btnClearAllRocks = document.getElementById('btn-clear-all-rocks');
+
+const valRockRadius = document.getElementById('val-rock-radius');
+const valRockDensity = document.getElementById('val-rock-density');
+const valRockMinSize = document.getElementById('val-rock-min-size');
+const valRockMaxSize = document.getElementById('val-rock-max-size');
+const valRockHeightScale = document.getElementById('val-rock-height-scale');
 
 let isPanMode = false;
 
@@ -63,6 +77,53 @@ sliderGrassHeight.addEventListener('input', () => {
     userGrassHeightSetting = parseFloat(sliderGrassHeight.value);
     valGrassHeight.innerText = userGrassHeightSetting.toFixed(1);
 });
+
+// Rock brush slider listeners
+if (sliderRockRadius && valRockRadius) {
+    sliderRockRadius.addEventListener('input', () => {
+        valRockRadius.innerText = parseFloat(sliderRockRadius.value).toFixed(1);
+        if (typeof rockParams !== 'undefined') rockParams.brushRadius = parseFloat(sliderRockRadius.value);
+    });
+}
+if (sliderRockDensity && valRockDensity) {
+    sliderRockDensity.addEventListener('input', () => {
+        valRockDensity.innerText = sliderRockDensity.value;
+        if (typeof rockParams !== 'undefined') rockParams.rockDensity = parseInt(sliderRockDensity.value);
+    });
+}
+if (sliderRockMinSize && valRockMinSize) {
+    sliderRockMinSize.addEventListener('input', () => {
+        valRockMinSize.innerText = parseFloat(sliderRockMinSize.value).toFixed(1);
+        if (typeof rockParams !== 'undefined') rockParams.minSize = parseFloat(sliderRockMinSize.value);
+    });
+}
+if (sliderRockMaxSize && valRockMaxSize) {
+    sliderRockMaxSize.addEventListener('input', () => {
+        valRockMaxSize.innerText = parseFloat(sliderRockMaxSize.value).toFixed(1);
+        if (typeof rockParams !== 'undefined') rockParams.maxSize = parseFloat(sliderRockMaxSize.value);
+    });
+}
+if (sliderRockHeightScale && valRockHeightScale) {
+    sliderRockHeightScale.addEventListener('input', () => {
+        valRockHeightScale.innerText = parseFloat(sliderRockHeightScale.value).toFixed(1);
+        if (typeof rockParams !== 'undefined') rockParams.heightScale = parseFloat(sliderRockHeightScale.value);
+    });
+}
+if (selectRockTheme) {
+    selectRockTheme.addEventListener('change', () => {
+        if (typeof setRockTheme === 'function') {
+            setRockTheme(selectRockTheme.value);
+        }
+    });
+}
+if (btnClearAllRocks) {
+    btnClearAllRocks.addEventListener('click', () => {
+        if (typeof saveState === 'function') saveState();
+        if (typeof clearAllRocks === 'function') {
+            clearAllRocks();
+        }
+    });
+}
 
 sliderWindSpeed.addEventListener('input', () => {
     windSpeedRate = parseFloat(sliderWindSpeed.value);

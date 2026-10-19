@@ -634,3 +634,63 @@ body:has(#cinematic-bottom-panel.visible) .mode-banner {
 .card-preview.grass-remove-bg {
     background: #352121;
 }
+
+/* Rock card previews */
+.spawner-card-grid.rock-grid {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.card-preview.rock-slate-bg {
+    background: #232936;
+}
+
+.card-preview.rock-boulder-bg {
+    background: #282b30;
+}
+
+.card-preview.rock-remove-bg {
+    background: #352121;
+}
+
+/* --- BRUSH MODE TABS (BLENDER SEGMENTED PILL SWITCH) --- */
+.brush-mode-tabs {
+    display: flex;
+    background: #1c1c1c;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 2px;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+
+.brush-tab-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 24px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background 0.1s ease, color 0.1s ease;
+    user-select: none;
+}
+
+.brush-tab-btn:hover {
+    background: #2a2a2a;
+    color: var(--text-bright);
+}
+
+.brush-tab-btn.active {
+    background: var(--bg-button);
+    color: #ffffff;
+    border: 1px solid var(--widget-border);
+    font-weight: 600;
+}
+

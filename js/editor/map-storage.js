@@ -332,9 +332,21 @@ function serializeMapData(name, existingId = null) {
             colors: terrainColors
         },
         trees: trees,
+        rocks: typeof rocksList !== 'undefined' ? rocksList.map(r => ({
+            posX: r.position.x,
+            posY: r.position.y,
+            posZ: r.position.z,
+            rotX: r.rotation.x,
+            rotY: r.rotation.y,
+            rotZ: r.rotation.z,
+            scaleX: r.scale.x,
+            scaleY: r.scale.y,
+            scaleZ: r.scale.z
+        })) : [],
         activeGrass: activeGrass,
         meta: {
             treeCount: trees.length,
+            rockCount: typeof rocksList !== 'undefined' ? rocksList.length : 0,
             grassCount: activeGrass.length,
             version: '1.0'
         }
@@ -504,6 +516,14 @@ function applyMapDataToScene(mapData) {
             scene.add(tree);
             treesList.push(tree);
         });
+    }
+
+    // 5. Terapkan Bebatuan (Rocks)
+    if (typeof clearAllRocks === 'function') {
+        clearAllRocks();
+    }
+    if (Array.isArray(mapData.rocks) && typeof recreateRock === 'function') {
+        mapData.rocks.forEach(rData => recreateRock(rData));
     }
 
     selectedTreeIndex = treesList.length > 0 ? treesList.length - 1 : -1;

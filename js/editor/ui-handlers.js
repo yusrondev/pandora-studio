@@ -200,6 +200,10 @@ function updateActiveModeHUD() {
         const text = selectGrassBrush.options[selectGrassBrush.selectedIndex] ? selectGrassBrush.options[selectGrassBrush.selectedIndex].text : selectGrassBrush.value;
         modeLabel = `Kuas Rumput: ${text}`;
         modeIcon = '🌿';
+    } else if (typeof selectRockBrush !== 'undefined' && selectRockBrush && selectRockBrush.value !== 'none') {
+        const text = selectRockBrush.options[selectRockBrush.selectedIndex] ? selectRockBrush.options[selectRockBrush.selectedIndex].text : selectRockBrush.value;
+        modeLabel = `Kuas Batu: ${text}`;
+        modeIcon = '🪨';
     } else if (selectTerrainMode && selectTerrainMode.value !== 'none') {
         const text = selectTerrainMode.options[selectTerrainMode.selectedIndex] ? selectTerrainMode.options[selectTerrainMode.selectedIndex].text : selectTerrainMode.value;
         modeLabel = `Sculpt Tanah: ${text}`;
@@ -265,6 +269,7 @@ function cancelAllSelections() {
     if (selectTreeMode) selectTreeMode.value = 'none';
     if (selectRoadBrush) selectRoadBrush.value = 'none';
     if (selectGrassBrush) selectGrassBrush.value = 'none';
+    if (typeof selectRockBrush !== 'undefined' && selectRockBrush) selectRockBrush.value = 'none';
     if (selectTerrainMode) selectTerrainMode.value = 'none';
 
     if (typeof brushReticleGroup !== 'undefined') {
@@ -425,6 +430,64 @@ function setupSpawnerCardGrid(gridId, selectId) {
 
 setupSpawnerCardGrid('tree-picker-grid', 'select-tree-mode');
 setupSpawnerCardGrid('grass-picker-grid', 'select-grass-brush');
+setupSpawnerCardGrid('rock-picker-grid', 'select-rock-brush');
+
+// Tab switcher between Rumput and Bebatuan in Brush accordion
+const tabBrushGrass = document.getElementById('btn-tab-brush-grass');
+const tabBrushRock = document.getElementById('btn-tab-brush-rock');
+const subpanelBrushGrass = document.getElementById('subpanel-brush-grass');
+const subpanelBrushRock = document.getElementById('subpanel-brush-rock');
+
+if (tabBrushGrass && tabBrushRock) {
+    tabBrushGrass.addEventListener('click', () => {
+        tabBrushGrass.classList.add('active');
+        tabBrushRock.classList.remove('active');
+        if (subpanelBrushGrass) subpanelBrushGrass.style.display = 'block';
+        if (subpanelBrushRock) subpanelBrushRock.style.display = 'none';
+    });
+
+    tabBrushRock.addEventListener('click', () => {
+        tabBrushRock.classList.add('active');
+        tabBrushGrass.classList.remove('active');
+        if (subpanelBrushRock) subpanelBrushRock.style.display = 'block';
+        if (subpanelBrushGrass) subpanelBrushGrass.style.display = 'none';
+    });
+}
+
+// Mutual exclusivity between Rock Brush and other tools
+if (typeof selectRockBrush !== 'undefined' && selectRockBrush) {
+    selectRockBrush.addEventListener('change', () => {
+        if (selectRockBrush.value !== 'none') {
+            if (selectGrassBrush && selectGrassBrush.value !== 'none') {
+                selectGrassBrush.value = 'none';
+                selectGrassBrush.dispatchEvent(new Event('change'));
+            }
+            if (selectTreeMode && selectTreeMode.value !== 'none') {
+                selectTreeMode.value = 'none';
+                selectTreeMode.dispatchEvent(new Event('change'));
+            }
+            if (selectRoadBrush && selectRoadBrush.value !== 'none') {
+                selectRoadBrush.value = 'none';
+            }
+            if (selectTerrainMode && selectTerrainMode.value !== 'none') {
+                selectTerrainMode.value = 'none';
+            }
+        }
+        if (typeof updateToolControlsState === 'function') updateToolControlsState();
+        if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
+    });
+}
+
+if (selectGrassBrush) {
+    selectGrassBrush.addEventListener('change', () => {
+        if (selectGrassBrush.value !== 'none') {
+            if (typeof selectRockBrush !== 'undefined' && selectRockBrush && selectRockBrush.value !== 'none') {
+                selectRockBrush.value = 'none';
+                selectRockBrush.dispatchEvent(new Event('change'));
+            }
+        }
+    });
+}
 
 // ========================================================
 // RESPONSIVE TOOLBAR OVERFLOW MANAGER (Titik Tiga / More Options)

@@ -382,6 +382,13 @@ function updateTreesAndGrassPositions() {
     treesList.forEach(t => {
         t.position.y = getTerrainHeightFast(t.position.x, t.position.z);
     });
+    if (typeof rocksList !== 'undefined') {
+        rocksList.forEach(r => {
+            const gy = getTerrainHeightFast(r.position.x, r.position.z);
+            const h = (r.userData && r.userData.heightScale) ? r.userData.heightScale : r.scale.y;
+            r.position.y = gy + (h * 0.42);
+        });
+    }
 }
 
 // ==========================================

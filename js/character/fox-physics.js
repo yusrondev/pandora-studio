@@ -43,6 +43,8 @@ let currentEagleVisionAlpha = 0.0;
 let lastEagleVisionRoot = null;
 const _occlusionRaycaster = new THREE.Raycaster();
 const _occlusionRayDir = new THREE.Vector3();
+let _occlusionTimer = 0;
+let _cachedFoxOccluded = false;
 
 function getOrCreateEagleVisionMaterial() {
     if (!eagleVisionMaterial) {
@@ -476,10 +478,17 @@ function updateWolfPhysics(dt, elapsed) {
     ];
 
     if (Array.isArray(treesList) && treesList.length > 0) {
+        const foxPosX = foxRoot.position.x;
+        const foxPosZ = foxRoot.position.z;
         for (let iter = 0; iter < 2; iter++) {
             for (let i = 0; i < treesList.length; i++) {
                 const tree = treesList[i];
                 if (!tree || !tree.visible) continue;
+
+                // Broadphase: lewati pohon yang berjarak > 3.5m dari tubuh rubah
+                const treeDx = foxPosX - tree.position.x;
+                const treeDz = foxPosZ - tree.position.z;
+                if (treeDx * treeDx + treeDz * treeDz > 12.25) continue;
 
                 let baseRadius = 0.32;
                 const tType = (tree.userData && tree.userData.type) ? tree.userData.type.toLowerCase() : '';
@@ -521,43 +530,46 @@ function updateWolfPhysics(dt, elapsed) {
     let rockGroundSupportY = -999;
 
     if (activeRocks.length > 0) {
+        const foxPosX = foxRoot.position.x;
+        const foxPosZ = foxRoot.position.z;
+
         // Cek apakah rubah bisa menaiki / berdiri / berjalan di atas permukaan batu
         for (let r = 0; r < activeRocks.length; r++) {
             const rock = activeRocks[r];
             if (!rock || !rock.visible) continue;
 
-            let rData = rock.userData;
+            const rData = rock.userData;
+            const cX = (rData && rData.centerX !== undefined) ? rData.centerX : rock.position.x;
+            const cZ = (rData && rData.centerZ !== undefined) ? rData.centerZ : rock.position.z;
+            const rdx = foxPosX - cX;
+            const rdz = foxPosZ - cZ;
+            const maxR = ((rData && rData.radiusMax) ? rData.radiusMax : 2.5) + 0.6;
+            // Broadphase: lewati batuan yang terlalu jauh dari posisi rubah
+            if (rdx * rdx + rdz * rdz > maxR * maxR) continue;
+
             if (!rData || !rData.radiusMax) {
                 rock.updateMatrixWorld(true);
                 const bb = new THREE.Box3().setFromObject(rock);
                 const rx = Math.max(0.15, (bb.max.x - bb.min.x) * 0.5 * 1.04);
                 const rz = Math.max(0.15, (bb.max.z - bb.min.z) * 0.5 * 1.04);
                 if (!rock.userData) rock.userData = {};
-                rData = rock.userData;
-                rData.isRock = true;
-                rData.centerX = (bb.min.x + bb.max.x) * 0.5;
-                rData.centerZ = (bb.min.z + bb.max.z) * 0.5;
-                rData.radiusX = rx;
-                rData.radiusZ = rz;
-                rData.radiusMax = Math.max(rx, rz) * 1.25;
-                rData.topY = bb.max.y;
-                rData.bottomY = bb.min.y;
+                rock.userData.isRock = true;
+                rock.userData.centerX = (bb.min.x + bb.max.x) * 0.5;
+                rock.userData.centerZ = (bb.min.z + bb.max.z) * 0.5;
+                rock.userData.radiusX = rx;
+                rock.userData.radiusZ = rz;
+                rock.userData.radiusMax = Math.max(rx, rz) * 1.25;
+                rock.userData.topY = bb.max.y;
+                rock.userData.bottomY = bb.min.y;
             }
 
-            const cX = rData.centerX !== undefined ? rData.centerX : rock.position.x;
-            const cZ = rData.centerZ !== undefined ? rData.centerZ : rock.position.z;
-            const rdx = foxRoot.position.x - cX;
-            const rdz = foxRoot.position.z - cZ;
-            const maxR = (rData.radiusMax || 1.8) + 0.6;
-            if (rdx * rdx + rdz * rdz > maxR * maxR) continue;
-
-            const rx = Math.max(0.15, rData.radiusX || (rock.scale.x * 1.04));
-            const rz = Math.max(0.15, rData.radiusZ || (rock.scale.z * 1.04));
+            const rx = Math.max(0.15, rock.userData.radiusX || (rock.scale.x * 1.04));
+            const rz = Math.max(0.15, rock.userData.radiusZ || (rock.scale.z * 1.04));
             const normSq = (rdx / rx) * (rdx / rx) + (rdz / rz) * (rdz / rz);
 
             if (normSq <= 1.15) {
-                const rTopY = rData.topY !== undefined ? rData.topY : (rock.position.y + (rData.heightScale || rock.scale.y) * 0.90);
-                const rBottomY = rData.bottomY !== undefined ? rData.bottomY : (rock.position.y - (rData.heightScale || rock.scale.y) * 0.95);
+                const rTopY = rock.userData.topY !== undefined ? rock.userData.topY : (rock.position.y + (rock.userData.heightScale || rock.scale.y) * 0.90);
+                const rBottomY = rock.userData.bottomY !== undefined ? rock.userData.bottomY : (rock.position.y - (rock.userData.heightScale || rock.scale.y) * 0.95);
                 const dome = Math.sqrt(Math.max(0, 1.0 - Math.min(1.0, normSq)));
                 const surfaceY = rBottomY + (rTopY - rBottomY) * (0.22 + 0.78 * dome);
 
@@ -581,7 +593,7 @@ function updateWolfPhysics(dt, elapsed) {
             { offset: 0.0, radius: 0.36 * foxScale } // Simpul pusat rubah untuk proteksi absolut
         ];
 
-        for (let iter = 0; iter < 3; iter++) {
+        for (let iter = 0; iter < 2; iter++) {
             for (let r = 0; r < activeRocks.length; r++) {
                 const rock = activeRocks[r];
                 if (!rock || !rock.visible) continue;
@@ -592,6 +604,12 @@ function updateWolfPhysics(dt, elapsed) {
                 const rx = Math.max(0.15, rData.radiusX || (rock.scale.x * 1.04));
                 const rz = Math.max(0.15, rData.radiusZ || (rock.scale.z * 1.04));
                 const maxR = (rData.radiusMax || Math.max(rx, rz) * 1.25) + 1.0;
+
+                // Broadphase: jika seluruh batu di luar jangkauan terjauh fox, skip semua simpul
+                const rdx = foxPosX - cX;
+                const rdz = foxPosZ - cZ;
+                if (rdx * rdx + rdz * rdz > (maxR + 1.2) * (maxR + 1.2)) continue;
+
                 const rockTopY = rData.topY !== undefined ? rData.topY : (rock.position.y + (rData.heightScale || rock.scale.y) * 0.95);
                 const rockBottomY = rData.bottomY !== undefined ? rData.bottomY : (rock.position.y - (rData.heightScale || rock.scale.y) * 0.95);
 
@@ -789,84 +807,169 @@ function updateWolfPhysics(dt, elapsed) {
     // ========================================================
     // 3B. SISTEM VISUAL EAGLE VISION OUTLINE & SILUET (ASSASSIN'S CREED)
     // Syarat Kemunculan: HANYA muncul jika Fox 100% tertutup (occluded) oleh objek 3D lain.
-    // Pengecekan status tertutup didasarkan pada raycast dari kamera aktif (Main Camera).
+    // Dioptimalkan: Spatial pre-filtering koridor pandang, short-circuiting instan, dan throttling 25Hz
     // ========================================================
     ensureFoxEagleVisionSystem(wolfCharacter);
 
-    const leftVec = new THREE.Vector3(-forward.z, 0, forward.x);
-    // 9 titik sampel anatomis tubuh rubah (ketinggian terkalibrasi aman di atas permukaan tanah/batu)
-    const foxOcclusionPoints = [
-        new THREE.Vector3(foxRoot.position.x + forward.x * (0.85 * foxScale), foxRoot.position.y + 0.75, foxRoot.position.z + forward.z * (0.85 * foxScale)), // Ujung moncong & hidung
-        new THREE.Vector3(foxRoot.position.x + forward.x * (0.55 * foxScale), foxRoot.position.y + 0.98, foxRoot.position.z + forward.z * (0.55 * foxScale)), // Batok kepala & telinga atas
-        new THREE.Vector3(foxRoot.position.x + forward.x * (0.35 * foxScale), foxRoot.position.y + 0.78, foxRoot.position.z + forward.z * (0.35 * foxScale)), // Dada & leher depan
-        new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.80, foxRoot.position.z),                                                                    // Pusat torso badan
-        new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 1.05, foxRoot.position.z),                                                                    // Punggung atas
-        new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.70, foxRoot.position.z + leftVec.z * (0.22 * foxScale)),    // Sisi rusuk kiri
-        new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.70, foxRoot.position.z - leftVec.z * (0.22 * foxScale)),    // Sisi rusuk kanan
-        new THREE.Vector3(foxRoot.position.x - forward.x * (0.45 * foxScale), foxRoot.position.y + 0.75, foxRoot.position.z - forward.z * (0.45 * foxScale)),   // Panggul & pangkal ekor
-        new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.35, foxRoot.position.z)                                                                     // Kaki atas / perut bawah
-    ];
+    _occlusionTimer -= dt;
+    if (_occlusionTimer <= 0) {
+        _occlusionTimer = 0.04; // Evaluasi 25Hz (alpha siluet tetap berinterpolasi sangat mulus via lerp)
 
-    const camPos = camera.position;
-    let occludedPointsCount = 0;
+        const leftVec = new THREE.Vector3(-forward.z, 0, forward.x);
+        // 9 titik sampel anatomis tubuh rubah
+        const foxOcclusionPoints = [
+            new THREE.Vector3(foxRoot.position.x + forward.x * (0.85 * foxScale), foxRoot.position.y + 0.75, foxRoot.position.z + forward.z * (0.85 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x + forward.x * (0.55 * foxScale), foxRoot.position.y + 0.98, foxRoot.position.z + forward.z * (0.55 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x + forward.x * (0.35 * foxScale), foxRoot.position.y + 0.78, foxRoot.position.z + forward.z * (0.35 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.80, foxRoot.position.z),
+            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 1.05, foxRoot.position.z),
+            new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.70, foxRoot.position.z + leftVec.z * (0.22 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.70, foxRoot.position.z - leftVec.z * (0.22 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x - forward.x * (0.45 * foxScale), foxRoot.position.y + 0.75, foxRoot.position.z - forward.z * (0.45 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.35, foxRoot.position.z)
+        ];
 
-    for (let p = 0; p < foxOcclusionPoints.length; p++) {
-        const pt = foxOcclusionPoints[p];
-        const dx = pt.x - camPos.x;
-        const dy = pt.y - camPos.y;
-        const dz = pt.z - camPos.z;
-        const rayDist = Math.hypot(dx, dy, dz);
-        if (rayDist < 0.3) continue;
+        const camPos = camera.position;
 
-        _occlusionRayDir.set(dx / rayDist, dy / rayDist, dz / rayDist);
-        _occlusionRaycaster.set(camPos, _occlusionRayDir);
-        _occlusionRaycaster.near = 0.4;
-        _occlusionRaycaster.far = Math.max(0.4, rayDist - 0.30); // Berhenti 30cm sebelum tubuh rubah
+        // Spatial Bounding Box: HANYA periksa objek yang berada di antara kamera dan rubah (+ margin 3.5m)
+        const segMinX = Math.min(camPos.x, foxRoot.position.x) - 3.5;
+        const segMaxX = Math.max(camPos.x, foxRoot.position.x) + 3.5;
+        const segMinZ = Math.min(camPos.z, foxRoot.position.z) - 3.5;
+        const segMaxZ = Math.max(camPos.z, foxRoot.position.z) + 3.5;
 
-        let isPointBlocked = false;
-
-        // 1. Uji Raycast Geometri Presisi Bebatuan (Polygon Mesh Real - Mencegah False Positive di samping batu)
+        const candidateRocks = [];
         if (activeRocks.length > 0) {
-            const rockHits = _occlusionRaycaster.intersectObjects(activeRocks, false);
-            if (rockHits.length > 0) {
-                isPointBlocked = true;
-            }
-        }
-
-        // 2. Uji Raycast Pepohonan (Batang & Ranting Daun)
-        if (!isPointBlocked && Array.isArray(treesList) && treesList.length > 0) {
-            const treeHits = _occlusionRaycaster.intersectObjects(treesList, true);
-            if (treeHits.length > 0) {
-                isPointBlocked = true;
-            }
-        }
-
-        // 3. Uji Bukit / Terrain
-        if (!isPointBlocked && typeof getTerrainHeightFast === 'function') {
-            const stepSize = 0.45;
-            const maxSteps = Math.floor((rayDist - 0.30) / stepSize);
-            for (let sIdx = 1; sIdx <= maxSteps; sIdx++) {
-                const s = sIdx * stepSize;
-                const sx = camPos.x + _occlusionRayDir.x * s;
-                const sz = camPos.z + _occlusionRayDir.z * s;
-                const terrainH = getTerrainHeightFast(sx, sz);
-                const rayH = camPos.y + _occlusionRayDir.y * s;
-                if (rayH < terrainH + 0.15) {
-                    isPointBlocked = true;
-                    break;
+            for (let i = 0; i < activeRocks.length; i++) {
+                const rock = activeRocks[i];
+                if (!rock || !rock.visible) continue;
+                const rx = (rock.userData && rock.userData.centerX !== undefined) ? rock.userData.centerX : rock.position.x;
+                const rz = (rock.userData && rock.userData.centerZ !== undefined) ? rock.userData.centerZ : rock.position.z;
+                if (rx >= segMinX && rx <= segMaxX && rz >= segMinZ && rz <= segMaxZ) {
+                    candidateRocks.push(rock);
                 }
             }
         }
 
-        if (isPointBlocked) {
-            occludedPointsCount++;
+        const candidateTreeTrunks = [];
+        const candidateCanopies = [];
+        if (Array.isArray(treesList) && treesList.length > 0) {
+            for (let i = 0; i < treesList.length; i++) {
+                const tree = treesList[i];
+                if (!tree || !tree.visible) continue;
+                const tx = tree.position.x;
+                const tz = tree.position.z;
+                if (tx >= segMinX && tx <= segMaxX && tz >= segMinZ && tz <= segMaxZ) {
+                    // Batang pohon kandidat (mesh silinder ringan)
+                    if (tree.userData && tree.userData.trunkGroup) {
+                        candidateTreeTrunks.push(tree.userData.trunkGroup);
+                    } else {
+                        candidateTreeTrunks.push(tree);
+                    }
+                    // Tajuk daun diuji secara analitis (sphere bound O(1), BUKAN instanced mesh jutaan poligon)
+                    const trunkH = (tree.userData && tree.userData.baseTrunkHeight) ? tree.userData.baseTrunkHeight : 3.5;
+                    candidateCanopies.push({
+                        x: tx,
+                        y: tree.position.y + trunkH * 0.95,
+                        z: tz,
+                        radiusSq: 8.5
+                    });
+                }
+            }
         }
+
+        let isAllOccluded = true;
+
+        for (let p = 0; p < foxOcclusionPoints.length; p++) {
+            const pt = foxOcclusionPoints[p];
+            const dx = pt.x - camPos.x;
+            const dy = pt.y - camPos.y;
+            const dz = pt.z - camPos.z;
+            const rayDist = Math.hypot(dx, dy, dz);
+            if (rayDist < 0.3) continue;
+
+            const invDist = 1.0 / rayDist;
+            const dirX = dx * invDist;
+            const dirY = dy * invDist;
+            const dirZ = dz * invDist;
+
+            _occlusionRayDir.set(dirX, dirY, dirZ);
+            _occlusionRaycaster.set(camPos, _occlusionRayDir);
+            _occlusionRaycaster.near = 0.4;
+            const maxRayDist = Math.max(0.4, rayDist - 0.30);
+            _occlusionRaycaster.far = maxRayDist;
+
+            let isPointBlocked = false;
+
+            // 1. Uji Bebatuan kandidat (hanya batuan di koridor pandang)
+            if (candidateRocks.length > 0) {
+                const rockHits = _occlusionRaycaster.intersectObjects(candidateRocks, false);
+                if (rockHits.length > 0) {
+                    isPointBlocked = true;
+                }
+            }
+
+            // 2. Uji Batang Pohon kandidat (silinder batang ringan)
+            if (!isPointBlocked && candidateTreeTrunks.length > 0) {
+                const trunkHits = _occlusionRaycaster.intersectObjects(candidateTreeTrunks, true);
+                if (trunkHits.length > 0) {
+                    isPointBlocked = true;
+                }
+            }
+
+            // 2B. Uji Rimbun Daun Pohon (Analytical Sphere Intersection O(1) super cepat)
+            if (!isPointBlocked && candidateCanopies.length > 0) {
+                for (let c = 0; c < candidateCanopies.length; c++) {
+                    const canopy = candidateCanopies[c];
+                    const ocX = camPos.x - canopy.x;
+                    const ocY = camPos.y - canopy.y;
+                    const ocZ = camPos.z - canopy.z;
+                    const b = ocX * dirX + ocY * dirY + ocZ * dirZ;
+                    const cVal = ocX * ocX + ocY * ocY + ocZ * ocZ - canopy.radiusSq;
+                    if (b <= 0 || cVal <= 0) {
+                        const discr = b * b - cVal;
+                        if (discr >= 0) {
+                            const tHit = -b - Math.sqrt(discr);
+                            if (tHit >= 0.4 && tHit <= maxRayDist) {
+                                isPointBlocked = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Uji Bukit / Terrain
+            if (!isPointBlocked && typeof getTerrainHeightFast === 'function') {
+                const stepSize = 0.5;
+                const maxSteps = Math.floor(maxRayDist / stepSize);
+                for (let sIdx = 1; sIdx <= maxSteps; sIdx++) {
+                    const s = sIdx * stepSize;
+                    const sx = camPos.x + dirX * s;
+                    const sz = camPos.z + dirZ * s;
+                    const terrainH = getTerrainHeightFast(sx, sz);
+                    const rayH = camPos.y + dirY * s;
+                    if (rayH < terrainH + 0.15) {
+                        isPointBlocked = true;
+                        break;
+                    }
+                }
+            }
+
+            // SHORT-CIRCUIT REVOLUSIONER:
+            // Syarat Eagle Vision adalah Fox 100% tertutup.
+            // Begitu ada SATU titik tubuh rubah yang terlihat jelas oleh kamera,
+            // Fox dipastikan TIDAK 100% tertutup. Hentikan raycast seketika!
+            if (!isPointBlocked) {
+                isAllOccluded = false;
+                break;
+            }
+        }
+
+        _cachedFoxOccluded = isAllOccluded;
     }
 
-    // SYARAT MUTLAK: Hanya muncul jika Fox 100% tertutup oleh objek 3D lain
-    const isFox100PercentOccluded = (occludedPointsCount === foxOcclusionPoints.length);
-    isCameraOccluded = isFox100PercentOccluded;
-    updateFoxEagleVisionVisibility(isFox100PercentOccluded, dt, elapsed);
+    isCameraOccluded = _cachedFoxOccluded;
+    updateFoxEagleVisionVisibility(_cachedFoxOccluded, dt, elapsed);
 }
 
 // ========================================================

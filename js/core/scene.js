@@ -16,9 +16,12 @@ const initH = viewportContainer.clientHeight || window.innerHeight;
 const camera = new THREE.PerspectiveCamera(45, initW / initH, 0.1, 1000);
 camera.position.set(0, 16, 32);
 
+const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth <= 1024);
+const maxDPR = isMobileDevice ? 1.25 : 1.75;
+
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 renderer.setSize(initW, initH);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDPR));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
@@ -57,8 +60,8 @@ controls.maxDistance = 160.0;
 const sunLight = new THREE.DirectionalLight(0xfffae6, 2.1);
 sunLight.position.set(-25, 12, 25);
 sunLight.castShadow = true;
-sunLight.shadow.mapSize.width = 4096;
-sunLight.shadow.mapSize.height = 4096;
+sunLight.shadow.mapSize.width = isMobileDevice ? 2048 : 4096;
+sunLight.shadow.mapSize.height = isMobileDevice ? 2048 : 4096;
 sunLight.shadow.camera.near = 0.5;
 sunLight.shadow.camera.far = 120;
 

@@ -62,8 +62,29 @@ function animate() {
 }
 animate();
 
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
+// Synchronous & Reactive Viewport Resizing (Dedicated Viewport)
+function updateViewportSize() {
+    const container = document.getElementById('viewport-container');
+    if (!renderer || !camera) return;
+    const width = container ? container.clientWidth : window.innerWidth;
+    const height = container ? container.clientHeight : window.innerHeight;
+    if (width <= 0 || height <= 0) return;
+
+    if (camera.aspect !== width / height) {
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+    }
+    renderer.setSize(width, height);
+}
+window.updateViewportSize = updateViewportSize;
+
+window.addEventListener('resize', updateViewportSize);
+
+if (typeof ResizeObserver !== 'undefined') {
+    const container = document.getElementById('viewport-container');
+    if (container) {
+        new ResizeObserver(() => {
+            updateViewportSize();
+        }).observe(container);
+    }
+}

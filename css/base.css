@@ -32,8 +32,52 @@ body {
     user-select: none;
 }
 
+/* 3D DEDICATED VIEWPORT CONTAINER (Blender / Unity Style) */
+#viewport-container {
+    position: fixed;
+    top: 42px;
+    left: var(--sidebar-left-actual-width, 285px);
+    right: var(--sidebar-right-actual-width, 285px);
+    bottom: 0;
+    overflow: hidden;
+    z-index: 1;
+    background: var(--bg-canvas);
+    transition: top 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                bottom 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                left 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                right 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.cinematic-footer-open #viewport-container,
+body:has(#cinematic-bottom-panel.visible) #viewport-container {
+    bottom: var(--cinematic-bottom-height, 250px);
+}
+
+body:has(#sidebar-left.collapsed) #viewport-container {
+    left: 0;
+}
+
+body:has(#sidebar-right.collapsed) #viewport-container {
+    right: 0;
+}
+
+/* Fullscreen Play Demo Mode */
+body.play-mode-active #viewport-container {
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+}
+
+/* Instant 60fps tracking during drag resizing */
+body.resizing-sidebar #viewport-container,
+body.resizing-cinematic-bottom #viewport-container {
+    transition: none !important;
+}
+
+#viewport-container canvas,
 canvas {
     display: block;
-    width: 100vw;
-    height: 100vh;
+    width: 100% !important;
+    height: 100% !important;
 }

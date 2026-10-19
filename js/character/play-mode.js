@@ -87,6 +87,8 @@ function startPlayMode() {
     }
 
     isPlayMode = true;
+    document.body.classList.add('play-mode-active');
+    if (typeof updateViewportSize === 'function') updateViewportSize();
     const btnPlay = document.getElementById('btn-play-mode');
     if (btnPlay) {
         btnPlay.classList.add('playing');
@@ -160,6 +162,8 @@ function stopPlayMode() {
     }
 
     controls.enabled = true;
+    document.body.classList.remove('play-mode-active');
+    if (typeof updateViewportSize === 'function') updateViewportSize();
     if (typeof updateActiveModeHUD === 'function') {
         updateActiveModeHUD();
     }

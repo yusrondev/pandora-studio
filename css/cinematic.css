@@ -216,12 +216,12 @@
 
 /* Anamorphic 2.35:1 Cinema Black Bars */
 .cinematic-letterbox-bar {
-    position: fixed;
+    position: absolute;
     left: 0;
     right: 0;
     height: 0;
     background: #000;
-    z-index: 95;
+    z-index: 15;
     pointer-events: none;
     transition: height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -241,13 +241,13 @@
 
 /* Depth-of-Field (DoF) Optical Lens Blur Overlay */
 .cinematic-dof-overlay {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
-    z-index: 10; /* Di atas canvas 3D namun di bawah sidebar (z-index 90) & toolbar (z-index 100) */
+    z-index: 10;
     opacity: 0;
     display: none; /* Pastikan display none saat tidak aktif agar browser tidak blur layar editor */
     transition: opacity 0.25s ease;

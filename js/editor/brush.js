@@ -71,8 +71,11 @@ function removeGrassInRadius(hitPoint, radius) {
 }
 
 function handleBrushAction(event) {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    if (typeof updateMouseCoords === 'function') updateMouseCoords(event, mouse);
+    else {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    }
 
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObject(ground);
@@ -186,8 +189,11 @@ function handleCanvasPointerDown(e) {
     if (now - lastPointerActionTime < 50) return;
     lastPointerActionTime = now;
 
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    if (typeof updateMouseCoords === 'function') updateMouseCoords(e, mouse);
+    else {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    }
     raycaster.setFromCamera(mouse, camera);
 
     // ==========================================
@@ -476,8 +482,11 @@ function handleCanvasPointerMove(e) {
     }
 
     // Raycast kursor mouse untuk outline reticle instan di canvas
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    if (typeof updateMouseCoords === 'function') updateMouseCoords(e, mouse);
+    else {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    }
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObject(ground);
 
@@ -569,8 +578,11 @@ function handleCanvasPointerUp(e) {
         isHoldingForCamera = false;
 
         if (!wasHoldOrDrag && !(typeof CinematicManager !== 'undefined' && CinematicManager.isPlaying)) {
-            mouse.x = (endX / window.innerWidth) * 2 - 1;
-            mouse.y = -(endY / window.innerHeight) * 2 + 1;
+            if (typeof updateMouseCoords === 'function') updateMouseCoords({ clientX: endX, clientY: endY }, mouse);
+            else {
+                mouse.x = (endX / window.innerWidth) * 2 - 1;
+                mouse.y = -(endY / window.innerHeight) * 2 + 1;
+            }
             raycaster.setFromCamera(mouse, camera);
 
             // 1. Cek Titik Waypoint Kamera Cinematic terlebih dahulu

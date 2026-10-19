@@ -221,6 +221,7 @@ const CinematicManager = {
             panel.style.height = newHeight + 'px';
             panel.style.setProperty('--cinematic-bottom-height', newHeight + 'px');
             document.documentElement.style.setProperty('--cinematic-bottom-height', newHeight + 'px');
+            if (typeof updateViewportSize === 'function') updateViewportSize();
         });
 
         window.addEventListener('pointerup', () => {
@@ -235,6 +236,7 @@ const CinematicManager = {
             } catch (err) {
                 console.warn(err);
             }
+            if (typeof updateViewportSize === 'function') updateViewportSize();
         });
     },
 
@@ -296,17 +298,19 @@ const CinematicManager = {
     },
 
     createLetterboxAndDoFDOM() {
+        const mountTarget = document.getElementById('viewport-container') || document.body;
+
         // 1. Top & Bottom Black Letterbox Bars
         if (!document.getElementById('cinematic-letterbox-top')) {
             const topBar = document.createElement('div');
             topBar.id = 'cinematic-letterbox-top';
             topBar.className = 'cinematic-letterbox-bar cinematic-letterbox-top';
-            document.body.appendChild(topBar);
+            mountTarget.appendChild(topBar);
 
             const botBar = document.createElement('div');
             botBar.id = 'cinematic-letterbox-bottom';
             botBar.className = 'cinematic-letterbox-bar cinematic-letterbox-bottom';
-            document.body.appendChild(botBar);
+            mountTarget.appendChild(botBar);
         }
 
         // 2. Optical Depth-of-Field Lens Blur Overlay
@@ -314,7 +318,7 @@ const CinematicManager = {
             const dof = document.createElement('div');
             dof.id = 'cinematic-dof-overlay';
             dof.className = 'cinematic-dof-overlay';
-            document.body.appendChild(dof);
+            mountTarget.appendChild(dof);
         }
     },
 
@@ -3044,6 +3048,7 @@ const CinematicManager = {
             if (this.isDrawingMode) this.toggleDrawingMode(false);
             if (this.isDrawingFoxMode) this.toggleFoxDrawingMode(false);
         }
+        if (typeof updateViewportSize === 'function') updateViewportSize();
     },
 
     showFloatingTimeline(visible) {
@@ -3386,10 +3391,12 @@ const CinematicManager = {
         // 13. Pointerdown: Tambah waypoint / Seleksi & Geser Kamera Waypoint / Adjust Ketinggian dengan Mouse
         window.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return; // Hanya klik kiri
-            if (e.target && e.target.tagName !== 'CANVAS') return;
-
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            if (typeof updateMouseCoords === 'function') {
+                updateMouseCoords(e, mouse);
+            } else {
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            }
             raycaster.setFromCamera(mouse, camera);
 
             // Jika sedang play cinematic, abaikan interaksi edit
@@ -3462,8 +3469,11 @@ const CinematicManager = {
 
             // A. Drag Kamera yang Sedang Digeser (Horizontal pada bidang Y tetap kamera, TIDAK MERUBAH KETINGGIAN)
             if (this.isDraggingWaypoint && this.draggedWaypointIndex >= 0) {
-                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                if (typeof updateMouseCoords === 'function') updateMouseCoords(e, mouse);
+                else {
+                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                }
                 raycaster.setFromCamera(mouse, camera);
 
                 let targetX = null;
@@ -3496,8 +3506,11 @@ const CinematicManager = {
             // B. Visual Feedback Hover Cursor pada Kamera Waypoint & Height Handle
             if (!this.isPlaying && !this.isDrawingMode && !this.isDrawingFoxMode && this.pathGroup && this.pathGroup.visible) {
                 if (e.target && e.target.tagName === 'CANVAS') {
-                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    if (typeof updateMouseCoords === 'function') updateMouseCoords(e, mouse);
+                    else {
+                        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    }
                     raycaster.setFromCamera(mouse, camera);
                     const hits = raycaster.intersectObjects(this.pathGroup.children, true);
                     let isOverHandle = false;
@@ -3530,8 +3543,11 @@ const CinematicManager = {
             }
             if (e.target && e.target.tagName !== 'CANVAS') return;
 
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            if (typeof updateMouseCoords === 'function') updateMouseCoords(e, mouse);
+            else {
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            }
 
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObject(ground);

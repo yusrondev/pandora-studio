@@ -9,11 +9,15 @@ scene.background = new THREE.Color(0xb8ecff);
 // Jarak dekat tetap jernih dan tajam (35m), jarak jauh melebur lembut ke biru muda cakrawala (120m)
 scene.fog = new THREE.Fog(0xb8ecff, 35, 120);
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+const viewportContainer = document.getElementById('viewport-container') || document.body;
+const initW = viewportContainer.clientWidth || window.innerWidth;
+const initH = viewportContainer.clientHeight || window.innerHeight;
+
+const camera = new THREE.PerspectiveCamera(45, initW / initH, 0.1, 1000);
 camera.position.set(0, 16, 32);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(initW, initH);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -21,7 +25,26 @@ renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-document.body.appendChild(renderer.domElement);
+viewportContainer.appendChild(renderer.domElement);
+
+// Global Mouse Coordinate Transformer: akurat terhadap bounding box viewport canvas
+function updateMouseCoords(e, mouseObj) {
+    if (!mouseObj) return;
+    const clientX = (e && typeof e.clientX === 'number') ? e.clientX : 0;
+    const clientY = (e && typeof e.clientY === 'number') ? e.clientY : 0;
+    if (!renderer || !renderer.domElement) {
+        mouseObj.x = (clientX / window.innerWidth) * 2 - 1;
+        mouseObj.y = -(clientY / window.innerHeight) * 2 + 1;
+        return mouseObj;
+    }
+    const rect = renderer.domElement.getBoundingClientRect();
+    const w = rect.width || window.innerWidth;
+    const h = rect.height || window.innerHeight;
+    mouseObj.x = ((clientX - rect.left) / w) * 2 - 1;
+    mouseObj.y = -((clientY - rect.top) / h) * 2 + 1;
+    return mouseObj;
+}
+window.updateMouseCoords = updateMouseCoords;
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;

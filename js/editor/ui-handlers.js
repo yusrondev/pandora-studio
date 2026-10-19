@@ -22,6 +22,7 @@ function updateSidebarCSSVariables() {
 
     document.documentElement.style.setProperty('--sidebar-left-actual-width', leftW + 'px');
     document.documentElement.style.setProperty('--sidebar-right-actual-width', rightW + 'px');
+    if (typeof updateViewportSize === 'function') updateViewportSize();
 }
 window.updateSidebarCSSVariables = updateSidebarCSSVariables;
 
@@ -89,6 +90,7 @@ if (resizerLeft && sidebarLeft) {
         const newWidth = Math.min(650, Math.max(220, startWidth + (e.clientX - startX)));
         sidebarLeft.style.width = newWidth + 'px';
         document.documentElement.style.setProperty('--sidebar-left-actual-width', newWidth + 'px');
+        if (typeof updateViewportSize === 'function') updateViewportSize();
     });
 
     window.addEventListener('pointerup', () => {
@@ -123,6 +125,7 @@ if (resizerRight && sidebarRight) {
         const newWidth = Math.min(650, Math.max(200, startWidth - (e.clientX - startX)));
         sidebarRight.style.width = newWidth + 'px';
         document.documentElement.style.setProperty('--sidebar-right-actual-width', newWidth + 'px');
+        if (typeof updateViewportSize === 'function') updateViewportSize();
     });
 
     window.addEventListener('pointerup', () => {

@@ -54,7 +54,7 @@ window.addEventListener('touchstart', (e) => {
         if (!inJoystick && !inActionBtn && !inToolbar && !inSpecies) {
             activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
             isUserHoldingCamera = true;
-            userHoldingCameraTimer = 1.6;
+            userHoldingCameraTimer = 0.35;
         }
     }
 
@@ -80,7 +80,7 @@ window.addEventListener('touchmove', (e) => {
 
     if (cameraTouchMoved) {
         isUserHoldingCamera = true;
-        userHoldingCameraTimer = 1.6;
+        userHoldingCameraTimer = 0.35;
     }
 
     // Cubit layar (Pinch-to-zoom) pada smartphone
@@ -105,7 +105,7 @@ function removeCameraTouches(e) {
         lastPinchDistance = null;
     }
     if (activeCameraTouches.size === 0) {
-        userHoldingCameraTimer = 1.6;
+        userHoldingCameraTimer = 0.35;
     }
 }
 
@@ -117,13 +117,13 @@ window.addEventListener('pointerdown', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
     if (e.pointerType === 'mouse' && e.target && e.target.tagName === 'CANVAS') {
         isUserHoldingCamera = true;
-        userHoldingCameraTimer = 1.6;
+        userHoldingCameraTimer = 0.35;
     }
 }, { capture: true });
 
 window.addEventListener('pointerup', (e) => {
     if (e.pointerType === 'mouse') {
-        userHoldingCameraTimer = 1.6;
+        userHoldingCameraTimer = 0.35;
     }
 });
 
@@ -132,7 +132,7 @@ window.addEventListener('pointermove', (e) => {
     if (e.pointerType === 'mouse') {
         if (e.buttons > 0) {
             isUserHoldingCamera = true;
-            userHoldingCameraTimer = 1.6;
+            userHoldingCameraTimer = 0.35;
         }
     }
 });
@@ -142,12 +142,12 @@ if (typeof controls !== 'undefined' && controls && controls.addEventListener) {
     controls.addEventListener('start', () => {
         if (typeof isPlayMode !== 'undefined' && isPlayMode) {
             isUserHoldingCamera = true;
-            userHoldingCameraTimer = 1.6;
+            userHoldingCameraTimer = 0.35;
         }
     });
     controls.addEventListener('end', () => {
         if (typeof isPlayMode !== 'undefined' && isPlayMode) {
-            userHoldingCameraTimer = 1.6;
+            userHoldingCameraTimer = 0.35;
         }
     });
 }
@@ -554,9 +554,13 @@ function updateWolfPhysics(dt, elapsed) {
     // ========================================================
     // 3. FREE ORBIT SPRING-ARM CAMERA DENGAN SMOOTH ANTI-OBSTACLE OCCLUSION
     // ========================================================
-    // Titik fokus kamera mengikuti pusat tubuh karakter rubah (ketinggian proporsional sesuai skala)
-    const targetCenterY = 0.85;
-    const currentTargetPos = new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + targetCenterY, foxRoot.position.z);
+    // Titik fokus kamera mengikuti kepala/leher rubah agar pandangan selalu menghadap ke depan
+    const headOffsetForward = 0.48 * foxScale;
+    const currentTargetPos = new THREE.Vector3(
+        foxRoot.position.x + forward.x * headOffsetForward,
+        foxRoot.position.y + 0.90,
+        foxRoot.position.z + forward.z * headOffsetForward
+    );
 
     // Modern AAA spring-arm focus target lag:
     // Fokus kamera mengikuti rubah secara halus dengan sedikit lagging inersia natural,
@@ -580,7 +584,7 @@ function updateWolfPhysics(dt, elapsed) {
     // Update status penahanan manual kamera (Multi-touch / Mouse drag)
     if (activeCameraTouches.size > 0) {
         isUserHoldingCamera = true;
-        userHoldingCameraTimer = 1.6;
+        userHoldingCameraTimer = 0.35;
     } else if (userHoldingCameraTimer > 0) {
         userHoldingCameraTimer -= dt;
         isUserHoldingCamera = true;
@@ -588,11 +592,10 @@ function updateWolfPhysics(dt, elapsed) {
         isUserHoldingCamera = false;
     }
 
-    // Auto-align kamera selalu berada di belakang fox pada saat berjalan,
-    // Mengayun dengan efek tertinggal (camera trailing lag) khas game modern,
-    // KECUALI jika user sedang menahan/menggeser kamera manual
-    const isWalking = (keys.w || keys.s || keys.a || keys.d || Math.abs(currentSpeed) > 0.15);
-    const canAutoFollowBehind = isWalking && !isUserHoldingCamera;
+    // Jika user menggerakkan karakter via joystick/keyboard, batalkan jeda penahanan kamera
+    if (Math.abs(currentSpeed) > 0.1 || Math.abs(currentTurnRate) > 0.1 || keys.w || keys.s || keys.a || keys.d) {
+        userHoldingCameraTimer = 0;
+    }
 
     let hDist = Math.hypot(camRay.x, camRay.z);
     let curYaw = (hDist > 0.02) ? Math.atan2(camRay.x, camRay.z) : (foxRoot.rotation.y + Math.PI);
@@ -604,21 +607,31 @@ function updateWolfPhysics(dt, elapsed) {
     const MIN_ALLOWED_PITCH = THREE.MathUtils.degToRad(6.0);
     curPitch = THREE.MathUtils.clamp(curPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
 
-    if (canAutoFollowBehind) {
-        // Arah hadap rubah: model lokal menghadap -X, sehingga arah belakang adalah +X secara lokal
+    if (isUserHoldingCamera) {
+        // SAAT USER MENGGERAKKAN KAMERA:
+        // Putar orientasi rubah secara dinamis mengikuti arah pandangan kamera, sehingga
+        // kamera SELALU berada di belakang kepala rubah dan user selalu melihat pandangan depan
+        const desiredFoxRotY = Math.atan2(-Math.cos(curYaw), Math.sin(curYaw));
+        let rotDiff = (desiredFoxRotY - foxRoot.rotation.y) % (Math.PI * 2);
+        if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+        if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+        const alignSpeed = (Math.abs(currentSpeed) > 0.1) ? 14.0 : 10.0;
+        foxRoot.rotation.y += rotDiff * Math.min(1.0, alignSpeed * dt);
+    } else {
+        // SAAT TIDAK DIGERAKKAN SECARA MANUAL:
+        // Kamera secara otomatis mengikuti di belakang kepala rubah (auto-follow third person)
         const targetYaw = Math.atan2(Math.cos(foxRoot.rotation.y), -Math.sin(foxRoot.rotation.y));
         let diff = (targetYaw - curYaw) % (Math.PI * 2);
         if (diff < -Math.PI) diff += Math.PI * 2;
         if (diff > Math.PI) diff -= Math.PI * 2;
 
-        const baseChase = (huntBlend > 0.4) ? 1.2 : 0.85;
-        const angleRatio = Math.abs(diff) / Math.PI;
-        const chaseSpeed = baseChase + Math.pow(angleRatio, 1.5) * 0.9;
+        const isMoving = (Math.abs(currentSpeed) > 0.1 || Math.abs(currentTurnRate) > 0.1 || keys.w || keys.s || keys.a || keys.d);
+        const chaseSpeed = isMoving ? ((huntBlend > 0.4) ? 5.5 : 4.2) : 3.0;
         const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
         curYaw += diff * smoothT;
 
         const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
-        curPitch = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curPitch, targetPitch, 1.0 - Math.exp(-2.2 * dt)), MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
+        curPitch = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)), MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
     }
 
     const cosP = Math.cos(curPitch);

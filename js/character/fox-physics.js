@@ -15,6 +15,14 @@ window.addEventListener('keydown', (e) => {
         e.preventDefault();
         keys.space = true;
     }
+    if (k === 'c' || code === 'KeyC') {
+        manualProne = !manualProne;
+        if (!manualProne) foxIdleTimer = 0;
+    }
+    if (keys.w || keys.s || keys.a || keys.d || keys.space) {
+        manualProne = false;
+        foxIdleTimer = 0;
+    }
 });
 
 window.addEventListener('keyup', (e) => {
@@ -45,6 +53,16 @@ const _occlusionRaycaster = new THREE.Raycaster();
 const _occlusionRayDir = new THREE.Vector3();
 let _occlusionTimer = 0;
 let _cachedFoxOccluded = false;
+
+// Raycaster & vector khusus untuk collision mesh fisik bebatuan
+const _rockRaycaster = new THREE.Raycaster();
+const _rockRayDir = new THREE.Vector3();
+const _rockRayOrigin = new THREE.Vector3();
+const _pWorld = new THREE.Vector3();
+const _pLocal = new THREE.Vector3();
+const _resolvedLocal = new THREE.Vector3();
+const _resolvedWorld = new THREE.Vector3();
+const _rockInvMatrix = new THREE.Matrix4();
 
 function getOrCreateEagleVisionMaterial() {
     if (!eagleVisionMaterial) {
@@ -160,7 +178,9 @@ function updateFoxEagleVisionVisibility(isOccluded, dt, elapsed) {
 
 // Deteksi saat user menahan / menggeser kamera secara manual (Multi-Touch & Mouse)
 let isUserHoldingCamera = false;
-let userHoldingCameraTimer = 0;
+let isUserMouseDown = false;
+let isInteractingWithCamera = false;
+let cameraReleaseTimer = 0.0;
 let activeCameraTouches = new Map();
 let lastPinchDistance = null;
 
@@ -177,8 +197,8 @@ window.addEventListener('touchstart', (e) => {
 
         if (!inJoystick && !inActionBtn && !inToolbar && !inSpecies) {
             activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
-            isUserHoldingCamera = true;
-            userHoldingCameraTimer = 0.35;
+            isInteractingWithCamera = true;
+            cameraReleaseTimer = 0.0;
         }
     }
 
@@ -203,8 +223,8 @@ window.addEventListener('touchmove', (e) => {
     }
 
     if (cameraTouchMoved) {
-        isUserHoldingCamera = true;
-        userHoldingCameraTimer = 0.35;
+        isInteractingWithCamera = true;
+        cameraReleaseTimer = 0.0;
     }
 
     // Cubit layar (Pinch-to-zoom) pada smartphone
@@ -229,7 +249,8 @@ function removeCameraTouches(e) {
         lastPinchDistance = null;
     }
     if (activeCameraTouches.size === 0) {
-        userHoldingCameraTimer = 0.35;
+        isInteractingWithCamera = false;
+        cameraReleaseTimer = 0.6;
     }
 }
 
@@ -240,14 +261,19 @@ window.addEventListener('touchcancel', removeCameraTouches, { passive: true });
 window.addEventListener('pointerdown', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
     if (e.pointerType === 'mouse' && e.target && e.target.tagName === 'CANVAS') {
-        isUserHoldingCamera = true;
-        userHoldingCameraTimer = 0.35;
+        isUserMouseDown = true;
+        isInteractingWithCamera = true;
+        cameraReleaseTimer = 0.0;
     }
 }, { capture: true });
 
 window.addEventListener('pointerup', (e) => {
     if (e.pointerType === 'mouse') {
-        userHoldingCameraTimer = 0.35;
+        if (isUserMouseDown) {
+            isUserMouseDown = false;
+            isInteractingWithCamera = false;
+            cameraReleaseTimer = 0.6;
+        }
     }
 });
 
@@ -255,8 +281,13 @@ window.addEventListener('pointermove', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
     if (e.pointerType === 'mouse') {
         if (e.buttons > 0) {
-            isUserHoldingCamera = true;
-            userHoldingCameraTimer = 0.35;
+            isUserMouseDown = true;
+            isInteractingWithCamera = true;
+            cameraReleaseTimer = 0.0;
+        } else if (isUserMouseDown) {
+            isUserMouseDown = false;
+            isInteractingWithCamera = false;
+            cameraReleaseTimer = 0.6;
         }
     }
 });
@@ -265,13 +296,14 @@ window.addEventListener('pointermove', (e) => {
 if (typeof controls !== 'undefined' && controls && controls.addEventListener) {
     controls.addEventListener('start', () => {
         if (typeof isPlayMode !== 'undefined' && isPlayMode) {
-            isUserHoldingCamera = true;
-            userHoldingCameraTimer = 0.35;
+            isInteractingWithCamera = true;
+            cameraReleaseTimer = 0.0;
         }
     });
     controls.addEventListener('end', () => {
         if (typeof isPlayMode !== 'undefined' && isPlayMode) {
-            userHoldingCameraTimer = 0.35;
+            isInteractingWithCamera = false;
+            cameraReleaseTimer = 0.6;
         }
     });
 }
@@ -309,6 +341,14 @@ let idlePawTimer = 2.2;
 let idlePawActiveLeg = null; // 'FL', 'FR', 'BL', 'BR'
 let idlePawDuration = 2.0;
 let idlePawElapsed = 0;
+
+// Idle State & Prone / Mengendap Transition (dari sample-prone.html)
+let foxIdleTimer = 0;
+let foxProneBlend = 0.0; // 0.0 = Berdiri/Jalan/Lari, 1.0 = Mengendap Penuh (Full Prone / Stalking)
+let manualProne = false;
+const FOX_IDLE_PRONE_THRESHOLD = 4.5; // Detik diam sebelum otomatis masuk ke mode mengendap (prone)
+window.foxIdleTimer = foxIdleTimer;
+window.foxProneBlend = foxProneBlend;
 
 const gravity = -26;
 const jumpPower = 9.6;
@@ -404,8 +444,13 @@ function updateWolfPhysics(dt, elapsed) {
         if (keys.d) targetTurn = -stats.turnRate;
     }
 
-    currentSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, 8.0 * dt);
     currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, targetTurn, stats.turnAccel * dt);
+    foxRoot.rotation.y += currentTurnRate * dt;
+
+    // Hitung vektor arah maju (model fox menghadap -X secara lokal)
+    const forward = new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), foxRoot.rotation.y);
+
+    currentSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, 8.0 * dt);
 
     const speedNorm = Math.min(1, Math.abs(currentSpeed) / walkSpeed);
     const turnNorm = Math.abs(currentTurnRate) / (stats.turnRate || 2.5);
@@ -435,16 +480,14 @@ function updateWolfPhysics(dt, elapsed) {
         } else if (moveActivity > 0.05) {
             hudState.innerText = "BERJALAN (PULIH)";
             hudState.style.color = "#50fa7b";
+        } else if (typeof foxProneBlend !== 'undefined' && foxProneBlend > 0.35) {
+            hudState.innerText = "MENGENDAP (PRONE)";
+            hudState.style.color = "#c084fc";
         } else {
             hudState.innerText = "IDLE (PULIH CEPAT)";
             hudState.style.color = "#ffd27d";
         }
     }
-
-    foxRoot.rotation.y += currentTurnRate * dt;
-
-    // Hitung vektor arah maju (model fox menghadap -X secara lokal)
-    const forward = new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), foxRoot.rotation.y);
 
     if (Math.abs(currentSpeed) > 0.01) {
         const moveStep = forward.clone().multiplyScalar(currentSpeed * dt);
@@ -464,17 +507,18 @@ function updateWolfPhysics(dt, elapsed) {
     // ========================================================
     // 1. COLLISION ANATOMI LENGKAP RUBAH TERHADAP POHON & OBJEK 3D
     // ========================================================
-    // Titik benturan melingkar sepanjang tubuh rubah (hidung, kepala, leher, badan, panggul)
+    // Simpul anatomis proteksi dari ujung hidung/moncong sampai pangkal ekor
     const fwdX = forward.x;
     const fwdZ = forward.z;
 
     const foxCollisionNodes = [
-        { offset: 0.92 * foxScale, radius: 0.20 * foxScale }, // Ujung hidung & moncong (proporsional baru)
-        { offset: 0.68 * foxScale, radius: 0.28 * foxScale }, // Batok kepala & telinga
-        { offset: 0.35 * foxScale, radius: 0.32 * foxScale }, // Leher depan & dada
-        { offset: 0.00 * foxScale, radius: 0.32 * foxScale }, // Torso / tengah badan
-        { offset: -0.35 * foxScale, radius: 0.30 * foxScale }, // Perut belakang
-        { offset: -0.68 * foxScale, radius: 0.28 * foxScale }  // Panggul belakang & paha
+        { offset: 1.40 * foxScale, radius: 0.16 * foxScale }, // Moncong & hidung depan
+        { offset: 1.05 * foxScale, radius: 0.20 * foxScale }, // Batok kepala & dahi
+        { offset: 0.70 * foxScale, radius: 0.22 * foxScale }, // Leher depan & dada atas
+        { offset: 0.35 * foxScale, radius: 0.24 * foxScale }, // Bahu & dada depan
+        { offset: 0.00 * foxScale, radius: 0.24 * foxScale }, // Torso / tengah badan
+        { offset: -0.35 * foxScale, radius: 0.22 * foxScale }, // Panggul & paha belakang
+        { offset: -0.70 * foxScale, radius: 0.16 * foxScale }  // Pangkal ekor & belakang
     ];
 
     if (Array.isArray(treesList) && treesList.length > 0) {
@@ -485,10 +529,10 @@ function updateWolfPhysics(dt, elapsed) {
                 const tree = treesList[i];
                 if (!tree || !tree.visible) continue;
 
-                // Broadphase: lewati pohon yang berjarak > 3.5m dari tubuh rubah
+                // Broadphase: lewati pohon yang berjarak > 4m dari tubuh rubah
                 const treeDx = foxPosX - tree.position.x;
                 const treeDz = foxPosZ - tree.position.z;
-                if (treeDx * treeDx + treeDz * treeDz > 12.25) continue;
+                if (treeDx * treeDx + treeDz * treeDz > 16.0) continue;
 
                 let baseRadius = 0.32;
                 const tType = (tree.userData && tree.userData.type) ? tree.userData.type.toLowerCase() : '';
@@ -514,8 +558,11 @@ function updateWolfPhysics(dt, elapsed) {
                             const pushDist = minAllowedDist - dist;
                             foxRoot.position.x += (dx / dist) * pushDist;
                             foxRoot.position.z += (dz / dist) * pushDist;
+                            camera.position.x += (dx / dist) * pushDist;
+                            camera.position.z += (dz / dist) * pushDist;
                         } else {
                             foxRoot.position.x += minAllowedDist;
+                            camera.position.x += minAllowedDist;
                         }
                     }
                 }
@@ -523,133 +570,151 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
-    // 1B. COLLISION ANATOMI PRESISI TERHADAP BEBATUAN (DENGAN KEMAMPUAN MENAIKI BEBATUAN)
+    // ========================================================
+    // 1B. COLLISION PRESISI BEBATUAN (ORIENTED LOCAL SPACE - ANTI TEMBUS)
+    // Menggunakan transformasi matriks dunia lokal (_rockInvMatrix)
+    // 100% memperhitungkan posisi, rotasi penuh X/Y/Z, dan skala asli setiap batu
+    // ========================================================
     const activeRocks = (typeof rocksList !== 'undefined' && Array.isArray(rocksList) && rocksList.length > 0)
         ? rocksList
         : ((typeof rocksGroup !== 'undefined' && rocksGroup.children) ? rocksGroup.children : (window.rocksList || []));
     let rockGroundSupportY = -999;
 
     if (activeRocks.length > 0) {
-        const foxPosX = foxRoot.position.x;
-        const foxPosZ = foxRoot.position.z;
+        // Step-up height realistis berdasarkan ukuran kaki rubah:
+        // Batu landai / slate kecil s/d 0.35m (saat sprint/hunt s/d 0.45m).
+        // Batu yang lebih tinggi dari ini (boulder besar) TIDAK BISA dipanjat langsung.
+        const maxStepUp = (huntBlend > 0.4) ? 0.45 : 0.35;
 
-        // Cek apakah rubah bisa menaiki / berdiri / berjalan di atas permukaan batu
+        // Simpul anatomis proteksi tubuh rubah 3D (ramping proporsional agar bisa melewati celah batuan)
+        const rockCollisionNodes = [
+            { offset: 1.40 * foxScale, height: 0.45 * foxScale, radius: 0.16 * foxScale }, // Ujung moncong & hidung paling depan
+            { offset: 1.05 * foxScale, height: 0.60 * foxScale, radius: 0.20 * foxScale }, // Kepala, dahi & telinga
+            { offset: 0.70 * foxScale, height: 0.55 * foxScale, radius: 0.22 * foxScale }, // Leher depan & tenggorokan
+            { offset: 0.35 * foxScale, height: 0.45 * foxScale, radius: 0.24 * foxScale }, // Dada & bahu depan
+            { offset: 0.00 * foxScale, height: 0.45 * foxScale, radius: 0.24 * foxScale }, // Torso tengah
+            { offset: -0.35 * foxScale, height: 0.45 * foxScale, radius: 0.22 * foxScale }, // Panggul & paha belakang
+            { offset: -0.70 * foxScale, height: 0.40 * foxScale, radius: 0.16 * foxScale }  // Pangkal ekor belakang
+        ];
+
         for (let r = 0; r < activeRocks.length; r++) {
             const rock = activeRocks[r];
             if (!rock || !rock.visible) continue;
 
-            const rData = rock.userData;
-            const cX = (rData && rData.centerX !== undefined) ? rData.centerX : rock.position.x;
-            const cZ = (rData && rData.centerZ !== undefined) ? rData.centerZ : rock.position.z;
-            const rdx = foxPosX - cX;
-            const rdz = foxPosZ - cZ;
-            const maxR = ((rData && rData.radiusMax) ? rData.radiusMax : 2.5) + 0.6;
-            // Broadphase: lewati batuan yang terlalu jauh dari posisi rubah
+            const rData = rock.userData || {};
+            const cX = rData.centerX !== undefined ? rData.centerX : rock.position.x;
+            const cZ = rData.centerZ !== undefined ? rData.centerZ : rock.position.z;
+            const maxR = (rData.radiusMax || Math.max(rock.scale.x, rock.scale.z) * 1.5) + 1.8;
+
+            const curFoxX = foxRoot.position.x;
+            const curFoxZ = foxRoot.position.z;
+            const rdx = curFoxX - cX;
+            const rdz = curFoxZ - cZ;
+            // Broadphase cepat
             if (rdx * rdx + rdz * rdz > maxR * maxR) continue;
 
-            if (!rData || !rData.radiusMax) {
-                rock.updateMatrixWorld(true);
-                const bb = new THREE.Box3().setFromObject(rock);
-                const rx = Math.max(0.15, (bb.max.x - bb.min.x) * 0.5 * 1.04);
-                const rz = Math.max(0.15, (bb.max.z - bb.min.z) * 0.5 * 1.04);
-                if (!rock.userData) rock.userData = {};
-                rock.userData.isRock = true;
-                rock.userData.centerX = (bb.min.x + bb.max.x) * 0.5;
-                rock.userData.centerZ = (bb.min.z + bb.max.z) * 0.5;
-                rock.userData.radiusX = rx;
-                rock.userData.radiusZ = rz;
-                rock.userData.radiusMax = Math.max(rx, rz) * 1.25;
-                rock.userData.topY = bb.max.y;
-                rock.userData.bottomY = bb.min.y;
-            }
+            rock.updateMatrixWorld(true);
+            _rockInvMatrix.copy(rock.matrixWorld).invert();
 
-            const rx = Math.max(0.15, rock.userData.radiusX || (rock.scale.x * 1.04));
-            const rz = Math.max(0.15, rock.userData.radiusZ || (rock.scale.z * 1.04));
-            const normSq = (rdx / rx) * (rdx / rx) + (rdz / rz) * (rdz / rz);
+            const rockTopY = (rData.topY !== undefined) ? rData.topY : (rock.position.y + rock.scale.y * 1.12);
+            const isFoxAlreadyOnTop = (foxRoot.position.y >= rockTopY - 0.35);
 
-            if (normSq <= 1.15) {
-                const rTopY = rock.userData.topY !== undefined ? rock.userData.topY : (rock.position.y + (rock.userData.heightScale || rock.scale.y) * 0.90);
-                const rBottomY = rock.userData.bottomY !== undefined ? rock.userData.bottomY : (rock.position.y - (rock.userData.heightScale || rock.scale.y) * 0.95);
-                const dome = Math.sqrt(Math.max(0, 1.0 - Math.min(1.0, normSq)));
-                const surfaceY = rBottomY + (rTopY - rBottomY) * (0.22 + 0.78 * dome);
+            // 1. VERTICAL SURFACE SUPPORT: Apakah rubah sedang berdiri / berjalan di atas batu ini?
+            _pWorld.set(foxRoot.position.x, foxRoot.position.y, foxRoot.position.z);
+            _pLocal.copy(_pWorld).applyMatrix4(_rockInvMatrix);
 
-                // Step-up height: Rubah bisa menaiki bebatuan yang wajar / landai setinggi s/d 0.75m
-                const maxStepUp = (huntBlend > 0.4) ? 0.90 : 0.75;
-                const heightDiff = surfaceY - foxRoot.position.y;
+            const rLocalCenterSq = _pLocal.x * _pLocal.x + _pLocal.z * _pLocal.z;
+            if (rLocalCenterSq < 1.05) {
+                const localTopY = Math.sqrt(Math.max(0, 1.12 - rLocalCenterSq));
+                _resolvedLocal.set(_pLocal.x, localTopY, _pLocal.z);
+                _resolvedWorld.copy(_resolvedLocal).applyMatrix4(rock.matrixWorld);
 
-                if (heightDiff <= maxStepUp && surfaceY >= rBottomY - 0.2) {
-                    if (surfaceY > rockGroundSupportY) {
-                        rockGroundSupportY = surfaceY;
+                const surfaceHeight = _resolvedWorld.y;
+                const heightDiff = surfaceHeight - foxRoot.position.y;
+
+                // Kemiringan permukaan di titik ini (dalam koordinat lokal unit)
+                const isWalkableSlope = localTopY >= 0.45; // Slope <= ~63 deg
+                const isAtOrAboveSurface = (foxRoot.position.y >= surfaceHeight - 0.25 && foxRoot.position.y <= surfaceHeight + 0.65);
+                const canClimbUp = (heightDiff > 0 && heightDiff <= maxStepUp && isWalkableSlope);
+
+                if (canClimbUp || isAtOrAboveSurface) {
+                    if (surfaceHeight > rockGroundSupportY) {
+                        rockGroundSupportY = surfaceHeight;
                     }
                 }
             }
-        }
 
-        // Horizontal Solid Collision:
-        // HANYA mendorong rubah menjauh jika permukaan batu di titik kontak itu TERLALU TINGGI / MENUKIK TAJAM (cliff tebing tegak)
-        // Jika batu landai / slate / ketinggiannya masih wajar terjangkau kaki rubah (heightDiff <= maxStepUp), rubah dibiarkan menaikinya!
-        const allCollisionNodes = [
-            ...foxCollisionNodes,
-            { offset: 0.0, radius: 0.36 * foxScale } // Simpul pusat rubah untuk proteksi absolut
-        ];
+            // 2. HORIZONTAL SOLID COLLISION: Mencegah semua simpul rubah menembus batu
+            // HANYA aktif jika rubah TIDAK sedang berada di atas batu ini
+            if (!isFoxAlreadyOnTop) {
+                const heightAboveFox = rockTopY - foxRoot.position.y;
+                // Jika batu terlalu tinggi untuk dipanjat langsung (boulder besar / tebing terjal):
+                if (heightAboveFox > maxStepUp) {
+                    for (let iter = 0; iter < 2; iter++) {
+                        for (let n = 0; n < rockCollisionNodes.length; n++) {
+                            const node = rockCollisionNodes[n];
+                            const nodeX = foxRoot.position.x + fwdX * node.offset;
+                            const nodeZ = foxRoot.position.z + fwdZ * node.offset;
+                            const nodeY = foxRoot.position.y + node.height;
 
-        for (let iter = 0; iter < 2; iter++) {
-            for (let r = 0; r < activeRocks.length; r++) {
-                const rock = activeRocks[r];
-                if (!rock || !rock.visible) continue;
+                            _pWorld.set(nodeX, nodeY, nodeZ);
+                            _pLocal.copy(_pWorld).applyMatrix4(_rockInvMatrix);
 
-                const rData = rock.userData || {};
-                const cX = rData.centerX !== undefined ? rData.centerX : rock.position.x;
-                const cZ = rData.centerZ !== undefined ? rData.centerZ : rock.position.z;
-                const rx = Math.max(0.15, rData.radiusX || (rock.scale.x * 1.04));
-                const rz = Math.max(0.15, rData.radiusZ || (rock.scale.z * 1.04));
-                const maxR = (rData.radiusMax || Math.max(rx, rz) * 1.25) + 1.0;
-
-                // Broadphase: jika seluruh batu di luar jangkauan terjauh fox, skip semua simpul
-                const rdx = foxPosX - cX;
-                const rdz = foxPosZ - cZ;
-                if (rdx * rdx + rdz * rdz > (maxR + 1.2) * (maxR + 1.2)) continue;
-
-                const rockTopY = rData.topY !== undefined ? rData.topY : (rock.position.y + (rData.heightScale || rock.scale.y) * 0.95);
-                const rockBottomY = rData.bottomY !== undefined ? rData.bottomY : (rock.position.y - (rData.heightScale || rock.scale.y) * 0.95);
-
-                for (let n = 0; n < allCollisionNodes.length; n++) {
-                    const node = allCollisionNodes[n];
-                    const nodeX = foxRoot.position.x + fwdX * node.offset;
-                    const nodeZ = foxRoot.position.z + fwdZ * node.offset;
-
-                    const dx = nodeX - cX;
-                    const dz = nodeZ - cZ;
-                    if (dx * dx + dz * dz > maxR * maxR) continue;
-
-                    const angle = Math.atan2(dz, dx);
-                    const cosA = Math.cos(angle);
-                    const sinA = Math.sin(angle);
-                    const denom = Math.hypot(rz * cosA, rx * sinA);
-                    const rockPerimeter = (denom > 0.0001) ? ((rx * rz) / denom) : Math.max(rx, rz);
-                    const worldDist = Math.hypot(dx, dz);
-                    const minAllowedDist = rockPerimeter + node.radius;
-
-                    if (worldDist < minAllowedDist) {
-                        // Periksa apakah di titik kontak ini batunya bisa dinaiki (landai / terjangkau kaki rubah)
-                        const contactNormSq = (dx / rx) * (dx / rx) + (dz / rz) * (dz / rz);
-                        const dome = Math.sqrt(Math.max(0, 1.0 - Math.min(1.0, contactNormSq)));
-                        const contactSurfaceY = rockBottomY + (rockTopY - rockBottomY) * (0.22 + 0.78 * dome);
-
-                        const maxStepUp = (huntBlend > 0.4) ? 0.90 : 0.75;
-                        const canStepOntoRock = (contactSurfaceY - foxRoot.position.y) <= maxStepUp;
-                        const isAlreadyAboveSurface = (foxRoot.position.y >= contactSurfaceY - 0.25);
-
-                        // HANYA dorong menjauh jika batu menukik tajam ke atas (cliff wall)
-                        // dan rubah tidak cukup tinggi untuk melangkahinya.
-                        // Jika bisa dinaiki, rubah dibiarkan melangkah naik!
-                        if (!canStepOntoRock && !isAlreadyAboveSurface) {
-                            const pushDist = minAllowedDist - worldDist;
-                            if (worldDist > 0.0001) {
-                                foxRoot.position.x += (dx / worldDist) * pushDist;
-                                foxRoot.position.z += (dz / worldDist) * pushDist;
+                            // Jarak horizontal simpul dari sumbu Y lokal batu
+                            const rLocal = Math.hypot(_pLocal.x, _pLocal.z);
+                            let dirLocalX = 1, dirLocalZ = 0;
+                            if (rLocal > 0.0001) {
+                                dirLocalX = _pLocal.x / rLocal;
+                                dirLocalZ = _pLocal.z / rLocal;
                             } else {
-                                foxRoot.position.x += minAllowedDist;
+                                const oppWorld = forward.clone().negate();
+                                const oppLocal = oppWorld.transformDirection(_rockInvMatrix);
+                                const oppLen = Math.hypot(oppLocal.x, oppLocal.z) || 1;
+                                dirLocalX = oppLocal.x / oppLen;
+                                dirLocalZ = oppLocal.z / oppLen;
+                            }
+
+                            // Radius mesh batu di ruang lokal pada elevasi _pLocal.y
+                            // Rata-rata radius permukaan luar batu dodecahedron adalah ~0.90
+                            let rockMeshRadiusLocal = 0.90;
+                            if (_pLocal.y > 0.25) {
+                                const topRatio = THREE.MathUtils.clamp((_pLocal.y - 0.25) / 0.85, 0, 1);
+                                rockMeshRadiusLocal = 0.90 * Math.sqrt(Math.max(0, 1.0 - topRatio * topRatio));
+                            } else if (_pLocal.y < -0.80) {
+                                const botRatio = THREE.MathUtils.clamp((-0.80 - _pLocal.y) / 0.50, 0, 1);
+                                rockMeshRadiusLocal = 0.90 * (1.0 - botRatio * 0.15);
+                            }
+
+                            // Konversi margin node ke skala lokal batu pada arah benturan (sesuai ukuran tubuh rubah)
+                            const scaleInDir = Math.hypot(rock.scale.x * dirLocalX, rock.scale.z * dirLocalZ);
+                            const localNodeMargin = node.radius / Math.max(0.1, scaleInDir);
+                            const minAllowedLocalR = rockMeshRadiusLocal + localNodeMargin;
+
+                            // Benturan terjadi jika simpul masuk ke dalam batas batu dan berada di rentang tinggi batu
+                            if (rLocal < minAllowedLocalR && _pLocal.y >= -1.45 && _pLocal.y <= 1.15) {
+                                _resolvedLocal.set(dirLocalX * minAllowedLocalR, _pLocal.y, dirLocalZ * minAllowedLocalR);
+                                _resolvedWorld.copy(_resolvedLocal).applyMatrix4(rock.matrixWorld);
+
+                                const pushVecX = _resolvedWorld.x - _pWorld.x;
+                                const pushVecZ = _resolvedWorld.z - _pWorld.z;
+
+                                foxRoot.position.x += pushVecX;
+                                foxRoot.position.z += pushVecZ;
+                                camera.position.x += pushVecX;
+                                camera.position.z += pushVecZ;
+
+                                const pushDist = Math.hypot(pushVecX, pushVecZ);
+                                if (pushDist > 0.0001) {
+                                    const normOutX = pushVecX / pushDist;
+                                    const normOutZ = pushVecZ / pushDist;
+                                    const inwardSpeed = forward.x * normOutX + forward.z * normOutZ;
+
+                                    // HANYA hentikan kecepatan jika menabrak FRONTAL (tegak lurus ke tebing batu):
+                                    // Jika menyerong / menyusuri celah, kecepatan tetap berjalan sehingga bisa slide mulus melewati celah
+                                    if (inwardSpeed < -0.70) {
+                                        currentSpeed = 0;
+                                    }
+                                }
                             }
                         }
                     }
@@ -696,9 +761,10 @@ function updateWolfPhysics(dt, elapsed) {
     // ========================================================
     // Titik fokus kamera mengikuti kepala/leher rubah agar pandangan selalu menghadap ke depan
     const headOffsetForward = 0.48 * foxScale;
+    const proneCameraOffsetY = THREE.MathUtils.lerp(0.90, 0.45, foxProneBlend);
     const currentTargetPos = new THREE.Vector3(
         foxRoot.position.x + forward.x * headOffsetForward,
-        foxRoot.position.y + 0.90,
+        foxRoot.position.y + proneCameraOffsetY,
         foxRoot.position.z + forward.z * headOffsetForward
     );
 
@@ -722,19 +788,13 @@ function updateWolfPhysics(dt, elapsed) {
     }
 
     // Update status penahanan manual kamera (Multi-touch / Mouse drag)
-    if (activeCameraTouches.size > 0) {
+    if (isInteractingWithCamera || isUserMouseDown || activeCameraTouches.size > 0) {
         isUserHoldingCamera = true;
-        userHoldingCameraTimer = 0.35;
-    } else if (userHoldingCameraTimer > 0) {
-        userHoldingCameraTimer -= dt;
+    } else if (cameraReleaseTimer > 0) {
+        cameraReleaseTimer -= dt;
         isUserHoldingCamera = true;
     } else {
         isUserHoldingCamera = false;
-    }
-
-    // Jika user menggerakkan karakter via joystick/keyboard, batalkan jeda penahanan kamera
-    if (Math.abs(currentSpeed) > 0.1 || Math.abs(currentTurnRate) > 0.1 || keys.w || keys.s || keys.a || keys.d) {
-        userHoldingCameraTimer = 0;
     }
 
     let hDist = Math.hypot(camRay.x, camRay.z);
@@ -750,19 +810,12 @@ function updateWolfPhysics(dt, elapsed) {
     const isCharacterMoving = (Math.abs(currentSpeed) > 0.15 || Math.abs(currentTurnRate) > 0.15 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.15 || Math.abs(analogTurn) > 0.15);
 
     if (isUserHoldingCamera) {
-        // SAAT USER MENGGESER KAMERA:
-        // HANYA jika fox sedang bergerak / berjalan, hadap fox diselaraskan dengan kamera.
-        // Jika fox sedang DIAM (idle), fox TIDAK IKUT BERPUTAR (user bebas memutar kamera 360 derajat mengelilingi fox).
-        if (isCharacterMoving) {
-            const desiredFoxRotY = Math.atan2(-Math.cos(curYaw), Math.sin(curYaw));
-            let rotDiff = (desiredFoxRotY - foxRoot.rotation.y) % (Math.PI * 2);
-            if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-            if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-            foxRoot.rotation.y += rotDiff * Math.min(1.0, 14.0 * dt);
-        }
+        // SAAT USER MENGGESER KAMERA (BAIK SEDANG DIAM MAUPUN BERJALAN):
+        // Kamera bebas dirotasi oleh user sesuai arah drag mouse/touch,
+        // sudut kamera dipertahankan dan rubah tidak dipaksa memutar arah.
     } else {
-        // SAAT TIDAK DIGERAKKAN SECARA MANUAL:
-        // Kamera secara otomatis mengikuti di belakang kepala rubah HANYA jika rubah sedang bergerak
+        // SAAT TIDAK DIGERAKKAN SECARA MANUAL (ATAU BEGITU KAMERA DILEPAS):
+        // Sistem kamera (existing) berlaku kembali: kamera secara otomatis mengikuti di belakang rubah
         if (isCharacterMoving) {
             const targetYaw = Math.atan2(Math.cos(foxRoot.rotation.y), -Math.sin(foxRoot.rotation.y));
             let diff = (targetYaw - curYaw) % (Math.PI * 2);
@@ -784,13 +837,27 @@ function updateWolfPhysics(dt, elapsed) {
     const rayStart = controls.target;
 
     // ========================================================
-    // 3A. PERHITUNGAN JARAK KAMERA (ZOOM-IN OTOMATIS DINONAKTIFKAN)
-    // Sesuai permintaan user: Kamera TIDAK LAGI maju / zoom-in secara otomatis saat tertutup objek 3D.
-    // Kamera tetap berada pada jarak stabil yang dipilih oleh user.
+    // 3A. PERHITUNGAN JARAK KAMERA & AUTO-ZOOM DI UJUNG MAP
+    // Saat karakter fox berada dekat di ujung map, kamera otomatis zoom mendekat ke fox.
+    // Begitu fox menjauh dari tepi map kembali normal lagi.
     // ========================================================
+    const maxFoxExtent = mapHalf - 1.2;
+    const distToEdgeX = Math.max(0, maxFoxExtent - Math.abs(foxRoot.position.x));
+    const distToEdgeZ = Math.max(0, maxFoxExtent - Math.abs(foxRoot.position.z));
+    const distToEdge = Math.min(distToEdgeX, distToEdgeZ);
+
+    const edgeZoneRadius = 13.0; // Jarak mulai mendeteksi tepi map (13 meter)
+    const edgeFactor = THREE.MathUtils.clamp(1.0 - (distToEdge / edgeZoneRadius), 0.0, 1.0);
+    // Smoothstep easing agar transisi zoom terasa organik & sinematik
+    const smoothEdge = edgeFactor * edgeFactor * (3.0 - 2.0 * edgeFactor);
+
     const userTargetDist = THREE.MathUtils.clamp(userPreferredDist, 2.4, 18.0);
-    const zoomLerpRate = 5.0;
-    currentCamDist += (userTargetDist - currentCamDist) * Math.min(1.0, zoomLerpRate * dt);
+    // Jarak zoom mendekat saat di ujung map
+    const edgeZoomDist = Math.max(2.1, Math.min(userTargetDist * 0.45, 2.5));
+    const effectiveTargetDist = THREE.MathUtils.lerp(userTargetDist, edgeZoomDist, smoothEdge);
+
+    const zoomLerpRate = 4.5;
+    currentCamDist += (effectiveTargetDist - currentCamDist) * Math.min(1.0, zoomLerpRate * dt);
 
     camera.position.copy(controls.target).addScaledVector(rayDir, currentCamDist);
 
@@ -816,26 +883,29 @@ function updateWolfPhysics(dt, elapsed) {
         _occlusionTimer = 0.04; // Evaluasi 25Hz (alpha siluet tetap berinterpolasi sangat mulus via lerp)
 
         const leftVec = new THREE.Vector3(-forward.z, 0, forward.x);
-        // 9 titik sampel anatomis tubuh rubah
+        // 9 titik sampel anatomis tubuh rubah (dari moncong depan s/d pangkal ekor)
         const foxOcclusionPoints = [
-            new THREE.Vector3(foxRoot.position.x + forward.x * (0.85 * foxScale), foxRoot.position.y + 0.75, foxRoot.position.z + forward.z * (0.85 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x + forward.x * (0.55 * foxScale), foxRoot.position.y + 0.98, foxRoot.position.z + forward.z * (0.55 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x + forward.x * (0.35 * foxScale), foxRoot.position.y + 0.78, foxRoot.position.z + forward.z * (0.35 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.80, foxRoot.position.z),
-            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 1.05, foxRoot.position.z),
-            new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.70, foxRoot.position.z + leftVec.z * (0.22 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.70, foxRoot.position.z - leftVec.z * (0.22 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x - forward.x * (0.45 * foxScale), foxRoot.position.y + 0.75, foxRoot.position.z - forward.z * (0.45 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.35, foxRoot.position.z)
+            new THREE.Vector3(foxRoot.position.x + forward.x * (1.55 * foxScale), foxRoot.position.y + 0.45 * foxScale, foxRoot.position.z + forward.z * (1.55 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x + forward.x * (1.20 * foxScale), foxRoot.position.y + 0.65 * foxScale, foxRoot.position.z + forward.z * (1.20 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x + forward.x * (0.85 * foxScale), foxRoot.position.y + 0.60 * foxScale, foxRoot.position.z + forward.z * (0.85 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x + forward.x * (0.45 * foxScale), foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z + forward.z * (0.45 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z),
+            new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z + leftVec.z * (0.22 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z - leftVec.z * (0.22 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x - forward.x * (0.45 * foxScale), foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z - forward.z * (0.45 * foxScale)),
+            new THREE.Vector3(foxRoot.position.x - forward.x * (0.85 * foxScale), foxRoot.position.y + 0.45 * foxScale, foxRoot.position.z - forward.z * (0.85 * foxScale))
         ];
 
         const camPos = camera.position;
+        const foxPos = foxRoot.position;
 
-        // Spatial Bounding Box: HANYA periksa objek yang berada di antara kamera dan rubah (+ margin 3.5m)
-        const segMinX = Math.min(camPos.x, foxRoot.position.x) - 3.5;
-        const segMaxX = Math.max(camPos.x, foxRoot.position.x) + 3.5;
-        const segMinZ = Math.min(camPos.z, foxRoot.position.z) - 3.5;
-        const segMaxZ = Math.max(camPos.z, foxRoot.position.z) + 3.5;
+        // Vektor arah dari kamera ke rubah di bidang horizontal XZ
+        const toFoxX = foxPos.x - camPos.x;
+        const toFoxZ = foxPos.z - camPos.z;
+        const distCamToFoxXZ = Math.hypot(toFoxX, toFoxZ);
+        const invDistCamToFoxXZ = distCamToFoxXZ > 0.001 ? (1.0 / distCamToFoxXZ) : 0;
+        const normDirX = toFoxX * invDistCamToFoxXZ;
+        const normDirZ = toFoxZ * invDistCamToFoxXZ;
 
         const candidateRocks = [];
         if (activeRocks.length > 0) {
@@ -844,35 +914,40 @@ function updateWolfPhysics(dt, elapsed) {
                 if (!rock || !rock.visible) continue;
                 const rx = (rock.userData && rock.userData.centerX !== undefined) ? rock.userData.centerX : rock.position.x;
                 const rz = (rock.userData && rock.userData.centerZ !== undefined) ? rock.userData.centerZ : rock.position.z;
-                if (rx >= segMinX && rx <= segMaxX && rz >= segMinZ && rz <= segMaxZ) {
-                    candidateRocks.push(rock);
-                }
+
+                const toObjX = rx - camPos.x;
+                const toObjZ = rz - camPos.z;
+                const proj = toObjX * normDirX + toObjZ * normDirZ;
+                // Hanya periksa batuan yang berada di antara kamera dan rubah (bukan di belakang rubah)
+                if (proj < 0.4 || proj > distCamToFoxXZ - 0.4) continue;
+                const perpSq = (toObjX * toObjX + toObjZ * toObjZ) - (proj * proj);
+                if (perpSq > 16.0) continue; // Max 4m dari garis pandang
+
+                candidateRocks.push(rock);
             }
         }
 
         const candidateTreeTrunks = [];
-        const candidateCanopies = [];
         if (Array.isArray(treesList) && treesList.length > 0) {
             for (let i = 0; i < treesList.length; i++) {
                 const tree = treesList[i];
                 if (!tree || !tree.visible) continue;
                 const tx = tree.position.x;
                 const tz = tree.position.z;
-                if (tx >= segMinX && tx <= segMaxX && tz >= segMinZ && tz <= segMaxZ) {
-                    // Batang pohon kandidat (mesh silinder ringan)
-                    if (tree.userData && tree.userData.trunkGroup) {
-                        candidateTreeTrunks.push(tree.userData.trunkGroup);
-                    } else {
-                        candidateTreeTrunks.push(tree);
-                    }
-                    // Tajuk daun diuji secara analitis (sphere bound O(1), BUKAN instanced mesh jutaan poligon)
-                    const trunkH = (tree.userData && tree.userData.baseTrunkHeight) ? tree.userData.baseTrunkHeight : 3.5;
-                    candidateCanopies.push({
-                        x: tx,
-                        y: tree.position.y + trunkH * 0.95,
-                        z: tz,
-                        radiusSq: 8.5
-                    });
+
+                const toTreeX = tx - camPos.x;
+                const toTreeZ = tz - camPos.z;
+                const proj = toTreeX * normDirX + toTreeZ * normDirZ;
+                // Hanya periksa pohon yang batangnya berada di antara kamera dan rubah
+                if (proj < 0.4 || proj > distCamToFoxXZ - 0.4) continue;
+                const perpSq = (toTreeX * toTreeX + toTreeZ * toTreeZ) - (proj * proj);
+                if (perpSq > 9.0) continue; // Max 3m ke samping
+
+                // Batang pohon kandidat (mesh silinder ringan)
+                if (tree.userData && tree.userData.trunkGroup) {
+                    candidateTreeTrunks.push(tree.userData.trunkGroup);
+                } else {
+                    candidateTreeTrunks.push(tree);
                 }
             }
         }
@@ -916,49 +991,32 @@ function updateWolfPhysics(dt, elapsed) {
                 }
             }
 
-            // 2B. Uji Rimbun Daun Pohon (Analytical Sphere Intersection O(1) super cepat)
-            if (!isPointBlocked && candidateCanopies.length > 0) {
-                for (let c = 0; c < candidateCanopies.length; c++) {
-                    const canopy = candidateCanopies[c];
-                    const ocX = camPos.x - canopy.x;
-                    const ocY = camPos.y - canopy.y;
-                    const ocZ = camPos.z - canopy.z;
-                    const b = ocX * dirX + ocY * dirY + ocZ * dirZ;
-                    const cVal = ocX * ocX + ocY * ocY + ocZ * ocZ - canopy.radiusSq;
-                    if (b <= 0 || cVal <= 0) {
-                        const discr = b * b - cVal;
-                        if (discr >= 0) {
-                            const tHit = -b - Math.sqrt(discr);
-                            if (tHit >= 0.4 && tHit <= maxRayDist) {
-                                isPointBlocked = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. Uji Bukit / Terrain
+            // 3. Uji Bukit / Terrain di ANTARA Kamera dan Rubah
+            // Catatan: Berhenti 1.2m sebelum rubah agar tidak salah mendeteksi bukit / lereng tempat rubah berdiri
             if (!isPointBlocked && typeof getTerrainHeightFast === 'function') {
                 const stepSize = 0.5;
-                const maxSteps = Math.floor(maxRayDist / stepSize);
-                for (let sIdx = 1; sIdx <= maxSteps; sIdx++) {
-                    const s = sIdx * stepSize;
+                const minStepDist = 0.8;
+                const maxTerrainDist = Math.max(minStepDist, rayDist - 1.2);
+                const numSteps = Math.floor((maxTerrainDist - minStepDist) / stepSize);
+
+                for (let sIdx = 0; sIdx <= numSteps; sIdx++) {
+                    const s = minStepDist + sIdx * stepSize;
                     const sx = camPos.x + dirX * s;
                     const sz = camPos.z + dirZ * s;
                     const terrainH = getTerrainHeightFast(sx, sz);
                     const rayH = camPos.y + dirY * s;
-                    if (rayH < terrainH + 0.15) {
+                    // Terhalang hanya jika sinar benar-benar menembus ke dalam tanah
+                    if (rayH < terrainH - 0.05) {
                         isPointBlocked = true;
                         break;
                     }
                 }
             }
 
-            // SHORT-CIRCUIT REVOLUSIONER:
+            // SHORT-CIRCUIT:
             // Syarat Eagle Vision adalah Fox 100% tertutup.
             // Begitu ada SATU titik tubuh rubah yang terlihat jelas oleh kamera,
-            // Fox dipastikan TIDAK 100% tertutup. Hentikan raycast seketika!
+            // Fox dipastikan TIDAK tertutup. Hentikan raycast seketika!
             if (!isPointBlocked) {
                 isAllOccluded = false;
                 break;
@@ -1025,15 +1083,16 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
     earTwitchR.z = THREE.MathUtils.lerp(earTwitchR.z, 0, 7 * dt);
 
     const huntEarFold = -0.50 * huntRatio;
+    const earFoldZ = THREE.MathUtils.lerp(huntEarFold, -0.55, foxProneBlend);
     earLJoint.rotation.set(
-        earTwitchL.x + huntRatio * 0.15,
-        earTwitchL.y + turnRate * 0.08,
-        huntEarFold + earTwitchL.z
+        THREE.MathUtils.lerp(earTwitchL.x + huntRatio * 0.15, 0, foxProneBlend),
+        THREE.MathUtils.lerp(earTwitchL.y + turnRate * 0.08, 0, foxProneBlend),
+        earFoldZ + earTwitchL.z * (1.0 - foxProneBlend)
     );
     earRJoint.rotation.set(
-        earTwitchR.x - huntRatio * 0.15,
-        earTwitchR.y + turnRate * 0.08,
-        huntEarFold + earTwitchR.z
+        THREE.MathUtils.lerp(earTwitchR.x - huntRatio * 0.15, 0, foxProneBlend),
+        THREE.MathUtils.lerp(earTwitchR.y + turnRate * 0.08, 0, foxProneBlend),
+        earFoldZ + earTwitchR.z * (1.0 - foxProneBlend)
     );
 
     if (elapsed > nextTailFlickTime) {
@@ -1047,6 +1106,15 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
     const huntHeadPitch = -0.42 * huntRatio;
 
     if (!grounded) {
+        foxIdleTimer = 0;
+        manualProne = false;
+        foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, 0, Math.min(1.0, 12 * dt));
+
+        legFL.hip.rotation.x = THREE.MathUtils.lerp(legFL.hip.rotation.x, 0, 10 * dt);
+        legFR.hip.rotation.x = THREE.MathUtils.lerp(legFR.hip.rotation.x, 0, 10 * dt);
+        legBL.hip.rotation.x = THREE.MathUtils.lerp(legBL.hip.rotation.x, 0, 10 * dt);
+        legBR.hip.rotation.x = THREE.MathUtils.lerp(legBR.hip.rotation.x, 0, 10 * dt);
+
         const airPitch = THREE.MathUtils.clamp(-vertVel * 0.04, -0.35, 0.35);
         bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(bodyTiltGroup.rotation.z, airPitch, 10 * dt);
         bodyTiltGroup.position.y = THREE.MathUtils.lerp(bodyTiltGroup.position.y, BASE_HIP_Y, 10 * dt);
@@ -1081,6 +1149,15 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
         tailTipJoint.rotation.z = THREE.MathUtils.lerp(tailTipJoint.rotation.z, 0.15, 8 * dt);
 
     } else if (Math.abs(speed) > 0.05 || Math.abs(turnRate) > 0.05) {
+        foxIdleTimer = 0;
+        manualProne = false;
+        foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, 0, Math.min(1.0, 10 * dt));
+
+        legFL.hip.rotation.x = THREE.MathUtils.lerp(legFL.hip.rotation.x, 0, 10 * dt);
+        legFR.hip.rotation.x = THREE.MathUtils.lerp(legFR.hip.rotation.x, 0, 10 * dt);
+        legBL.hip.rotation.x = THREE.MathUtils.lerp(legBL.hip.rotation.x, 0, 10 * dt);
+        legBR.hip.rotation.x = THREE.MathUtils.lerp(legBR.hip.rotation.x, 0, 10 * dt);
+
         const isPivotOnly = Math.abs(speed) < 0.5 && Math.abs(turnRate) > 0.05;
 
         const dirSign = isPivotOnly
@@ -1129,7 +1206,17 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
         tailTipJoint.rotation.y = THREE.MathUtils.lerp(tailTipJoint.rotation.y, tailSteer * 0.7 + Math.cos(gaitPhase - 1.4) * 0.16 * moveActivity + tailFlickAmp, 10 * dt);
 
     } else {
-        // --- PERILAKU HIDUP ALAMI RUBAH (IDLE LOOK-AROUND & PAW FIDGETING) ---
+        // --- LOGIKA IDLE & TRANSISI PRONE / MENGENDAP (Sesuai sample-prone.html) ---
+        foxIdleTimer += dt;
+        const shouldProne = manualProne || (foxIdleTimer >= FOX_IDLE_PRONE_THRESHOLD);
+        if (shouldProne) {
+            foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, 1.0, Math.min(1.0, 3.8 * dt));
+        } else {
+            foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, 0.0, Math.min(1.0, 6.0 * dt));
+        }
+        window.foxIdleTimer = foxIdleTimer;
+        window.foxProneBlend = foxProneBlend;
+
         // A. KEPALA MENOLEH WASPADA KE KIRI / KANAN & MENGAMATI ALAM
         idleLookTimer -= dt;
         if (idleLookTimer <= 0) {
@@ -1159,27 +1246,45 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
         idleLookCurrentPitch = THREE.MathUtils.lerp(idleLookCurrentPitch, idleLookTargetPitch * (1 - huntRatio), lookSpeed * dt);
         idleLookCurrentRoll = THREE.MathUtils.lerp(idleLookCurrentRoll, idleLookTargetRoll * (1 - huntRatio), lookSpeed * dt);
 
-        const breath = Math.sin(elapsed * 2.3) * 0.014;
-        bodyTiltGroup.position.y = THREE.MathUtils.lerp(
-            bodyTiltGroup.position.y,
-            BASE_HIP_Y - huntHipDrop + breath - landingSquash,
-            8 * dt
-        );
-        bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(
-            bodyTiltGroup.rotation.z,
-            0.06 * huntRatio + landingSquash * 0.18,
-            8 * dt
-        );
+        // Stand vs Prone: Posisi & Kemiringan Tubuh
+        const standBreath = Math.sin(elapsed * 2.3) * 0.014;
+        const standBodyY = BASE_HIP_Y - huntHipDrop + standBreath - landingSquash;
+        const standBodyPitch = 0.06 * huntRatio + landingSquash * 0.18;
 
-        neckJoint.rotation.y = THREE.MathUtils.lerp(neckJoint.rotation.y, targetNeckYaw + idleLookCurrentYaw * 0.42, 8 * dt);
-        headJoint.rotation.y = THREE.MathUtils.lerp(headJoint.rotation.y, targetHeadYaw + idleLookCurrentYaw * 0.65, 9 * dt);
+        const proneBreath = Math.sin(elapsed * 3.0) * 0.008; // Napas tegang predator saat mengendap
+        const proneBodyY = 0.52 + proneBreath;
+        const proneBodyPitch = 0.14; // Condong ke depan siap menerkam
 
-        neckJoint.rotation.z = THREE.MathUtils.lerp(neckJoint.rotation.z, huntNeckPitch + idleLookCurrentPitch * 0.4 + Math.sin(elapsed * 2.3 - 0.5) * 0.02, 7 * dt);
-        headJoint.rotation.z = THREE.MathUtils.lerp(headJoint.rotation.z, huntHeadPitch + idleLookCurrentPitch * 0.65 - Math.sin(elapsed * 2.3 - 0.5) * 0.015, 8 * dt);
-        headJoint.rotation.x = THREE.MathUtils.lerp(headJoint.rotation.x, idleLookCurrentRoll, 8 * dt);
+        const targetBodyY = THREE.MathUtils.lerp(standBodyY, proneBodyY, foxProneBlend);
+        const targetBodyPitch = THREE.MathUtils.lerp(standBodyPitch, proneBodyPitch, foxProneBlend);
 
-        // B. PAW FIDGETING
-        if (!idlePawActiveLeg) {
+        bodyTiltGroup.position.y = THREE.MathUtils.lerp(bodyTiltGroup.position.y, targetBodyY, 8 * dt);
+        bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(bodyTiltGroup.rotation.z, targetBodyPitch, 8 * dt);
+
+        // Leher & Kepala (Stand look-around vs Prone ground-stalking)
+        const proneNeckYaw = Math.sin(elapsed * 1.5) * 0.05;
+        const proneHeadYaw = proneNeckYaw * 0.8;
+        const proneNeckPitch = -0.18;
+        const proneHeadPitch = 0.08;
+        const proneHeadRoll = 0.00;
+
+        const targetNeckY = THREE.MathUtils.lerp(targetNeckYaw + idleLookCurrentYaw * 0.42, proneNeckYaw, foxProneBlend);
+        const targetHeadY = THREE.MathUtils.lerp(targetHeadYaw + idleLookCurrentYaw * 0.65, proneHeadYaw, foxProneBlend);
+        neckJoint.rotation.y = THREE.MathUtils.lerp(neckJoint.rotation.y, targetNeckY, 8 * dt);
+        headJoint.rotation.y = THREE.MathUtils.lerp(headJoint.rotation.y, targetHeadY, 9 * dt);
+
+        const targetNeckZ = THREE.MathUtils.lerp(huntNeckPitch + idleLookCurrentPitch * 0.4 + Math.sin(elapsed * 2.3 - 0.5) * 0.02, proneNeckPitch, foxProneBlend);
+        const targetHeadZ = THREE.MathUtils.lerp(huntHeadPitch + idleLookCurrentPitch * 0.65 - Math.sin(elapsed * 2.3 - 0.5) * 0.015, proneHeadPitch, foxProneBlend);
+        neckJoint.rotation.z = THREE.MathUtils.lerp(neckJoint.rotation.z, targetNeckZ, 7 * dt);
+        headJoint.rotation.z = THREE.MathUtils.lerp(headJoint.rotation.z, targetHeadZ, 8 * dt);
+
+        const targetHeadX = THREE.MathUtils.lerp(idleLookCurrentRoll, proneHeadRoll, foxProneBlend);
+        headJoint.rotation.x = THREE.MathUtils.lerp(headJoint.rotation.x, targetHeadX, 8 * dt);
+
+        // B. PAW FIDGETING (Hanya saat berdiri, dimatikan saat mengendap/prone)
+        if (foxProneBlend > 0.08) {
+            idlePawActiveLeg = null;
+        } else if (!idlePawActiveLeg) {
             idlePawTimer -= dt;
             if (idlePawTimer <= 0) {
                 const rLeg = Math.random();
@@ -1196,7 +1301,7 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
         let pawLiftFL = 0, pawLiftFR = 0, pawLiftBL = 0, pawLiftBR = 0;
         let weightShiftRoll = 0;
 
-        if (idlePawActiveLeg) {
+        if (idlePawActiveLeg && foxProneBlend < 0.08) {
             idlePawElapsed += dt;
             const progress = idlePawElapsed / idlePawDuration;
             if (progress >= 1.0) {
@@ -1220,37 +1325,77 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
             }
         }
 
-        bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(bodyTiltGroup.rotation.x, safeBankRoll + weightShiftRoll, 6 * dt);
+        bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(bodyTiltGroup.rotation.x, THREE.MathUtils.lerp(safeBankRoll + weightShiftRoll, 0, foxProneBlend), 6 * dt);
 
+        // Kaki Menekuk Merayap / Splay Hip X (Khas Hewan Mengendap di Tanah dari sample-prone.html)
+        legFL.hip.rotation.x = THREE.MathUtils.lerp(legFL.hip.rotation.x, 0.10 * foxProneBlend, 7 * dt);
+        legFR.hip.rotation.x = THREE.MathUtils.lerp(legFR.hip.rotation.x, -0.10 * foxProneBlend, 7 * dt);
+        legBL.hip.rotation.x = THREE.MathUtils.lerp(legBL.hip.rotation.x, 0.22 * foxProneBlend, 7 * dt);
+        legBR.hip.rotation.x = THREE.MathUtils.lerp(legBR.hip.rotation.x, -0.22 * foxProneBlend, 7 * dt);
+
+        // Artikulasi Kaki Depan Kiri (FL)
         const baseHipFL = 0.26 * huntRatio, baseKneeFL = -0.48 * huntRatio, basePawFL = 0.22 * huntRatio;
-        legFL.hip.rotation.z = THREE.MathUtils.lerp(legFL.hip.rotation.z, baseHipFL - pawLiftFL * 0.16, 7 * dt);
-        legFL.knee.rotation.z = THREE.MathUtils.lerp(legFL.knee.rotation.z, baseKneeFL - pawLiftFL * 0.72, 7 * dt);
-        legFL.paw.rotation.z = THREE.MathUtils.lerp(legFL.paw.rotation.z, basePawFL + pawLiftFL * 0.55, 7 * dt);
+        const targetHipFL = THREE.MathUtils.lerp(baseHipFL - pawLiftFL * 0.16, 0.95, foxProneBlend);
+        const targetKneeFL = THREE.MathUtils.lerp(baseKneeFL - pawLiftFL * 0.72, -2.58, foxProneBlend);
+        const targetPawFL = THREE.MathUtils.lerp(basePawFL + pawLiftFL * 0.55, 0.56, foxProneBlend);
+        legFL.hip.rotation.z = THREE.MathUtils.lerp(legFL.hip.rotation.z, targetHipFL, 7 * dt);
+        legFL.knee.rotation.z = THREE.MathUtils.lerp(legFL.knee.rotation.z, targetKneeFL, 7 * dt);
+        legFL.paw.rotation.z = THREE.MathUtils.lerp(legFL.paw.rotation.z, targetPawFL, 7 * dt);
 
+        // Artikulasi Kaki Depan Kanan (FR)
         const baseHipFR = 0.26 * huntRatio, baseKneeFR = -0.48 * huntRatio, basePawFR = 0.22 * huntRatio;
-        legFR.hip.rotation.z = THREE.MathUtils.lerp(legFR.hip.rotation.z, baseHipFR - pawLiftFR * 0.16, 7 * dt);
-        legFR.knee.rotation.z = THREE.MathUtils.lerp(legFR.knee.rotation.z, baseKneeFR - pawLiftFR * 0.72, 7 * dt);
-        legFR.paw.rotation.z = THREE.MathUtils.lerp(legFR.paw.rotation.z, basePawFR + pawLiftFR * 0.55, 7 * dt);
+        const targetHipFR = THREE.MathUtils.lerp(baseHipFR - pawLiftFR * 0.16, 0.98, foxProneBlend);
+        const targetKneeFR = THREE.MathUtils.lerp(baseKneeFR - pawLiftFR * 0.72, -2.62, foxProneBlend);
+        const targetPawFR = THREE.MathUtils.lerp(basePawFR + pawLiftFR * 0.55, 0.54, foxProneBlend);
+        legFR.hip.rotation.z = THREE.MathUtils.lerp(legFR.hip.rotation.z, targetHipFR, 7 * dt);
+        legFR.knee.rotation.z = THREE.MathUtils.lerp(legFR.knee.rotation.z, targetKneeFR, 7 * dt);
+        legFR.paw.rotation.z = THREE.MathUtils.lerp(legFR.paw.rotation.z, targetPawFR, 7 * dt);
 
+        // Artikulasi Kaki Belakang Kiri (BL) - Menekuk tajam siap melompat
         const baseHipBL = -0.28 * huntRatio, baseKneeBL = 0.52 * huntRatio, basePawBL = -0.24 * huntRatio;
-        legBL.hip.rotation.z = THREE.MathUtils.lerp(legBL.hip.rotation.z, baseHipBL + pawLiftBL * 0.28, 7 * dt);
-        legBL.knee.rotation.z = THREE.MathUtils.lerp(legBL.knee.rotation.z, baseKneeBL + pawLiftBL * 0.38, 7 * dt);
-        legBL.paw.rotation.z = THREE.MathUtils.lerp(legBL.paw.rotation.z, basePawBL - pawLiftBL * 0.35, 7 * dt);
+        const targetHipBL = THREE.MathUtils.lerp(baseHipBL + pawLiftBL * 0.28, 0.65, foxProneBlend);
+        const targetKneeBL = THREE.MathUtils.lerp(baseKneeBL + pawLiftBL * 0.38, -1.95, foxProneBlend);
+        const targetPawBL = THREE.MathUtils.lerp(basePawBL - pawLiftBL * 0.35, 0.30, foxProneBlend);
+        legBL.hip.rotation.z = THREE.MathUtils.lerp(legBL.hip.rotation.z, targetHipBL, 7 * dt);
+        legBL.knee.rotation.z = THREE.MathUtils.lerp(legBL.knee.rotation.z, targetKneeBL, 7 * dt);
+        legBL.paw.rotation.z = THREE.MathUtils.lerp(legBL.paw.rotation.z, targetPawBL, 7 * dt);
 
+        // Artikulasi Kaki Belakang Kanan (BR) - Menekuk tajam siap melompat
         const baseHipBR = -0.28 * huntRatio, baseKneeBR = 0.52 * huntRatio, basePawBR = -0.24 * huntRatio;
-        legBR.hip.rotation.z = THREE.MathUtils.lerp(legBR.hip.rotation.z, baseHipBR + pawLiftBR * 0.28, 7 * dt);
-        legBR.knee.rotation.z = THREE.MathUtils.lerp(legBR.knee.rotation.z, baseKneeBR + pawLiftBR * 0.38, 7 * dt);
-        legBR.paw.rotation.z = THREE.MathUtils.lerp(legBR.paw.rotation.z, basePawBR - pawLiftBR * 0.35, 7 * dt);
+        const targetHipBR = THREE.MathUtils.lerp(baseHipBR + pawLiftBR * 0.28, 0.65, foxProneBlend);
+        const targetKneeBR = THREE.MathUtils.lerp(baseKneeBR + pawLiftBR * 0.38, -1.99, foxProneBlend);
+        const targetPawBR = THREE.MathUtils.lerp(basePawBR - pawLiftBR * 0.35, 0.30, foxProneBlend);
+        legBR.hip.rotation.z = THREE.MathUtils.lerp(legBR.hip.rotation.z, targetHipBR, 7 * dt);
+        legBR.knee.rotation.z = THREE.MathUtils.lerp(legBR.knee.rotation.z, targetKneeBR, 7 * dt);
+        legBR.paw.rotation.z = THREE.MathUtils.lerp(legBR.paw.rotation.z, targetPawBR, 7 * dt);
 
+        // Ekor (Mendatar di lantai dengan kibasan ujung waspada saat prone)
+        const proneTailTwitch = Math.sin(elapsed * 4.0) * 0.12;
         const idleTailLift = 0.34 * huntRatio;
-        tailBaseJoint.rotation.z = THREE.MathUtils.lerp(tailBaseJoint.rotation.z, idleTailLift + Math.sin(elapsed * 1.8) * 0.03, 6 * dt);
-        tailMidJoint.rotation.z = THREE.MathUtils.lerp(tailMidJoint.rotation.z, idleTailLift * 0.6 + Math.sin(elapsed * 1.8 - 0.6) * 0.04, 6 * dt);
-        tailTipJoint.rotation.z = THREE.MathUtils.lerp(tailTipJoint.rotation.z, 0.08 * huntRatio, 6 * dt);
+        const standTailBaseZ = idleTailLift + Math.sin(elapsed * 1.8) * 0.03;
+        const standTailMidZ = idleTailLift * 0.6 + Math.sin(elapsed * 1.8 - 0.6) * 0.04;
+        const standTailTipZ = 0.08 * huntRatio;
+
+        const targetTailBaseZ = THREE.MathUtils.lerp(standTailBaseZ, 0.05, foxProneBlend);
+        const targetTailMidZ = THREE.MathUtils.lerp(standTailMidZ, -0.05, foxProneBlend);
+        const targetTailTipZ = THREE.MathUtils.lerp(standTailTipZ, 0.02, foxProneBlend);
+
+        tailBaseJoint.rotation.z = THREE.MathUtils.lerp(tailBaseJoint.rotation.z, targetTailBaseZ, 6 * dt);
+        tailMidJoint.rotation.z = THREE.MathUtils.lerp(tailMidJoint.rotation.z, targetTailMidZ, 6 * dt);
+        tailTipJoint.rotation.z = THREE.MathUtils.lerp(tailTipJoint.rotation.z, targetTailTipZ, 6 * dt);
 
         const baseWave = Math.sin(elapsed * 1.6) * 0.055;
-        tailBaseJoint.rotation.y = THREE.MathUtils.lerp(tailBaseJoint.rotation.y, baseWave + tailFlickAmp * 0.45, 7 * dt);
-        tailMidJoint.rotation.y = THREE.MathUtils.lerp(tailMidJoint.rotation.y, Math.sin(elapsed * 1.6 - 0.7) * 0.085 + tailFlickAmp * 0.85, 7 * dt);
-        tailTipJoint.rotation.y = THREE.MathUtils.lerp(tailTipJoint.rotation.y, Math.sin(elapsed * 1.6 - 1.4) * 0.11 + tailFlickAmp * 1.2, 7 * dt);
+        const standTailBaseY = baseWave + tailFlickAmp * 0.45;
+        const standTailMidY = Math.sin(elapsed * 1.6 - 0.7) * 0.085 + tailFlickAmp * 0.85;
+        const standTailTipY = Math.sin(elapsed * 1.6 - 1.4) * 0.11 + tailFlickAmp * 1.2;
+
+        const targetTailBaseY = THREE.MathUtils.lerp(standTailBaseY, proneTailTwitch * 0.4, foxProneBlend);
+        const targetTailMidY = THREE.MathUtils.lerp(standTailMidY, proneTailTwitch * 0.7, foxProneBlend);
+        const targetTailTipY = THREE.MathUtils.lerp(standTailTipY, proneTailTwitch * 1.0, foxProneBlend);
+
+        tailBaseJoint.rotation.y = THREE.MathUtils.lerp(tailBaseJoint.rotation.y, targetTailBaseY, 7 * dt);
+        tailMidJoint.rotation.y = THREE.MathUtils.lerp(tailMidJoint.rotation.y, targetTailMidY, 7 * dt);
+        tailTipJoint.rotation.y = THREE.MathUtils.lerp(tailTipJoint.rotation.y, targetTailTipY, 7 * dt);
     }
 }
 window.updateWolfLocomotionAnimation = updateWolfLocomotionAnimation;

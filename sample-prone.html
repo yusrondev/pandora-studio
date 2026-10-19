@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubah Three.js - Stand, Sit, and Stalk/Prone</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #1a1d24;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #ui-panel {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            background: rgba(18, 22, 30, 0.92);
+            padding: 10px 18px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        button {
+            background: #2b3244;
+            color: #dce3f0;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        button:hover {
+            background: #3f4963;
+            transform: translateY(-2px);
+            color: #fff;
+        }
+
+        button.active {
+            background: #ff6a1a;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(255, 106, 26, 0.45);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <button id="btn-stand" class="active" onclick="setFoxState('STAND')">Berdiri (Stand)</button>
+        <button id="btn-sit" onclick="setFoxState('SIT')">Duduk Alami (Sit)</button>
+        <button id="btn-prone" onclick="setFoxState('PRONE')">Mengendap (Prone / Stalk)</button>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. PALET WARNA & GEOMETRY BUILDER
+        // ==========================================
+        const C = {
+            ORANGE: new THREE.Color(0xfb6d1b),
+            ORANGE_TOP: new THREE.Color(0xee5c11),
+            EYE_BROW: new THREE.Color(0xcc4709),
+            WHITE: new THREE.Color(0xfffcf7),
+            WHITE_SHADE: new THREE.Color(0xf2ece4),
+            DARK: new THREE.Color(0x272428),
+            DARK_PAW: new THREE.Color(0x1d1a1e),
+            EAR_IN: new THREE.Color(0xa3989c),
+            EAR_IN_DEEP: new THREE.Color(0x84797d)
+        };
+
+        function getFoxLegGradientColor(t) {
+            t = THREE.MathUtils.clamp(t, 0.0, 1.0);
+            if (t < 0.25) return new THREE.Color(0xfb6d1b).lerp(new THREE.Color(0xdc5c16), t / 0.25);
+            if (t < 0.50) return new THREE.Color(0xdc5c16).lerp(new THREE.Color(0xa23e0e), (t - 0.25) / 0.25);
+            if (t < 0.75) return new THREE.Color(0xa23e0e).lerp(new THREE.Color(0x562316), (t - 0.50) / 0.25);
+            return new THREE.Color(0x562316).lerp(new THREE.Color(0x1d1a1e), (t - 0.75) / 0.25);
+        }
+
+        const foxMaterial = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            flatShading: true,
+            roughness: 0.8,
+            metalness: 0.0,
+            side: THREE.DoubleSide
+        });
+
+        function buildMeshFromTriangles(tris) {
+            const positions = [];
+            const colors = [];
+            for (const t of tris) {
+                positions.push(...t.a, ...t.b, ...t.c);
+                if (t.cols) {
+                    colors.push(
+                        t.cols[0].r, t.cols[0].g, t.cols[0].b,
+                        t.cols[1].r, t.cols[1].g, t.cols[1].b,
+                        t.cols[2].r, t.cols[2].g, t.cols[2].b
+                    );
+                } else {
+                    colors.push(
+                        t.col.r, t.col.g, t.col.b,
+                        t.col.r, t.col.g, t.col.b,
+                        t.col.r, t.col.g, t.col.b
+                    );
+                }
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geo.computeVertexNormals();
+
+            const mesh = new THREE.Mesh(geo, foxMaterial);
+            mesh.castShadow = true;
+            mesh.receiveShadow = false;
+            return mesh;
+        }
+
+        function createHorizontalLoft(rings, colorFn, capFrontCol = null, capBackCol = null) {
+            const tris = [];
+            const verts = rings.map(r => {
+                const yTS = r.yTop * 0.82 + r.yMid * 0.18;
+                const yBS = r.yBot * 0.80 + r.yMid * 0.20;
+                return [
+                    [r.x, r.yTop, 0],
+                    [r.x, yTS, r.zTop],
+                    [r.x, r.yMid, r.zMid],
+                    [r.x, yBS, r.zBot],
+                    [r.x, r.yBot, 0],
+                    [r.x, yBS, -r.zBot],
+                    [r.x, r.yMid, -r.zMid],
+                    [r.x, yTS, -r.zTop]
+                ];
+            });
+
+            for (let i = 0; i < verts.length - 1; i++) {
+                const A = verts[i], B = verts[i + 1];
+                for (let j = 0; j < 8; j++) {
+                    const n = (j + 1) % 8;
+                    const col = colorFn(i, j);
+                    tris.push({ a: A[j], b: B[j], c: B[n], col });
+                    tris.push({ a: A[j], b: B[n], c: A[n], col });
+                }
+            }
+            if (capFrontCol) {
+                const A = verts[0];
+                const c = [rings[0].x, rings[0].yMid, 0];
+                for (let j = 0; j < 8; j++) {
+                    const n = (j + 1) % 8;
+                    tris.push({ a: c, b: A[n], c: A[j], col: capFrontCol(j) });
+                }
+            }
+            if (capBackCol) {
+                const B = verts[verts.length - 1];
+                const last = rings[rings.length - 1];
+                const c = [last.x, last.yMid, 0];
+                for (let j = 0; j < 8; j++) {
+                    const n = (j + 1) % 8;
+                    tris.push({ a: c, b: B[j], c: B[n], col: capBackCol(j) });
+                }
+            }
+            return buildMeshFromTriangles(tris);
+        }
+
+        function createVerticalLimb(rings, colorFn, capBottom = true) {
+            const tris = [];
+            const verts = rings.map(r => {
+                const xF = r.x - r.rx * (r.frontExt || 1.0);
+                const xB = r.x + r.rx * (r.backExt || 1.0);
+                const xMF = r.x - r.rx * 0.72 * (r.frontExt || 1.0);
+                const xMB = r.x + r.rx * 0.72 * (r.backExt || 1.0);
+                const zS = r.rz;
+                const zMS = r.rz * 0.72;
+                return [
+                    [xF, r.y, 0],
+                    [xMF, r.y, zMS],
+                    [r.x, r.y, zS],
+                    [xMB, r.y, zMS],
+                    [xB, r.y, 0],
+                    [xMB, r.y, -zMS],
+                    [r.x, r.y, -zS],
+                    [xMF, r.y, -zMS]
+                ];
+            });
+
+            for (let i = 0; i < verts.length - 1; i++) {
+                const A = verts[i], B = verts[i + 1];
+                for (let j = 0; j < 8; j++) {
+                    const n = (j + 1) % 8;
+                    const c = colorFn(i, j, rings[i], rings[i + 1]);
+                    if (Array.isArray(c) && c.length >= 2) {
+                        tris.push({ a: A[j], b: A[n], c: B[n], cols: [c[0], c[0], c[1]] });
+                        tris.push({ a: A[j], b: B[n], c: B[j], cols: [c[0], c[1], c[1]] });
+                    } else {
+                        const col = Array.isArray(c) ? c[0] : c;
+                        tris.push({ a: A[j], b: A[n], c: B[n], col });
+                        tris.push({ a: A[j], b: B[n], c: B[j], col });
+                    }
+                }
+            }
+            if (capBottom) {
+                const last = rings[rings.length - 1];
+                const c = [last.x, last.y, 0];
+                for (let j = 0; j < 8; j++) {
+                    const n = (j + 1) % 8;
+                    tris.push({ a: c, b: verts[verts.length - 1][n], c: verts[verts.length - 1][j], col: C.DARK_PAW });
+                }
+            }
+            return buildMeshFromTriangles(tris);
+        }
+
+        // ==========================================
+        // 2. MODEL RUBAH LENGKAP (EKOR SOLID ANTI BOLONG)
+        // ==========================================
+        function createWolfCharacterModel() {
+            const baseScale = 0.65;
+            const foxRoot = new THREE.Group();
+            foxRoot.scale.set(baseScale, baseScale, baseScale);
+
+            const bodyTiltGroup = new THREE.Group();
+            const BASE_HIP_Y = 1.62;
+            bodyTiltGroup.position.set(0, BASE_HIP_Y, 0);
+            foxRoot.add(bodyTiltGroup);
+
+            // Torso
+            const torsoRings = [
+                { x: -0.68, yTop: 0.74, yMid: 0.25, yBot: -0.22, zTop: 0.30, zMid: 0.38, zBot: 0.24 },
+                { x: -0.42, yTop: 0.66, yMid: 0.15, yBot: -0.34, zTop: 0.33, zMid: 0.44, zBot: 0.27 },
+                { x: -0.02, yTop: 0.66, yMid: 0.17, yBot: -0.30, zTop: 0.34, zMid: 0.46, zBot: 0.27 },
+                { x: 0.38, yTop: 0.69, yMid: 0.22, yBot: -0.22, zTop: 0.32, zMid: 0.44, zBot: 0.23 },
+                { x: 0.75, yTop: 0.65, yMid: 0.23, yBot: -0.16, zTop: 0.30, zMid: 0.41, zBot: 0.21 },
+                { x: 1.08, yTop: 0.56, yMid: 0.19, yBot: -0.18, zTop: 0.28, zMid: 0.39, zBot: 0.19 },
+                { x: 1.35, yTop: 0.36, yMid: 0.14, yBot: -0.06, zTop: 0.15, zMid: 0.21, zBot: 0.13 }
+            ];
+            bodyTiltGroup.add(createHorizontalLoft(torsoRings, (seg, face) => {
+                const isBot = (face === 3 || face === 4);
+                if (seg === 0 && isBot) return C.WHITE;
+                if (seg <= 3 && isBot) return C.WHITE_SHADE;
+                if (face === 0 || face === 7) return C.ORANGE_TOP;
+                return C.ORANGE;
+            }, () => C.WHITE, () => C.ORANGE));
+
+            // Leher
+            const neckJoint = new THREE.Group();
+            neckJoint.position.set(-0.55, 0.42, 0);
+            bodyTiltGroup.add(neckJoint);
+
+            const neckRings = [
+                { x: 0.02, yTop: 0.32, yMid: -0.12, yBot: -0.58, zTop: 0.28, zMid: 0.36, zBot: 0.24 },
+                { x: -0.14, yTop: 0.56, yMid: 0.18, yBot: -0.22, zTop: 0.26, zMid: 0.34, zBot: 0.23 },
+                { x: -0.28, yTop: 0.78, yMid: 0.46, yBot: 0.14, zTop: 0.25, zMid: 0.33, zBot: 0.22 }
+            ];
+            neckJoint.add(createHorizontalLoft(neckRings, (seg, face) => {
+                if (face === 4) return C.WHITE;
+                if (face === 3 && seg === 1) return C.WHITE_SHADE;
+                if (face === 0 || face === 7) return C.ORANGE_TOP;
+                return C.ORANGE;
+            }));
+
+            // Kepala
+            const headJoint = new THREE.Group();
+            headJoint.position.set(-0.26, 0.48, 0);
+            neckJoint.add(headJoint);
+
+            function createDetailedHead() {
+                const tris = [];
+                function quad(p1, p2, p3, p4, col) {
+                    tris.push({ a: p1, b: p2, c: p3, col });
+                    tris.push({ a: p1, b: p3, c: p4, col });
+                }
+                function tri(p1, p2, p3, col) {
+                    tris.push({ a: p1, b: p2, c: p3, col });
+                }
+                for (const s of [1, -1]) {
+                    function addFace(p1, p2, p3, p4, col) {
+                        const a = [p1[0], p1[1], p1[2] * s];
+                        const b = [p2[0], p2[1], p2[2] * s];
+                        const c = [p3[0], p3[1], p3[2] * s];
+                        if (!p4) {
+                            if (s === 1) tri(a, b, c, col);
+                            else tri(a, c, b, col);
+                        } else {
+                            const d = [p4[0], p4[1], p4[2] * s];
+                            if (s === 1) quad(a, b, c, d, col);
+                            else quad(a, d, c, b, col);
+                        }
+                    }
+                    const noseCenter = [-0.82, -0.10, 0.00], nTipTop = [-0.82, -0.06, 0.00], nTipSide = [-0.80, -0.10, 0.058], nTipBot = [-0.78, -0.15, 0.00];
+                    const m1Top = [-0.74, -0.01, 0.00], m1Upper = [-0.74, -0.05, 0.082], m1Mid = [-0.72, -0.12, 0.115], m1Bot = [-0.70, -0.18, 0.00];
+                    const m2Top = [-0.58, 0.09, 0.00], m2Upper = [-0.58, 0.03, 0.15], m2Mid = [-0.56, -0.08, 0.21], m2Low = [-0.54, -0.18, 0.15], m2Bot = [-0.53, -0.21, 0.00];
+                    const brTop = [-0.46, 0.17, 0.00], brInner = [-0.46, 0.13, 0.15], eyeAnt = [-0.49, 0.04, 0.24], cheekAnt = [-0.42, -0.05, 0.33], jawMid = [-0.40, -0.19, 0.22], jawBot = [-0.38, -0.25, 0.00];
+                    const fhTop = [-0.26, 0.34, 0.00], fhSide = [-0.26, 0.30, 0.23], eyePost = [-0.28, 0.15, 0.33], cheekTip = [-0.18, 0.02, 0.48], cheekUp = [-0.04, 0.12, 0.41], cheekLow = [-0.19, -0.15, 0.35], throat = [-0.18, -0.28, 0.00];
+                    const skTop = [0.04, 0.33, 0.00], skUpper = [0.04, 0.26, 0.29], skMid = [0.06, 0.00, 0.42], skLow = [0.06, -0.20, 0.26], skBot = [0.06, -0.32, 0.00];
+
+                    addFace(noseCenter, nTipTop, nTipSide, null, C.DARK);
+                    addFace(noseCenter, nTipSide, nTipBot, null, C.DARK);
+                    addFace(nTipTop, m1Top, m1Upper, nTipSide, C.DARK);
+                    addFace(nTipSide, m1Upper, m1Mid, nTipBot, C.DARK);
+                    addFace(nTipBot, m1Mid, m1Bot, null, C.DARK);
+                    addFace(m1Top, m2Top, m2Upper, m1Upper, C.ORANGE_TOP);
+                    addFace(m1Upper, m2Upper, eyeAnt, m2Mid, C.ORANGE);
+                    addFace(m1Upper, m2Mid, m1Mid, null, C.WHITE);
+                    addFace(m1Mid, m2Mid, m2Low, m1Bot, C.WHITE);
+                    addFace(m1Bot, m2Low, m2Bot, null, C.WHITE_SHADE);
+                    addFace(m2Top, brTop, brInner, m2Upper, C.ORANGE_TOP);
+                    addFace(m2Upper, brInner, eyeAnt, null, C.EYE_BROW);
+                    addFace(brTop, fhTop, fhSide, brInner, C.ORANGE_TOP);
+                    addFace(brInner, fhSide, eyePost, eyeAnt, C.EYE_BROW);
+                    addFace(eyeAnt, eyePost, cheekTip, cheekAnt, C.ORANGE);
+                    addFace(m2Upper, eyeAnt, cheekAnt, m2Mid, C.ORANGE);
+                    addFace(m2Mid, cheekAnt, jawMid, m2Low, C.WHITE);
+                    addFace(cheekAnt, cheekTip, cheekLow, jawMid, C.WHITE);
+                    addFace(cheekTip, cheekUp, cheekLow, null, C.WHITE);
+                    addFace(m2Low, jawMid, jawBot, m2Bot, C.WHITE_SHADE);
+                    addFace(jawMid, cheekLow, throat, jawBot, C.WHITE);
+                    addFace(fhTop, skTop, skUpper, fhSide, C.ORANGE_TOP);
+                    addFace(fhSide, skUpper, cheekUp, eyePost, C.ORANGE);
+                    addFace(eyePost, cheekUp, cheekTip, null, C.ORANGE);
+                    addFace(cheekUp, skUpper, skMid, cheekLow, C.ORANGE);
+                    addFace(cheekLow, skMid, skLow, throat, C.WHITE);
+                    addFace(throat, skLow, skBot, null, C.WHITE);
+
+                    const baseNeckConnect = [0.15, -0.10, 0.00];
+                    addFace(skTop, baseNeckConnect, skUpper, null, C.ORANGE_TOP);
+                    addFace(skUpper, baseNeckConnect, skMid, null, C.ORANGE);
+                    addFace(skMid, baseNeckConnect, skLow, null, C.ORANGE);
+                    addFace(skLow, baseNeckConnect, skBot, null, C.WHITE);
+                    addFace(skBot, baseNeckConnect, throat, null, C.WHITE);
+                }
+                return buildMeshFromTriangles(tris);
+            }
+            headJoint.add(createDetailedHead());
+
+            // Telinga
+            function createArticulatedEar(isLeft) {
+                const s = isLeft ? -1 : 1;
+                const earPivot = new THREE.Group();
+                const px = -0.08, py = 0.25, pz = 0.22 * s;
+                earPivot.position.set(px, py, pz);
+                const tris = [];
+                function quad(p1, p2, p3, p4, col) {
+                    tris.push({ a: p1, b: p2, c: p3, col });
+                    tris.push({ a: p1, b: p3, c: p4, col });
+                }
+                function tri(p1, p2, p3, col) {
+                    tris.push({ a: p1, b: p2, c: p3, col });
+                }
+                function addEarFace(p1, p2, p3, p4, col) {
+                    const a = [p1[0] - px, p1[1] - py, p1[2] * s - pz];
+                    const b = [p2[0] - px, p2[1] - py, p2[2] * s - pz];
+                    const c = [p3[0] - px, p3[1] - py, p3[2] * s - pz];
+                    if (!p4) {
+                        if (s === 1) tri(a, b, c, col);
+                        else tri(a, c, b, col);
+                    } else {
+                        const d = [p4[0] - px, p4[1] - py, p4[2] * s - pz];
+                        if (s === 1) quad(a, b, c, d, col);
+                        else quad(a, d, c, b, col);
+                    }
+                }
+                const eInF = [-0.21, 0.30, 0.13], eOutF = [-0.15, 0.17, 0.37], eOutB = [0.05, 0.23, 0.33], eInB = [0.00, 0.32, 0.11];
+                const eCavBot = [-0.11, 0.25, 0.25], eCavMid = [-0.09, 0.47, 0.27];
+                const eMidInF = [-0.17, 0.55, 0.18], eMidOutF = [-0.09, 0.49, 0.43], eMidOutB = [0.07, 0.51, 0.37], eMidInB = [0.02, 0.56, 0.17];
+                const eTopInF = [-0.10, 0.74, 0.25], eTopOutF = [-0.05, 0.71, 0.39], eTopBack = [0.04, 0.72, 0.33], eTip = [-0.02, 0.87, 0.32];
+
+                addEarFace(eInF, eOutF, eCavBot, null, C.EAR_IN_DEEP);
+                addEarFace(eInF, eCavBot, eCavMid, eMidInF, C.EAR_IN);
+                addEarFace(eCavBot, eOutF, eMidOutF, eCavMid, C.EAR_IN_DEEP);
+                addEarFace(eMidInF, eCavMid, eTopOutF, eTopInF, C.EAR_IN);
+                addEarFace(eCavMid, eMidOutF, eTopOutF, null, C.EAR_IN);
+                addEarFace(eInF, eMidInF, eMidInB, eInB, C.DARK);
+                addEarFace(eMidInF, eTopInF, eTopBack, eMidInB, C.DARK);
+                addEarFace(eOutF, eOutB, eMidOutB, eMidOutF, C.ORANGE);
+                addEarFace(eMidOutF, eMidOutB, eTopBack, eTopOutF, C.DARK);
+                addEarFace(eOutB, eInB, eMidInB, eMidOutB, C.ORANGE_TOP);
+                addEarFace(eTopInF, eTopOutF, eTip, null, C.DARK);
+                addEarFace(eTopOutF, eTopBack, eTip, null, C.DARK);
+                addEarFace(eTopBack, eTopInF, eTip, null, C.DARK);
+
+                earPivot.add(buildMeshFromTriangles(tris));
+                headJoint.add(earPivot);
+                return earPivot;
+            }
+            const earRJoint = createArticulatedEar(false);
+            const earLJoint = createArticulatedEar(true);
+
+            // ==========================================
+            // EKOR MULTI-SEGMEN (DITUTUP SEMPURNA ANTI LUBANG)
+            // ==========================================
+            const tailBaseJoint = new THREE.Group();
+            tailBaseJoint.position.set(1.32, 0.15, 0);
+            bodyTiltGroup.add(tailBaseJoint);
+
+            // Segmen 1 (ditutup ujung belakangnya)
+            tailBaseJoint.add(createHorizontalLoft([
+                { x: 0.00, yTop: 0.19, yMid: 0.00, yBot: -0.19, zTop: 0.15, zMid: 0.22, zBot: 0.14 },
+                { x: 0.42, yTop: 0.07, yMid: -0.21, yBot: -0.48, zTop: 0.26, zMid: 0.38, zBot: 0.24 },
+                { x: 0.86, yTop: -0.15, yMid: -0.48, yBot: -0.80, zTop: 0.32, zMid: 0.45, zBot: 0.30 }
+            ], (s, f) => (f === 0 || f === 7) ? C.ORANGE_TOP : C.ORANGE, () => C.ORANGE, () => C.ORANGE));
+
+            // Segmen 2 (posisi overlap rapat & ditutup kedua ujungnya)
+            const tailMidJoint = new THREE.Group();
+            tailMidJoint.position.set(0.78, -0.46, 0); // Dimundurkan -0.06 agar masuk ke segmen 1
+            tailBaseJoint.add(tailMidJoint);
+
+            tailMidJoint.add(createHorizontalLoft([
+                { x: 0.00, yTop: 0.33, yMid: 0.00, yBot: -0.33, zTop: 0.33, zMid: 0.46, zBot: 0.31 },
+                { x: 0.50, yTop: 0.04, yMid: -0.28, yBot: -0.58, zTop: 0.26, zMid: 0.37, zBot: 0.24 },
+                { x: 0.90, yTop: -0.13, yMid: -0.36, yBot: -0.58, zTop: 0.18, zMid: 0.26, zBot: 0.16 }
+            ], (s, f) => (f === 0 || f === 7) ? C.ORANGE_TOP : C.ORANGE, () => C.ORANGE, () => C.ORANGE));
+
+            // Segmen 3 (overlap ke segmen 2)
+            const tailTipJoint = new THREE.Group();
+            tailTipJoint.position.set(0.82, -0.35, 0);
+            tailMidJoint.add(tailTipJoint);
+
+            tailTipJoint.add(createHorizontalLoft([
+                { x: 0.00, yTop: 0.22, yMid: 0.00, yBot: -0.21, zTop: 0.18, zMid: 0.26, zBot: 0.16 },
+                { x: 0.35, yTop: 0.13, yMid: -0.02, yBot: -0.15, zTop: 0.09, zMid: 0.13, zBot: 0.08 },
+                { x: 0.64, yTop: 0.05, yMid: 0.02, yBot: 0.00, zTop: 0.015, zMid: 0.02, zBot: 0.015 }
+            ], () => C.WHITE, () => C.ORANGE, () => C.WHITE));
+
+            // Kaki Depan
+            function createArticulatedFrontLeg(isLeft) {
+                const side = isLeft ? -1 : 1;
+                const shoulderJoint = new THREE.Group();
+                shoulderJoint.position.set(-0.42, -0.10, 0.28 * side);
+
+                shoulderJoint.add(createVerticalLimb([
+                    { x: 0.00, y: 0.14, rx: 0.20, rz: 0.15 },
+                    { x: 0.01, y: -0.28, rx: 0.14, rz: 0.12 },
+                    { x: 0.02, y: -0.64, rx: 0.105, rz: 0.095 }
+                ], (s) => (s === 0 ? [C.ORANGE, C.ORANGE] : [C.ORANGE, getFoxLegGradientColor(0.18)]), false));
+
+                const kneeJoint = new THREE.Group();
+                kneeJoint.position.set(0.02, -0.62, 0);
+                shoulderJoint.add(kneeJoint);
+
+                kneeJoint.add(createVerticalLimb([
+                    { x: 0.00, y: 0.02, rx: 0.105, rz: 0.095 },
+                    { x: -0.005, y: -0.16, rx: 0.095, rz: 0.088 },
+                    { x: -0.010, y: -0.34, rx: 0.085, rz: 0.080 },
+                    { x: -0.015, y: -0.50, rx: 0.080, rz: 0.076 },
+                    { x: -0.020, y: -0.67, rx: 0.075, rz: 0.075 }
+                ], (s) => {
+                    const t0 = 0.18 + (s / 4) * 0.82, t1 = 0.18 + ((s + 1) / 4) * 0.82;
+                    return [getFoxLegGradientColor(t0), getFoxLegGradientColor(t1)];
+                }, false));
+
+                const pawJoint = new THREE.Group();
+                pawJoint.position.set(-0.02, -0.65, 0);
+                kneeJoint.add(pawJoint);
+
+                pawJoint.add(createVerticalLimb([
+                    { x: 0.00, y: 0.02, rx: 0.075, rz: 0.075 },
+                    { x: -0.06, y: -0.12, rx: 0.115, rz: 0.095, frontExt: 1.35 },
+                    { x: -0.08, y: -0.25, rx: 0.115, rz: 0.10, frontExt: 1.40 }
+                ], () => C.DARK_PAW, true));
+
+                bodyTiltGroup.add(shoulderJoint);
+                return { hip: shoulderJoint, knee: kneeJoint, paw: pawJoint };
+            }
+
+            // Kaki Belakang
+            function createArticulatedBackLeg(isLeft) {
+                const side = isLeft ? -1 : 1;
+                const hipJoint = new THREE.Group();
+                hipJoint.position.set(1.02, 0.00, 0.25 * side);
+
+                hipJoint.add(createVerticalLimb([
+                    { x: 0.00, y: 0.16, rx: 0.24, rz: 0.16 },
+                    { x: 0.11, y: -0.29, rx: 0.18, rz: 0.13 },
+                    { x: 0.20, y: -0.70, rx: 0.115, rz: 0.10 }
+                ], (s) => (s === 0 ? [C.ORANGE, C.ORANGE] : [C.ORANGE, getFoxLegGradientColor(0.18)]), false));
+
+                const hockJoint = new THREE.Group();
+                hockJoint.position.set(0.20, -0.68, 0);
+                hipJoint.add(hockJoint);
+
+                hockJoint.add(createVerticalLimb([
+                    { x: 0.00, y: 0.02, rx: 0.115, rz: 0.10 },
+                    { x: -0.02, y: -0.18, rx: 0.102, rz: 0.09 },
+                    { x: -0.04, y: -0.37, rx: 0.090, rz: 0.08 },
+                    { x: -0.055, y: -0.54, rx: 0.085, rz: 0.077 },
+                    { x: -0.070, y: -0.70, rx: 0.080, rz: 0.075 }
+                ], (s) => {
+                    const t0 = 0.18 + (s / 4) * 0.82, t1 = 0.18 + ((s + 1) / 4) * 0.82;
+                    return [getFoxLegGradientColor(t0), getFoxLegGradientColor(t1)];
+                }, false));
+
+                const pawJoint = new THREE.Group();
+                pawJoint.position.set(-0.07, -0.68, 0);
+                hockJoint.add(pawJoint);
+
+                pawJoint.add(createVerticalLimb([
+                    { x: 0.00, y: 0.02, rx: 0.08, rz: 0.075 },
+                    { x: -0.06, y: -0.12, rx: 0.115, rz: 0.095, frontExt: 1.35 },
+                    { x: -0.08, y: -0.26, rx: 0.115, rz: 0.10, frontExt: 1.40 }
+                ], () => C.DARK_PAW, true));
+
+                bodyTiltGroup.add(hipJoint);
+                return { hip: hipJoint, knee: hockJoint, paw: pawJoint };
+            }
+
+            return {
+                root: foxRoot,
+                bodyTiltGroup,
+                neckJoint,
+                headJoint,
+                earLJoint,
+                earRJoint,
+                tailBaseJoint,
+                tailMidJoint,
+                tailTipJoint,
+                legFL: createArticulatedFrontLeg(true),
+                legFR: createArticulatedFrontLeg(false),
+                legBL: createArticulatedBackLeg(true),
+                legBR: createArticulatedBackLeg(false),
+                BASE_HIP_Y
+            };
+        }
+
+        // ==========================================
+        // 3. LOGIKA ANIMASI & STATE MACHINE
+        // ==========================================
+        let foxState = 'STAND'; // 'STAND' | 'SIT' | 'PRONE'
+        let stateTime = 0;
+
+        function setFoxState(newState) {
+            foxState = newState;
+            stateTime = 0;
+            document.querySelectorAll('#ui-panel button').forEach(b => b.classList.remove('active'));
+            if (newState === 'STAND') document.getElementById('btn-stand').classList.add('active');
+            if (newState === 'SIT') document.getElementById('btn-sit').classList.add('active');
+            if (newState === 'PRONE') document.getElementById('btn-prone').classList.add('active');
+        }
+
+        function updateFoxAnimationSystem(wolf, dt, elapsed) {
+            stateTime += dt;
+            const lerpRate = Math.min(1.0, 7.0 * dt);
+            const breath = Math.sin(elapsed * 2.2) * 0.012;
+
+            // Target Posisi Default: Stand
+            let targetBodyY = wolf.BASE_HIP_Y + breath;
+            let targetBodyPitch = 0;
+            let targetBodyRoll = 0;
+
+            let targetNeckPitch = Math.sin(elapsed * 2.2) * 0.02;
+            let targetNeckYaw = 0;
+            let targetHeadPitch = -Math.sin(elapsed * 2.2) * 0.015;
+            let targetHeadYaw = 0;
+            let targetHeadRoll = 0;
+
+            let targetTailBaseZ = 0.05, targetTailBaseY = Math.sin(elapsed * 1.5) * 0.06;
+            let targetTailMidZ = 0.08, targetTailMidY = Math.sin(elapsed * 1.5 - 0.4) * 0.08;
+            let targetTailTipZ = 0.05;
+
+            // Kaki Depan
+            let flHipX = 0, flHipY = 0, flHipZ = 0, flKneeZ = 0, flPawZ = 0;
+            let frHipX = 0, frHipY = 0, frHipZ = 0, frKneeZ = 0, frPawZ = 0;
+
+            // Kaki Belakang
+            let blHipX = 0, blHipY = 0, blHipZ = 0, blKneeZ = 0, blPawZ = 0;
+            let brHipX = 0, brHipY = 0, brHipZ = 0, brKneeZ = 0, brPawZ = 0;
+
+            let earLZ = Math.sin(elapsed * 3.5) * 0.03;
+            let earRZ = -Math.sin(elapsed * 3.5) * 0.03;
+
+            // -----------------------------------------------------------------
+            // POSE 1: SIT (DUDUK ALAMI - PERSIS FOTO REAL)
+            // -----------------------------------------------------------------
+            if (foxState === 'SIT') {
+                targetBodyY = 1.08 + breath * 0.25;
+                targetBodyPitch = -0.82; // Panggul jatuh ke lantai, dada tegak
+
+                targetNeckPitch = 0.60;
+                targetHeadPitch = 0.22;
+
+                // Kaki depan tegak menopang tepat di Y = 0
+                flHipZ = 1.35;
+                flKneeZ = -0.92;
+                flPawZ = -0.42;
+
+                frHipZ = 1.35;
+                frKneeZ = -0.92;
+                frPawZ = -0.42;
+
+                // Kaki belakang terlipat rapi menempel tanah
+                blHipZ = -1.50;
+                blHipX = 0.22;
+                blKneeZ = 1.85;
+                blPawZ = -0.35;
+
+                brHipZ = -1.50;
+                brHipX = -0.22;
+                brKneeZ = 1.85;
+                brPawZ = -0.35;
+
+                // Ekor melengkung rapat tanpa rongga bolong
+                targetTailBaseZ = 1.55;
+                targetTailBaseY = 0.38;
+                targetTailMidZ = 0.25;
+                targetTailMidY = 0.45;
+                targetTailTipZ = 0.15;
+
+                earLZ = -0.15;
+                earRZ = -0.15;
+
+                // -----------------------------------------------------------------
+                // POSE 2: PRONE / MENGENDAP (STALKING PREDATOR)
+                // -----------------------------------------------------------------
+            } else if (foxState === 'PRONE') {
+                // Tubuh turun mendekati tanah, torso agak menunduk ke depan
+                targetBodyY = 0.52 + Math.sin(elapsed * 3.0) * 0.008; // Napas tegang predator
+                targetBodyPitch = 0.14;  // Condong ke depan
+                targetBodyRoll = 0.00;
+
+                // Leher & Kepala menempel rendah ke tanah, mata mengunci target
+                targetNeckPitch = -0.18;
+                targetNeckYaw = Math.sin(elapsed * 1.5) * 0.05;
+                targetHeadPitch = 0.08;
+                targetHeadYaw = targetNeckYaw * 0.8;
+                targetHeadRoll = 0.00;
+
+                // Kaki depan dilipat merayap rendah ke depan
+                flHipZ = 0.95;
+                flKneeZ = -2.58;
+                flPawZ = 0.56;
+                flHipX = 0.10;
+
+                frHipZ = 0.98;
+                frKneeZ = -2.62;
+                frPawZ = 0.54;
+                frHipX = -0.10;
+
+                // Kaki belakang menekuk tajam siap melompat menerkam (ready to pounce)
+                blHipZ = 0.65;
+                blHipX = 0.22;
+                blKneeZ = -1.95;
+                blPawZ = 0.30;
+
+                brHipZ = 0.65;
+                brHipX = -0.22;
+                brKneeZ = -1.99;
+                brPawZ = 0.30;
+
+                // Ekor lurus lurus mendatar di lantai, sesekali mengibaskan ujungnya secara waspada
+                const tailTwitch = Math.sin(elapsed * 4.0) * 0.12;
+                targetTailBaseZ = 0.05;
+                targetTailBaseY = tailTwitch * 0.4;
+                targetTailMidZ = -0.05;
+                targetTailMidY = tailTwitch * 0.7;
+                targetTailTipZ = 0.02;
+
+                // Telinga terlipat datar ke belakang (fokus & kamuflase mengendap)
+                earLZ = -0.55;
+                earRZ = -0.55;
+            }
+
+            // Interpolasi Halus (Lerp)
+            wolf.bodyTiltGroup.position.y = THREE.MathUtils.lerp(wolf.bodyTiltGroup.position.y, targetBodyY, lerpRate);
+            wolf.bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(wolf.bodyTiltGroup.rotation.z, targetBodyPitch, lerpRate);
+            wolf.bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(wolf.bodyTiltGroup.rotation.x, targetBodyRoll, lerpRate);
+
+            wolf.neckJoint.rotation.z = THREE.MathUtils.lerp(wolf.neckJoint.rotation.z, targetNeckPitch, lerpRate);
+            wolf.neckJoint.rotation.y = THREE.MathUtils.lerp(wolf.neckJoint.rotation.y, targetNeckYaw, lerpRate);
+
+            wolf.headJoint.rotation.z = THREE.MathUtils.lerp(wolf.headJoint.rotation.z, targetHeadPitch, lerpRate);
+            wolf.headJoint.rotation.y = THREE.MathUtils.lerp(wolf.headJoint.rotation.y, targetHeadYaw, lerpRate);
+            wolf.headJoint.rotation.x = THREE.MathUtils.lerp(wolf.headJoint.rotation.x, targetHeadRoll, lerpRate);
+
+            wolf.earLJoint.rotation.z = THREE.MathUtils.lerp(wolf.earLJoint.rotation.z, earLZ, lerpRate);
+            wolf.earRJoint.rotation.z = THREE.MathUtils.lerp(wolf.earRJoint.rotation.z, earRZ, lerpRate);
+
+            // Kaki Depan Kiri (FL)
+            wolf.legFL.hip.rotation.z = THREE.MathUtils.lerp(wolf.legFL.hip.rotation.z, flHipZ, lerpRate);
+            wolf.legFL.hip.rotation.y = THREE.MathUtils.lerp(wolf.legFL.hip.rotation.y, flHipY, lerpRate);
+            wolf.legFL.hip.rotation.x = THREE.MathUtils.lerp(wolf.legFL.hip.rotation.x, flHipX, lerpRate);
+            wolf.legFL.knee.rotation.z = THREE.MathUtils.lerp(wolf.legFL.knee.rotation.z, flKneeZ, lerpRate);
+            wolf.legFL.paw.rotation.z = THREE.MathUtils.lerp(wolf.legFL.paw.rotation.z, flPawZ, lerpRate);
+
+            // Kaki Depan Kanan (FR)
+            wolf.legFR.hip.rotation.z = THREE.MathUtils.lerp(wolf.legFR.hip.rotation.z, frHipZ, lerpRate);
+            wolf.legFR.hip.rotation.x = THREE.MathUtils.lerp(wolf.legFR.hip.rotation.x, frHipX, lerpRate);
+            wolf.legFR.knee.rotation.z = THREE.MathUtils.lerp(wolf.legFR.knee.rotation.z, frKneeZ, lerpRate);
+            wolf.legFR.paw.rotation.z = THREE.MathUtils.lerp(wolf.legFR.paw.rotation.z, frPawZ, lerpRate);
+
+            // Kaki Belakang Kiri (BL)
+            wolf.legBL.hip.rotation.z = THREE.MathUtils.lerp(wolf.legBL.hip.rotation.z, blHipZ, lerpRate);
+            wolf.legBL.hip.rotation.y = THREE.MathUtils.lerp(wolf.legBL.hip.rotation.y, blHipY, lerpRate);
+            wolf.legBL.hip.rotation.x = THREE.MathUtils.lerp(wolf.legBL.hip.rotation.x, blHipX, lerpRate);
+            wolf.legBL.knee.rotation.z = THREE.MathUtils.lerp(wolf.legBL.knee.rotation.z, blKneeZ, lerpRate);
+            wolf.legBL.paw.rotation.z = THREE.MathUtils.lerp(wolf.legBL.paw.rotation.z, blPawZ, lerpRate);
+
+            // Kaki Belakang Kanan (BR)
+            wolf.legBR.hip.rotation.z = THREE.MathUtils.lerp(wolf.legBR.hip.rotation.z, brHipZ, lerpRate);
+            wolf.legBR.hip.rotation.y = THREE.MathUtils.lerp(wolf.legBR.hip.rotation.y, brHipY, lerpRate);
+            wolf.legBR.hip.rotation.x = THREE.MathUtils.lerp(wolf.legBR.hip.rotation.x, brHipX, lerpRate);
+            wolf.legBR.knee.rotation.z = THREE.MathUtils.lerp(wolf.legBR.knee.rotation.z, brKneeZ, lerpRate);
+            wolf.legBR.paw.rotation.z = THREE.MathUtils.lerp(wolf.legBR.paw.rotation.z, brPawZ, lerpRate);
+
+            // Ekor
+            wolf.tailBaseJoint.rotation.z = THREE.MathUtils.lerp(wolf.tailBaseJoint.rotation.z, targetTailBaseZ, lerpRate);
+            wolf.tailBaseJoint.rotation.y = THREE.MathUtils.lerp(wolf.tailBaseJoint.rotation.y, targetTailBaseY, lerpRate);
+            wolf.tailMidJoint.rotation.z = THREE.MathUtils.lerp(wolf.tailMidJoint.rotation.z, targetTailMidZ, lerpRate);
+            wolf.tailMidJoint.rotation.y = THREE.MathUtils.lerp(wolf.tailMidJoint.rotation.y, targetTailMidY, lerpRate);
+            wolf.tailTipJoint.rotation.z = THREE.MathUtils.lerp(wolf.tailTipJoint.rotation.z, targetTailTipZ, lerpRate);
+
+            wolf.root.position.y = 0;
+        }
+
+        // ==========================================
+        // 4. SETUP SCENE, KAMERA & RENDERER
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x191c24);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(-2.8, 1.4, 2.8);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.target.set(0, 0.55, 0);
+
+        // Lighting
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x333845, 0.95));
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 1.3);
+        dirLight.position.set(4, 7, 3);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.bias = -0.0005;
+        scene.add(dirLight);
+
+        // Lantai & Grid
+        const grid = new THREE.GridHelper(10, 20, 0xff6a1a, 0x333a4c);
+        grid.position.y = 0;
+        scene.add(grid);
+
+        const floorMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(20, 20),
+            new THREE.MeshStandardMaterial({ color: 0x13151b, roughness: 0.95, metalness: 0.05 })
+        );
+        floorMesh.rotation.x = -Math.PI / 2;
+        floorMesh.position.y = -0.001;
+        floorMesh.receiveShadow = true;
+        scene.add(floorMesh);
+
+        // Karakter Rubah
+        const wolfCharacter = createWolfCharacterModel();
+        scene.add(wolfCharacter.root);
+
+        // Render Loop
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            updateFoxAnimationSystem(wolfCharacter, dt, elapsed);
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>

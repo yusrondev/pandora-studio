@@ -138,15 +138,34 @@ sliderLeafFall.addEventListener('input', () => {
 });
 
 function updateEditorUI() {
-    const targetTree = treesList[selectedTreeIndex];
+    const selTreeIdx = (typeof window.selectedTreeIndex !== 'undefined') ? window.selectedTreeIndex : (typeof selectedTreeIndex !== 'undefined' ? selectedTreeIndex : -1);
+    const selRockIdx = (typeof window.selectedRockIndex !== 'undefined') ? window.selectedRockIndex : (typeof selectedRockIndex !== 'undefined' ? selectedRockIndex : -1);
+    const targetTree = (typeof treesList !== 'undefined' && selTreeIdx >= 0) ? treesList[selTreeIdx] : null;
+    const currentRocks = (typeof rocksList !== 'undefined' && Array.isArray(rocksList)) ? rocksList : [];
+    const targetRock = (selRockIdx >= 0) ? currentRocks[selRockIdx] : null;
 
-    if (!targetTree) {
+    if (!targetTree && !targetRock) {
         if (typeof SelectionOutlineManager !== 'undefined') {
             SelectionOutlineManager.clearSelection();
         }
         if (btnDeleteTree) {
             btnDeleteTree.style.opacity = '0.4';
             btnDeleteTree.style.pointerEvents = 'none';
+            const labelSpan = btnDeleteTree.querySelector('span:last-child');
+            if (labelSpan) labelSpan.textContent = 'Hapus Objek';
+        }
+        return;
+    }
+
+    if (targetRock && !targetTree) {
+        if (typeof SelectionOutlineManager !== 'undefined') {
+            SelectionOutlineManager.selectObject(targetRock, false);
+        }
+        if (btnDeleteTree) {
+            btnDeleteTree.style.opacity = '1';
+            btnDeleteTree.style.pointerEvents = 'auto';
+            const labelSpan = btnDeleteTree.querySelector('span:last-child');
+            if (labelSpan) labelSpan.textContent = `Hapus Batu #${selRockIdx + 1}`;
         }
         return;
     }
@@ -158,6 +177,8 @@ function updateEditorUI() {
     if (btnDeleteTree) {
         btnDeleteTree.style.opacity = '1';
         btnDeleteTree.style.pointerEvents = 'auto';
+        const labelSpan = btnDeleteTree.querySelector('span:last-child');
+        if (labelSpan) labelSpan.textContent = `Hapus Pohon #${selTreeIdx + 1}`;
     }
 
     const trunkValY = targetTree.userData.trunkGroup ? targetTree.userData.trunkGroup.scale.y : 1.0;

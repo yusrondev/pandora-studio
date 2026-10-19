@@ -69,6 +69,12 @@ function initMobileControls() {
         mobileJoystickForward = normY;
         mobileJoystickTurn = normX;
 
+        // Reset idle timer & prone saat joystick digerakkan
+        if (Math.abs(normX) > 0.08 || Math.abs(normY) > 0.08) {
+            if (typeof foxIdleTimer !== 'undefined') foxIdleTimer = 0;
+            if (typeof manualProne !== 'undefined') manualProne = false;
+        }
+
         // Pasangkan juga ke keys keyboard sebagai fallback
         keys.w = normY > 0.18;
         keys.s = normY < -0.22;

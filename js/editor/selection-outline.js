@@ -119,6 +119,10 @@ const SelectionOutlineManager = {
         this.isFocusing = false;
     },
 
+    clear() {
+        this.clearSelection();
+    },
+
     updateBounds() {
         if (!this.targetObject || !this.group) return;
 

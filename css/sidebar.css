@@ -316,22 +316,26 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
     background: transparent;
     border: none;
     color: var(--text-dim);
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border-radius: var(--radius-xs);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.1s ease;
-    opacity: 0.5;
+    opacity: 0.6;
     margin-left: auto;
     flex-shrink: 0;
+    pointer-events: auto;
+    position: relative;
+    z-index: 2;
 }
 
 .btn-layer-delete svg {
-    width: 11px;
-    height: 11px;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
 }
 
 .layer-item:hover .btn-layer-delete {
@@ -521,68 +525,9 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
     color: #ffffff !important;
 }
 
-/* Floating Mode Banner (Blender Viewport Header Style) */
+/* Floating Mode Banner (Hidden) */
 .mode-banner {
-    position: fixed;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    opacity: 0;
-    visibility: hidden;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 12px;
-    background: #2b2b2b;
-    border: 1px solid var(--panel-border);
-    border-radius: var(--radius-sm);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-    z-index: 1000;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    color: var(--text-bright);
-    font-size: 11px;
-    user-select: none;
-    pointer-events: none;
-}
-
-.mode-banner.visible {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-}
-
-body.cinematic-footer-open .mode-banner,
-body:has(#cinematic-bottom-panel.visible) .mode-banner {
-    bottom: calc(var(--cinematic-bottom-height, 250px) + 12px);
-}
-
-.mode-pulse-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--accent-orange);
-    flex-shrink: 0;
-}
-
-.banner-esc-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
-    font-size: 10.5px;
-    font-weight: 500;
-    color: #ffffff;
-    background: var(--danger);
-    border: 1px solid #8e2b2b;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    outline: none;
-    margin-left: 4px;
-}
-
-.banner-esc-btn:hover {
-    background: var(--danger-hover);
+    display: none !important;
 }
 
 /* --- BLENDER ASSET BROWSER PREVIEW CARDS (TREES & GRASS) --- */

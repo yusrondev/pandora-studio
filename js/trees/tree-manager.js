@@ -3,8 +3,11 @@
 // 8. TREE SPAWNER & LAYER SYSTEM
 // ==========================================
 const treesList = [];
+window.treesList = treesList;
 let selectedTreeIndex = -1;
 let selectedRockIndex = -1;
+window.selectedTreeIndex = selectedTreeIndex;
+window.selectedRockIndex = selectedRockIndex;
 
 const layerGroupStates = {
     trees: true,
@@ -88,7 +91,8 @@ function refreshLayerUI() {
     } else {
         treesList.forEach((tree, idx) => {
             const li = document.createElement('li');
-            li.className = `layer-item ${idx === selectedTreeIndex && selectedRockIndex === -1 ? 'active' : ''}`;
+            const isTreeActive = idx === window.selectedTreeIndex && window.selectedRockIndex === -1;
+            li.className = `layer-item ${isTreeActive ? 'active' : ''}`;
             const tPos = tree.position;
             li.innerHTML = `
                 <span class="svg-icon layer-icon" style="color:${tree.visible ? 'inherit' : '#ef4444'};">
@@ -105,11 +109,14 @@ function refreshLayerUI() {
                 </button>
             `;
 
-            li.addEventListener('click', () => {
+            li.addEventListener('click', (e) => {
+                if (e.target && e.target.closest && e.target.closest('.btn-layer-delete')) return;
+                window.selectedTreeIndex = idx;
+                window.selectedRockIndex = -1;
                 selectedTreeIndex = idx;
                 selectedRockIndex = -1;
                 refreshLayerUI();
-                updateEditorUI();
+                if (typeof updateEditorUI === 'function') updateEditorUI();
                 if (typeof SelectionOutlineManager !== 'undefined') {
                     SelectionOutlineManager.selectObject(treesList[idx], true);
                 }
@@ -119,6 +126,7 @@ function refreshLayerUI() {
             if (delBtn) {
                 delBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     deleteTreeByIndex(idx);
                 });
             }
@@ -180,7 +188,8 @@ function refreshLayerUI() {
     } else {
         currentRocks.forEach((rock, idx) => {
             const li = document.createElement('li');
-            li.className = `layer-item ${idx === selectedRockIndex && selectedTreeIndex === -1 ? 'active' : ''}`;
+            const isRockActive = idx === window.selectedRockIndex && window.selectedTreeIndex === -1;
+            li.className = `layer-item ${isRockActive ? 'active' : ''}`;
             const rData = rock.userData || {};
             const rName = rData.rockType === 'spawn_boulder' ? 'Bongkahan Boulder' : 'Batu Slate';
             const rPos = rock.position;
@@ -200,10 +209,14 @@ function refreshLayerUI() {
                 </button>
             `;
 
-            li.addEventListener('click', () => {
+            li.addEventListener('click', (e) => {
+                if (e.target && e.target.closest && e.target.closest('.btn-layer-delete')) return;
+                window.selectedRockIndex = idx;
+                window.selectedTreeIndex = -1;
                 selectedRockIndex = idx;
                 selectedTreeIndex = -1;
                 refreshLayerUI();
+                if (typeof updateEditorUI === 'function') updateEditorUI();
                 if (typeof SelectionOutlineManager !== 'undefined') {
                     SelectionOutlineManager.selectObject(currentRocks[idx], true);
                 }
@@ -213,6 +226,7 @@ function refreshLayerUI() {
             if (delBtn) {
                 delBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     if (typeof deleteRockByIndex === 'function') {
                         deleteRockByIndex(idx);
                     }
@@ -234,20 +248,36 @@ function refreshLayerUI() {
 
 function deleteTreeByIndex(idx) {
     if (idx < 0 || idx >= treesList.length) return;
-    saveState();
+    if (typeof saveState === 'function') saveState();
     const treeToRemove = treesList[idx];
     if (typeof SelectionOutlineManager !== 'undefined') {
-        SelectionOutlineManager.clear();
+        if (typeof SelectionOutlineManager.clearSelection === 'function') {
+            SelectionOutlineManager.clearSelection();
+        } else if (typeof SelectionOutlineManager.clear === 'function') {
+            SelectionOutlineManager.clear();
+        }
     }
-    scene.remove(treeToRemove);
+    if (treeToRemove && treeToRemove.parent) {
+        treeToRemove.parent.remove(treeToRemove);
+    } else if (treeToRemove && typeof scene !== 'undefined') {
+        scene.remove(treeToRemove);
+    }
     treesList.splice(idx, 1);
-    if (selectedTreeIndex === idx) {
-        selectedTreeIndex = treesList.length - 1;
-    } else if (selectedTreeIndex > idx) {
-        selectedTreeIndex--;
+
+    if (window.selectedTreeIndex === idx) {
+        window.selectedTreeIndex = -1;
+    } else if (window.selectedTreeIndex > idx) {
+        window.selectedTreeIndex--;
     }
+    selectedTreeIndex = window.selectedTreeIndex;
+
     refreshLayerUI();
-    updateEditorUI();
+    if (typeof updateEditorUI === 'function') {
+        updateEditorUI();
+    }
+    if (typeof PandoraToast !== 'undefined' && typeof PandoraToast.show === 'function') {
+        PandoraToast.show(`🗑️ Pohon #${idx + 1} berhasil dihapus`, 'info');
+    }
 }
 window.deleteTreeByIndex = deleteTreeByIndex;
 
@@ -304,17 +334,15 @@ function spawnTreeAtLocation(typeCode, posX, posZ) {
     updateEditorUI();
 }
 
-btnDeleteTree.addEventListener('click', () => {
-    if (selectedTreeIndex >= 0 && treesList[selectedTreeIndex]) {
-        saveState();
-        scene.remove(treesList[selectedTreeIndex]);
-        treesList.splice(selectedTreeIndex, 1);
-        selectedTreeIndex = treesList.length - 1;
-
-        refreshLayerUI();
-        updateEditorUI();
-    }
-});
+if (btnDeleteTree) {
+    btnDeleteTree.addEventListener('click', () => {
+        if (window.selectedTreeIndex >= 0 && treesList[window.selectedTreeIndex]) {
+            deleteTreeByIndex(window.selectedTreeIndex);
+        } else if (window.selectedRockIndex >= 0 && typeof deleteRockByIndex === 'function') {
+            deleteRockByIndex(window.selectedRockIndex);
+        }
+    });
+}
 
 // Menghapus pohon di koordinat pointer mouse (untuk klik kanan)
 function deleteTreeAtLocation(posX, posZ, maxRadius = 3.5) {
@@ -336,23 +364,26 @@ function deleteTreeAtLocation(posX, posZ, maxRadius = 3.5) {
     }
 
     if (closestIdx >= 0) {
-        saveState();
-        const treeToRemove = treesList[closestIdx];
-        scene.remove(treeToRemove);
-        treesList.splice(closestIdx, 1);
-        if (selectedTreeIndex === closestIdx) {
-            selectedTreeIndex = treesList.length - 1;
-        } else if (selectedTreeIndex > closestIdx) {
-            selectedTreeIndex--;
-        }
-
-        refreshLayerUI();
-        updateEditorUI();
+        deleteTreeByIndex(closestIdx);
         return true;
     }
 
     return false;
 }
+
+// Global shortcut Delete / Backspace for selected scene object
+window.addEventListener('keydown', (e) => {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (window.selectedTreeIndex >= 0 && window.selectedTreeIndex < treesList.length) {
+            e.preventDefault();
+            deleteTreeByIndex(window.selectedTreeIndex);
+        } else if (window.selectedRockIndex >= 0 && typeof deleteRockByIndex === 'function' && typeof rocksList !== 'undefined' && window.selectedRockIndex < rocksList.length) {
+            e.preventDefault();
+            deleteRockByIndex(window.selectedRockIndex);
+        }
+    }
+});
 
 // Auto-populate layer groups on load
 if (document.readyState === 'loading') {

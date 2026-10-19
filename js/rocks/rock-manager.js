@@ -36,7 +36,8 @@ rockGradientMap.needsUpdate = true;
 // 2. MATERIAL BATU DENGAN GRADASI VERTIKAL ALAMI & FLAT SHADING (CEL-SHADED ANIME)
 const rockMaterial = new THREE.MeshToonMaterial({
     gradientMap: rockGradientMap,
-    flatShading: true
+    flatShading: true,
+    shadowSide: THREE.BackSide
 });
 
 rockMaterial.userData = { shader: null };
@@ -74,7 +75,7 @@ rockMaterial.onBeforeCompile = (shader) => {
 
 // 3. FUNGSI GEOMETRI BATU CHUNKY BERBONGKAH DENGAN VARIASI SEED
 function createDeformedRockGeometry(variantSeed = 0) {
-    const geo = new THREE.DodecahedronGeometry(1, 1);
+    let geo = new THREE.DodecahedronGeometry(1, 1);
     const posAttr = geo.attributes.position;
     const vertex = new THREE.Vector3();
 
@@ -94,6 +95,7 @@ function createDeformedRockGeometry(variantSeed = 0) {
         posAttr.setXYZ(i, vertex.x, vertex.y, vertex.z);
     }
 
+    geo = geo.toNonIndexed();
     geo.computeVertexNormals();
     return geo;
 }
@@ -278,19 +280,39 @@ function updateRockCountUI() {
 
 // 8B. HAPUS BATU BERDASARKAN INDEX LAYER
 function deleteRockByIndex(idx) {
-    if (idx < 0 || idx >= rocksList.length) return;
+    if (!rocksList || idx < 0 || idx >= rocksList.length) return;
     if (typeof saveState === 'function') saveState();
     const rockToRemove = rocksList[idx];
     if (typeof SelectionOutlineManager !== 'undefined') {
-        SelectionOutlineManager.clear();
+        if (typeof SelectionOutlineManager.clearSelection === 'function') {
+            SelectionOutlineManager.clearSelection();
+        } else if (typeof SelectionOutlineManager.clear === 'function') {
+            SelectionOutlineManager.clear();
+        }
     }
-    rocksGroup.remove(rockToRemove);
+    if (rockToRemove && rockToRemove.parent) {
+        rockToRemove.parent.remove(rockToRemove);
+    } else if (typeof rocksGroup !== 'undefined' && rocksGroup) {
+        rocksGroup.remove(rockToRemove);
+    }
     rocksList.splice(idx, 1);
+
+    if (typeof window.selectedRockIndex !== 'undefined') {
+        if (window.selectedRockIndex === idx) window.selectedRockIndex = -1;
+        else if (window.selectedRockIndex > idx) window.selectedRockIndex--;
+    }
     if (typeof selectedRockIndex !== 'undefined') {
         if (selectedRockIndex === idx) selectedRockIndex = -1;
         else if (selectedRockIndex > idx) selectedRockIndex--;
     }
+
     updateRockCountUI();
+    if (typeof updateEditorUI === 'function') {
+        updateEditorUI();
+    }
+    if (typeof PandoraToast !== 'undefined' && typeof PandoraToast.show === 'function') {
+        PandoraToast.show(`🗑️ Batu #${idx + 1} berhasil dihapus`, 'info');
+    }
 }
 window.deleteRockByIndex = deleteRockByIndex;
 

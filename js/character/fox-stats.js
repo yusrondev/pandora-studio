@@ -210,7 +210,9 @@ const FoxStaminaState = {
             this.current = Math.min(this.max, this.current + cfg.staminaRecoveryWalk * dt);
         } else {
             // DIAM (IDLE) ATAU BELOK DI TEMPAT -> STAMINA BERTAMBAH LEBIH CEPAT
-            this.current = Math.min(this.max, this.current + cfg.staminaRecoveryIdle * dt);
+            // Istirahat dalam posisi tiarap/mengendap (prone) memulihkan stamina ekstra cepat (+60%)
+            const proneMultiplier = (typeof foxProneBlend !== 'undefined' && foxProneBlend > 0.35) ? 1.6 : 1.0;
+            this.current = Math.min(this.max, this.current + cfg.staminaRecoveryIdle * proneMultiplier * dt);
         }
 
         this.updateHUD();

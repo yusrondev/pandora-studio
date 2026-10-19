@@ -92,6 +92,9 @@ function startPlayMode() {
     isGrounded = true;
     gaitPhase = 0;
     landingSquash = 0;
+    if (typeof foxIdleTimer !== 'undefined') foxIdleTimer = 0;
+    if (typeof foxProneBlend !== 'undefined') foxProneBlend = 0;
+    if (typeof manualProne !== 'undefined') manualProne = false;
     keys.w = false;
     keys.a = false;
     keys.s = false;

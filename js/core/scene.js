@@ -70,8 +70,8 @@ sunLight.shadow.camera.left = -shadowExtent;
 sunLight.shadow.camera.right = shadowExtent;
 sunLight.shadow.camera.top = shadowExtent;
 sunLight.shadow.camera.bottom = -shadowExtent;
-sunLight.shadow.bias = -0.0001;
-sunLight.shadow.normalBias = 0.02;
+sunLight.shadow.bias = 0.00005;
+sunLight.shadow.normalBias = 0.04;
 
 scene.add(sunLight);
 

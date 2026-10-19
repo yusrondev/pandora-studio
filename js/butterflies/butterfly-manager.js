@@ -294,6 +294,8 @@ function placeButterfliesAt(intersectPoint, butterflyType = 'spawn_butterfly_blu
     const groundBound = (typeof groundSize !== 'undefined' ? groundSize / 2 : 75) - 2.0;
 
     for (let i = 0; i < count; i++) {
+        if (butterfliesList.length >= 120) break; // Batas wajar populasi serangga agar performa selalu 60 FPS
+
         const r = (count === 1) ? 0 : (radius * 0.75 * Math.sqrt(Math.random()));
         const theta = Math.random() * 2 * Math.PI;
 
@@ -301,6 +303,17 @@ function placeButterfliesAt(intersectPoint, butterflyType = 'spawn_butterfly_blu
         const centerZ = intersectPoint.z + (count === 1 ? 0 : r * Math.sin(theta));
 
         if (Math.abs(centerX) > groundBound || Math.abs(centerZ) > groundBound) continue;
+
+        // Cegah penumpukan terlalu rapat di titik yang sama (< 0.6m)
+        let tooClose = false;
+        for (let j = 0; j < butterfliesList.length; j++) {
+            const b = butterfliesList[j];
+            if (Math.hypot(b.centerX - centerX, b.centerZ - centerZ) < 0.6) {
+                tooClose = true;
+                break;
+            }
+        }
+        if (tooClose) continue;
 
         // Radius berputar kupu-kupu di sekitar area kuas yang digambar
         const patrolRadiusX = 1.0 + Math.random() * Math.min(2.2, radius * 0.65);

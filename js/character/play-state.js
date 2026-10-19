@@ -2,8 +2,10 @@
 // ==========================================
 // 11.5 KARAKTER RUBAH / SERIGALA ORANGE (PLAY DEMO MODE)
 // ==========================================
-let isPlayMode = false;
-let wolfCharacter = null;
+var isPlayMode = false;
+window.isPlayMode = false;
+var wolfCharacter = null;
+window.wolfCharacter = null;
 let savedEditorCamera = {
     position: new THREE.Vector3(),
     target: new THREE.Vector3()

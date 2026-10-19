@@ -94,6 +94,8 @@ function startPlayMode() {
     landingSquash = 0;
     if (typeof foxIdleTimer !== 'undefined') foxIdleTimer = 0;
     if (typeof foxProneBlend !== 'undefined') foxProneBlend = 0;
+    if (typeof foxSitBlend !== 'undefined') foxSitBlend = 0;
+    if (typeof foxState !== 'undefined') foxState = 'IDLE';
     if (typeof manualProne !== 'undefined') manualProne = false;
     keys.w = false;
     keys.a = false;

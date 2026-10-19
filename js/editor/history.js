@@ -62,12 +62,12 @@ function captureStateSnapshot() {
             scaleZ: r.scale.z
         })) : [],
         flowers: (typeof flowersList !== 'undefined') ? flowersList.map(f => ({
-            posX: f.position.x,
-            posY: f.position.y,
-            posZ: f.position.z,
-            rotY: f.rotation.y,
-            flowerType: f.userData.flowerType,
-            themeKey: f.userData.themeKey
+            posX: f.posX !== undefined ? f.posX : (f.position ? f.position.x : 0),
+            posY: f.posY !== undefined ? f.posY : (f.position ? f.position.y : 0),
+            posZ: f.posZ !== undefined ? f.posZ : (f.position ? f.position.z : 0),
+            rotY: f.rotY !== undefined ? f.rotY : (f.rotation ? f.rotation.y : 0),
+            flowerType: f.flowerType || (f.userData ? f.userData.flowerType : 'spawn_flower_cyan'),
+            themeKey: f.themeKey || (f.userData ? f.userData.themeKey : 'cyan')
         })) : [],
         butterflies: (typeof butterfliesList !== 'undefined') ? butterfliesList.map(b => ({
             centerX: b.centerX,

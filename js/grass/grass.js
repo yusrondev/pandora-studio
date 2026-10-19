@@ -389,6 +389,9 @@ function updateTreesAndGrassPositions() {
             r.position.y = gy + (h * 0.42);
         });
     }
+    if (typeof rebuildFlowerTransforms === 'function') {
+        rebuildFlowerTransforms();
+    }
 }
 
 // ==========================================

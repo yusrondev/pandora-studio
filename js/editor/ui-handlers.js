@@ -399,7 +399,7 @@ window.addEventListener('keydown', (e) => {
 
     if (e.key === 'Escape' || e.key === 'Esc') {
         e.preventDefault();
-        if (isPlayMode) {
+        if (typeof isPlayMode !== 'undefined' && isPlayMode) {
             stopPlayMode();
             return;
         }
@@ -413,7 +413,7 @@ window.addEventListener('keydown', (e) => {
         return;
     }
 
-    if (isPlayMode) {
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) {
         return;
     }
 

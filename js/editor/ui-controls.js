@@ -191,6 +191,9 @@ sliderWindSpeed.addEventListener('input', () => {
     foliageMaterialsList.forEach(mat => {
         mat.uniforms.uWindSpeed.value = windSpeedRate;
     });
+    if (typeof flowerSystem !== 'undefined' && flowerSystem && flowerSystem.material && flowerSystem.material.uniforms && flowerSystem.material.uniforms.uWindSpeed) {
+        flowerSystem.material.uniforms.uWindSpeed.value = windSpeedRate;
+    }
 });
 
 sliderLeafFall.addEventListener('input', () => {

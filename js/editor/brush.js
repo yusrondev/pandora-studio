@@ -215,7 +215,7 @@ let selectionPointerDownInfo = null;
 let isHoldingForCamera = false;
 
 function handleCanvasPointerDown(e) {
-    if (isPlayMode) return;
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) return;
     if (e.target.tagName !== 'CANVAS') return;
     if (e.target.closest('#top-toolbar') || e.target.closest('#sidebar-left') || e.target.closest('#sidebar-right') || e.target.closest('.dock-trigger') || e.target.closest('.mode-banner') || e.target.closest('.play-hud') || e.target.closest('.fox-species-bar') || e.target.closest('#cinematic-bottom-panel')) return;
     if (typeof CinematicManager !== 'undefined' && (CinematicManager.isDraggingWaypoint || CinematicManager.isDragModeActive)) return;
@@ -479,7 +479,7 @@ treeCrownPreviewMesh.renderOrder = 1002;
 treeReticleGroup.add(treeCrownPreviewMesh);
 
 function updateBrushReticle(hitPoint, normal) {
-    if (isPlayMode || (typeof CinematicManager !== 'undefined' && CinematicManager.isPlaying)) {
+    if ((typeof isPlayMode !== 'undefined' && isPlayMode) || (typeof CinematicManager !== 'undefined' && CinematicManager.isPlaying)) {
         brushReticleGroup.visible = false;
         return;
     }
@@ -561,7 +561,7 @@ function updateBrushReticle(hitPoint, normal) {
 }
 
 function handleCanvasPointerMove(e) {
-    if (isPlayMode) {
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) {
         if (brushReticleGroup.visible) brushReticleGroup.visible = false;
         return;
     }
@@ -707,7 +707,7 @@ if (typeof sliderButterflyRadius !== 'undefined') {
 }
 
 function handleCanvasPointerUp(e) {
-    if (isPlayMode) return;
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) return;
     if (isMouseDown && selectTerrainMode.value !== 'none') {
         groundGeo.computeVertexNormals();
         updateTreesAndGrassPositions();

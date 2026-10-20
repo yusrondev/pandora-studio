@@ -24,7 +24,7 @@ waterMaskTexture.generateMipmaps = false;
 // PENTING: flipY = false agar sumbu Z dunia berpadanan 1:1 dengan sumbu Y canvas tanpa terbalik!
 waterMaskTexture.flipY = false;
 
-// Geometry bidang air yang menyatu dengan kontur topografi tanah (terhindar dari tertimbun bukit)
+// Geometry bidang air horizontal datar (flat surface) alami khas danau/sungai Genshin Impact
 const waterSegments = (typeof groundSegments !== 'undefined') ? groundSegments : 100;
 const waterGeo = new THREE.PlaneGeometry(waterGroundSize, waterGroundSize, waterSegments, waterSegments);
 waterGeo.rotateX(-Math.PI / 2);
@@ -411,26 +411,29 @@ waterMesh.renderOrder = 2;
 waterMesh.receiveShadow = true; // Menerima bayangan dari pohon, bebatuan, dan karakter rubah
 scene.add(waterMesh);
 
-// Sinkronisasi geometri air mengikuti kontur topografi tanah (terhindar dari tertimbun bukit)
+// Bidang air alami selalu datar horizontal (flat).
+// Memastikan seluruh simpul air tetap berada pada ketinggian Y = 0.0 (datar horizontal),
+// sehingga saat dataran diturunkan (sculpt lower) untuk membuat cekungan/danau/sungai,
+// permukaan air tetap datar horizontal dan tidak melorot mengikuti lekukan dasar tanah.
 function syncWaterGeometryWithTerrain() {
-    if (typeof groundGeo === 'undefined' || !groundGeo || !waterGeo) return;
-    const gPos = groundGeo.attributes.position;
+    if (!waterGeo) return;
     const wPos = waterGeo.attributes.position;
-    if (!gPos || !wPos || gPos.count !== wPos.count) return;
+    if (!wPos) return;
 
-    for (let i = 0; i < gPos.count; i++) {
-        wPos.setXYZ(
-            i,
-            gPos.getX(i),
-            gPos.getY(i) + 0.035, // 3.5cm tepat di atas permukaan tanah agar tidak tertimbun bukit & bebas z-fighting
-            gPos.getZ(i)
-        );
+    let modified = false;
+    for (let i = 0; i < wPos.count; i++) {
+        if (wPos.getY(i) !== 0.0) {
+            wPos.setY(i, 0.0);
+            modified = true;
+        }
     }
-    wPos.needsUpdate = true;
-    waterGeo.computeVertexNormals();
+    if (modified) {
+        wPos.needsUpdate = true;
+        waterGeo.computeVertexNormals();
+    }
 }
 
-// Inisialisasi awal penyelarasan mesh air dengan tanah
+// Inisialisasi awal memastikan bidang air murni datar (flat)
 syncWaterGeometryWithTerrain();
 
 // State kuas air & interpolasi goresan halus

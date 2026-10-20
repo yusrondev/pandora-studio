@@ -742,7 +742,13 @@ function applySkyPreset(presetKey) {
     document.getElementById('slider-azimuth').value = p.azimuth;
     document.getElementById('slider-elevation').value = p.elevation;
     updateSunPosition();
+
+    if (typeof window.setWaterAtmospherePreset === 'function') {
+        window.setWaterAtmospherePreset(presetKey);
+    }
 }
+
+window.applySkyPreset = applySkyPreset;
 
 document.getElementById('select-sky-preset').addEventListener('change', (e) => {
     applySkyPreset(e.target.value);

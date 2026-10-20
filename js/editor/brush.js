@@ -26,6 +26,7 @@ function updateToolControlsState() {
     const isAnyToolActive = (
         (typeof selectTerrainMode !== 'undefined' && selectTerrainMode.value !== 'none') ||
         (typeof selectRoadBrush !== 'undefined' && selectRoadBrush.value !== 'none') ||
+        (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') ||
         (typeof selectGrassBrush !== 'undefined' && selectGrassBrush.value !== 'none') ||
         (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
         (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') ||
@@ -98,6 +99,16 @@ function handleBrushAction(event) {
             paintRoadOnTerrain(hitPoint, roadBrush, roadRad);
             if (roadBrush !== 'remove' && typeof removeGrassInRadius === 'function') {
                 removeGrassInRadius(hitPoint, roadRad * 0.85);
+            }
+            return;
+        }
+
+        const waterBrush = (typeof selectWaterBrush !== 'undefined') ? selectWaterBrush.value : 'none';
+        if (waterBrush !== 'none') {
+            const waterRad = (typeof sliderWaterRadius !== 'undefined') ? (parseFloat(sliderWaterRadius.value) || 4.0) : 4.0;
+            const mode = waterBrush === 'remove' ? 'erase' : 'paint';
+            if (typeof paintWaterAt === 'function') {
+                paintWaterAt(hitPoint, waterRad, mode);
             }
             return;
         }
@@ -306,6 +317,21 @@ function handleCanvasPointerDown(e) {
             return;
         }
 
+        // Mode Water Brush: Klik kanan = keringkan / hapus air
+        if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') {
+            const groundHits = raycaster.intersectObject(ground);
+            if (groundHits.length > 0) {
+                saveState();
+                isRightMouseDown = true;
+                const radius = (typeof sliderWaterRadius !== 'undefined') ? (parseFloat(sliderWaterRadius.value) || 4.0) : 4.0;
+                if (typeof paintWaterAt === 'function') {
+                    paintWaterAt(groundHits[0].point, radius, 'erase');
+                }
+            }
+            if (e.stopPropagation) e.stopPropagation();
+            return;
+        }
+
         // 4. Mode Rock Brush: Klik kanan = hapus bebatuan dalam radius kursor
         if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
             const groundHits = raycaster.intersectObject(ground);
@@ -363,7 +389,7 @@ function handleCanvasPointerDown(e) {
                 return;
             }
 
-            if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none')) {
+            if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none')) {
                 saveState();
                 isMouseDown = true;
                 if (typeof controls !== 'undefined') controls.enabled = false;
@@ -377,6 +403,7 @@ function handleCanvasPointerDown(e) {
         const isBrushActive = (selectTreeMode && selectTreeMode.value !== 'none') ||
             (selectTerrainMode && selectTerrainMode.value !== 'none') ||
             (selectRoadBrush && selectRoadBrush.value !== 'none') ||
+            (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') ||
             (selectGrassBrush && selectGrassBrush.value !== 'none') ||
             (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
             (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') ||
@@ -490,13 +517,14 @@ function updateBrushReticle(hitPoint, normal) {
 
     const sculptMode = selectTerrainMode.value;
     const roadBrush = selectRoadBrush.value;
+    const waterBrush = (typeof selectWaterBrush !== 'undefined') ? selectWaterBrush.value : 'none';
     const grassBrush = selectGrassBrush.value;
     const rockBrush = (typeof selectRockBrush !== 'undefined') ? selectRockBrush.value : 'none';
     const flowerBrush = (typeof selectFlowerBrush !== 'undefined') ? selectFlowerBrush.value : 'none';
     const butterflyBrush = (typeof selectButterflyBrush !== 'undefined') ? selectButterflyBrush.value : 'none';
     const treeMode = selectTreeMode.value;
 
-    const isActive = (sculptMode !== 'none' || roadBrush !== 'none' || grassBrush !== 'none' || rockBrush !== 'none' || flowerBrush !== 'none' || butterflyBrush !== 'none' || treeMode !== 'none');
+    const isActive = (sculptMode !== 'none' || roadBrush !== 'none' || waterBrush !== 'none' || grassBrush !== 'none' || rockBrush !== 'none' || flowerBrush !== 'none' || butterflyBrush !== 'none' || treeMode !== 'none');
     if (!isActive || !hitPoint) {
         brushReticleGroup.visible = false;
         return;
@@ -528,6 +556,10 @@ function updateBrushReticle(hitPoint, normal) {
         else if (roadBrush === 'road_green') colorHex = 0x84cc16; // Hijau berlumut
         else if (roadBrush === 'remove') colorHex = 0xef4444;     // Merah hapus jalan
         else colorHex = 0xf59e0b;                                 // Amber jalan tanah coklat
+    } else if (waterBrush !== 'none') {
+        radius = (typeof sliderWaterRadius !== 'undefined') ? (parseFloat(sliderWaterRadius.value) || 4.0) : 4.0;
+        if (waterBrush === 'remove') colorHex = 0xef4444;        // Merah hapus air
+        else colorHex = 0x06b6d4;                                // Cyan toska air jernih Genshin
     } else if (grassBrush !== 'none') {
         radius = parseFloat(sliderGrassRadius.value) || 4.0;
         if (grassBrush === 'remove') colorHex = 0xef4444;       // Merah hapus rumput
@@ -602,8 +634,8 @@ function handleCanvasPointerMove(e) {
         if (brushReticleGroup.visible) brushReticleGroup.visible = false;
     }
 
-    // Left mouse drag (Sculpt, Road paint, Grass paint, Rock paint, Flower paint, Butterfly paint)
-    if (isMouseDown && (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none'))) {
+    // Left mouse drag (Sculpt, Road paint, Water paint, Grass paint, Rock paint, Flower paint, Butterfly paint)
+    if (isMouseDown && (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none'))) {
         if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
             if (selectRockBrush.value === 'remove' || Math.random() > 0.65) {
                 handleBrushAction(e);
@@ -621,7 +653,7 @@ function handleCanvasPointerMove(e) {
         }
     }
 
-    // Right mouse drag (Grass erase, Road erase, Rock erase, Flower erase, Butterfly erase)
+    // Right mouse drag (Grass erase, Road erase, Water erase, Rock erase, Flower erase, Butterfly erase)
     if (isRightMouseDown && intersects.length > 0) {
         const hitPoint = intersects[0].point;
         if (selectGrassBrush.value !== 'none') {
@@ -630,6 +662,11 @@ function handleCanvasPointerMove(e) {
         } else if (selectRoadBrush.value !== 'none') {
             const radius = parseFloat(sliderRoadRadius.value) || 4.0;
             paintRoadOnTerrain(hitPoint, 'remove', radius);
+        } else if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') {
+            const radius = (typeof sliderWaterRadius !== 'undefined') ? (parseFloat(sliderWaterRadius.value) || 4.0) : 4.0;
+            if (typeof paintWaterAt === 'function') {
+                paintWaterAt(hitPoint, radius, 'erase');
+            }
         } else if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
             const radius = (typeof sliderRockRadius !== 'undefined') ? (parseFloat(sliderRockRadius.value) || 4.0) : 4.0;
             removeRocksInRadius(hitPoint, radius);
@@ -650,6 +687,7 @@ window.addEventListener('mouseleave', () => {
     brushReticleGroup.visible = false;
     isMouseDown = false;
     isRightMouseDown = false;
+    if (typeof resetWaterStroke === 'function') resetWaterStroke();
 });
 
 // Update ukuran reticle saat slider radius digeser
@@ -667,6 +705,16 @@ if (typeof sliderRoadRadius !== 'undefined') {
     sliderRoadRadius.addEventListener('input', () => {
         if (selectRoadBrush.value !== 'none') {
             const r = parseFloat(sliderRoadRadius.value) || 4.0;
+            reticleOuterMesh.scale.set(r, 1, r);
+            reticleFillMesh.scale.set(r, 1, r);
+        }
+    });
+}
+
+if (typeof sliderWaterRadius !== 'undefined') {
+    sliderWaterRadius.addEventListener('input', () => {
+        if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') {
+            const r = parseFloat(sliderWaterRadius.value) || 4.0;
             reticleOuterMesh.scale.set(r, 1, r);
             reticleFillMesh.scale.set(r, 1, r);
         }
@@ -718,9 +766,11 @@ function handleCanvasPointerUp(e) {
     if (isMouseDown && selectTerrainMode.value !== 'none') {
         groundGeo.computeVertexNormals();
         updateTreesAndGrassPositions();
+        if (typeof syncWaterGeometryWithTerrain === 'function') syncWaterGeometryWithTerrain();
     }
     isMouseDown = false;
     isRightMouseDown = false;
+    if (typeof resetWaterStroke === 'function') resetWaterStroke();
     updateToolControlsState();
 
     // Seleksi & Fokus Objek HANYA dieksekusi jika Klik Cepat (Tap), BUKAN saat On-Hold / Drag Kamera

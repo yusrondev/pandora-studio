@@ -106,6 +106,7 @@ function applyState(state) {
         posAttr.array.set(state.terrainHeights);
         posAttr.needsUpdate = true;
         groundGeo.computeVertexNormals();
+        if (typeof syncWaterGeometryWithTerrain === 'function') syncWaterGeometryWithTerrain();
     }
 
     if (state.terrainColors && groundGeo && groundGeo.attributes.color) {

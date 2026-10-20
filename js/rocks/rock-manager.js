@@ -33,10 +33,8 @@ rockGradientMap.minFilter = THREE.NearestFilter;
 rockGradientMap.magFilter = THREE.NearestFilter;
 rockGradientMap.needsUpdate = true;
 
-// 2. MATERIAL BATU DENGAN GRADASI VERTIKAL ALAMI & FLAT SHADING (CEL-SHADED ANIME)
 const rockMaterial = new THREE.MeshToonMaterial({
     gradientMap: rockGradientMap,
-    flatShading: true,
     shadowSide: THREE.BackSide
 });
 
@@ -95,7 +93,9 @@ function createDeformedRockGeometry(variantSeed = 0) {
         posAttr.setXYZ(i, vertex.x, vertex.y, vertex.z);
     }
 
-    geo = geo.toNonIndexed();
+    if (geo.index) {
+        geo = geo.toNonIndexed();
+    }
     geo.computeVertexNormals();
     return geo;
 }

@@ -327,6 +327,10 @@ function serializeMapData(name, existingId = null) {
             type: b.type,
             theme: b.theme
         })) : [],
+        water: {
+            level: typeof getWaterCurrentLevel === 'function' ? getWaterCurrentLevel() : 0.02,
+            mask: (typeof hasWaterDrawn === 'function' && hasWaterDrawn() && typeof waterCanvas !== 'undefined') ? waterCanvas.toDataURL('image/png') : null
+        },
         activeGrass: activeGrass,
         meta: {
             treeCount: trees.length,
@@ -419,6 +423,7 @@ function applyMapDataToScene(mapData) {
             posAttr.needsUpdate = true;
             groundGeo.computeVertexNormals();
         }
+        if (typeof syncWaterGeometryWithTerrain === 'function') syncWaterGeometryWithTerrain();
 
         // Terrain Vertex Colors (Jalan & Paint)
         const colAttr = groundGeo.attributes.color;
@@ -526,6 +531,31 @@ function applyMapDataToScene(mapData) {
     }
     if (Array.isArray(mapData.butterflies) && typeof recreateButterfly === 'function') {
         mapData.butterflies.forEach(bData => recreateButterfly(bData));
+    }
+
+    // 8. Terapkan Air (Water Mask & Level)
+    if (mapData.water) {
+        if (typeof setWaterLevel === 'function' && typeof mapData.water.level === 'number') {
+            setWaterLevel(mapData.water.level);
+            const sliderWaterLevel = document.getElementById('slider-water-level');
+            const valWaterLevel = document.getElementById('val-water-level');
+            if (sliderWaterLevel) sliderWaterLevel.value = mapData.water.level;
+            if (valWaterLevel) valWaterLevel.innerText = mapData.water.level.toFixed(2);
+        }
+        if (mapData.water.mask && typeof waterCanvas !== 'undefined' && typeof waterCtx !== 'undefined') {
+            const img = new Image();
+            img.onload = () => {
+                waterCtx.globalCompositeOperation = 'source-over';
+                waterCtx.clearRect(0, 0, waterCanvas.width, waterCanvas.height);
+                waterCtx.drawImage(img, 0, 0);
+                if (typeof waterMaskTexture !== 'undefined') waterMaskTexture.needsUpdate = true;
+            };
+            img.src = mapData.water.mask;
+        } else if (typeof clearAllWater === 'function') {
+            clearAllWater();
+        }
+    } else if (typeof clearAllWater === 'function') {
+        clearAllWater();
     }
 
     selectedTreeIndex = treesList.length > 0 ? treesList.length - 1 : -1;

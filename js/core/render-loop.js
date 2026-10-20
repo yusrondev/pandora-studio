@@ -46,6 +46,9 @@ function animate() {
     if (typeof updateButterflies === 'function') {
         updateButterflies(delta, elapsedTime);
     }
+    if (typeof updateWater === 'function') {
+        updateWater(delta, elapsedTime);
+    }
 
     if (typeof SelectionOutlineManager !== 'undefined') {
         SelectionOutlineManager.updateAnimation(elapsedTime, delta);

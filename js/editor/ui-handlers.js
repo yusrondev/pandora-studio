@@ -245,6 +245,10 @@ function updateActiveModeHUD() {
         const text = selectButterflyBrush.options[selectButterflyBrush.selectedIndex] ? selectButterflyBrush.options[selectButterflyBrush.selectedIndex].text : selectButterflyBrush.value;
         modeLabel = `Kuas Kupu-kupu: ${text}`;
         modeIcon = '🦋';
+    } else if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush && selectWaterBrush.value !== 'none') {
+        const text = selectWaterBrush.options[selectWaterBrush.selectedIndex] ? selectWaterBrush.options[selectWaterBrush.selectedIndex].text : selectWaterBrush.value;
+        modeLabel = `Kuas Air: ${text}`;
+        modeIcon = '🌊';
     } else if (selectTerrainMode && selectTerrainMode.value !== 'none') {
         const text = selectTerrainMode.options[selectTerrainMode.selectedIndex] ? selectTerrainMode.options[selectTerrainMode.selectedIndex].text : selectTerrainMode.value;
         modeLabel = `Sculpt Tanah: ${text}`;
@@ -271,6 +275,8 @@ function updateActiveModeHUD() {
                 actionHint = `Klik Kiri: Tanam Bunga &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush && selectButterflyBrush.value !== 'none') {
                 actionHint = `Klik Kiri: Gambar Area Berputar &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
+            } else if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush && selectWaterBrush.value !== 'none') {
+                actionHint = `Klik Kiri: Lukis Air &bull; Klik Kanan: Keringkan &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else if (selectRoadBrush && selectRoadBrush.value !== 'none') {
                 actionHint = `Klik Kiri: Buat Jalan &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else {
@@ -331,6 +337,7 @@ function cancelAllSelections() {
     if (typeof selectRockBrush !== 'undefined' && selectRockBrush) selectRockBrush.value = 'none';
     if (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush) selectFlowerBrush.value = 'none';
     if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush) selectButterflyBrush.value = 'none';
+    if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush) selectWaterBrush.value = 'none';
     if (selectTerrainMode) selectTerrainMode.value = 'none';
 
     if (typeof brushReticleGroup !== 'undefined') {
@@ -549,11 +556,24 @@ function unsetOtherTools(activeToolName) {
     if (activeToolName !== 'road' && typeof selectRoadBrush !== 'undefined' && selectRoadBrush && selectRoadBrush.value !== 'none') {
         selectRoadBrush.value = 'none';
     }
+    if (activeToolName !== 'water' && typeof selectWaterBrush !== 'undefined' && selectWaterBrush && selectWaterBrush.value !== 'none') {
+        selectWaterBrush.value = 'none';
+    }
     if (activeToolName !== 'sculpt' && typeof selectTerrainMode !== 'undefined' && selectTerrainMode && selectTerrainMode.value !== 'none') {
         selectTerrainMode.value = 'none';
     }
     if (typeof updateToolControlsState === 'function') updateToolControlsState();
     if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
+}
+
+if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush) {
+    selectWaterBrush.addEventListener('change', () => {
+        if (selectWaterBrush.value !== 'none') unsetOtherTools('water');
+        else {
+            if (typeof updateToolControlsState === 'function') updateToolControlsState();
+            if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
+        }
+    });
 }
 
 if (typeof selectRockBrush !== 'undefined' && selectRockBrush) {

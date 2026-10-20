@@ -68,6 +68,14 @@ const valButterflyRadius = document.getElementById('val-butterfly-radius');
 const valButterflyDensity = document.getElementById('val-butterfly-density');
 const btnClearAllButterflies = document.getElementById('btn-clear-all-butterflies');
 
+// Water Brush Controls
+const selectWaterBrush = document.getElementById('select-water-brush');
+const sliderWaterRadius = document.getElementById('slider-water-radius');
+const valWaterRadius = document.getElementById('val-water-radius');
+const sliderWaterLevel = document.getElementById('slider-water-level');
+const valWaterLevel = document.getElementById('val-water-level');
+const btnClearAllWater = document.getElementById('btn-clear-all-water');
+
 let isPanMode = false;
 
 btnHandMode.addEventListener('click', () => {
@@ -181,6 +189,30 @@ if (btnClearAllButterflies) {
         if (typeof saveState === 'function') saveState();
         if (typeof clearAllButterflies === 'function') {
             clearAllButterflies();
+        }
+    });
+}
+
+// Water Brush listeners
+if (sliderWaterRadius && valWaterRadius) {
+    sliderWaterRadius.addEventListener('input', () => {
+        valWaterRadius.innerText = parseFloat(sliderWaterRadius.value).toFixed(1);
+    });
+}
+if (sliderWaterLevel && valWaterLevel) {
+    sliderWaterLevel.addEventListener('input', () => {
+        const yVal = parseFloat(sliderWaterLevel.value);
+        valWaterLevel.innerText = yVal.toFixed(2);
+        if (typeof setWaterLevel === 'function') {
+            setWaterLevel(yVal);
+        }
+    });
+}
+if (btnClearAllWater) {
+    btnClearAllWater.addEventListener('click', () => {
+        if (typeof saveState === 'function') saveState();
+        if (typeof clearAllWater === 'function') {
+            clearAllWater();
         }
     });
 }

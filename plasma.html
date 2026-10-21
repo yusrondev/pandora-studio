@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Transformer Bazooka - Fireball Edition (Fixed)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050508;
+            color: white;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #fl {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            background: radial-gradient(circle at 50% 50%, #fff3d0, #ff8a2a 60%, transparent);
+            mix-blend-mode: screen;
+            z-index: 10;
+        }
+
+        #ui {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+            background: rgba(10, 10, 15, 0.75);
+            padding: 15px 35px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            z-index: 20;
+        }
+
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #00ffff;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #94a3b8;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="fl"></div>
+    <div id="ui">
+        <h1>Plasma Bazooka</h1>
+        <p><strong>ENTER / KLIK</strong> : Transformasi | <strong>SPASI / KLIK</strong> : Tembak!</p>
+    </div>
+    <div id="canvas-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <script>
+        // Deklarasi global
+        let scene, camera, renderer, controls;
+        let parts = [];
+        let isWeaponState = false;
+        let isAnimating = false;
+        const V3 = THREE.Vector3;
+        let last = 0;
+        let lastFireTime = 0; // Cooldown untuk tembakan
+
+        // ==========================================
+        // 1. SISTEM PARTIKEL & SHADER (BOLA API)
+        // ==========================================
+        const U = { uTime: { value: 0 }, uFlash: { value: 0 } };
+        const rnd = (a, b) => a + Math.random() * (b - a);
+        function rs() {
+            let x, y, z;
+            do { x = rnd(-1, 1); y = rnd(-1, 1); z = rnd(-1, 1) } while (x * x + y * y + z * z > 1);
+            const l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]
+        }
+
+        function cv(s) { const c = document.createElement('canvas'); c.width = c.height = s; return [c, c.getContext('2d')] }
+        function radTex(a, b, c) {
+            const [k, g] = cv(128), r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+            r.addColorStop(0, a); r.addColorStop(.45, b); r.addColorStop(1, c);
+            g.fillStyle = r; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(k)
+        }
+        const glowTex = radTex('rgba(255,190,110,.9)', 'rgba(255,90,20,.25)', 'rgba(255,60,0,0)');
+
+        const NOISE = `float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+        float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
+        float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<3;i++){s+=a*vn(p);p*=2.07;a*=.5;}return s;}`;
+
+        const VS = `attribute vec3 aPos,aVel;attribute vec4 aM;varying vec2 vUv;varying vec4 vM;
+        void main(){vec4 mv=modelViewMatrix*vec4(aPos,1.);float s=aM.x;vec2 o=position.xy*s;
+        if(aM.z>.5&&aM.z<1.5){vec2 d=(modelViewMatrix*vec4(aVel,0.)).xy;float l=length(d);vec2 dir=l>1e-4?d/l:vec2(0.,1.);
+        o=vec2(-dir.y,dir.x)*position.x*s+dir*position.y*(s+l*.035);}
+        mv.xy+=o;vUv=position.xy*2.;vM=aM;gl_Position=projectionMatrix*mv;}`;
+
+        const FIRE = NOISE + `varying vec2 vUv;varying vec4 vM;uniform float uTime;
+        vec3 ramp(float t){vec3 c=vec3(0.);c=mix(c,vec3(.55,.05,0.),smoothstep(0.,.25,t));c=mix(c,vec3(1.,.38,.04),smoothstep(.2,.5,t));
+        c=mix(c,vec3(1.,.75,.2),smoothstep(.45,.75,t));c=mix(c,vec3(1.,.95,.75),smoothstep(.7,1.,t));return c;}
+        void main(){float k=vM.y;
+        if(vM.z>.5){float a=pow((1.-abs(vUv.x))*(1.-abs(vUv.y)),1.5);vec3 c=mix(vec3(1.,.9,.5),vec3(1.,.25,.03),smoothstep(0.,.7,k));gl_FragColor=vec4(c*(1.6-k*.8),a*(1.-k*k));return;}
+        float r=length(vUv);if(r>1.)discard;
+        float n=fbm(vUv*1.7+vec2(vM.w*37.,-uTime*2.)+k*3.);
+        float heat=smoothstep(1.,.1,r+(n-.5)*.8)*(1.-k)*(.5+n);
+        gl_FragColor=vec4(ramp(heat),heat*.4);}`;
+
+        const SMOKE = NOISE + `varying vec2 vUv;varying vec4 vM;uniform float uTime,uFlash;
+        void main(){float r=length(vUv);if(r>1.)discard;float k=vM.y;
+        float n=fbm(vUv*1.4+vM.w*20.+uTime*.05);
+        float a=smoothstep(1.,.1,r+(n-.5)*1.2)*smoothstep(0.,.1,k)*pow(1.-k,2.0)*.4;
+        vec3 c=vM.z>1.5?mix(vec3(.2,.16,.12),vec3(.38,.31,.24),n):mix(vec3(.06,.055,.05),vec3(.22,.2,.19),n);
+        c+=vec3(.9,.35,.1)*(uFlash*.35+pow(1.-k,5.)*.5)*(1.-k);
+        gl_FragColor=vec4(c,a);}`;
+
+        class Pool {
+            constructor(n, fs, blend, order) {
+                this.n = n; this.i = 0; const A = k => new Float32Array(n * k);
+                this.pos = A(3); this.vel = A(3); this.m = A(4); this.age = A(1).fill(9); this.life = A(1).fill(1);
+                this.s0 = A(1); this.s1 = A(1); this.dr = A(1); this.gy = A(1);
+                const base = new THREE.PlaneGeometry(1, 1), g = new THREE.InstancedBufferGeometry();
+                g.setIndex(base.index); g.setAttribute('position', base.attributes.position);
+                const at = (nm, arr, k) => { const a = new THREE.InstancedBufferAttribute(arr, k); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(nm, a); return a };
+                this.A = [at('aPos', this.pos, 3), at('aVel', this.vel, 3), at('aM', this.m, 4)]; g.instanceCount = n;
+                const mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: U, vertexShader: VS, fragmentShader: fs, transparent: true, depthWrite: false, blending: blend }));
+                mesh.frustumCulled = false; mesh.renderOrder = order; scene.add(mesh);
+            }
+            emit(x, y, z, vx, vy, vz, life, s0, s1, dr, gy, kind) {
+                const i = this.i; this.i = (i + 1) % this.n; const j = i * 3;
+                this.pos[j] = x; this.pos[j + 1] = y; this.pos[j + 2] = z; this.vel[j] = vx; this.vel[j + 1] = vy; this.vel[j + 2] = vz;
+                this.age[i] = 0; this.life[i] = life; this.s0[i] = s0; this.s1[i] = s1; this.dr[i] = dr; this.gy[i] = gy;
+                this.m[i * 4] = s0; this.m[i * 4 + 2] = kind; this.m[i * 4 + 3] = Math.random();
+            }
+            update(dt) {
+                const { pos, vel, m, age, life } = this;
+                for (let i = 0; i < this.n; i++) {
+                    const j = i * 3, k4 = i * 4;
+                    if (age[i] >= life[i]) { m[k4] = 0; continue }
+                    age[i] += dt; const k = age[i] / life[i]; if (k >= 1) { m[k4] = 0; continue }
+                    vel[j + 1] += this.gy[i] * dt; const d = Math.exp(-this.dr[i] * dt);
+                    vel[j] *= d; vel[j + 1] *= d; vel[j + 2] *= d;
+                    pos[j] += vel[j] * dt; pos[j + 1] += vel[j + 1] * dt; pos[j + 2] += vel[j + 2] * dt;
+                    m[k4] = this.s0[i] + (this.s1[i] - this.s0[i]) * k; m[k4 + 1] = k;
+                }
+                this.A.forEach(a => a.needsUpdate = true);
+            }
+        }
+
+        let smoke, fire, boomL, missL, fl, glow;
+        let missiles = [], shocks = [], flash = 0, glowT = 9;
+        const sm = (map) => new THREE.SpriteMaterial({ map, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
+        const hm = sm(glowTex);
+
+        // ==========================================
+        // 2. SETUP SCENE BAZOOKA
+        // ==========================================
+        function createNoiseTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+            const context = canvas.getContext('2d'); const imgData = context.createImageData(512, 512);
+            for (let i = 0; i < imgData.data.length; i += 4) { const val = Math.random() * 255; imgData.data[i] = val; imgData.data[i + 1] = val; imgData.data[i + 2] = val; imgData.data[i + 3] = 255; }
+            context.putImageData(imgData, 0, 0); const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(3, 3);
+            return texture;
+        }
+        const bumpTexture = createNoiseTexture();
+
+        init();
+        requestAnimationFrame(animate);
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+            fl = document.getElementById('fl');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050508);
+            scene.fog = new THREE.FogExp2(0x050508, 0.025);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 150);
+            camera.position.set(12, 8, 14);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.6;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 40;
+            controls.minDistance = 4;
+
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 1.0); scene.add(hemiLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            dirLight.position.set(10, 15, 10); dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; scene.add(dirLight);
+
+            const gridHelper = new THREE.GridHelper(80, 80, 0x00ffff, 0x111111);
+            gridHelper.position.y = -3; gridHelper.material.opacity = 0.15; gridHelper.material.transparent = true;
+            scene.add(gridHelper);
+
+            // Inisialisasi Sistem Api & Asap
+            smoke = new Pool(1500, SMOKE, THREE.NormalBlending, 1);
+            fire = new Pool(1900, FIRE, THREE.AdditiveBlending, 2);
+            boomL = new THREE.PointLight(0xff8a3a, 0, 45, 2);
+            missL = new THREE.PointLight(0xff9040, 0, 18, 2);
+            scene.add(boomL, missL);
+            glow = new THREE.Sprite(sm(glowTex)); glow.renderOrder = 3; scene.add(glow);
+
+            buildTransformer();
+
+            window.addEventListener('resize', onWindowResize);
+
+            // KEYBOARD CONTROL (DI PERBAIKI)
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !isAnimating) {
+                    toggleTransformation();
+                }
+                if (e.code === 'Space' || e.key === ' ') {
+                    e.preventDefault(); // Mencegah layar scroll ke bawah
+                    launchMissile();
+                }
+            });
+
+            // MOUSE CONTROL (KLIK KIRI)
+            window.addEventListener('pointerdown', (e) => {
+                if (e.target !== renderer.domElement) return;
+                if (!isAnimating) {
+                    if (isWeaponState) {
+                        launchMissile(); // Menembak jika klik kiri di mode senjata
+                    } else {
+                        toggleTransformation(); // Berubah jika masih di mode kubus
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 3. LOGIKA BAZOOKA
+        // ==========================================
+        let barrelCoreLight; // Variabel untuk cahaya di dalam laras
+
+        function buildTransformer() {
+            parts.forEach(p => scene.remove(p)); parts = [];
+            if (barrelCoreLight) scene.remove(barrelCoreLight);
+
+            const octCylGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+            const octCylHollowGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
+            const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+
+            const matDark = new THREE.MeshPhysicalMaterial({
+                color: 0x111111, metalness: 0.8, roughness: 0.4, flatShading: true, bumpMap: bumpTexture, bumpScale: 0.003
+            });
+
+            // EFEK GOSONG: Bagian dalam moncong dibuat sangat gelap (hampir hitam legam) 
+            // dengan roughness tinggi agar terlihat seperti besi terbakar/arang
+            const matDarkHollow = new THREE.MeshPhysicalMaterial({
+                color: 0x050505, metalness: 0.9, roughness: 0.9, flatShading: true,
+                emissive: 0x220500, emissiveIntensity: 0.6, // Efek bara api sisa pembakaran di dalam
+                side: THREE.DoubleSide
+            });
+
+            const matLight = new THREE.MeshPhysicalMaterial({
+                color: 0x880000, metalness: 0.3, roughness: 0.6, flatShading: true, bumpMap: bumpTexture, bumpScale: 0.003
+            });
+            const matBrown = new THREE.MeshPhysicalMaterial({
+                color: 0xcc0000, metalness: 0.1, roughness: 0.8, flatShading: true
+            });
+
+            const rotAlign = Math.PI / 8;
+            const boxSpacing = 1.05;
+
+            const configs = [
+                { geo: octCylGeo, mat: matDark, wPos: [0, 0, 2.5], wScale: [1.1, 2.0, 1.1], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [0, 1, 1] },
+                { geo: octCylGeo, mat: matBrown, wPos: [0, 0, 1.1], wScale: [1.15, 0.4, 1.15], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [-1, 1, 1] },
+                { geo: octCylGeo, mat: matBrown, wPos: [0, 0, 0.6], wScale: [1.15, 0.4, 1.15], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [1, 0, 1] },
+                { geo: octCylGeo, mat: matBrown, wPos: [0, 0, 0.1], wScale: [1.15, 0.4, 1.15], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [-1, 0, 1] },
+                { geo: octCylGeo, mat: matDark, wPos: [0, 0, -1.8], wScale: [1.2, 3.2, 1.2], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [1, -1, 1] },
+                { geo: octCylGeo, mat: matLight, wPos: [0, 0, -3.6], wScale: [1.4, 0.5, 1.4], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [0, -1, 1] },
+                { geo: octCylGeo, mat: matLight, wPos: [0, 0, -4.9], wScale: [1.4, 0.5, 1.4], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [-1, -1, 1] },
+                { geo: octCylGeo, mat: matDark, wPos: [0, 0, -4.2], wScale: [1.3, 1.0, 1.3], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [1, 1, -1] },
+                { geo: octCylHollowGeo, mat: matDarkHollow, wPos: [0, 0, -5.5], wScale: [1.5, 1.0, 1.5], wRot: [Math.PI / 2, rotAlign, 0], boxPos: [0, 1, -1] }
+            ];
+
+            configs.forEach((cfg) => {
+                const mesh = new THREE.Mesh(cfg.geo, cfg.mat);
+                mesh.castShadow = true; mesh.receiveShadow = true;
+                const bPos = [cfg.boxPos[0] * boxSpacing, cfg.boxPos[1] * boxSpacing, cfg.boxPos[2] * boxSpacing];
+                const bScale = [0.95, 0.95, 0.95];
+                mesh.position.set(...bPos); mesh.scale.set(...bScale); mesh.rotation.set(0, 0, 0);
+
+                mesh.userData = {
+                    box: { position: new THREE.Vector3(...bPos), scale: new THREE.Vector3(...bScale), rotation: new THREE.Euler(0, 0, 0) },
+                    weapon: { position: new THREE.Vector3(...cfg.wPos), scale: new THREE.Vector3(...cfg.wScale), rotation: new THREE.Euler(...cfg.wRot) }
+                };
+                scene.add(mesh); parts.push(mesh);
+            });
+
+            // MENAMBAHKAN INTI BARA API DI DALAM LARAS (BERUPA SPRITE BERSINAR)
+            const coreMat = new THREE.SpriteMaterial({
+                map: glowTex,
+                color: 0xff5500,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                depthWrite: false
+            });
+            barrelCoreLight = new THREE.Sprite(coreMat);
+            barrelCoreLight.scale.set(1.5, 1.5, 1.5);
+            // Posisi awal di dalam kotak, nanti akan mengikuti moncong saat bertransformasi
+            barrelCoreLight.position.set(0, 1, -1);
+            scene.add(barrelCoreLight);
+
+            // Perbarui data userData untuk animasi transisi inti api
+            barrelCoreLight.userData = {
+                box: { position: new THREE.Vector3(0, 1, -1), scale: new THREE.Vector3(0.5, 0.5, 0.5) },
+                weapon: { position: new THREE.Vector3(0, 0, -5.5), scale: new THREE.Vector3(2.2, 2.2, 2.2) }
+            };
+        }
+
+        function toggleTransformation() {
+            isAnimating = true;
+            const duration = 1.6;
+
+            gsap.to(camera.position, { y: camera.position.y + 1.2, duration: duration / 2, yoyo: true, repeat: 1, ease: "power2.inOut" });
+
+            parts.forEach((part, index) => {
+                const targetState = isWeaponState ? part.userData.box : part.userData.weapon;
+                const delay = index * 0.08;
+
+                const tl = gsap.timeline({
+                    delay: delay, onComplete: () => {
+                        if (index === parts.length - 1) { isAnimating = false; isWeaponState = !isWeaponState; }
+                    }
+                });
+
+                const midPos = part.position.clone().add(part.position.clone().normalize().multiplyScalar(2.5));
+                tl.to(part.position, { x: midPos.x, y: midPos.y, z: midPos.z, duration: duration * 0.35, ease: "power2.out" }, 0);
+                tl.to(part.rotation, { x: part.rotation.x + (Math.PI * 1.5), y: part.rotation.y + (Math.PI * 1.5), z: part.rotation.z + (Math.PI * 1.5), duration: duration * 0.35, ease: "none" }, 0);
+                tl.to(part.position, { x: targetState.position.x, y: targetState.position.y, z: targetState.position.z, duration: duration * 0.65, ease: "back.out(1.4)" }, duration * 0.35);
+                tl.to(part.scale, { x: targetState.scale.x, y: targetState.scale.y, z: targetState.scale.z, duration: duration * 0.65, ease: "back.out(1.2)" }, duration * 0.35);
+                tl.to(part.rotation, { x: targetState.rotation.x, y: targetState.rotation.y, z: targetState.rotation.z, duration: duration * 0.65, ease: "power3.out" }, duration * 0.35);
+            });
+        }
+
+        // ==========================================
+        // 4. LOGIKA FIREBALL & EFEK LEDAKAN
+        // ==========================================
+        function shock(p, R) {
+            const mat = new THREE.ShaderMaterial({
+                uniforms: { o: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+                vertexShader: 'varying vec3 n;void main(){n=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+                fragmentShader: 'varying vec3 n;uniform float o;void main(){float f=pow(1.-abs(n.z),2.2);gl_FragColor=vec4(vec3(1.,.65,.35)*f,f*o);}'
+            });
+            const m = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), mat);
+            m.position.copy(p); m.renderOrder = 3; m.scale.setScalar(.1); scene.add(m);
+            shocks.push({ m, t: 0, R });
+        }
+
+        let ac;
+        function audio() { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); return ac }
+        function playBoom(vol) {
+            try {
+                const a = audio(), t = a.currentTime, s = a.createBufferSource(), b = a.createBuffer(1, a.sampleRate * 2.2, a.sampleRate), d = b.getChannelData(0);
+                for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; s.buffer = b;
+                const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(1400, t); f.frequency.exponentialRampToValueAtTime(70, t + 1.6);
+                const g = a.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + 2.1); s.connect(f); f.connect(g); g.connect(a.destination); s.start(t);
+                const o = a.createOscillator(), og = a.createGain(); o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(28, t + .6);
+                og.gain.setValueAtTime(vol * 1.2, t); og.gain.exponentialRampToValueAtTime(.001, t + .8); o.connect(og); og.connect(a.destination); o.start(t); o.stop(t + .9)
+            } catch (e) { }
+        }
+
+        function explode(p, n, pw) {
+            const R = 8.5 * pw; flash = 1; boomL.position.copy(p).addScaledVector(n, .8); glowT = 0; glow.position.copy(p);
+            shock(p, R);
+
+            const shake = 2.5 / (1 + camera.position.distanceTo(p) * .12);
+            gsap.fromTo(camera.position,
+                { x: camera.position.x - shake, y: camera.position.y - shake },
+                { x: camera.position.x, y: camera.position.y, duration: 0.5, ease: "elastic.out(1, 0.3)" }
+            );
+
+            for (let i = 0; i < 70; i++) { const d = rs(), sp = rnd(1.5, 8) * pw; fire.emit(p.x + n.x * .2, p.y + n.y * .2, p.z + n.z * .2, (d[0] + n.x) * .9 * sp, (d[1] + n.y) * .9 * sp, (d[2] + n.z) * .9 * sp, rnd(.5, 1.3), rnd(.9, 1.7) * pw, rnd(2.4, 3.8) * pw, 2.2, 2.5, 0) }
+            fire.emit(p.x + n.x * .3, p.y + n.y * .3, p.z + n.z * .3, 0, 0, 0, .22, 3.5 * pw, 6 * pw, 0, 0, 0);
+            for (let i = 0; i < 170; i++) { const d = rs(), sp = rnd(5, 24) * pw; fire.emit(p.x, p.y, p.z, (d[0] + n.x * .5) * sp, (d[1] + n.y * .5) * sp, (d[2] + n.z * .5) * sp, rnd(1, 2.6), .07, .07, .25, -9.8, 1) }
+            for (let i = 0; i < 40; i++) { const d = rs(); smoke.emit(p.x + d[0] * .5, p.y + d[1] * .5 + .3, p.z + d[2] * .5, d[0] * 2, Math.abs(d[1]) * 2.5 + 1.5, d[2] * 2, rnd(3, 6.5), rnd(1.5, 2.5) * pw, rnd(4, 7) * pw, .9, .9, 0) }
+            playBoom(.9 * pw);
+        }
+
+        function launchMissile() {
+            if (!isWeaponState || isAnimating) return;
+
+            // Limitasi Tembakan (Cooldown 400ms)
+            const now = Date.now();
+            if (now - lastFireTime < 400) return;
+            lastFireTime = now;
+
+            try { audio() } catch (_) { }
+
+            const origin = new V3(0, 0, -5.5);
+
+            // DIUBAH: Angka 120 adalah kecepatan bola api. 
+            // Semakin besar angkanya, semakin cepat lajunya! (Sebelumnya 45)
+            const velocity = new V3(0, 0, -1).normalize().multiplyScalar(120);
+
+            // Skala Sprite bola api awal
+            const h = new THREE.Sprite(hm); h.scale.setScalar(8); h.renderOrder = 3; scene.add(h);
+            missiles.push({ p: origin, v: velocity, h, a: 0 });
+
+            // Animasi Tolak Balik (Recoil)
+            parts.forEach(part => {
+                const baseZ = part.userData.weapon.position.z;
+                gsap.killTweensOf(part.position);
+                gsap.to(part.position, {
+                    z: baseZ + 1.2,
+                    duration: 0.08,
+                    yoyo: true,
+                    repeat: 1,
+                    ease: "power2.out"
+                });
+            });
+        }
+
+        function endMissile(m) { scene.remove(m.h); missiles.splice(missiles.indexOf(m), 1) }
+
+        function updMissiles(dt, t) {
+            for (let i = missiles.length - 1; i >= 0; i--) {
+                const m = missiles[i], prev = m.p.clone();
+                m.p.addScaledVector(m.v, dt); m.a += dt;
+
+                for (let s = 0; s < 4; s++) {
+                    const q = prev.clone().lerp(m.p, s / 4);
+                    // DIUBAH: Perbesar ukuran partikel ekor api (s0 = 2.5, s1 = 0.5)
+                    fire.emit(q.x + rnd(-.1, .1), q.y + rnd(-.1, .1), q.z + rnd(-.1, .1), rnd(-.5, .5), rnd(-.2, .8), rnd(-.5, .5), rnd(.3, .6), 2.5, 0.5, 2.5, 2, 0);
+                    // DIUBAH: Perbesar ukuran asap ekor agar terlihat lebih tebal
+                    smoke.emit(q.x + rnd(-.2, .2), q.y + rnd(-.2, .2), q.z + rnd(-.2, .2), rnd(-.3, .3), rnd(0, .5), rnd(-.3, .3), rnd(.3, .8), 1.5, rnd(3.0, 5.0), .8, .2, 0);
+                }
+
+                // DIUBAH: Perbesar partikel Core (inti bola api) yang menempel pada ujung proyektil (s0 = 4.5, s1 = 3.5)
+                for (let k = 0; k < 2; k++) fire.emit(m.p.x, m.p.y, m.p.z, 0, 0, 0, .09, 4.5, 3.5, 0, 0, 0);
+
+                // Pecahan api (sparks) acak
+                fire.emit(m.p.x, m.p.y, m.p.z, -m.v.x * .12 + rnd(-3, 3), -m.v.y * .12 + rnd(-3, 3), -m.v.z * .12 + rnd(-3, 3), rnd(.5, 1.1), 0.5, 0.1, .4, -9.8, 1);
+
+                // DIUBAH: Skala dan denyut Glow utama diperbesar signifikan menyesuaikan moncong
+                m.h.position.copy(m.p);
+                m.h.scale.setScalar(8 + 1.2 * Math.sin(t * 40));
+
+                if (m.p.z < -50 || m.a > 3) {
+                    endMissile(m);
+                    explode(m.p.clone(), new V3(0, 0, 1), 1.5); // Kekuatan ledakan dinaikkan sedikit (pw=1.5)
+                }
+            }
+
+            const l = missiles[missiles.length - 1];
+            if (l) {
+                missL.position.copy(l.p);
+                missL.intensity = 15 * (.85 + .15 * Math.sin(t * 50)); // Terangkan lampu dinamis misil
+            }
+            else missL.intensity = 0;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ==========================================
+        // 5. ANIMATION LOOP (Diperbaiki)
+        // ==========================================
+        function animate(now) {
+            requestAnimationFrame(animate);
+            if (!now) return;
+            if (!last) last = now;
+
+            const dtr = Math.min((now - last) / 1000 || .016, .05);
+            last = now;
+            const dt = dtr, t = now / 1000;
+            U.uTime.value = t;
+
+            controls.update();
+
+            if (!isAnimating && !isWeaponState) {
+                parts.forEach(part => { part.position.y += Math.sin(t * 2 + part.position.x) * 0.0005; });
+            }
+
+            updMissiles(dt, t);
+            smoke.update(dt);
+            fire.update(dt);
+
+            for (let i = shocks.length - 1; i >= 0; i--) {
+                const s = shocks[i]; s.t += dt / .6; const k = Math.min(1, s.t);
+                s.m.scale.setScalar(s.R * 1.3 * (1 - (1 - k) * (1 - k)) + .1); s.m.material.uniforms.o.value = (1 - k) * (1 - k) * .6;
+                if (s.t >= 1) { scene.remove(s.m); s.m.material.dispose(); s.m.geometry.dispose(); shocks.splice(i, 1) }
+            }
+
+            glowT += dt; const g = Math.max(0, 1 - glowT / .9);
+            glow.material.opacity = g * g; glow.scale.setScalar(10 + glowT * 9); glow.visible = g > 0;
+            boomL.intensity = flash * 70; flash *= Math.exp(-4 * dt); U.uFlash.value = flash;
+            fl.style.opacity = (flash * .3).toFixed(3);
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+
+</html>

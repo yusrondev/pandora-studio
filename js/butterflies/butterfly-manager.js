@@ -34,29 +34,29 @@ function createAnimeWingTexture(theme = 'blue') {
 
     const isCyanTheme = (theme === 'cyan');
 
-    // Gradasi sayap bercahaya
+    // Gradasi sayap bercahaya neon magis
     const grad = ctx.createRadialGradient(40, 256, 15, 256, 256, 310);
     if (isCyanTheme) {
-        grad.addColorStop(0.0, '#38bdf8');
-        grad.addColorStop(0.25, '#06b6d4');
-        grad.addColorStop(0.55, '#0891b2');
-        grad.addColorStop(0.82, '#0e7490');
+        grad.addColorStop(0.0, '#e0faff');
+        grad.addColorStop(0.18, '#67e8f9');
+        grad.addColorStop(0.45, '#06b6d4');
+        grad.addColorStop(0.75, '#0891b2');
         grad.addColorStop(1.0, '#042f2e');
     } else {
-        grad.addColorStop(0.0, '#38bdf8');
-        grad.addColorStop(0.25, '#0284c7');
-        grad.addColorStop(0.55, '#0369a1');
-        grad.addColorStop(0.82, '#1e3a8a');
+        grad.addColorStop(0.0, '#e0f2fe');
+        grad.addColorStop(0.18, '#38bdf8');
+        grad.addColorStop(0.45, '#0284c7');
+        grad.addColorStop(0.75, '#1e3a8a');
         grad.addColorStop(1.0, '#0f172a');
     }
 
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 512, 512);
 
-    // Pola urat sayap bercahaya (Electric Veins)
-    ctx.strokeStyle = isCyanTheme ? 'rgba(103, 232, 249, 0.88)' : 'rgba(125, 211, 252, 0.88)';
-    ctx.shadowColor = isCyanTheme ? '#00f2fe' : '#00e5ff';
-    ctx.shadowBlur = 8;
+    // Pola urat sayap bercahaya neon (Electric Glow Veins)
+    ctx.strokeStyle = isCyanTheme ? 'rgba(224, 254, 255, 0.95)' : 'rgba(224, 242, 254, 0.95)';
+    ctx.shadowColor = isCyanTheme ? '#00f2fe' : '#38bdf8';
+    ctx.shadowBlur = 14;
 
     const scale = 0.5;
     const veins = [
@@ -98,11 +98,6 @@ function createAnimeWingTexture(theme = 'blue') {
         }
     }
 
-    // Border pendaran halus
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = isCyanTheme ? 'rgba(34, 211, 238, 0.7)' : 'rgba(56, 189, 248, 0.7)';
-    ctx.strokeRect(0, 0, 512, 512);
-
     const texture = new THREE.CanvasTexture(canvas);
     texture.anisotropy = 4;
     return texture;
@@ -115,6 +110,127 @@ function getWingTexture(theme = 'blue') {
     }
     if (!sharedWingTexture) sharedWingTexture = createAnimeWingTexture('blue');
     return sharedWingTexture;
+}
+
+// ============================================================
+// GENERATOR TEKSTUR & MATERIAL BLOOM GLOW FANTASI
+// Multi-layer Additive bioluminescent halo untuk efek bloom
+// ============================================================
+let sharedBloomTextureBlue = null;
+let sharedBloomTextureCyan = null;
+
+function createButterflyBloomTexture(theme = 'blue') {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(size, size);
+    const data = imgData.data;
+
+    const isCyanTheme = (theme === 'cyan');
+    const rBase = isCyanTheme ? 180 : 190;
+    const gBase = isCyanTheme ? 245 : 225;
+    const bBase = 255;
+
+    const half = size / 2;
+    const maxR = half * 0.95;
+
+    // Menghasilkan gradien Gaussian sejati berbasis piksel yang sangat halus,
+    // tanpa banding, tanpa lingkaran kasar, dan menghilang secara samar ke 0
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const dx = x - half;
+            const dy = y - half;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const idx = (y * size + x) * 4;
+
+            if (dist >= maxR) {
+                data[idx] = 0;
+                data[idx + 1] = 0;
+                data[idx + 2] = 0;
+                data[idx + 3] = 0;
+                continue;
+            }
+
+            const rNorm = dist / maxR; // 0..1
+            // Formula Gaussian Super-Smooth & Samar: exp(-4.8 * r^2) * (1 - r^2)^2
+            // Memberikan falloff sempurna C^2 dengan turunan 0 di batas luar (tidak ada artefak garis)
+            const tail = 1.0 - rNorm * rNorm;
+            const gVal = Math.exp(-4.8 * rNorm * rNorm) * tail * tail;
+
+            data[idx] = Math.round(rBase);
+            data[idx + 1] = Math.round(gBase);
+            data[idx + 2] = Math.round(bBase);
+            data[idx + 3] = Math.round(gVal * 255);
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    return tex;
+}
+
+function getButterflyBloomTexture(theme = 'blue') {
+    if (theme === 'cyan') {
+        if (!sharedBloomTextureCyan) sharedBloomTextureCyan = createButterflyBloomTexture('cyan');
+        return sharedBloomTextureCyan;
+    }
+    if (!sharedBloomTextureBlue) sharedBloomTextureBlue = createButterflyBloomTexture('blue');
+    return sharedBloomTextureBlue;
+}
+
+let sharedBloomCoreMaterialBlue = null;
+let sharedBloomCoreMaterialCyan = null;
+let sharedBloomAuraMaterialBlue = null;
+let sharedBloomAuraMaterialCyan = null;
+
+function getBloomMaterials(theme = 'blue') {
+    const isCyanTheme = (theme === 'cyan');
+    if (isCyanTheme) {
+        if (!sharedBloomCoreMaterialCyan) {
+            sharedBloomCoreMaterialCyan = new THREE.SpriteMaterial({
+                map: getButterflyBloomTexture('cyan'),
+                color: 0xffffff,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                opacity: 0.18 // Halus & samar, tidak menyilaukan
+            });
+            sharedBloomAuraMaterialCyan = new THREE.SpriteMaterial({
+                map: getButterflyBloomTexture('cyan'),
+                color: 0x67e8f9,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                opacity: 0.08 // Kabut pendaran tipis magis
+            });
+        }
+        return { core: sharedBloomCoreMaterialCyan, aura: sharedBloomAuraMaterialCyan };
+    } else {
+        if (!sharedBloomCoreMaterialBlue) {
+            sharedBloomCoreMaterialBlue = new THREE.SpriteMaterial({
+                map: getButterflyBloomTexture('blue'),
+                color: 0xffffff,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                opacity: 0.18 // Halus & samar, tidak menyilaukan
+            });
+            sharedBloomAuraMaterialBlue = new THREE.SpriteMaterial({
+                map: getButterflyBloomTexture('blue'),
+                color: 0x7dd3fc,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                opacity: 0.08 // Kabut pendaran tipis magis
+            });
+        }
+        return { core: sharedBloomCoreMaterialBlue, aura: sharedBloomAuraMaterialBlue };
+    }
 }
 
 // 2. GEOMETRI SAYAP & BADAN DETAIL (DARI sample-butterfly.html)
@@ -170,17 +286,17 @@ const sharedAntennaTipGeom = new THREE.SphereGeometry(0.02, 6, 6);
 // Shared Materials
 const sharedBodyMaterial = new THREE.MeshStandardMaterial({
     color: 0x0a1128,
-    emissive: 0x0369a1,
-    emissiveIntensity: 0.6,
-    roughness: 0.25,
-    metalness: 0.7
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.65,
+    roughness: 0.20,
+    metalness: 0.6
 });
 
 const sharedEyeMaterial = new THREE.MeshStandardMaterial({
-    color: 0xe0f2fe,
-    emissive: 0x00f2fe,
+    color: 0xffffff,
+    emissive: 0x38bdf8,
     emissiveIntensity: 1.8,
-    roughness: 0.1
+    roughness: 0.05
 });
 
 // Cache wing materials
@@ -192,12 +308,12 @@ function getWingMaterial(theme = 'blue') {
         map: getWingTexture(theme),
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.92,
-        roughness: 0.18,
-        metalness: 0.2,
+        opacity: 0.94,
+        roughness: 0.12,
+        metalness: 0.15,
         blending: THREE.NormalBlending,
-        emissive: theme === 'cyan' ? 0x0891b2 : 0x0284c7,
-        emissiveIntensity: 0.55
+        emissive: theme === 'cyan' ? 0x22d3ee : 0x38bdf8,
+        emissiveIntensity: 0.35
     });
     wingMaterialCache[theme] = mat;
     return mat;
@@ -268,6 +384,18 @@ function buildButterflyModel(theme = 'blue') {
     rightWingPivot.add(rightWingMesh);
     butterflyRoot.add(rightWingPivot);
 
+    // 4. Bloom Fantasy Glow Sprites (Additive Bioluminescent Halo - Samar & Halus)
+    const bloomMats = getBloomMaterials(theme);
+    const bloomCore = new THREE.Sprite(bloomMats.core);
+    bloomCore.position.set(0, 0.04, 0.06);
+    bloomCore.scale.set(1.9, 1.9, 1.0);
+    butterflyRoot.add(bloomCore);
+
+    const bloomAura = new THREE.Sprite(bloomMats.aura);
+    bloomAura.position.set(0, 0.04, 0.06);
+    bloomAura.scale.set(3.6, 3.6, 1.0);
+    butterflyRoot.add(bloomAura);
+
     // Root Group dengan Skala STATIC KECIL
     const root = new THREE.Group();
     const staticScale = butterflyParams.staticScale; // Selalu kecil & tidak dapat diubah ukurannya
@@ -279,7 +407,9 @@ function buildButterflyModel(theme = 'blue') {
         butterflyRoot,
         leftWingPivot,
         rightWingPivot,
-        abdomenGroup
+        abdomenGroup,
+        bloomCore,
+        bloomAura
     };
 }
 
@@ -338,6 +468,8 @@ function placeButterfliesAt(intersectPoint, butterflyType = 'spawn_butterfly_blu
             leftWingPivot: built.leftWingPivot,
             rightWingPivot: built.rightWingPivot,
             abdomenGroup: built.abdomenGroup,
+            bloomCore: built.bloomCore,
+            bloomAura: built.bloomAura,
             type: butterflyType,
             theme: theme,
             centerX: centerX,
@@ -421,6 +553,8 @@ function recreateButterfly(data) {
         leftWingPivot: built.leftWingPivot,
         rightWingPivot: built.rightWingPivot,
         abdomenGroup: built.abdomenGroup,
+        bloomCore: built.bloomCore,
+        bloomAura: built.bloomAura,
         type: data.type || ('spawn_butterfly_' + theme),
         theme: theme,
         centerX: centerX,
@@ -499,6 +633,14 @@ function updateButterflies(delta, elapsedTime) {
         // Banking roll
         const curvatureX = -Math.sin(currentT);
         b.root.rotateZ(curvatureX * 0.32);
+
+        // 4. Pendaran Bloom Halus & Samar Mengikuti Irama Kepakan Sayap
+        if (b.bloomCore && b.bloomAura) {
+            const flapNorm = (flapBase + 1.0) * 0.5; // 0..1
+            const pulse = 0.96 + flapNorm * 0.08;
+            b.bloomCore.scale.set(1.9 * pulse, 1.9 * pulse, 1.0);
+            b.bloomAura.scale.set(3.6 * (0.97 + flapNorm * 0.06), 3.6 * (0.97 + flapNorm * 0.06), 1.0);
+        }
     }
 }
 

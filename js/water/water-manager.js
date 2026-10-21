@@ -24,6 +24,12 @@ waterMaskTexture.generateMipmaps = false;
 // PENTING: flipY = false agar sumbu Z dunia berpadanan 1:1 dengan sumbu Y canvas tanpa terbalik!
 waterMaskTexture.flipY = false;
 
+if (typeof groundMat !== 'undefined' && groundMat && groundMat.userData && groundMat.userData.shader && groundMat.userData.shader.uniforms) {
+    if (groundMat.userData.shader.uniforms.uGroundWaterMask) {
+        groundMat.userData.shader.uniforms.uGroundWaterMask.value = waterMaskTexture;
+    }
+}
+
 // ============================================================
 // DATA TEXTURE TINGGI TANAH (Auto-deteksi air menyentuh sculpt tanah / landscape)
 // ============================================================
@@ -975,6 +981,11 @@ function clearAllWater() {
 function setWaterLevel(y) {
     waterCurrentLevel = y;
     waterMesh.position.y = y;
+    if (typeof groundMat !== 'undefined' && groundMat && groundMat.userData && groundMat.userData.shader && groundMat.userData.shader.uniforms) {
+        if (groundMat.userData.shader.uniforms.uGroundWaterLevel) {
+            groundMat.userData.shader.uniforms.uGroundWaterLevel.value = y;
+        }
+    }
 }
 
 // Variable state untuk kontrol matahari ocean
@@ -1021,6 +1032,17 @@ function updateWater(delta, elapsedTime) {
     if (!waterMat || !waterMat.uniforms) return;
     const u = waterMat.uniforms;
 
+    // Sinkronisasi mask air ke shader tanah agar bayangan tidak ganda di area air
+    if (typeof groundMat !== 'undefined' && groundMat && groundMat.userData && groundMat.userData.shader && groundMat.userData.shader.uniforms) {
+        const gu = groundMat.userData.shader.uniforms;
+        if (gu.uGroundWaterMask && gu.uGroundWaterMask.value !== waterMaskTexture) {
+            gu.uGroundWaterMask.value = waterMaskTexture;
+        }
+        if (gu.uGroundWaterLevel) {
+            gu.uGroundWaterLevel.value = (typeof waterCurrentLevel === 'number') ? waterCurrentLevel : 0.0;
+        }
+    }
+
     // Sinkronisasi dinamis tinggi terrain ke texture air jika terrain di-sculpt
     if (typeof groundGeo !== 'undefined' && groundGeo && groundGeo.attributes.position && groundGeo.attributes.position.needsUpdate) {
         syncTerrainHeightToWater();
@@ -1053,6 +1075,17 @@ function updateWater(delta, elapsedTime) {
     // 1. Animasi waktu
     if (u.uTime) {
         u.uTime.value = elapsedTime;
+    }
+
+    // 1B. Sinkronisasi waktu dan parameter gelombang air dinamis ke ground shader
+    // agar bayangan tanah melacak kontur ombak air yang bergerak secara 100% presisi realtime
+    if (typeof groundMat !== 'undefined' && groundMat && groundMat.userData && groundMat.userData.shader && groundMat.userData.shader.uniforms) {
+        const gu = groundMat.userData.shader.uniforms;
+        if (gu.uGroundWaterTime) gu.uGroundWaterTime.value = elapsedTime;
+        if (gu.uGroundWaterAmp && u.uAmp) gu.uGroundWaterAmp.value = u.uAmp.value;
+        if (gu.uGroundWaterSpeed && u.uSpeed) gu.uGroundWaterSpeed.value = u.uSpeed.value;
+        if (gu.uGroundWaterLevel) gu.uGroundWaterLevel.value = waterCurrentLevel;
+        if (gu.uGroundWaterMask && gu.uGroundWaterMask.value !== waterMaskTexture) gu.uGroundWaterMask.value = waterMaskTexture;
     }
 
     // 2. Sinkronisasi posisi & warna matahari realtime mengikuti sudut matahari in-game

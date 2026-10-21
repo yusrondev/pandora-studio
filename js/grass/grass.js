@@ -9,7 +9,6 @@ function createGenshinGrassTuftTexture() {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, 512, 512);
 
-    ctx.fillStyle = '#ffffff';
     // 9 bilah helai rumput dinamis & rimbun khas Genshin Impact
     const blades = [
         { x: 256, w: 22, h: 495, curve: 0 },
@@ -23,6 +22,7 @@ function createGenshinGrassTuftTexture() {
         { x: 434, w: 14, h: 295, curve: 110 }
     ];
 
+    ctx.fillStyle = '#ffffff';
     blades.forEach(b => {
         ctx.beginPath();
         ctx.moveTo(b.x - b.w / 2, 512);
@@ -62,29 +62,36 @@ function createDenseGrassTuftGeometry() {
 
     const posArray = new Float32Array(totalVertices * 3);
     const uvArray = new Float32Array(totalVertices * 2);
+    const planeIdArray = new Float32Array(totalVertices);
     const indexArray = new Uint32Array(totalIndices);
 
     let vOffset = 0;
     let iOffset = 0;
 
-    geometries.forEach(g => {
+    geometries.forEach((g, pIdx) => {
         const pos = g.attributes.position.array;
         const uv = g.attributes.uv.array;
         const idx = g.index.array;
+        const vCount = g.attributes.position.count;
 
         posArray.set(pos, vOffset * 3);
         uvArray.set(uv, vOffset * 2);
+
+        for (let k = 0; k < vCount; k++) {
+            planeIdArray[vOffset + k] = pIdx;
+        }
 
         for (let j = 0; j < idx.length; j++) {
             indexArray[iOffset + j] = idx[j] + vOffset;
         }
 
-        vOffset += g.attributes.position.count;
+        vOffset += vCount;
         iOffset += idx.length;
     });
 
     tuftGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
     tuftGeo.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
+    tuftGeo.setAttribute('aPlaneId', new THREE.BufferAttribute(planeIdArray, 1));
     tuftGeo.setIndex(new THREE.BufferAttribute(indexArray, 1));
 
     return tuftGeo;
@@ -177,12 +184,17 @@ const genshinGrassShader = {
         varying vec3 vWorldPosition;
         varying vec3 vInstanceColor;
         varying float vTrample;
+        varying float vPlaneId;
+        varying vec2 vInstPos;
 
         attribute vec3 instanceColor;
+        attribute float aPlaneId;
 
         void main() {
             vUv = uv;
             vInstanceColor = instanceColor;
+            vPlaneId = aPlaneId;
+            vInstPos = vec2(instanceMatrix[3][0], instanceMatrix[3][2]);
             vec3 pos = position;
 
             // Dapatkan posisi dasar rumpun rumput di koordinat dunia (world space)
@@ -274,12 +286,60 @@ const genshinGrassShader = {
         varying vec3 vWorldPosition;
         varying vec3 vInstanceColor;
         varying float vTrample;
+        varying float vPlaneId;
+        varying vec2 vInstPos;
 
         void main() {
             vec4 texColor = texture2D(uTexture, vUv);
             if (texColor.a < 0.35) discard;
 
-            vec3 grassColor = mix(vInstanceColor * 0.7, vInstanceColor * 1.15, pow(vUv.y, 0.85));
+            vec3 baseColor = vInstanceColor;
+
+            // Cek apakah jenis rumput ini adalah mode MIX (ditandai dengan nilai channel b ~ 0.42)
+            bool isMix = abs(vInstanceColor.b - 0.42) < 0.04;
+            if (isMix) {
+                // Pseudo-random seed murni per instance rumpun (bebas dari pembagian grid / tanpa petak-petak)
+                float instHash = fract(sin(dot(vInstPos, vec2(12.9898, 78.233))) * 43758.5453);
+
+                // Distribusi harmonik warna yang merata & alami di setiap helai rumput dalam rumpun
+                // 56.55 rad / 2pi ~ 9 helai pada vUv.x; fasa melompat ~280° antar helai sehingga tiap helai berbeda
+                float bladeAngle = vUv.x * 56.55 + vPlaneId * 2.0944 + instHash * 6.2831;
+                float w1 = sin(bladeAngle);
+                float w2 = sin(bladeAngle * 2.0 + 1.25);
+
+                // t berosilasi seimbang di sekitar 0.50: setiap rumpun memiliki proporsi seimbang
+                // antara helai tua, matang, dan terang (rata merata di seluruh hamparan padang rumput)
+                float t = clamp(0.50 + w1 * 0.35 + w2 * 0.15, 0.0, 1.0);
+
+                bool isYellowMix = (vInstanceColor.r >= 0.50);
+                if (!isYellowMix) {
+                    // RUMPUT HIJAU MIX:
+                    // Kombinasi alami merata: Hijau Tua Pekat, Hijau Matang Segar, Hijau Agak Terang Bersinar
+                    vec3 darkGreen   = vec3(0.14, 0.46, 0.11); // Hijau tua lebat alami
+                    vec3 midGreen    = vec3(0.28, 0.70, 0.14); // Hijau matang segar padang rumput
+                    vec3 brightGreen = vec3(0.52, 0.85, 0.18); // Hijau muda cerah bersinar
+
+                    if (t < 0.50) {
+                        baseColor = mix(darkGreen, midGreen, t / 0.50);
+                    } else {
+                        baseColor = mix(midGreen, brightGreen, (t - 0.50) / 0.50);
+                    }
+                } else {
+                    // RUMPUT KUNING MIX:
+                    // Kombinasi alami merata: Kuning Tua Keemasan, Kuning Matang, Kuning Terang Lemon
+                    vec3 darkYellow   = vec3(0.68, 0.44, 0.08); // Kuning tua / oker keemasan
+                    vec3 midYellow    = vec3(0.88, 0.68, 0.12); // Kuning matang emas ladang
+                    vec3 brightYellow = vec3(0.98, 0.88, 0.28); // Kuning muda cerah bersinar
+
+                    if (t < 0.50) {
+                        baseColor = mix(darkYellow, midYellow, t / 0.50);
+                    } else {
+                        baseColor = mix(midYellow, brightYellow, (t - 0.50) / 0.50);
+                    }
+                }
+            }
+
+            vec3 grassColor = mix(baseColor * 0.70, baseColor * 1.15, pow(vUv.y, 0.85));
 
             // Efek bekas injakan: rumput yang terinjak tampak lebih gelap, pekat & berbayang (crushed tone)
             // Rumput tetap tampak lebat di tanah, namun bernuansa hijau tua pekat sebagai tanda bekas pijakan

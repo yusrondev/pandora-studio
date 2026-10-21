@@ -10,6 +10,8 @@ let isRightMouseDown = false;
 const greenColor = new THREE.Color(0x52b314);
 const yellowColor = new THREE.Color(0xd9ab23);
 const whiteColor = new THREE.Color(0xf4f9fc);
+const greenMixColor = new THREE.Color(0.28, 0.78, 0.42);
+const yellowMixColor = new THREE.Color(0.88, 0.72, 0.42);
 
 // Mencegah menu konteks klik-kanan browser muncul saat mengklik canvas 3D
 window.addEventListener('contextmenu', (e) => {
@@ -125,6 +127,10 @@ function handleBrushAction(event) {
                 activeColor = yellowColor;
             } else if (grassBrush === 'spawn_white') {
                 activeColor = whiteColor;
+            } else if (grassBrush === 'spawn_green_mix') {
+                activeColor = greenMixColor;
+            } else if (grassBrush === 'spawn_yellow_mix') {
+                activeColor = yellowMixColor;
             }
 
             if (grassBrush === 'remove') {
@@ -563,7 +569,8 @@ function updateBrushReticle(hitPoint, normal) {
     } else if (grassBrush !== 'none') {
         radius = parseFloat(sliderGrassRadius.value) || 4.0;
         if (grassBrush === 'remove') colorHex = 0xef4444;       // Merah hapus rumput
-        else if (grassBrush === 'spawn_yellow') colorHex = 0xfacc15; // Kuning emas padang rumput
+        else if (grassBrush === 'spawn_yellow' || grassBrush === 'spawn_yellow_mix') colorHex = 0xfacc15; // Kuning emas padang rumput
+        else if (grassBrush === 'spawn_white') colorHex = 0xf8fafc; // Putih salju
         else colorHex = 0x10b981;                               // Hijau zamrud rumput segar
     } else if (rockBrush !== 'none') {
         radius = (typeof sliderRockRadius !== 'undefined') ? (parseFloat(sliderRockRadius.value) || 4.0) : 4.0;

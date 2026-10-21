@@ -543,7 +543,7 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
 }
 
 .spawner-card-grid.grass-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
 }
 
 .spawner-card {
@@ -636,8 +636,14 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
 .card-preview.grass-green-bg {
     background: #233526;
 }
+.card-preview.grass-green-mix-bg {
+    background: linear-gradient(135deg, #18331d 0%, #294c25 100%);
+}
 .card-preview.grass-yellow-bg {
     background: #3a3320;
+}
+.card-preview.grass-yellow-mix-bg {
+    background: linear-gradient(135deg, #382c16 0%, #4a3c1c 100%);
 }
 .card-preview.grass-white-bg {
     background: #31353a;

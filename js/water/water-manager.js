@@ -56,8 +56,8 @@ function syncTerrainHeightToWater() {
 window.syncTerrainHeightToWater = syncTerrainHeightToWater;
 setTimeout(syncTerrainHeightToWater, 100);
 
-// Geometry bidang air - bidang datar horizontal (flat plane) seperti danau/laut alami
-const waterSegments = 120;
+// Geometry bidang air horizontal datar (flat surface) alami khas danau/sungai Genshin Impact
+const waterSegments = (typeof groundSegments !== 'undefined') ? groundSegments : 100;
 const waterGeo = new THREE.PlaneGeometry(waterGroundSize, waterGroundSize, waterSegments, waterSegments);
 waterGeo.rotateX(-Math.PI / 2);
 
@@ -65,42 +65,42 @@ waterGeo.rotateX(-Math.PI / 2);
 const waterAtmospherePresets = {
     day: {
         warmShallowTint: new THREE.Color(0x7be3b5), // Hijau kekuningan lembut di tepi paling dangkal
-        emeraldGreen:    new THREE.Color(0x45dfb8), // Hijau zamrud / mint jernih
-        aquaTurquoise:   new THREE.Color(0x1dbcd1), // Transisi biru toska halus
-        lakeAzure:       new THREE.Color(0x1c92cf), // Biru danau tenang di area tengah
-        deepReflection:  new THREE.Color(0x3a8cd9), // Biru pantulan di kejauhan
-        skyReflect:      new THREE.Color(0x78bcf5), // Pantulan langit cerah
-        cloudWhite:      new THREE.Color(0xeef8ff), // Pantulan awan putih lembut
-        horizonFog:      new THREE.Color(0xbce4fa), // Kabut cakrawala siang
-        sunSpecular:     new THREE.Color(0xfffae6), // Kilau specular matahari siang
+        emeraldGreen: new THREE.Color(0x45dfb8), // Hijau zamrud / mint jernih
+        aquaTurquoise: new THREE.Color(0x1dbcd1), // Transisi biru toska halus
+        lakeAzure: new THREE.Color(0x1c92cf), // Biru danau tenang di area tengah
+        deepReflection: new THREE.Color(0x3a8cd9), // Biru pantulan di kejauhan
+        skyReflect: new THREE.Color(0x78bcf5), // Pantulan langit cerah
+        cloudWhite: new THREE.Color(0xeef8ff), // Pantulan awan putih lembut
+        horizonFog: new THREE.Color(0xbce4fa), // Kabut cakrawala siang
+        sunSpecular: new THREE.Color(0xfffae6), // Kilau specular matahari siang
         underlightColor: new THREE.Color(0x0c3022), // Pendar kejernihan dasar air dangkal
-        waterClarity:    1.0
+        waterClarity: 1.0
     },
     sunset: {
         warmShallowTint: new THREE.Color(0xf0a875), // Dangkal keemasan tembaga sore
-        emeraldGreen:    new THREE.Color(0xdb7150), // Air hangat rona jingga amber
-        aquaTurquoise:   new THREE.Color(0xbd5066), // Transisi dusky coral rose
-        lakeAzure:       new THREE.Color(0x662a52), // Danau ungu pekat bernuansa senja
-        deepReflection:  new THREE.Color(0x3f1a40), // Kedalaman violet gelap sore
-        skyReflect:      new THREE.Color(0xff8c55), // Pantulan mega merah / sunset glow
-        cloudWhite:      new THREE.Color(0xffd5a2), // Pantulan awan senja keemasan
-        horizonFog:      new THREE.Color(0xffa052), // Kabut cakrawala senja
-        sunSpecular:     new THREE.Color(0xffb04a), // Kilau pendar matahari terbenam
+        emeraldGreen: new THREE.Color(0xdb7150), // Air hangat rona jingga amber
+        aquaTurquoise: new THREE.Color(0xbd5066), // Transisi dusky coral rose
+        lakeAzure: new THREE.Color(0x662a52), // Danau ungu pekat bernuansa senja
+        deepReflection: new THREE.Color(0x3f1a40), // Kedalaman violet gelap sore
+        skyReflect: new THREE.Color(0xff8c55), // Pantulan mega merah / sunset glow
+        cloudWhite: new THREE.Color(0xffd5a2), // Pantulan awan senja keemasan
+        horizonFog: new THREE.Color(0xffa052), // Kabut cakrawala senja
+        sunSpecular: new THREE.Color(0xffb04a), // Kilau pendar matahari terbenam
         underlightColor: new THREE.Color(0x38180d), // Pendar dasar air bernuansa hangat
-        waterClarity:    0.85
+        waterClarity: 0.85
     },
     night: {
         warmShallowTint: new THREE.Color(0x103448), // Dangkal bernuansa nocturnal cyan gelap
-        emeraldGreen:    new THREE.Color(0x092233), // Biru laut malam pekat
-        aquaTurquoise:   new THREE.Color(0x061726), // Sapphire navy tenang
-        lakeAzure:       new THREE.Color(0x030f1b), // Danau malam obsidian
-        deepReflection:  new THREE.Color(0x020810), // Kedalaman gelap pekat di kejauhan
-        skyReflect:      new THREE.Color(0x163454), // Pantulan langit malam bertabur bintang
-        cloudWhite:      new THREE.Color(0x456c90), // Pendar awan malam lembut
-        horizonFog:      new THREE.Color(0x061322), // Kabut malam menyatu
-        sunSpecular:     new THREE.Color(0x9ed3ff), // Pendar kilau rembulan perak kebiruan
+        emeraldGreen: new THREE.Color(0x092233), // Biru laut malam pekat
+        aquaTurquoise: new THREE.Color(0x061726), // Sapphire navy tenang
+        lakeAzure: new THREE.Color(0x030f1b), // Danau malam obsidian
+        deepReflection: new THREE.Color(0x020810), // Kedalaman gelap pekat di kejauhan
+        skyReflect: new THREE.Color(0x163454), // Pantulan langit malam bertabur bintang
+        cloudWhite: new THREE.Color(0x456c90), // Pendar awan malam lembut
+        horizonFog: new THREE.Color(0x061322), // Kabut malam menyatu
+        sunSpecular: new THREE.Color(0x9ed3ff), // Pendar kilau rembulan perak kebiruan
         underlightColor: new THREE.Color(0x020a10), // Pendar dasar air malam
-        waterClarity:    0.45
+        waterClarity: 0.45
     }
 };
 
@@ -108,16 +108,16 @@ const waterAtmospherePresets = {
 let currentWaterPresetKey = 'day';
 const targetAtmosphere = {
     warmShallowTint: waterAtmospherePresets.day.warmShallowTint.clone(),
-    emeraldGreen:    waterAtmospherePresets.day.emeraldGreen.clone(),
-    aquaTurquoise:   waterAtmospherePresets.day.aquaTurquoise.clone(),
-    lakeAzure:       waterAtmospherePresets.day.lakeAzure.clone(),
-    deepReflection:  waterAtmospherePresets.day.deepReflection.clone(),
-    skyReflect:      waterAtmospherePresets.day.skyReflect.clone(),
-    cloudWhite:      waterAtmospherePresets.day.cloudWhite.clone(),
-    horizonFog:      waterAtmospherePresets.day.horizonFog.clone(),
-    sunSpecular:     waterAtmospherePresets.day.sunSpecular.clone(),
+    emeraldGreen: waterAtmospherePresets.day.emeraldGreen.clone(),
+    aquaTurquoise: waterAtmospherePresets.day.aquaTurquoise.clone(),
+    lakeAzure: waterAtmospherePresets.day.lakeAzure.clone(),
+    deepReflection: waterAtmospherePresets.day.deepReflection.clone(),
+    skyReflect: waterAtmospherePresets.day.skyReflect.clone(),
+    cloudWhite: waterAtmospherePresets.day.cloudWhite.clone(),
+    horizonFog: waterAtmospherePresets.day.horizonFog.clone(),
+    sunSpecular: waterAtmospherePresets.day.sunSpecular.clone(),
     underlightColor: waterAtmospherePresets.day.underlightColor.clone(),
-    waterClarity:    waterAtmospherePresets.day.waterClarity
+    waterClarity: waterAtmospherePresets.day.waterClarity
 };
 
 // Fungsi beralih preset suasana air (dipanggil saat preset langit berubah)
@@ -321,27 +321,27 @@ const waterMat = new THREE.ShaderMaterial({
         THREE.UniformsUtils.clone(THREE.UniformsLib.lights),
         THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
         {
-            uTime:            { value: 0 },
+            uTime: { value: 0 },
             // Mask brush system & terrain height map
-            uWaterMask:        { value: waterMaskTexture },
+            uWaterMask: { value: waterMaskTexture },
             uTerrainHeightMap: { value: terrainHeightTexture },
-            uGroundSize:       { value: waterGroundSize },
+            uGroundSize: { value: waterGroundSize },
             // Rubah / fox interaction (mapped ke ocean.html fox/hull system)
-            uFoxPos:          { value: new THREE.Vector3(0, -999, 0) },
-            uFoxDir:          { value: new THREE.Vector2(-1, 0) },
-            uFoxSpeed:        { value: 0.0 },
-            uFoxMoving:       { value: 0.0 },
-            uFoxSubmerge:     { value: 1.0 },
+            uFoxPos: { value: new THREE.Vector3(0, -999, 0) },
+            uFoxDir: { value: new THREE.Vector2(-1, 0) },
+            uFoxSpeed: { value: 0.0 },
+            uFoxMoving: { value: 0.0 },
+            uFoxSubmerge: { value: 1.0 },
             // Matahari / sun (identik ocean.html default: 22 deg)
-            uSunDir:          { value: defaultOceanSunDir.clone() },
-            uSunColor:        { value: new THREE.Color(0xfffae6) },
+            uSunDir: { value: defaultOceanSunDir.clone() },
+            uSunColor: { value: new THREE.Color(0xfffae6) },
             // Ocean parameters (100% identik ocean.html defaults: 0.70, 1.00, 0.80)
-            uAmp:             { value: 0.70 },   // Tinggi gelombang Gerstner
-            uSpeed:           { value: 1.00 },   // Kecepatan gelombang
-            uChop:            { value: 0.80 },   // Ketajaman puncak gelombang
+            uAmp: { value: 0.70 },   // Tinggi gelombang Gerstner
+            uSpeed: { value: 1.00 },   // Kecepatan gelombang
+            uChop: { value: 0.80 },   // Ketajaman puncak gelombang
             // Kelvin wake / trail dari rubah
-            uOceanTrailPos:   { value: oceanTrailPos },
-            uOceanTrailDir:   { value: oceanTrailDir },
+            uOceanTrailPos: { value: oceanTrailPos },
+            uOceanTrailDir: { value: oceanTrailDir },
         }
     ),
     // ============================================================
@@ -715,9 +715,9 @@ function spawnSplash(origin, count = 30, power = 1.0, forwardDir = null) {
         const idx = splashCursor * 3;
         const angle = Math.random() * Math.PI * 2;
         const spread = (0.4 + Math.random() * 1.5) * power;
-        splashPos[idx]   = origin.x + (Math.random() - 0.5) * 0.8;
-        splashPos[idx+1] = origin.y + 0.12;
-        splashPos[idx+2] = origin.z + (Math.random() - 0.5) * 0.8;
+        splashPos[idx] = origin.x + (Math.random() - 0.5) * 0.8;
+        splashPos[idx + 1] = origin.y + 0.12;
+        splashPos[idx + 2] = origin.z + (Math.random() - 0.5) * 0.8;
         const fwdX = forwardDir ? forwardDir.x * 2.0 : 0;
         const fwdZ = forwardDir ? forwardDir.z * 2.0 : 0;
         p.vel.set(
@@ -973,7 +973,7 @@ function updateWater(delta, elapsedTime) {
                 } else {
                     const idx = i * 3;
                     p.vel.y -= 16.0 * delta;
-                    splashPos[idx]     += p.vel.x * delta;
+                    splashPos[idx] += p.vel.x * delta;
                     splashPos[idx + 1] += p.vel.y * delta;
                     splashPos[idx + 2] += p.vel.z * delta;
                     splashScale[i] = Math.sin((1.0 - p.life / p.maxLife) * Math.PI) * 1.8;
@@ -1007,9 +1007,9 @@ function updateWater(delta, elapsedTime) {
     }
 
     // 3. Interaksi gelombang dinamis di sekitar karakter rubah (Kelvin Wake + Hull Field)
-    if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root && 
+    if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root &&
         ((typeof isPlayMode !== 'undefined' && isPlayMode) || (typeof CinematicManager !== 'undefined' && CinematicManager.isFoxEnabled))) {
-        
+
         const foxPos = wolfCharacter.root.position;
 
         if (!lastFoxPos) {
@@ -1037,7 +1037,7 @@ function updateWater(delta, elapsedTime) {
             }
 
             // Arah hadap rubah (model rubah di Pandora menghadap -X secara lokal)
-            const rotY = (wolfCharacter.root.rotation && typeof wolfCharacter.root.rotation.y === 'number') 
+            const rotY = (wolfCharacter.root.rotation && typeof wolfCharacter.root.rotation.y === 'number')
                 ? wolfCharacter.root.rotation.y : 0;
             const fwdX = -Math.cos(rotY);
             const fwdZ = Math.sin(rotY);

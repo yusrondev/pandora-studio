@@ -156,6 +156,9 @@ function sculptTerrain(hitPoint, mode, radius) {
 
     if (modified) {
         posAttr.needsUpdate = true;
+        if (typeof syncTerrainHeightToWater === 'function') {
+            syncTerrainHeightToWater();
+        }
     }
 }
 

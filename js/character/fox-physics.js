@@ -318,6 +318,7 @@ let currentTurnRate = 0;
 let huntBlend = 0;
 let velocityY = 0;
 let isGrounded = true;
+let foxInWaterState = false;
 let gaitPhase = 0;
 let landingSquash = 0;
 
@@ -456,6 +457,7 @@ function updateWolfPhysics(dt, elapsed) {
     const forward = new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), foxRoot.rotation.y);
 
     currentSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, 8.0 * dt);
+    window.currentFoxSpeed = currentSpeed;
 
     const speedNorm = Math.min(1, Math.abs(currentSpeed) / walkSpeed);
     const turnNorm = Math.abs(currentTurnRate) / (stats.turnRate || 2.5);
@@ -467,7 +469,10 @@ function updateWolfPhysics(dt, elapsed) {
     if (hudSpeed) hudSpeed.innerText = (Math.abs(currentSpeed) * 2.2).toFixed(1) + ' m/s';
 
     if (hudState) {
-        if (!isGrounded) {
+        if (foxInWaterState) {
+            hudState.innerText = "BERENANG (WATER RIPPLE & SPLASH)";
+            hudState.style.color = "#06b6d4";
+        } else if (!isGrounded) {
             hudState.innerText = "MELOMPAT (AIR)";
             hudState.style.color = "#8be9fd";
         } else if (typeof FoxStaminaState !== 'undefined' && FoxStaminaState.isExhausted) {
@@ -753,32 +758,151 @@ function updateWolfPhysics(dt, elapsed) {
     foxRoot.position.z = THREE.MathUtils.clamp(foxRoot.position.z, -mapHalf + 1.2, mapHalf - 1.2);
 
     // ========================================================
-    // 2. TERRAIN HEIGHT & LOMPATAN
+    // 2. TERRAIN HEIGHT, WATER INTERACTION (100% ocean.html) & LOMPATAN
     // ========================================================
-    if (keys.space && isGrounded) {
-        const currentJumpPower = (stats && stats.jumpPower) ? stats.jumpPower : jumpPower;
-        velocityY = currentJumpPower + huntBlend * 1.2;
-        isGrounded = false;
-        if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) foxSoundFX.playJump();
-    }
-
-    const wasGrounded = isGrounded;
-    foxRoot.position.y += velocityY * dt;
-
     const groundH = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(foxRoot.position.x, foxRoot.position.z) : 0;
     const effectiveGroundH = Math.max(groundH, rockGroundSupportY);
-    if (foxRoot.position.y <= effectiveGroundH) {
-        if (!wasGrounded && velocityY < -3) {
-            landingSquash = 0.18;
-            if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playLand) foxSoundFX.playLand();
+
+    // Cek keberadaan air dan gelombang laut di posisi rubah
+    const inWaterArea = (typeof isWaterAtWorld === 'function') ? isWaterAtWorld(foxRoot.position.x, foxRoot.position.z) : false;
+    const baseWaterLevel = (typeof getWaterCurrentLevel === 'function') ? getWaterCurrentLevel() : 0.0;
+    const waveInfo = (typeof getWaterWaveHeightAndNormal === 'function')
+        ? getWaterWaveHeightAndNormal(foxRoot.position.x, foxRoot.position.z, elapsed)
+        : { y: 0, normal: new THREE.Vector3(0, 1, 0) };
+    const waterSurfaceY = baseWaterLevel + waveInfo.y;
+    // Kedalaman air diukur dari permukaan air ke dasar landscape
+    const waterDepth = inWaterArea ? Math.max(0, waterSurfaceY - effectiveGroundH) : 0;
+    const isWaterDeeperThanGround = inWaterArea && (waterDepth > 0.05);
+
+    // Ketinggian tenggelam setengah badan rubah (separuh badan terendam, seluruh kaki di bawah air):
+    // Tinggi hip adalah 1.62 * 0.58 = 0.94m. Garis setengah torso berada di ~0.82m dari telapak kaki.
+    const halfBodySubmergeOffset = 0.82 * (foxScale / 0.58);
+    const halfBodyFloatTargetY = waterSurfaceY - halfBodySubmergeOffset + Math.sin(elapsed * 2.4) * 0.025;
+
+    if (isWaterDeeperThanGround && foxRoot.position.y <= waterSurfaceY + 0.35) {
+        // --- 100% OCEAN.HTML WATER EFFECT & DYNAMIC BUOYANCY PHYSICS ---
+        const wasInWater = foxInWaterState;
+        if (!wasInWater) {
+            foxInWaterState = true;
+            // Efek percikan air hantaman saat mencebur / mendarat di air dari ketinggian
+            const plungeSpeed = Math.abs(velocityY);
+            const splashPower = Math.min(2.5, Math.max(0.9, plungeSpeed * 0.28));
+            if (typeof spawnSplash === 'function') {
+                spawnSplash(foxRoot.position, Math.floor(40 + plungeSpeed * 6), splashPower);
+            }
+            if (typeof triggerWaterImpactRipple === 'function') {
+                triggerWaterImpactRipple(foxRoot.position.x, foxRoot.position.z, splashPower * 1.3);
+            }
+            if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playSplash) {
+                foxSoundFX.playSplash();
+            }
         }
-        foxRoot.position.y = effectiveGroundH;
-        velocityY = 0;
-        isGrounded = true;
+
+        if (waterDepth < halfBodySubmergeOffset) {
+            // === 1. AIR DANGKAL / GALIAN BELUM DALAM (SHALLOW / PARTIAL WADING) ===
+            // Rubah menapak di dasar tanah, kaki terendam sebanding dengan kedalaman galian
+            if (foxRoot.position.y <= effectiveGroundH) {
+                foxRoot.position.y = effectiveGroundH;
+                velocityY = 0;
+                isGrounded = true;
+            } else {
+                velocityY += gravity * dt;
+                foxRoot.position.y += velocityY * dt;
+                if (foxRoot.position.y <= effectiveGroundH) {
+                    foxRoot.position.y = effectiveGroundH;
+                    velocityY = 0;
+                    isGrounded = true;
+                }
+            }
+
+            // Lompatan dari air dangkal (Space key)
+            if (keys.space && isGrounded) {
+                const currentJumpPower = (stats && stats.jumpPower) ? stats.jumpPower : jumpPower;
+                velocityY = currentJumpPower + 0.5;
+                isGrounded = false;
+                if (typeof spawnSplash === 'function') spawnSplash(foxRoot.position, 28, 1.15);
+                if (typeof triggerWaterImpactRipple === 'function') triggerWaterImpactRipple(foxRoot.position.x, foxRoot.position.z, 1.0);
+                if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playSplash) foxSoundFX.playSplash();
+            }
+        } else {
+            // === 2. AIR DALAM / LANDSCAPE TERGALI DALAM (DEEP WATER / HALF-BODY FLOATING) ===
+            // Tubuh rubah tenggelam setengah: seluruh kaki 100% berada di bawah air, punggung/kepala mengapung
+
+            // Hambatan fluida hidrodinamika air (water viscosity damping)
+            const waterViscosity = Math.min(1.0, 5.0 * dt);
+            velocityY -= velocityY * waterViscosity;
+
+            // Redam sedikit laju gerak horizontal saat berenang di air dalam
+            currentSpeed = THREE.MathUtils.lerp(currentSpeed, currentSpeed * 0.86, Math.min(1.0, 3.5 * dt));
+
+            // Gaya Apung Archimedes (Buoyancy Force)
+            // Keseimbangan apung berada di posisi tenggelam setengah badan (halfBodyFloatTargetY)
+            const depthSubmerged = halfBodyFloatTargetY - foxRoot.position.y;
+            if (depthSubmerged > 0) {
+                // Terbenam lebih dalam: gaya apung mendorong naik ke permukaan
+                const buoyancyForce = depthSubmerged * 26.0;
+                velocityY += (gravity * 0.25 + buoyancyForce) * dt;
+            } else {
+                // Di atas target apung: gravitasi menarik turun kembali ke garis air
+                velocityY += gravity * 0.85 * dt;
+            }
+
+            foxRoot.position.y += velocityY * dt;
+
+            // Proteksi dasar galian: jika landscape digali tapi rubah menyentuh dasar tanah
+            if (foxRoot.position.y <= effectiveGroundH) {
+                foxRoot.position.y = effectiveGroundH;
+                if (velocityY < 0) velocityY = 0;
+            }
+            // Di air dalam, rubah berenang/mengapung setengah badan (kaki melayang dalam air)
+            // FUNGSI JUMP DINONAKTIFKAN saat scrup/air dalam dan setengah badan tenggelam
+            isGrounded = false;
+        }
+
+        // Tilting dinamis mengikuti lereng gelombang (Wave Tilting 100% ocean.html)
+        if (bodyTiltGroup) {
+            const waveTiltZ = -waveInfo.normal.x * 0.35;
+            const waveTiltX = waveInfo.normal.z * 0.35;
+            bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(bodyTiltGroup.rotation.z, waveTiltZ, 0.16);
+            bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(bodyTiltGroup.rotation.x, waveTiltX, 0.16);
+        }
+
+        // Percikan air dinamis saat berenang maju (Bow Spray)
+        if (Math.abs(currentSpeed) > 0.8 && typeof spawnSplash === 'function' && Math.random() < 0.28) {
+            const bowPos = foxRoot.position.clone().addScaledVector(forward, 0.45);
+            bowPos.y = waterSurfaceY;
+            spawnSplash(bowPos, 3, Math.abs(currentSpeed) * 0.08, forward);
+        }
     } else {
-        velocityY += gravity * dt;
+        // --- NORMAL TERRAIN & JUMP PHYSICS ---
+        if (foxInWaterState && foxRoot.position.y > waterSurfaceY + 0.35) {
+            foxInWaterState = false;
+        }
+
+        if (keys.space && isGrounded) {
+            const currentJumpPower = (stats && stats.jumpPower) ? stats.jumpPower : jumpPower;
+            velocityY = currentJumpPower + huntBlend * 1.2;
+            isGrounded = false;
+            if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) foxSoundFX.playJump();
+        }
+
+        const wasGrounded = isGrounded;
+        foxRoot.position.y += velocityY * dt;
+
+        if (foxRoot.position.y <= effectiveGroundH) {
+            if (!wasGrounded && velocityY < -3) {
+                landingSquash = 0.18;
+                if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playLand) foxSoundFX.playLand();
+            }
+            foxRoot.position.y = effectiveGroundH;
+            velocityY = 0;
+            isGrounded = true;
+        } else {
+            velocityY += gravity * dt;
+        }
     }
-    updateWolfLocomotionAnimation(dt, elapsed, currentSpeed, currentTurnRate, huntBlend, isGrounded, velocityY);
+    const locomotionGrounded = isGrounded || (foxInWaterState && Math.abs(currentSpeed) > 0.1);
+    updateWolfLocomotionAnimation(dt, elapsed, currentSpeed, currentTurnRate, huntBlend, locomotionGrounded, velocityY);
 
     // ========================================================
     // 3. FREE ORBIT SPRING-ARM CAMERA DENGAN SMOOTH ANTI-OBSTACLE OCCLUSION
@@ -1321,13 +1445,19 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
 
     } else {
         // --- LOGIKA IDLE PROGRESIF: IDLE (STAND) -> SIT -> PRONE ---
-        foxIdleTimer += dt;
-        if (manualProne || foxIdleTimer >= FOX_IDLE_PRONE_THRESHOLD) {
-            foxState = 'PRONE';
-        } else if (foxIdleTimer >= FOX_IDLE_SIT_THRESHOLD) {
-            foxState = 'SIT';
-        } else {
+        if (foxInWaterState) {
+            foxIdleTimer = 0;
             foxState = 'IDLE';
+            manualProne = false;
+        } else {
+            foxIdleTimer += dt;
+            if (manualProne || foxIdleTimer >= FOX_IDLE_PRONE_THRESHOLD) {
+                foxState = 'PRONE';
+            } else if (foxIdleTimer >= FOX_IDLE_SIT_THRESHOLD) {
+                foxState = 'SIT';
+            } else {
+                foxState = 'IDLE';
+            }
         }
 
         foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, (foxState === 'PRONE') ? 1.0 : 0.0, Math.min(1.0, 4.0 * dt));

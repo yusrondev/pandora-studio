@@ -217,6 +217,45 @@ if (btnClearAllWater) {
     });
 }
 
+// ── OCEAN WAVE PARAMETER SLIDERS (identik ocean.html: Amp, Speed, Chop, Sun) ──────
+const sliderWaveAmp   = document.getElementById('slider-wave-amp');
+const valWaveAmp      = document.getElementById('val-wave-amp');
+const sliderWaveSpeed = document.getElementById('slider-wave-speed');
+const valWaveSpeed    = document.getElementById('val-wave-speed');
+const sliderWaveChop  = document.getElementById('slider-wave-chop');
+const valWaveChop     = document.getElementById('val-wave-chop');
+const sliderWaveSun   = document.getElementById('slider-wave-sun');
+const valWaveSun      = document.getElementById('val-wave-sun');
+
+if (sliderWaveAmp && valWaveAmp) {
+    sliderWaveAmp.addEventListener('input', () => {
+        const v = parseFloat(sliderWaveAmp.value);
+        valWaveAmp.innerText = v.toFixed(2);
+        if (typeof setWaterParam === 'function') setWaterParam('uAmp', v);
+    });
+}
+if (sliderWaveSpeed && valWaveSpeed) {
+    sliderWaveSpeed.addEventListener('input', () => {
+        const v = parseFloat(sliderWaveSpeed.value);
+        valWaveSpeed.innerText = v.toFixed(2);
+        if (typeof setWaterParam === 'function') setWaterParam('uSpeed', v);
+    });
+}
+if (sliderWaveChop && valWaveChop) {
+    sliderWaveChop.addEventListener('input', () => {
+        const v = parseFloat(sliderWaveChop.value);
+        valWaveChop.innerText = v.toFixed(2);
+        if (typeof setWaterParam === 'function') setWaterParam('uChop', v);
+    });
+}
+if (sliderWaveSun && valWaveSun) {
+    sliderWaveSun.addEventListener('input', () => {
+        const v = parseFloat(sliderWaveSun.value);
+        valWaveSun.innerText = v + '°';
+        if (typeof setWaterParam === 'function') setWaterParam('sun', v);
+    });
+}
+
 sliderWindSpeed.addEventListener('input', () => {
     windSpeedRate = parseFloat(sliderWindSpeed.value);
     grassSystem.material.uniforms.uWindSpeed.value = windSpeedRate;

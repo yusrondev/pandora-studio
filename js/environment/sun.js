@@ -33,12 +33,27 @@ function updateSunPosition() {
         skyMat.uniforms.uSunPosition.value.copy(sunLight.position);
     }
 
+    if (typeof waterMat !== 'undefined' && waterMat && waterMat.uniforms) {
+        if (waterMat.uniforms.uSunDir) {
+            waterMat.uniforms.uSunDir.value.copy(sunLight.position).normalize();
+        }
+        if (waterMat.uniforms.uSunColor && sunLight.color) {
+            waterMat.uniforms.uSunColor.value.copy(sunLight.color);
+        }
+    }
+
     foliageMaterialsList.forEach(mat => {
         mat.uniforms.uLightPos.value.copy(sunLight.position);
     });
 }
 
-sliderAzimuth.addEventListener('input', updateSunPosition);
-sliderElevation.addEventListener('input', updateSunPosition);
+sliderAzimuth.addEventListener('input', () => {
+    if (typeof oceanSunManual !== 'undefined') oceanSunManual = false;
+    updateSunPosition();
+});
+sliderElevation.addEventListener('input', () => {
+    if (typeof oceanSunManual !== 'undefined') oceanSunManual = false;
+    updateSunPosition();
+});
 
 updateSunPosition();

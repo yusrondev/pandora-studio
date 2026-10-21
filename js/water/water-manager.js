@@ -56,6 +56,55 @@ function syncTerrainHeightToWater() {
 window.syncTerrainHeightToWater = syncTerrainHeightToWater;
 setTimeout(syncTerrainHeightToWater, 100);
 
+// ============================================================
+// REALTIME SCENE DEPTH PASS UNTUK PERPOTONGAN FISIKA AIR 100% PRESISI
+// Mengikuti bentuk 3D polygon mesh asli (Batu, Pohon, Rumput, Sculpt)
+// ============================================================
+let waterDepthTarget = null;
+const _drawingBufferSize = new THREE.Vector2();
+
+function getWaterDepthTarget(width, height) {
+    if (!waterDepthTarget || waterDepthTarget.width !== width || waterDepthTarget.height !== height) {
+        if (waterDepthTarget) waterDepthTarget.dispose();
+        const depthTexture = new THREE.DepthTexture();
+        depthTexture.type = THREE.UnsignedShortType;
+        waterDepthTarget = new THREE.WebGLRenderTarget(width, height, {
+            depthTexture: depthTexture,
+            depthBuffer: true,
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            generateMipmaps: false
+        });
+    }
+    return waterDepthTarget;
+}
+
+function renderWaterDepthPass(renderer, scene, camera) {
+    if (!waterMesh || !waterMesh.visible || !hasAnyWaterDrawn) return;
+    
+    renderer.getDrawingBufferSize(_drawingBufferSize);
+    const width = Math.floor(_drawingBufferSize.x);
+    const height = Math.floor(_drawingBufferSize.y);
+    if (width <= 0 || height <= 0) return;
+
+    const target = getWaterDepthTarget(width, height);
+
+    waterMesh.visible = false;
+    const prevTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(target);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(prevTarget);
+    waterMesh.visible = true;
+
+    if (waterMat && waterMat.uniforms) {
+        if (waterMat.uniforms.uSceneDepth) waterMat.uniforms.uSceneDepth.value = target.depthTexture;
+        if (waterMat.uniforms.uResolution) waterMat.uniforms.uResolution.value.set(width, height);
+        if (waterMat.uniforms.uCameraNear) waterMat.uniforms.uCameraNear.value = camera.near;
+        if (waterMat.uniforms.uCameraFar)  waterMat.uniforms.uCameraFar.value = camera.far;
+    }
+}
+window.renderWaterDepthPass = renderWaterDepthPass;
+
 // Geometry bidang air horizontal datar (flat surface) dengan performa optimal 60 FPS
 const waterSegments = 100;
 const waterGeo = new THREE.PlaneGeometry(waterGroundSize, waterGroundSize, waterSegments, waterSegments);
@@ -295,6 +344,9 @@ const defaultOceanSunDir = new THREE.Vector3(
     -Math.cos(defaultOceanSunEl) * 0.85
 ).normalize();
 
+const dummyDepthTexture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat);
+dummyDepthTexture.needsUpdate = true;
+
 const waterMat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -308,7 +360,11 @@ const waterMat = new THREE.ShaderMaterial({
             uTime: { value: 0 },
             // Mask brush system & terrain height map
             uWaterMask: { value: waterMaskTexture },
+            uSceneDepth: { value: dummyDepthTexture },
             uTerrainHeightMap: { value: terrainHeightTexture },
+            uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            uCameraNear: { value: 0.1 },
+            uCameraFar:  { value: 1000.0 },
             uGroundSize: { value: waterGroundSize },
             // Rubah / fox interaction (mapped ke ocean.html fox/hull system)
             uFoxPos: { value: new THREE.Vector3(0, -999, 0) },
@@ -424,7 +480,11 @@ const waterMat = new THREE.ShaderMaterial({
 
         uniform float uTime, uAmp, uSpeed, uChop;
         uniform sampler2D uWaterMask;
+        uniform sampler2D uSceneDepth;
         uniform sampler2D uTerrainHeightMap;
+        uniform vec2  uResolution;
+        uniform float uCameraNear;
+        uniform float uCameraFar;
         uniform float uGroundSize;
         uniform vec3  uFoxPos;
         uniform vec2  uFoxDir;
@@ -484,6 +544,20 @@ const waterMat = new THREE.ShaderMaterial({
             float terrainH = sampleTerrainHeightSmooth(uTerrainHeightMap, baseUV, float(${terrainGridStride}));
             float waterDepth = vH - terrainH;
             if (waterDepth < -0.05) discard;
+
+            // ── KEDALAMAN FISIK 3D SEJATI VIA DEPTH BUFFER (100% Presisi Mengikuti Geometri 3D Batu, Pohon, Rumput, Tanah) ───
+            vec2 screenUV = gl_FragCoord.xy / uResolution;
+            float sceneDepthRaw = texture2D(uSceneDepth, screenUV).r;
+            float contactDepth = max(0.0, waterDepth);
+
+            if (sceneDepthRaw > 0.0001 && sceneDepthRaw < 0.9999) {
+                float sceneViewZ = perspectiveDepthToViewZ(sceneDepthRaw, uCameraNear, uCameraFar);
+                float waterViewZ = perspectiveDepthToViewZ(gl_FragCoord.z, uCameraNear, uCameraFar);
+                float depthDiff = waterViewZ - sceneViewZ;
+                if (depthDiff >= -0.05) {
+                    contactDepth = min(contactDepth, max(0.0, depthDiff));
+                }
+            }
 
             // ── VIEW & GEOMETRY (100% ocean.html) ─────────────────────
             vec3 V = normalize(cameraPosition - vWorldPos);
@@ -588,11 +662,11 @@ const waterMat = new THREE.ShaderMaterial({
             col = aces(col * 0.95);
 
             // ── REALISTIC CELLULAR SHORELINE FOAM & SWASH DYNAMICS ────────
-            // 1. Kedalaman efektif & jarak kontak ke bibir garis pantai (0.0 di bibir, 1.0 di air dalam)
-            float effDepth = max(0.0, waterDepth);
-            float dShore = clamp(effDepth / 0.85, 0.0, 1.0);
+            // 1. Kedalaman efektif 3D presisi terhadap permukaan objek apapun di dalam air (0.0 di bibir kontak)
+            float effDepth = contactDepth;
+            float dDepth = clamp(effDepth / 0.50, 0.0, 1.0);
             float dMask = clamp((dynamicMask - 0.010) / 0.35, 0.0, 1.0);
-            float shoreDist = min(dShore, dMask);
+            float shoreDist = min(dDepth, dMask);
             float shoreZone = 1.0 - shoreDist;
 
             // 2. Ombak bibir pantai (swash & backwash) berirama alami menyapu lereng sculpt tanah
@@ -624,7 +698,7 @@ const waterMat = new THREE.ShaderMaterial({
             float shorelineFoam = foamBand * naturalShorePattern * 1.45;
             shorelineFoam = smoothstep(0.08, 0.55, shorelineFoam) * shoreZone;
 
-            // 6. Rona kristal toska-aquamarine sangat cerah dan bercahaya di dekat dataran / sculpt
+            // 6. Rona kristal toska-aquamarine sangat cerah dan bercahaya di dekat dataran & objek 3D
             vec3 luminousShoreCol = vec3(0.20, 0.98, 0.90) * (0.88 + 0.35 * sunF);
             vec3 crystalShallowCol = mix(luminousShoreCol, shallow * (1.18 + 0.25 * sunF), 0.28);
             float gradFactor = smoothstep(0.02, 0.95, shoreZone);
@@ -636,16 +710,14 @@ const waterMat = new THREE.ShaderMaterial({
             vec3 finalShoreFoamCol = mix(foamBodyCol, foamPeakCol, smoothstep(0.15, 0.70, shorelineFoam));
             col = mix(col, finalShoreFoamCol, shorelineFoam * 0.95);
 
-            // 8. Transparansi dinamis jernih kristal di dekat dataran / sculpt tanah
-            // Sangat bening di tepi sehingga kontur tanah terlihat jelas, berangsur pekat di perairan dalam
-            float depthAlpha = smoothstep(0.002, 0.90, waterDepth);
-            float maskAlpha = smoothstep(0.005, 0.40, dynamicMask);
-            float shallowClarity = mix(0.32, 0.88, smoothstep(0.0, 0.75, effDepth));
-            float baseAlpha = min(depthAlpha, maskAlpha) * shallowClarity;
+            // 8. Transparansi dinamis jernih kristal di dekat dataran & objek 3D
+            // Sangat bening di tepi sehingga kontur batu/tanah terlihat jelas, berangsur pekat di perairan dalam
+            float maskAlpha = smoothstep(0.005, 0.35, dynamicMask);
+            float depthClarity = mix(0.48, 0.92, smoothstep(0.0, 0.85, contactDepth));
+            float baseAlpha = maskAlpha * depthClarity;
 
-            // Buih ombak pantai tetap pekat & kontras di atas air transparan
-            float edgeAlpha = clamp(baseAlpha + shorelineFoam * 0.95, 0.0, 1.0);
-            if (edgeAlpha < 0.003) discard;
+            // Buih ombak pantai berkilau di atas air transparan tanpa pernah melubangi air
+            float edgeAlpha = clamp(baseAlpha + shorelineFoam * 0.85, 0.0, 1.0);
 
             gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), edgeAlpha);
 
@@ -1111,6 +1183,7 @@ window.syncWaterGeometryWithTerrain = syncWaterGeometryWithTerrain;
 window.resetWaterGeometryToFlat = resetWaterGeometryToFlat;
 window.getWaterCurrentLevel = () => waterCurrentLevel;
 window.hasWaterDrawn = () => hasAnyWaterDrawn;
+window.setHasWaterDrawn = (val) => { hasAnyWaterDrawn = !!val; };
 window.spawnSplash = spawnSplash;
 window.getWaterWaveHeightAndNormal = getWaterWaveHeightAndNormal;
 window.isWaterAtWorld = isWaterAtWorld;

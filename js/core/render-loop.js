@@ -69,6 +69,11 @@ function animate() {
         }
     }
 
+    // Render scene depth pass untuk perpotongan fisika air 100% presisi mengikuti bentuk 3D mesh (batu, pohon, rumput)
+    if (typeof renderWaterDepthPass === 'function') {
+        renderWaterDepthPass(renderer, scene, camera);
+    }
+
     renderer.render(scene, camera);
 }
 animate();

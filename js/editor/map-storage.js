@@ -549,6 +549,7 @@ function applyMapDataToScene(mapData) {
                 waterCtx.clearRect(0, 0, waterCanvas.width, waterCanvas.height);
                 waterCtx.drawImage(img, 0, 0);
                 if (typeof waterMaskTexture !== 'undefined') waterMaskTexture.needsUpdate = true;
+                if (typeof setHasWaterDrawn === 'function') setHasWaterDrawn(true);
             };
             img.src = mapData.water.mask;
         } else if (typeof clearAllWater === 'function') {

@@ -56,85 +56,57 @@ function syncTerrainHeightToWater() {
 window.syncTerrainHeightToWater = syncTerrainHeightToWater;
 setTimeout(syncTerrainHeightToWater, 100);
 
-// Geometry bidang air horizontal datar (flat surface) alami khas danau/sungai Genshin Impact
-const waterSegments = (typeof groundSegments !== 'undefined') ? groundSegments : 100;
+// Geometry bidang air horizontal datar (flat surface) dengan performa optimal 60 FPS
+const waterSegments = 100;
 const waterGeo = new THREE.PlaneGeometry(waterGroundSize, waterGroundSize, waterSegments, waterSegments);
 waterGeo.rotateX(-Math.PI / 2);
 
 // Preset Palet Warna Air Berdasarkan Suasana Waktu (Siang, Sore, Malam)
 const waterAtmospherePresets = {
     day: {
-        warmShallowTint: new THREE.Color(0x7be3b5), // Hijau kekuningan lembut di tepi paling dangkal
-        emeraldGreen: new THREE.Color(0x45dfb8), // Hijau zamrud / mint jernih
-        aquaTurquoise: new THREE.Color(0x1dbcd1), // Transisi biru toska halus
-        lakeAzure: new THREE.Color(0x1c92cf), // Biru danau tenang di area tengah
-        deepReflection: new THREE.Color(0x3a8cd9), // Biru pantulan di kejauhan
-        skyReflect: new THREE.Color(0x78bcf5), // Pantulan langit cerah
-        cloudWhite: new THREE.Color(0xeef8ff), // Pantulan awan putih lembut
-        horizonFog: new THREE.Color(0xbce4fa), // Kabut cakrawala siang
-        sunSpecular: new THREE.Color(0xfffae6), // Kilau specular matahari siang
-        underlightColor: new THREE.Color(0x0c3022), // Pendar kejernihan dasar air dangkal
-        waterClarity: 1.0
+        deep:       new THREE.Color(0x02162e), // Biru tua danau tenang di kedalaman
+        shallow:    new THREE.Color(0x12a0b0), // Biru toska cerah berkilau di perairan dangkal
+        skyReflect: new THREE.Color(0x78bcf5), // Pantulan langit siang cerah
+        foam:       new THREE.Color(0xffffff)  // Busa putih bersih
     },
     sunset: {
-        warmShallowTint: new THREE.Color(0xf0a875), // Dangkal keemasan tembaga sore
-        emeraldGreen: new THREE.Color(0xdb7150), // Air hangat rona jingga amber
-        aquaTurquoise: new THREE.Color(0xbd5066), // Transisi dusky coral rose
-        lakeAzure: new THREE.Color(0x662a52), // Danau ungu pekat bernuansa senja
-        deepReflection: new THREE.Color(0x3f1a40), // Kedalaman violet gelap sore
-        skyReflect: new THREE.Color(0xff8c55), // Pantulan mega merah / sunset glow
-        cloudWhite: new THREE.Color(0xffd5a2), // Pantulan awan senja keemasan
-        horizonFog: new THREE.Color(0xffa052), // Kabut cakrawala senja
-        sunSpecular: new THREE.Color(0xffb04a), // Kilau pendar matahari terbenam
-        underlightColor: new THREE.Color(0x38180d), // Pendar dasar air bernuansa hangat
-        waterClarity: 0.85
+        deep:       new THREE.Color(0x0c2238), // Biru laut senja hangat alami (bukan ungu!)
+        shallow:    new THREE.Color(0xb86338), // Rona hangat tembaga keemasan di perairan dangkal
+        skyReflect: new THREE.Color(0xf08852), // Pantulan mega merah & cahaya sore
+        foam:       new THREE.Color(0xffeedb)  // Busa bernuansa krem hangat keemasan senja
     },
     night: {
-        warmShallowTint: new THREE.Color(0x103448), // Dangkal bernuansa nocturnal cyan gelap
-        emeraldGreen: new THREE.Color(0x092233), // Biru laut malam pekat
-        aquaTurquoise: new THREE.Color(0x061726), // Sapphire navy tenang
-        lakeAzure: new THREE.Color(0x030f1b), // Danau malam obsidian
-        deepReflection: new THREE.Color(0x020810), // Kedalaman gelap pekat di kejauhan
-        skyReflect: new THREE.Color(0x163454), // Pantulan langit malam bertabur bintang
-        cloudWhite: new THREE.Color(0x456c90), // Pendar awan malam lembut
-        horizonFog: new THREE.Color(0x061322), // Kabut malam menyatu
-        sunSpecular: new THREE.Color(0x9ed3ff), // Pendar kilau rembulan perak kebiruan
-        underlightColor: new THREE.Color(0x020a10), // Pendar dasar air malam
-        waterClarity: 0.45
+        deep:       new THREE.Color(0x010812), // Obsidian navy pekat malam
+        shallow:    new THREE.Color(0x081f33), // Sapphire biru malam tenang
+        skyReflect: new THREE.Color(0x0d2238), // Pantulan langit malam bertabur bintang & aurora
+        foam:       new THREE.Color(0x9ed3ff)  // Pendar buih rembulan sejuk
     }
 };
 
 // Target suasana aktif untuk transisi lerp halus antar preset
 let currentWaterPresetKey = 'day';
 const targetAtmosphere = {
-    warmShallowTint: waterAtmospherePresets.day.warmShallowTint.clone(),
-    emeraldGreen: waterAtmospherePresets.day.emeraldGreen.clone(),
-    aquaTurquoise: waterAtmospherePresets.day.aquaTurquoise.clone(),
-    lakeAzure: waterAtmospherePresets.day.lakeAzure.clone(),
-    deepReflection: waterAtmospherePresets.day.deepReflection.clone(),
+    deep:       waterAtmospherePresets.day.deep.clone(),
+    shallow:    waterAtmospherePresets.day.shallow.clone(),
     skyReflect: waterAtmospherePresets.day.skyReflect.clone(),
-    cloudWhite: waterAtmospherePresets.day.cloudWhite.clone(),
-    horizonFog: waterAtmospherePresets.day.horizonFog.clone(),
-    sunSpecular: waterAtmospherePresets.day.sunSpecular.clone(),
-    underlightColor: waterAtmospherePresets.day.underlightColor.clone(),
-    waterClarity: waterAtmospherePresets.day.waterClarity
+    foam:       waterAtmospherePresets.day.foam.clone()
 };
 
 // Fungsi beralih preset suasana air (dipanggil saat preset langit berubah)
 function setWaterAtmospherePreset(presetKey) {
     const p = waterAtmospherePresets[presetKey] || waterAtmospherePresets.day;
     currentWaterPresetKey = presetKey;
-    targetAtmosphere.warmShallowTint.copy(p.warmShallowTint);
-    targetAtmosphere.emeraldGreen.copy(p.emeraldGreen);
-    targetAtmosphere.aquaTurquoise.copy(p.aquaTurquoise);
-    targetAtmosphere.lakeAzure.copy(p.lakeAzure);
-    targetAtmosphere.deepReflection.copy(p.deepReflection);
+    targetAtmosphere.deep.copy(p.deep);
+    targetAtmosphere.shallow.copy(p.shallow);
     targetAtmosphere.skyReflect.copy(p.skyReflect);
-    targetAtmosphere.cloudWhite.copy(p.cloudWhite);
-    targetAtmosphere.horizonFog.copy(p.horizonFog);
-    targetAtmosphere.sunSpecular.copy(p.sunSpecular);
-    targetAtmosphere.underlightColor.copy(p.underlightColor);
-    targetAtmosphere.waterClarity = p.waterClarity;
+    targetAtmosphere.foam.copy(p.foam);
+
+    if (waterMat && waterMat.uniforms) {
+        if (waterMat.uniforms.uWaterDeepColor)    waterMat.uniforms.uWaterDeepColor.value.copy(p.deep);
+        if (waterMat.uniforms.uWaterShallowColor) waterMat.uniforms.uWaterShallowColor.value.copy(p.shallow);
+        if (waterMat.uniforms.uWaterSkyColor)     waterMat.uniforms.uWaterSkyColor.value.copy(p.skyReflect);
+        if (waterMat.uniforms.uWaterFoamColor)    waterMat.uniforms.uWaterFoamColor.value.copy(p.foam);
+    }
 }
 
 // ============================================================
@@ -144,7 +116,7 @@ function setWaterAtmospherePreset(presetKey) {
 // ============================================================
 
 // Jejak riak rubah: tiap sampel memantulkan riak melingkar (Kelvin Wake)
-const OCEAN_TRAIL_MAX = 24;
+const OCEAN_TRAIL_MAX = 20;
 const oceanTrailPos = [];
 const oceanTrailDir = [];
 for (let i = 0; i < OCEAN_TRAIL_MAX; i++) {
@@ -154,7 +126,7 @@ for (let i = 0; i < OCEAN_TRAIL_MAX; i++) {
 let oceanTrailIdx = 0;
 const oceanLastTrailSpawnPos = new THREE.Vector2(9999, 9999);
 
-// Shader common functions (100% dari ocean.html)
+// Shader common functions (100% dari ocean.html + quintic smooth noise)
 const oceanCommonGLSL = `
 float sq(float x){ return x * x; }
 float ohash(vec2 p){
@@ -162,9 +134,10 @@ float ohash(vec2 p){
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
 }
+// Quintic Hermite interpolation curve (C2 continuous) - Menghilangkan artefak grid kotak-kotak pada turunan normal
 float onoise(vec2 p){
     vec2 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
+    f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
     return mix(mix(ohash(i), ohash(i + vec2(1.0, 0.0)), f.x),
                mix(ohash(i + vec2(0.0, 1.0)), ohash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
@@ -186,38 +159,27 @@ float hullSDF(vec2 worldXZ, vec2 centerXZ, vec2 fwd, vec2 halfSize, out vec2 loc
     return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
-// Air di sekitar lambung / badan: x = tinggi, y = buih (100% ocean.html hullField)
+// Air di sekitar lambung / badan: HANYA meniskus kontak air bulu tepat di badan, TIDAK menjalar ke belakang
 vec2 hullField(vec2 q, vec3 objPos, vec2 objDir, vec2 objSize, float objSpd, float submerge){
     vec2 lp;
     float sdf = hullSDF(q, objPos.xz, objDir, objSize, lp);
-    if(sdf > 16.0) return vec2(0.0);
+    if(sdf > 3.0) return vec2(0.0);
     float spd = clamp(objSpd * 0.12, 0.0, 1.4);
     float hy = objSize.y * 0.95;
     float bow = smoothstep(-hy, hy, lp.y);
     float h = 0.0, foam = 0.0;
 
-    // Meniskus halus dan kontak air alami di sekeliling rubah (tanpa lubang depresi ke bawah)
-    h += exp(-sq((sdf - 0.15) / 0.35)) * (0.04 + 0.12 * spd * bow) * submerge;
+    // Meniskus halus dan kontak air tepat di sekeliling rubah
+    h += exp(-sq((sdf - 0.08) / 0.25)) * (0.04 + 0.08 * spd * bow) * submerge;
 
-    // Riak haluan halus di depan dada saat berenang
-    vec2 bp = vec2(lp.x * 0.85, lp.y - hy - 0.15);
-    float bowBump = exp(-dot(bp, bp) / (0.8 + spd * 0.8));
-    h += bowBump * spd * 0.20 * submerge;
+    // Riak dada sangat halus di depan badan saat berenang
+    vec2 bp = vec2(lp.x * 0.85, lp.y - hy - 0.10);
+    float bowBump = exp(-dot(bp, bp) / (0.4 + spd * 0.4));
+    h += bowBump * spd * 0.12 * submerge;
 
-    // gelombang haluan berbentuk V yang melebar ke belakang (hanya di dekat badan)
-    float by = max(hy - lp.y, 0.0);
-    float c = 0.5 + by * 0.30;
-    float wid = 0.55 + by * 0.10;
-    float u = (abs(lp.x) - c) / wid;
-    // Redam cepat di belakang badan rubah agar tidak mengibas saat belok ke kiri/kanan
-    float env = smoothstep(-0.6, 1.0, hy - lp.y) * exp(-by * 0.55) * smoothstep(2.5, 0.2, by);
-    float vee = (exp(-u * u) - 0.4 * exp(-sq(u - 1.9))) * env;
-    h += vee * spd * 0.30 * submerge;
-
-    // buih di garis air, haluan, dan puncak V dekat badan
-    foam += exp(-sq((sdf - 0.1) / (0.28 + spd * 0.12))) * (0.22 + 0.7 * spd * (0.3 + 0.7 * bow)) * submerge;
-    foam += bowBump * spd * 0.55 * submerge;
-    foam += exp(-u * u) * env * smoothstep(0.35, 1.0, spd) * 0.5 * submerge;
+    // Buih kontak HANYA di garis air tepat menempel pada bulu rubah (tidak menjalar ke belakang mengikuti posisi rubah)
+    foam += exp(-sq(max(0.0, sdf) / 0.12)) * (0.20 + 0.35 * spd * bow) * submerge;
+    foam += bowBump * spd * 0.35 * submerge;
     return vec2(h, clamp(foam, 0.0, 1.0));
 }
 
@@ -241,29 +203,37 @@ vec3 gerstnerWaveNormal(vec2 xz, float t, float amp, float speed, float chop) {
     return normalize(vec3(nx, ny, nz) / max(len, 0.001));
 }
 
-// Mikro-detail normal (finite difference noise) - 100% ocean.html
-float mhgt(vec2 p){ return onoise(p) * 0.65 + onoise(om2 * p * 2.2 + 3.0) * 0.35; }
+// Mikro-detail normal kapiler halus isotropik (2 rotated noise octaves - halus dan bebas aliasing kotak-kotak)
+float mhgt(vec2 p){ 
+    return onoise(p) * 0.65 + onoise(om2 * p * 2.2 + 3.0) * 0.35; 
+}
 vec2 mdN(vec2 p){ float e = 0.07, c = mhgt(p); return vec2(mhgt(p + vec2(e, 0.0)) - c, mhgt(p + vec2(0.0, e)) - c) / e; }
 
-// Fox/rubah wake (Kelvin circular ripples — 100% dari ocean.html wakeField)
+// Fox/rubah wake (Kelvin circular ripples & foam trail yang TERTINGGAL di dunia seperti rumput/footprint)
 vec4 foxWakeField(vec2 q, vec4 trailPos[${OCEAN_TRAIL_MAX}], float t) {
     float h = 0.0, foam = 0.0;
     vec2 g = vec2(0.0);
     for(int i = 0; i < ${OCEAN_TRAIL_MAX}; i++){
         float age = t - trailPos[i].z;
-        if(age <= 0.0 || age >= 3.2) continue;
+        if(age <= 0.0 || age >= 3.8) continue;
         vec2 rel = q - trailPos[i].xy;
         float d = length(rel);
-        float R = age * 3.0;
-        float w = 1.1 + age * 0.55;
+        if(d > 8.0) continue;
+        float R = age * 2.0;
+        float w = 0.9 + age * 0.50;
         float u = (d - R) / w;
-        float k = 2.8;
-        float a = 1.0 - age / 3.2;
-        float fa = pow(a, 1.5) * trailPos[i].w;
-        float wsh = 1.0 + age * 0.5;
-        foam += exp(-d * d / (wsh * wsh * 1.8)) * fa * 0.38;
-        if(abs(u) < 3.0){
-            float amp = a * a * trailPos[i].w * 0.075 / sqrt(1.0 + R * 0.5);
+        float k = 3.0;
+        float a = 1.0 - age / 3.8;
+        float fa = pow(a, 1.2) * trailPos[i].w;
+
+        // Buih jejak tertinggal di posisi dunia (world-anchored trail):
+        float rFoam = 0.42 + age * 0.32;
+        float trailCenterFoam = exp(-sq(d / rFoam)) * fa * 0.82;
+        float ringFoam = exp(-u * u) * fa * 0.45 * smoothstep(0.0, 0.35, age);
+        foam = max(foam, trailCenterFoam + ringFoam);
+
+        if(abs(u) < 2.6){
+            float amp = a * a * trailPos[i].w * 0.065 / sqrt(1.0 + R * 0.5);
             float e = exp(-u * u);
             float ph = k * (d - R);
             h += amp * e * cos(ph);
@@ -273,8 +243,22 @@ vec4 foxWakeField(vec2 q, vec4 trailPos[${OCEAN_TRAIL_MAX}], float t) {
     }
     float sc = 1.0 / (1.0 + 1.2 * abs(h));
     g *= sc * sc; h *= sc;
-    foam += smoothstep(0.2, 0.45, h) * 0.55;
     return vec4(h, clamp(foam, 0.0, 1.0), g);
+}
+
+// Interpolasi Hermite bilineer halus untuk ketinggian tanah (menghilangkan 100% artefak kotak-kotak/waffle)
+float sampleTerrainHeightSmooth(sampler2D tex, vec2 uv, float gridStride) {
+    vec2 coord = clamp(uv * (gridStride - 1.0), 0.0, gridStride - 1.001);
+    vec2 f = fract(coord);
+    vec2 i = floor(coord);
+    float texel = 1.0 / gridStride;
+    vec2 uv00 = (i + 0.5) * texel;
+    float h00 = texture2D(tex, uv00).r;
+    float h10 = texture2D(tex, uv00 + vec2(texel, 0.0)).r;
+    float h01 = texture2D(tex, uv00 + vec2(0.0, texel)).r;
+    float h11 = texture2D(tex, uv00 + vec2(texel, texel)).r;
+    vec2 s = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h00, h10, s.x), mix(h01, h11, s.x), s.y);
 }
 
 // Pola buih wake & foam alami di permukaan air (world-anchored, tidak berputar saat rubah berbelok)
@@ -287,12 +271,12 @@ float wakeFoamPattern(vec2 p, float t){
     return n1 * 0.5 + pow(web, 1.8) * 0.5;
 }
 
-// Sky color (fast, 100% dari ocean.html skyFast)
-vec3 oceanSkyFast(vec3 d, vec3 sunDir){
+// Sky color dinamis mengikuti suasana atmosfer (Siang, Sore, Malam)
+vec3 oceanSkyFast(vec3 d, vec3 sunDir, vec3 skyTint){
     float h = clamp(d.y, 0.0, 1.0);
     float low = pow(1.0 - clamp(sunDir.y * 2.5, 0.0, 1.0), 2.0);
-    vec3 horizon = mix(vec3(0.72, 0.84, 0.95), vec3(1.0, 0.72, 0.5), low * 0.7);
-    vec3 zenith  = mix(vec3(0.10, 0.34, 0.74), vec3(0.14, 0.2, 0.45), low * 0.5);
+    vec3 horizon = mix(skyTint * 1.15, vec3(1.0, 0.72, 0.5), low * 0.7);
+    vec3 zenith  = mix(skyTint * 0.45, vec3(0.14, 0.2, 0.45), low * 0.5);
     vec3 c = mix(horizon, zenith, pow(h, 0.4));
     float s = max(dot(d, sunDir), 0.0);
     c += vec3(1.0, 0.8, 0.55) * pow(s, 6.0) * 0.3;
@@ -335,6 +319,11 @@ const waterMat = new THREE.ShaderMaterial({
             // Matahari / sun (identik ocean.html default: 22 deg)
             uSunDir: { value: defaultOceanSunDir.clone() },
             uSunColor: { value: new THREE.Color(0xfffae6) },
+            // Palet warna atmosfer air (Siang, Sore, Malam)
+            uWaterDeepColor:    { value: waterAtmospherePresets.day.deep.clone() },
+            uWaterShallowColor: { value: waterAtmospherePresets.day.shallow.clone() },
+            uWaterSkyColor:     { value: waterAtmospherePresets.day.skyReflect.clone() },
+            uWaterFoamColor:    { value: waterAtmospherePresets.day.foam.clone() },
             // Ocean parameters (100% identik ocean.html defaults: 0.70, 1.00, 0.80)
             uAmp: { value: 0.70 },   // Tinggi gelombang Gerstner
             uSpeed: { value: 1.00 },   // Kecepatan gelombang
@@ -401,8 +390,8 @@ const waterMat = new THREE.ShaderMaterial({
                 jxz -= S * d.x * d.y * s;
             }
 
-            // Displacement fisik ombak & Kelvin wake di sekitar rubah (100% ocean.html)
-            if (uFoxPos.y > -900.0 && length(p.xz - uFoxPos.xz) < 65.0) {
+            // Displacement fisik ombak & Kelvin wake di sekitar rubah (radius optimal)
+            if (uFoxPos.y > -900.0 && length(p.xz - uFoxPos.xz) < 22.0) {
                 vec2 objDir = (length(uFoxDir) > 0.001) ? normalize(uFoxDir) : vec2(0.0, 1.0);
                 vec2 objSize = vec2(0.35, 0.70);
                 p.y += hullField(p.xz, uFoxPos, objDir, objSize, uFoxSpeed, uFoxSubmerge).x + foxWakeField(p.xz, uOceanTrailPos, uTime).x;
@@ -444,6 +433,10 @@ const waterMat = new THREE.ShaderMaterial({
         uniform float uFoxSubmerge;
         uniform vec3  uSunDir;
         uniform vec3  uSunColor;
+        uniform vec3  uWaterDeepColor;
+        uniform vec3  uWaterShallowColor;
+        uniform vec3  uWaterSkyColor;
+        uniform vec3  uWaterFoamColor;
         uniform vec4  uOceanTrailPos[${OCEAN_TRAIL_MAX}];
 
         varying vec3 vWorldPos;
@@ -487,8 +480,8 @@ const waterMat = new THREE.ShaderMaterial({
             float dynamicMask = clamp(maskVal + tideWave * 0.032 * clamp(uAmp, 0.2, 1.2) * shoreEdgeFactor, 0.0, 1.0);
             if (dynamicMask <= 0.005) discard;
 
-            // ── DETEKSI OTOMATIS KEDALAMAN AIR TERHADAP SCULPT LANDSCAPE ───
-            float terrainH = texture2D(uTerrainHeightMap, baseUV).r;
+            // ── DETEKSI OTOMATIS KEDALAMAN AIR TERHADAP SCULPT LANDSCAPE (Bilinear Hermite Smooth) ───
+            float terrainH = sampleTerrainHeightSmooth(uTerrainHeightMap, baseUV, float(${terrainGridStride}));
             float waterDepth = vH - terrainH;
             if (waterDepth < -0.05) discard;
 
@@ -519,11 +512,11 @@ const waterMat = new THREE.ShaderMaterial({
                 wakeFoam = clamp(wk.y, 0.0, 1.0);
             }
 
-            // ── OCEAN NORMAL (100% ocean.html: Gerstner normal + micro-detail noise) ──
-            vec2 dt = (mdN(q * 0.8 + uTime * vec2(0.3, 0.1)) + mdN(q * 1.9 - uTime * vec2(0.2, -0.25))) * 0.5;
+            // ── OCEAN NORMAL (Analytical Gerstner normal + smooth isotropic capillary micro-detail) ──
+            vec2 dt = (mdN(q * 0.7 + uTime * vec2(0.25, 0.10)) + mdN(q * 1.6 - uTime * vec2(0.18, -0.20))) * 0.5;
             float fade = exp(-dist * 0.014);
-            float rough = 0.22 * fade + 0.3 * wakeFoam;
-            vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.9 + dt.x * rough, 0.0, wakeSlope.y * 0.9 + dt.y * rough));
+            float rough = 0.18 * fade + 0.20 * wakeFoam;
+            vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.85 + dt.x * rough, 0.0, wakeSlope.y * 0.85 + dt.y * rough));
 
             // ── FRESNEL & SUN (100% ocean.html) ──────────────────────
             vec3 R = reflect(-V, N);
@@ -549,35 +542,29 @@ const waterMat = new THREE.ShaderMaterial({
                 sceneShadow = mix(0.45, 1.0, smoothstep(0.05, 0.95, sceneShadow));
             #endif
 
-            // Bayangan kontak lembut rubah di air (100% ocean.html meshShadow)
-            float meshShadow = 1.0;
-            if (uFoxPos.y > -900.0) {
-                vec2 shadowCenter = uFoxPos.xz - sunDir.xz * max(0.0, uFoxPos.y - vH) / max(0.18, sunDir.y);
-                vec2 sLocal;
-                float shadowSDF = hullSDF(q, shadowCenter, objDir, objSize * 0.9, sLocal);
-                meshShadow = 1.0 - smoothstep(0.8, -0.4, shadowSDF) * 0.38;
-            }
-            float shadow = waveShadow * meshShadow * sceneShadow;
+            // Bayangan kontak lembut rubah dihilangkan untuk mencegah bayangan ganda (double shadow)
+            // Tiga.js directional shadow map (sceneShadow) sudah merender siluet 3D rubah secara presisi
+            float shadow = waveShadow * sceneShadow;
 
-            // ── BODY COLOR & LIT & SSS (100% IDENTIK ocean.html) ──────
-            vec3 deep    = vec3(0.01, 0.07, 0.12);
-            vec3 shallow = vec3(0.04, 0.32, 0.34);
+            // ── BODY COLOR & LIT & SSS (Mengikuti suasana: Siang, Sore, Malam) ──────
+            vec3 deep    = uWaterDeepColor;
+            vec3 shallow = uWaterShallowColor;
             float lit = smoothstep(-1.2 * uAmp, 2.0 * uAmp, vH + wakeWaveH * 1.8);
             vec3 body = mix(deep, shallow, lit * 0.75) * sunF * shadow;
 
             float back = pow(max(dot(V, -normalize(vec3(sunDir.x, 0.1, sunDir.z))), 0.0), 3.0);
             float wakeSSS = clamp(wakeWaveH * 2.5, 0.0, 0.8);
-            body += vec3(0.08, 0.52, 0.44) * (back * lit + wakeSSS * 0.6) * 0.55 * sunF * meshShadow;
-            body = mix(body, vec3(0.10, 0.50, 0.52) * sunF, clamp(wakeFoam * 0.45, 0.0, 0.45));
+            body += mix(shallow, vec3(0.08, 0.52, 0.44), 0.45) * (back * lit + wakeSSS * 0.6) * 0.55 * sunF;
+            body = mix(body, shallow * sunF, clamp(wakeFoam * 0.45, 0.0, 0.45));
 
-            // ── SKY REFLECTION & COMPOSITION (100% ocean.html) ───────
-            vec3 col = mix(body, oceanSkyFast(R, sunDir) * meshShadow, clamp(f, 0.0, 1.0));
+            // ── SKY REFLECTION & COMPOSITION ─────────────────────────
+            vec3 col = mix(body, oceanSkyFast(R, sunDir, uWaterSkyColor), clamp(f, 0.0, 1.0));
 
-            // ── SPECULAR HIGHLIGHT (100% ocean.html: dual lobe specular) ──
+            // ── SPECULAR HIGHLIGHT (Silky smooth dual lobe ocean specular - tanpa facet/grid) ──
             vec3 H = normalize(sunDir + V);
             float NdotH = max(dot(N, H), 0.0);
-            float specVis = smoothstep(-0.05, 0.2, NdotL) * meshShadow;
-            float spec = (pow(NdotH, 1200.0) * 14.0 + pow(NdotH, 120.0) * 0.45) * specVis;
+            float specVis = smoothstep(-0.05, 0.2, NdotL);
+            float spec = (pow(NdotH, 180.0) * 3.5 + pow(NdotH, 32.0) * 0.35) * specVis;
 
             // ── MULTI-LAYER FOAM (100% ocean.html: crest foam + wake foam) ──
             float pattern = wakeFoamPattern(q * 1.5, uTime);
@@ -589,13 +576,13 @@ const waterMat = new THREE.ShaderMaterial({
             col += uSunColor * spec * (1.0 - subFoam * 0.8);
 
             vec3 underFoamCol = mix(shallow, vec3(0.50, 0.78, 0.84), 0.55) * sunF * (0.7 + 0.3 * shadow);
-            vec3 topFoamCol   = vec3(0.93, 0.97, 1.0) * (0.55 + 0.45 * sunF) * (0.68 + 0.32 * shadow);
+            vec3 topFoamCol   = mix(uWaterFoamColor, vec3(1.0), 0.35) * (0.55 + 0.45 * sunF) * (0.68 + 0.32 * shadow);
             col = mix(col, underFoamCol, subFoam * 0.55);
             col = mix(col, topFoamCol, coreFoam * 0.88);
 
-            // ── DISTANCE FOG (100% ocean.html) ───────────────────────
+            // ── DISTANCE FOG (Mengikuti suasana warna langit) ─────────
             float fog = 1.0 - exp(-dist * 0.0012);
-            col = mix(col, oceanSkyFast(normalize(vec3(V.x, 0.03, V.z)), sunDir), fog);
+            col = mix(col, oceanSkyFast(normalize(vec3(V.x, 0.03, V.z)), sunDir, uWaterSkyColor), fog);
 
             // ── ACES TONEMAPPING & GAMMA (100% ocean.html) ───────────
             col = aces(col * 0.95);
@@ -603,55 +590,62 @@ const waterMat = new THREE.ShaderMaterial({
             // ── REALISTIC CELLULAR SHORELINE FOAM & SWASH DYNAMICS ────────
             // 1. Kedalaman efektif & jarak kontak ke bibir garis pantai (0.0 di bibir, 1.0 di air dalam)
             float effDepth = max(0.0, waterDepth);
-            float dShore = clamp(effDepth / 0.28, 0.0, 1.0);
-            float dMask = clamp((dynamicMask - 0.02) / 0.25, 0.0, 1.0);
+            float dShore = clamp(effDepth / 0.85, 0.0, 1.0);
+            float dMask = clamp((dynamicMask - 0.010) / 0.35, 0.0, 1.0);
             float shoreDist = min(dShore, dMask);
             float shoreZone = 1.0 - shoreDist;
 
             // 2. Ombak bibir pantai (swash & backwash) berirama alami menyapu lereng sculpt tanah
-            float swashPhase = uTime * 2.2 * uSpeed - shoreDist * 14.0 + onoise(q * 1.6) * 2.6;
+            float swashPhase = uTime * 2.2 * uSpeed - shoreDist * 12.0 + onoise(q * 1.4) * 2.5;
             float waveSwash = sin(swashPhase);
-            float waveCrest = smoothstep(0.30, 0.82, waveSwash);
+            float waveCrest = smoothstep(0.20, 0.75, waveSwash);
 
             // 3. Lapisan buih bibir pantai (swash lip & receding backwash suds)
-            float swashLip = waveCrest * smoothstep(0.28, 0.03, shoreDist);
-            float backwashSuds = exp(-shoreDist * 14.0) * 0.45;
+            float swashLip = waveCrest * smoothstep(0.40, 0.02, shoreDist) * 1.35;
+            float backwashSuds = exp(-shoreDist * 10.0) * 0.65;
             float foamBand = clamp(swashLip + backwashSuds, 0.0, 1.0);
 
             // 4. Pola busa seluler berpori alami (Cellular Bubble Lace & Micro-froth)
-            vec2 foamUV = q * 3.6;
-            vec2 fWarp = vec2(onoise(foamUV * 0.55 + uTime * 0.08), onoise(foamUV * 0.55 + vec2(3.1, -uTime * 0.07)));
-            vec2 pCell = foamUV + (fWarp - 0.5) * 1.4;
+            vec2 foamUV = q * 3.2;
+            vec2 fWarp = vec2(onoise(foamUV * 0.5 + uTime * 0.08), onoise(foamUV * 0.5 + vec2(3.1, -uTime * 0.07)));
+            vec2 pCell = foamUV + (fWarp - 0.5) * 1.2;
 
             // Inverted ridges membentuk dinding gelembung dan rongga/pori busa terbuka
             float c1 = abs(onoise(pCell) * 2.0 - 1.0);
-            float c2 = abs(onoise(om2 * pCell * 2.3 - uTime * 0.16) * 2.0 - 1.0);
-            float bubbleLace = (1.0 - smoothstep(0.05, 0.35, c1)) * 0.68 
-                             + (1.0 - smoothstep(0.03, 0.28, c2)) * 0.32;
+            float c2 = abs(onoise(om2 * pCell * 2.1 - uTime * 0.16) * 2.0 - 1.0);
+            float bubbleLace = (1.0 - smoothstep(0.04, 0.38, c1)) * 0.70 
+                             + (1.0 - smoothstep(0.03, 0.32, c2)) * 0.35;
 
             // Partikel buih mikro (micro-froth spatter)
-            float microFroth = pow(onoise(q * 14.0 + fWarp * 2.0), 1.7) * 0.65;
-            float naturalShorePattern = clamp(bubbleLace * 1.25 + microFroth, 0.0, 1.0);
+            float microFroth = pow(onoise(q * 8.5 + fWarp * 1.8), 1.6) * 0.70;
+            float naturalShorePattern = clamp(bubbleLace * 1.40 + microFroth, 0.0, 1.0);
 
             // 5. Shoreline foam alami: terpecah menjadi jaring buih berongga (bukan blok putih cat solid)
-            float shorelineFoam = foamBand * naturalShorePattern;
-            shorelineFoam = smoothstep(0.12, 0.62, shorelineFoam) * shoreZone;
+            float shorelineFoam = foamBand * naturalShorePattern * 1.45;
+            shorelineFoam = smoothstep(0.08, 0.55, shorelineFoam) * shoreZone;
 
-            // 6. Rona toska jernih transparan di tepian dangkal (crystal clear shallow water)
-            vec3 shallowShoreCol = mix(shallow, vec3(0.16, 0.76, 0.70) * sunF, shoreZone * 0.65);
-            col = mix(col, shallowShoreCol, shoreZone * 0.55);
+            // 6. Rona kristal toska-aquamarine sangat cerah dan bercahaya di dekat dataran / sculpt
+            vec3 luminousShoreCol = vec3(0.20, 0.98, 0.90) * (0.88 + 0.35 * sunF);
+            vec3 crystalShallowCol = mix(luminousShoreCol, shallow * (1.18 + 0.25 * sunF), 0.28);
+            float gradFactor = smoothstep(0.02, 0.95, shoreZone);
+            col = mix(col, crystalShallowCol, gradFactor * 0.92);
 
             // 7. Pewarnaan busa berbayang lembut & berkilau di puncak terkena sinar matahari
-            vec3 foamPeakCol = vec3(0.97, 0.99, 1.0) * (0.86 + 0.14 * sunF);
-            vec3 foamBodyCol = mix(shallowShoreCol, vec3(0.72, 0.88, 0.94), 0.60) * (0.76 + 0.24 * sunF);
-            vec3 finalShoreFoamCol = mix(foamBodyCol, foamPeakCol, smoothstep(0.20, 0.80, shorelineFoam));
-            col = mix(col, finalShoreFoamCol, shorelineFoam * 0.88);
+            vec3 foamPeakCol = mix(uWaterFoamColor, vec3(1.0), 0.45) * (0.88 + 0.12 * sunF);
+            vec3 foamBodyCol = mix(crystalShallowCol, vec3(0.78, 0.92, 0.98), 0.65) * (0.80 + 0.20 * sunF);
+            vec3 finalShoreFoamCol = mix(foamBodyCol, foamPeakCol, smoothstep(0.15, 0.70, shorelineFoam));
+            col = mix(col, finalShoreFoamCol, shorelineFoam * 0.95);
 
-            // 8. Transparansi dinamis di tepi air (wetting boundary halus tanpa potongan polygon kasar)
-            float depthAlpha = smoothstep(0.003, 0.22, waterDepth);
-            float maskAlpha = smoothstep(0.012, 0.26, dynamicMask);
-            float edgeAlpha = clamp(min(depthAlpha, maskAlpha) + shorelineFoam * 0.50, 0.0, 1.0);
-            if (edgeAlpha < 0.005) discard;
+            // 8. Transparansi dinamis jernih kristal di dekat dataran / sculpt tanah
+            // Sangat bening di tepi sehingga kontur tanah terlihat jelas, berangsur pekat di perairan dalam
+            float depthAlpha = smoothstep(0.002, 0.90, waterDepth);
+            float maskAlpha = smoothstep(0.005, 0.40, dynamicMask);
+            float shallowClarity = mix(0.32, 0.88, smoothstep(0.0, 0.75, effDepth));
+            float baseAlpha = min(depthAlpha, maskAlpha) * shallowClarity;
+
+            // Buih ombak pantai tetap pekat & kontras di atas air transparan
+            float edgeAlpha = clamp(baseAlpha + shorelineFoam * 0.95, 0.0, 1.0);
+            if (edgeAlpha < 0.003) discard;
 
             gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), edgeAlpha);
 
@@ -1006,6 +1000,13 @@ function updateWater(delta, elapsedTime) {
         }
     }
 
+    // 2B. Transisi warna air realtime mengikuti suasana langit (Siang, Sore, Malam)
+    const lerpSpd = Math.min(1.0, (delta || 0.016) * 4.0);
+    if (u.uWaterDeepColor)    u.uWaterDeepColor.value.lerp(targetAtmosphere.deep, lerpSpd);
+    if (u.uWaterShallowColor) u.uWaterShallowColor.value.lerp(targetAtmosphere.shallow, lerpSpd);
+    if (u.uWaterSkyColor)     u.uWaterSkyColor.value.lerp(targetAtmosphere.skyReflect, lerpSpd);
+    if (u.uWaterFoamColor)    u.uWaterFoamColor.value.lerp(targetAtmosphere.foam, lerpSpd);
+
     // 3. Interaksi gelombang dinamis di sekitar karakter rubah (Kelvin Wake + Hull Field)
     if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root &&
         ((typeof isPlayMode !== 'undefined' && isPlayMode) || (typeof CinematicManager !== 'undefined' && CinematicManager.isFoxEnabled))) {
@@ -1031,9 +1032,14 @@ function updateWater(delta, elapsedTime) {
         if (Math.abs(foxPos.y - waterCurrentLevel) < 2.5) {
             u.uFoxPos.value.set(foxPos.x, foxPos.y, foxPos.z);
 
-            // Submerge ratio (identik ocean.html)
+            // Submerge ratio (identik ocean.html) dengan damping halus agar busa tidak patah-patah
             if (u.uFoxSubmerge) {
-                u.uFoxSubmerge.value = THREE.MathUtils.clamp(1.2 - Math.abs(foxPos.y - waterCurrentLevel) * 0.5, 0.0, 1.0);
+                const targetSubmerge = THREE.MathUtils.clamp(1.2 - Math.abs(foxPos.y - waterCurrentLevel) * 0.5, 0.0, 1.0);
+                u.uFoxSubmerge.value = THREE.MathUtils.lerp(
+                    u.uFoxSubmerge.value,
+                    targetSubmerge,
+                    Math.min(1.0, (delta || 0.016) * 6.0)
+                );
             }
 
             // Arah hadap rubah (model rubah di Pandora menghadap -X secara lokal)
@@ -1053,15 +1059,15 @@ function updateWater(delta, elapsedTime) {
                 Math.min(1.0, (delta || 0.016) * 8.0)
             );
 
-            // ── KELVIN WAKE TRAIL SPAWN (100% ocean.html) ─────────────────
+            // ── KELVIN WAKE TRAIL SPAWN (World-anchored foam trail seperti efek rumput) ──
             const distMoved = Math.hypot(
                 foxPos.x - oceanLastTrailSpawnPos.x,
                 foxPos.z - oceanLastTrailSpawnPos.y
             );
-            if (distMoved > 0.42) {
-                const trailX = foxPos.x - fwdX * 0.45;
-                const trailZ = foxPos.z - fwdZ * 0.45;
-                const intensity = Math.min(1.4, speed * 0.12 + 0.35);
+            if (distMoved > 0.28 && speed > 0.18) {
+                const trailX = foxPos.x;
+                const trailZ = foxPos.z;
+                const intensity = Math.min(1.4, speed * 0.14 + 0.40);
                 oceanTrailPos[oceanTrailIdx].set(trailX, trailZ, elapsedTime, intensity);
                 oceanTrailDir[oceanTrailIdx].set(fwdX, fwdZ);
                 oceanTrailIdx = (oceanTrailIdx + 1) % OCEAN_TRAIL_MAX;

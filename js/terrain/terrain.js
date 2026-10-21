@@ -55,7 +55,7 @@ function fbm(x, y) {
 
 const groundMat = new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide });
 const ground = new THREE.Mesh(groundGeo, groundMat);
-ground.receiveShadow = true;
+ground.receiveShadow = false; // Bayangan hanya ditampilkan di atas bidang air sesuai permintaan
 scene.add(ground);
 
 // Studio Canvas Grid Lines (seperti new-character.html)

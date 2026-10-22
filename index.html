@@ -941,145 +941,7 @@
                 </div>
             </div>
 
-            <!-- ROAD BRUSH -->
-            <div class="accordion collapsed">
-                <div class="accordion-title">
-                    <div class="accordion-title-left">
-                        <span class="svg-icon" style="color:#d97706;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-                                <line x1="4" y1="22" x2="4" y2="15"></line>
-                            </svg>
-                        </span>
-                        <span>Road Brush (Jalan)</span>
-                    </div>
-                    <span class="chevron-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </span>
-                </div>
-                <div class="accordion-body">
-                    <div class="control-group">
-                        <label>Kuas Jalan</label>
-                        <select id="select-road-brush">
-                            <option value="none">Off</option>
-                            <option value="road_brown">Jalan Tanah Kecoklatan (Dirt Path)</option>
-                            <option value="road_green">Jalan Berlumut Hijau (Mossy Path)</option>
-                            <option value="road_clay">Jalan Tanah Liat (Clay PBR)</option>
-                            <option value="remove">Hapus Jalan (Reset Rumput)</option>
-                        </select>
-                    </div>
-                    <div class="shortcut-hint">
-                        <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="12" y1="16" x2="12" y2="12"></line>
-                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                            </svg>
-                        </span>
-                        <span>Gambar jalan setapak bertekstur ala Genshin. Tekan <span class="esc-kbd">Esc</span> untuk
-                            batal.</span>
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Radius Kuas Jalan</span>
-                            <span id="val-road-radius" class="val-badge">4.0</span>
-                        </label>
-                        <input type="range" id="slider-road-radius" min="1.5" max="12.0" step="0.5" value="4.0">
-                    </div>
-                </div>
-            </div>
-
-            <!-- WATER BRUSH (KUAS AIR) -->
-            <div class="accordion collapsed" id="accordion-water">
-                <div class="accordion-title">
-                    <div class="accordion-title-left">
-                        <span class="svg-icon" style="color:#06b6d4;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
-                            </svg>
-                        </span>
-                        <span>Water Brush (Kuas Air)</span>
-                    </div>
-                    <span class="chevron-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </span>
-                </div>
-                <div class="accordion-body">
-                    <div class="control-group">
-                        <label>Kuas Air</label>
-                        <select id="select-water-brush">
-                            <option value="none">Off</option>
-                            <option value="paint_water">Lukis Air (Ocean Realistic Water)</option>
-                            <option value="remove">Hapus Air (Keringkan)</option>
-                        </select>
-                    </div>
-                    <div class="shortcut-hint">
-                        <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="12" y1="16" x2="12" y2="12"></line>
-                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                            </svg>
-                        </span>
-                        <span>Klik kiri untuk melukis danau/sungai jernih berombak. Klik kanan untuk menghapus air. Tekan <span class="esc-kbd">Esc</span> untuk batal.</span>
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Radius Kuas Air</span>
-                            <span id="val-water-radius" class="val-badge">4.0</span>
-                        </label>
-                        <input type="range" id="slider-water-radius" min="1.0" max="15.0" step="0.5" value="4.0">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Ketinggian Air (Water Level Y)</span>
-                            <span id="val-water-level" class="val-badge">0.0</span>
-                        </label>
-                        <input type="range" id="slider-water-level" min="-2.0" max="3.0" step="0.05" value="0.0">
-                    </div>
-
-                    <!-- OCEAN WAVE CONTROLS (identik dengan ocean.html) -->
-                    <div class="control-group" style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(6,182,212,0.18);">
-                        <label style="font-weight:600; color:#06b6d4; font-size:11px; letter-spacing:.04em; text-transform:uppercase;">⟡ Parameter Ombak (Ocean Engine)</label>
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Tinggi Ombak (Amp)</span>
-                            <span id="val-wave-amp" class="val-badge">0.70</span>
-                        </label>
-                        <input type="range" id="slider-wave-amp" min="0.1" max="1.5" step="0.05" value="0.7">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Kecepatan Ombak (Speed)</span>
-                            <span id="val-wave-speed" class="val-badge">1.00</span>
-                        </label>
-                        <input type="range" id="slider-wave-speed" min="0.1" max="3.0" step="0.05" value="1.0">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Ombak Tajam (Chop)</span>
-                            <span id="val-wave-chop" class="val-badge">0.80</span>
-                        </label>
-                        <input type="range" id="slider-wave-chop" min="0" max="1.2" step="0.05" value="0.8">
-                    </div>
-                    <button id="btn-clear-all-water" class="btn-compact btn-full-width" style="margin-top:6px; color:#ef4444;" title="Keringkan dan hapus seluruh air di arena">
-                        <span class="svg-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <polyline points="3 6 5 6 21 6"></polyline>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                        </span>
-                        <span>Keringkan Semua Air</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- BRUSH (GRASS & ROCKS) -->
+            <!-- BRUSH (RUMPUT, JALAN, AIR, BATU, BUNGA, KUPU-KUPU) -->
             <div class="accordion collapsed" id="accordion-brush">
                 <div class="accordion-title">
                     <div class="accordion-title-left">
@@ -1100,7 +962,7 @@
                     </span>
                 </div>
                 <div class="accordion-body">
-                    <!-- BRUSH MODE TABS (RUMPUT VS BEBATUAN) -->
+                    <!-- BRUSH MODE TABS -->
                     <div class="brush-mode-tabs">
                         <button type="button" class="brush-tab-btn active" data-brush-tab="grass" id="btn-tab-brush-grass">
                             <span class="svg-icon" style="color:#84cc16; width:13px; height:13px;">
@@ -1117,6 +979,23 @@
                             </span>
                             <span>Rumput</span>
                         </button>
+                        <button type="button" class="brush-tab-btn" data-brush-tab="road" id="btn-tab-brush-road">
+                            <span class="svg-icon" style="color:#d97706; width:13px; height:13px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                    <line x1="4" y1="22" x2="4" y2="15"></line>
+                                </svg>
+                            </span>
+                            <span>Jalan</span>
+                        </button>
+                        <button type="button" class="brush-tab-btn" data-brush-tab="water" id="btn-tab-brush-water">
+                            <span class="svg-icon" style="color:#06b6d4; width:13px; height:13px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+                                </svg>
+                            </span>
+                            <span>Air</span>
+                        </button>
                         <button type="button" class="brush-tab-btn" data-brush-tab="rock" id="btn-tab-brush-rock">
                             <span class="svg-icon" style="color:#94a3b8; width:13px; height:13px;">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1125,7 +1004,7 @@
                                     <polyline points="2 12 12 17 22 12"></polyline>
                                 </svg>
                             </span>
-                            <span>Bebatuan</span>
+                            <span>Batu</span>
                         </button>
                         <button type="button" class="brush-tab-btn" data-brush-tab="flower" id="btn-tab-brush-flower">
                             <span class="svg-icon" style="color:#38bdf8; width:13px; height:13px;">
@@ -1149,7 +1028,7 @@
                                     <path d="M12 15c1 2 4 4 5 2s0-4-3-3"></path>
                                 </svg>
                             </span>
-                            <span>Kupu-kupu</span>
+                            <span>Kupu2</span>
                         </button>
                     </div>
 
@@ -1302,7 +1181,109 @@
                         </div>
                     </div>
 
-                    <!-- SUBPANEL 2: BEBATUAN (ROCKS) -->
+                    <!-- SUBPANEL 2: JALAN (ROAD BRUSH) -->
+                    <div id="subpanel-brush-road" class="brush-subpanel" style="display:none;">
+                        <div class="control-group">
+                            <label>Kuas Jalan</label>
+                            <select id="select-road-brush">
+                                <option value="none">Off</option>
+                                <option value="road_brown">Jalan Tanah Kecoklatan (Dirt Path)</option>
+                                <option value="road_green">Jalan Berlumut Hijau (Mossy Path)</option>
+                                <option value="road_clay">Jalan Tanah Liat (Clay PBR)</option>
+                                <option value="remove">Hapus Jalan (Reset Rumput)</option>
+                            </select>
+                        </div>
+                        <div class="shortcut-hint">
+                            <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
+                            </span>
+                            <span>Gambar jalan setapak bertekstur ala Genshin. Tekan <span class="esc-kbd">Esc</span> untuk batal.</span>
+                        </div>
+                        <div class="control-group">
+                            <label>
+                                <span>Radius Kuas Jalan</span>
+                                <span id="val-road-radius" class="val-badge">4.0</span>
+                            </label>
+                            <input type="range" id="slider-road-radius" min="1.5" max="12.0" step="0.5" value="4.0">
+                        </div>
+                    </div>
+
+                    <!-- SUBPANEL 3: AIR (WATER BRUSH) -->
+                    <div id="subpanel-brush-water" class="brush-subpanel" style="display:none;">
+                        <div class="control-group">
+                            <label>Kuas Air</label>
+                            <select id="select-water-brush">
+                                <option value="none">Off</option>
+                                <option value="paint_water">Lukis Air (Ocean Realistic Water)</option>
+                                <option value="remove">Hapus Air (Keringkan)</option>
+                            </select>
+                        </div>
+                        <div class="shortcut-hint">
+                            <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
+                            </span>
+                            <span>Klik kiri untuk melukis danau/sungai jernih berombak. Klik kanan untuk menghapus air. Tekan <span class="esc-kbd">Esc</span> untuk batal.</span>
+                        </div>
+                        <div class="control-group">
+                            <label>
+                                <span>Radius Kuas Air</span>
+                                <span id="val-water-radius" class="val-badge">4.0</span>
+                            </label>
+                            <input type="range" id="slider-water-radius" min="1.0" max="15.0" step="0.5" value="4.0">
+                        </div>
+                        <div class="control-group">
+                            <label>
+                                <span>Ketinggian Air (Water Level Y)</span>
+                                <span id="val-water-level" class="val-badge">0.0</span>
+                            </label>
+                            <input type="range" id="slider-water-level" min="-2.0" max="3.0" step="0.05" value="0.0">
+                        </div>
+
+                        <!-- OCEAN WAVE CONTROLS -->
+                        <div class="control-group" style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(6,182,212,0.18);">
+                            <label style="font-weight:600; color:#06b6d4; font-size:11px; letter-spacing:.04em; text-transform:uppercase;">⟡ Parameter Ombak (Ocean Engine)</label>
+                        </div>
+                        <div class="control-group">
+                            <label>
+                                <span>Tinggi Ombak (Amp)</span>
+                                <span id="val-wave-amp" class="val-badge">0.70</span>
+                            </label>
+                            <input type="range" id="slider-wave-amp" min="0.1" max="1.5" step="0.05" value="0.7">
+                        </div>
+                        <div class="control-group">
+                            <label>
+                                <span>Kecepatan Ombak (Speed)</span>
+                                <span id="val-wave-speed" class="val-badge">1.00</span>
+                            </label>
+                            <input type="range" id="slider-wave-speed" min="0.1" max="3.0" step="0.05" value="1.0">
+                        </div>
+                        <div class="control-group">
+                            <label>
+                                <span>Ombak Tajam (Chop)</span>
+                                <span id="val-wave-chop" class="val-badge">0.80</span>
+                            </label>
+                            <input type="range" id="slider-wave-chop" min="0" max="1.2" step="0.05" value="0.8">
+                        </div>
+                        <button id="btn-clear-all-water" class="btn-compact btn-full-width" style="margin-top:6px; color:#ef4444;" title="Keringkan dan hapus seluruh air di arena">
+                            <span class="svg-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </span>
+                            <span>Keringkan Semua Air</span>
+                        </button>
+                    </div>
+
+                    <!-- SUBPANEL 4: BEBATUAN (ROCKS) -->
                     <div id="subpanel-brush-rock" class="brush-subpanel" style="display:none;">
                         <div class="control-group">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">

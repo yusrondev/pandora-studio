@@ -502,19 +502,25 @@ setupSpawnerCardGrid('rock-picker-grid', 'select-rock-brush');
 setupSpawnerCardGrid('flower-picker-grid', 'select-flower-brush');
 setupSpawnerCardGrid('butterfly-picker-grid', 'select-butterfly-brush');
 
-// Tab switcher between Rumput, Bebatuan, Bunga, and Kupu-kupu in Brush accordion
+// Tab switcher between Rumput, Jalan, Air, Bebatuan, Bunga, and Kupu-kupu in Brush accordion
 const tabBrushGrass = document.getElementById('btn-tab-brush-grass');
+const tabBrushRoad = document.getElementById('btn-tab-brush-road');
+const tabBrushWater = document.getElementById('btn-tab-brush-water');
 const tabBrushRock = document.getElementById('btn-tab-brush-rock');
 const tabBrushFlower = document.getElementById('btn-tab-brush-flower');
 const tabBrushButterfly = document.getElementById('btn-tab-brush-butterfly');
 
 const subpanelBrushGrass = document.getElementById('subpanel-brush-grass');
+const subpanelBrushRoad = document.getElementById('subpanel-brush-road');
+const subpanelBrushWater = document.getElementById('subpanel-brush-water');
 const subpanelBrushRock = document.getElementById('subpanel-brush-rock');
 const subpanelBrushFlower = document.getElementById('subpanel-brush-flower');
 const subpanelBrushButterfly = document.getElementById('subpanel-brush-butterfly');
 
 const allBrushTabs = [
     { btn: tabBrushGrass, panel: subpanelBrushGrass },
+    { btn: tabBrushRoad, panel: subpanelBrushRoad },
+    { btn: tabBrushWater, panel: subpanelBrushWater },
     { btn: tabBrushRock, panel: subpanelBrushRock },
     { btn: tabBrushFlower, panel: subpanelBrushFlower },
     { btn: tabBrushButterfly, panel: subpanelBrushButterfly }
@@ -555,15 +561,27 @@ function unsetOtherTools(activeToolName) {
     }
     if (activeToolName !== 'road' && typeof selectRoadBrush !== 'undefined' && selectRoadBrush && selectRoadBrush.value !== 'none') {
         selectRoadBrush.value = 'none';
+        selectRoadBrush.dispatchEvent(new Event('change'));
     }
     if (activeToolName !== 'water' && typeof selectWaterBrush !== 'undefined' && selectWaterBrush && selectWaterBrush.value !== 'none') {
         selectWaterBrush.value = 'none';
+        selectWaterBrush.dispatchEvent(new Event('change'));
     }
     if (activeToolName !== 'sculpt' && typeof selectTerrainMode !== 'undefined' && selectTerrainMode && selectTerrainMode.value !== 'none') {
         selectTerrainMode.value = 'none';
     }
     if (typeof updateToolControlsState === 'function') updateToolControlsState();
     if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
+}
+
+if (typeof selectRoadBrush !== 'undefined' && selectRoadBrush) {
+    selectRoadBrush.addEventListener('change', () => {
+        if (selectRoadBrush.value !== 'none') unsetOtherTools('road');
+        else {
+            if (typeof updateToolControlsState === 'function') updateToolControlsState();
+            if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
+        }
+    });
 }
 
 if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush) {

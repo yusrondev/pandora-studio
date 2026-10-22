@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="utf-8">
+    <title>Lanskap Tanah dan Pasir – Fisika Partikel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <style>
+        :root {
+            --bg: #d9c7a8;
+            --fg: #2b2118;
+            --panel: rgba(255, 247, 234, .88);
+            --line: rgba(43, 33, 24, .22);
+            --ac: #9c4524;
+            box-sizing: border-box;
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px)
+        }
+
+        @media (prefers-color-scheme:dark) {
+            :root:not([data-theme="light"]) {
+                --panel: rgba(30, 24, 18, .86);
+                --fg: #f0e4d2;
+                --line: rgba(240, 228, 210, .22);
+                --ac: #e69a6c
+            }
+        }
+
+        :root[data-theme="dark"] {
+            --panel: rgba(30, 24, 18, .86);
+            --fg: #f0e4d2;
+            --line: rgba(240, 228, 210, .22);
+            --ac: #e69a6c
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            background: var(--bg);
+            overflow: hidden;
+            color: var(--fg);
+            font: 14px/1.5 Georgia, "Times New Roman", serif
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none
+        }
+
+        #vig {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 55%, rgba(20, 12, 6, .38) 100%)
+        }
+
+        #hud {
+            position: absolute;
+            left: 12px;
+            top: calc(env(safe-area-inset-top, 0px) + 12px);
+            max-width: 280px;
+            padding: 12px 14px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 6px
+        }
+
+        #hud h1 {
+            font-size: 16px;
+            margin: 0 0 6px
+        }
+
+        #hud p {
+            margin: 2px 0
+        }
+
+        #hud b {
+            font-family: ui-monospace, Menlo, monospace;
+            font-size: 12px;
+            border: 1px solid var(--line);
+            border-radius: 3px;
+            padding: 0 4px
+        }
+
+        #info {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--line);
+            color: var(--ac);
+            font-weight: 700
+        }
+
+        #hud button {
+            margin-top: 8px;
+            font: inherit;
+            color: var(--fg);
+            background: transparent;
+            border: 1px solid var(--ac);
+            border-radius: 4px;
+            padding: 3px 10px;
+            cursor: pointer
+        }
+
+        #hud button:focus-visible {
+            outline: 2px solid var(--ac);
+            outline-offset: 2px
+        }
+    </style>
+</head>
+
+<body>
+    <div id="vig"></div>
+    <div id="hud">
+        <h1>Lanskap tanah dan pasir</h1>
+        <p><b>W</b><b>A</b><b>S</b><b>D</b> berjalan, <b>Shift</b> berlari</p>
+        <p><b>Spasi</b> melompat dan menghantam tanah</p>
+        <p>Seret mouse: kamera, roda: zoom, <b>Q</b>/<b>E</b>: putar</p>
+        <div id="info"></div>
+        <button id="rst">Kembalikan lanskap (R)</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        (() => {
+            const T = THREE, S = 9, N = 704, C = S / (N - 1), PW = 2048, rnd = T.MathUtils.randFloat, Y = new T.Vector3(0, 1, 0), X = new T.Vector3(1, 0, 0);
+            const h2 = (x, y) => { const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return n - Math.floor(n) };
+            const sm = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x) };
+            const vn = (x, y) => { const i = Math.floor(x), j = Math.floor(y), a = sm(0, 1, x - i), b = sm(0, 1, y - j); return (h2(i, j) * (1 - a) + h2(i + 1, j) * a) * (1 - b) + (h2(i, j + 1) * (1 - a) + h2(i + 1, j + 1) * a) * b };
+            const fbm = (x, y) => vn(x, y) * .5 + vn(x * 2.1, y * 2.1) * .25 + vn(x * 4.3, y * 4.3) * .125 + vn(x * 8.7, y * 8.7) * .0625;
+            const bz = z => .9 * Math.sin(z * .55) + .45 * Math.sin(z * 1.4 + 1);
+            const sandAt = (x, z) => 1.0;
+            const mix = (a, b, t) => a + (b - a) * t;
+            const gi = x => (x / S + .5) * (N - 1), gj = z => (.5 - z / S) * (N - 1);
+
+            /* heightfield: R=tinggi, G/B=normal x/z, A=pemadatan */
+            const H = new Float32Array(N * N), H0 = new Float32Array(N * N), Z = new Float32Array(N * N), TD = new Float32Array(N * N * 4);
+            const ht = new T.DataTexture(TD, N, N, T.RGBAFormat, T.FloatType); ht.minFilter = ht.magFilter = T.NearestFilter; ht.generateMipmaps = false;
+
+            const renderer = new T.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.outputEncoding = T.sRGBEncoding; document.body.prepend(renderer.domElement);
+            const scene = new T.Scene(); scene.fog = new T.FogExp2(0xd9c7a8, .045);
+            const cam = new T.PerspectiveCamera(55, 1, .05, 200), SUN = new T.Vector3(.7, .45, .45).normalize();
+            scene.add(new T.HemisphereLight(0xbcd2ff, 0x9a7650, .85));
+            const sun = new T.DirectionalLight(0xffdcae, 1.5); scene.add(sun, sun.target);
+
+            /* langit */
+            const sky = new T.Mesh(new T.SphereGeometry(100, 32, 16), new T.ShaderMaterial({
+                side: T.BackSide, depthWrite: false, fog: false, uniforms: { uSun: { value: SUN } },
+                vertexShader: `varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+                fragmentShader: `uniform vec3 uSun;varying vec3 vD;void main(){vec3 d=normalize(vD);float y=max(d.y,0.);vec3 c=mix(vec3(.85,.78,.66),vec3(.25,.47,.82),pow(y,.5));float s=max(dot(d,uSun),0.);c+=vec3(1.,.8,.5)*(pow(s,8.)*.35+pow(s,400.)*2.);gl_FragColor=vec4(c,1.);}`
+            }));
+            sky.renderOrder = -1; scene.add(sky);
+
+            /* ---------- Sistem Partikel Pasir Tunggal (~4.2 Juta Partikel) ---------- */
+            const SP = []; for (let i = 0; i < 8; i++)SP.push(new T.Vector4(0, -9, 0, .01));
+            const U = { uH: { value: ht }, uS: { value: S }, uN: { value: N }, uSize: { value: .0065 }, uR: { value: 1.1 }, uScale: { value: 800 }, uSun: { value: SUN }, uCh: { value: new T.Vector2() }, uSp: { value: SP } };
+            const VS = `uniform sampler2D uH;uniform float uS,uN,uSize,uScale,uR;uniform vec3 uSun;uniform vec2 uCh;uniform vec4 uSp[8];varying vec3 vC;
+vec4 tx(vec2 g){return texture2D(uH,(clamp(g,0.,uN-1.)+.5)/uN);}
+vec2 gg(vec2 p){return vec2((p.x/uS+.5)*(uN-1.),(.5-p.y/uS)*(uN-1.));}
+void main(){
+ vec2 xz=position.xz;float r=position.y,r2=fract(r*57.31),r3=fract(r*13.77);
+ vec2 g=gg(xz),i0=floor(g),f=fract(g);
+ vec4 a=tx(i0),b=tx(i0+vec2(1.,0.)),c=tx(i0+vec2(0.,1.)),d=tx(i0+vec2(1.,1.));
+ float h=mix(mix(a.x,b.x,f.x),mix(c.x,d.x,f.x),f.y);
+ vec2 m=mix(mix(a.yz,b.yz,f.x),mix(c.yz,d.yz,f.x),f.y);float wp=mix(mix(a.w,b.w,f.x),mix(c.w,d.w,f.x),f.y);
+ vec3 n=vec3(m.x,sqrt(max(0.,1.-dot(m,m))),m.y);n=normalize(n+(vec3(r2,fract(r*91.7),r3)-.5)*.12);
+ vec3 col=vec3(.84,.7,.47)*(.88+.18*r2);
+ col*=1.-.45*wp;col=pow(col,vec3(2.2));
+ float cav=clamp((h-(tx(g+vec2(4.,0.)).x+tx(g-vec2(4.,0.)).x+tx(g+vec2(0.,4.)).x+tx(g-vec2(0.,4.)).x)*.25)*12.+.85,.5,1.1);
+ vec2 sh=normalize(uSun.xz);float slope=uSun.y/length(uSun.xz),lit=1.;
+ for(int i=0;i<5;i++){float t=.05+float(i)*.1;lit=min(lit,1.-smoothstep(0.,.02,tx(floor(gg(xz+sh*t)+.5)).x-h-t*slope));}
+ vec3 p=vec3(xz.x,h,xz.y);float cs=1.;
+ for(int i=0;i<8;i++){vec3 oc=uSp[i].xyz-p;float t=dot(oc,uSun);if(t>0.){float dd=length(oc-uSun*t);cs*=1.-.85*(1.-smoothstep(uSp[i].w*.35,uSp[i].w,dd));}}
+ float df=max(dot(n,uSun),0.)*lit*cs,ao=1.-.3*(1.-smoothstep(.05,.4,length(xz-uCh)));
+ col*=(vec3(1.,.88,.7)*1.8*df+vec3(.42,.52,.72)*.5*(.5+.5*n.y)*ao*mix(1.,cs,.5))*cav;
+ col+=step(.998,fract(r*3.3+r2))*df*.06;
+ col=pow(1.-exp(-col*1.25),vec3(1./2.2));
+ vec4 mv=viewMatrix*vec4(p+vec3(0.,(r3-.5)*.005,0.),1.);
+ float e=smoothstep(0.,.9,min(uS*.5-abs(xz.x),uS*.5-abs(xz.y))),ff=1.-exp(-pow(length(mv.xyz)*.045,2.));
+ vC=mix(vec3(.85,.78,.66),col,e*(1.-ff));
+ gl_Position=projectionMatrix*mv;gl_PointSize=max(2.5,uSize*(.9+.3*r2)*uScale/-mv.z);
+}`;
+            const FS = `varying vec3 vC;void main(){vec2 p=gl_PointCoord-.5;float d=dot(p,p);if(d>.25)discard;gl_FragColor=vec4(vC*(1.02-0.3*d),1.);}`;
+            {
+                const pos = new Float32Array(PW * PW * 3);
+                for (let j = 0; j < PW; j++)for (let i = 0; i < PW; i++) { const p = (j * PW + i) * 3; pos[p] = ((i + Math.random()) / PW - .5) * S; pos[p + 1] = Math.random(); pos[p + 2] = ((j + Math.random()) / PW - .5) * S }
+                const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3));
+                const m = new T.Points(g, new T.ShaderMaterial({ uniforms: U, vertexShader: VS, fragmentShader: FS })); m.frustumCulled = false; scene.add(m);
+            }
+
+            /* ---------- relief awal ---------- */
+            const heaps = [[-2.4, -1.4, .7, .2], [1.9, 1.3, .8, .22], [-1.1, 2.3, .5, .14], [3, -1.9, .6, .17], [-3.2, 1.2, .6, .16], [.4, -3, .7, .15]];
+            for (let j = 0; j < N; j++)for (let i = 0; i < N; i++) {
+                const k = j * N + i, x = (i / (N - 1) - .5) * S, z = (.5 - j / (N - 1)) * S, e = sm(0, .9, Math.min(S / 2 - Math.abs(x), S / 2 - Math.abs(z)));
+                let h = .045 * fbm(x * .6, z * .6) + .008 * fbm(x * 2.5, z * 2.5);
+                for (const [a, b, r, t] of heaps) h += t * Math.exp(-((x - a) ** 2 + (z - b) ** 2) / (r * r));
+                Z[k] = 1; H0[k] = H[k] = h * e;
+            }
+            function upN(i0, j0, i1, j1) {
+                for (let j = Math.max(1, j0); j <= Math.min(N - 2, j1); j++)for (let i = Math.max(1, i0); i <= Math.min(N - 2, i1); i++) {
+                    const k = j * N + i, nx = -(H[k + 1] - H[k - 1]) / (2 * C), nz = (H[k + N] - H[k - N]) / (2 * C), l = 1 / Math.hypot(nx, 1, nz), p = k * 4;
+                    TD[p] = H[k]; TD[p + 1] = nx * l; TD[p + 2] = nz * l; TD[p + 3] = Math.min(1, Math.max(0, (H0[k] - H[k]) / .04));
+                }
+            }
+            upN(0, 0, N - 1, N - 1); ht.needsUpdate = true;
+            const un = (a, b) => a ? [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])] : b;
+            let D = null, A = null, at = 0;
+            function mark(i0, j0, i1, j1) { const r = [Math.max(0, i0 | 0), Math.max(0, j0 | 0), Math.min(N - 1, i1 | 0), Math.min(N - 1, j1 | 0)]; D = un(D, r); A = un(A, r); at = 110 }
+            function hAt(x, z) { const fx = Math.min(N - 2, Math.max(0, gi(x))), fy = Math.min(N - 2, Math.max(0, gj(z))), i = fx | 0, j = fy | 0, u = fx - i, v = fy - j, k = j * N + i; return (H[k] * (1 - u) + H[k + 1] * u) * (1 - v) + (H[k + N] * (1 - u) + H[k + N + 1] * u) * v }
+            function nAt(x, z, o) { const e = .06; return o.set(-(hAt(x + e, z) - hAt(x - e, z)) / (2 * e), 1, -(hAt(x, z + e) - hAt(x, z - e)) / (2 * e)).normalize() }
+
+            /* ---------- fisika butiran ---------- */
+            const PN = 6000, pp = new Float32Array(PN * 3).fill(-99), pv = new Float32Array(PN * 3), pc = new Float32Array(PN * 3), pl = new Float32Array(PN); let pi = 0;
+            const pg = new T.BufferGeometry(); pg.setAttribute('position', new T.BufferAttribute(pp, 3)); pg.setAttribute('color', new T.BufferAttribute(pc, 3));
+            const pts = new T.Points(pg, new T.PointsMaterial({ size: .016, vertexColors: true, sizeAttenuation: true })); pts.frustumCulled = false; scene.add(pts);
+            function spawn(x, y, z, vx, vy, vz, s) {
+                const i = pi++ % PN, v = rnd(.8, 1.1), c = [.84, .7, .47];
+                pp.set([x, y, z], i * 3); pv.set([vx, vy, vz], i * 3); pc.set(c.map(a => Math.pow(a * v, 2.2)), i * 3); pl[i] = 1
+            }
+            function burst(x, y, z, n, pw, bx, bz) { for (let q = 0; q < n; q++) { const a = rnd(0, 6.283), f = rnd(.2, 1) * pw; spawn(x + rnd(-.05, .05), y + .02, z + rnd(-.05, .05), Math.cos(a) * f + (bx || 0), rnd(.6, 1.8) * pw, Math.sin(a) * f + (bz || 0), 1) } }
+            function stepP(dt) {
+                for (let i = 0; i < PN; i++) {
+                    if (pl[i] <= 0) continue; const b = i * 3; pv[b + 1] -= 9.8 * dt; pp[b] += pv[b] * dt; pp[b + 1] += pv[b + 1] * dt; pp[b + 2] += pv[b + 2] * dt;
+                    if (Math.abs(pp[b]) < 4.4 && Math.abs(pp[b + 2]) < 4.4) { if (pp[b + 1] <= hAt(pp[b], pp[b + 2])) { const a = Math.round(gi(pp[b])), c = Math.round(gj(pp[b + 2])); H[c * N + a] += .0006; mark(a - 1, c - 1, a + 1, c + 1); pl[i] = 0; pp[b + 1] = -99 } }
+                    else if (pp[b + 1] < -1) { pl[i] = 0; pp[b + 1] = -99 }
+                }
+                pg.attributes.position.needsUpdate = true; pg.attributes.color.needsUpdate = true;
+            }
+            function foot(x, z, psi, pw, sp) {
+                const R = .2, cs = Math.cos(psi), sn = Math.sin(psi), i0 = Math.floor(gi(x - R)), i1 = Math.ceil(gi(x + R)), j0 = Math.floor(gj(z + R)), j1 = Math.ceil(gj(z - R));
+                for (let j = Math.max(1, j0); j <= Math.min(N - 2, j1); j++)for (let i = Math.max(1, i0); i <= Math.min(N - 2, i1); i++) {
+                    const k = j * N + i, dx = (i / (N - 1) - .5) * S - x, dz = (.5 - j / (N - 1)) * S - z, ly = dx * sn + dz * cs, lx = -dx * cs + dz * sn, t = ly / .24 + .5;
+                    if (t < -.3 || t > 1.3) continue;
+                    const tc = Math.min(1, Math.max(0, t)), hw = .027 + .026 * Math.sin(Math.PI * Math.pow(tc, 1.6)), r = Math.hypot(lx / hw, Math.pow(Math.abs(2 * t - 1), 2.5));
+                    if (r > 1.8) continue;
+                    const s = Z[k], m = 1 - sm(1 - (.12 + .4 * s), 1, r), ar = 1 - .65 * sm(.25, .33, t) * (1 - sm(.42, .5, t)), tr = .84 + .16 * Math.sin(ly * 130), d0 = .06 - .02 * s;
+                    const dp = d0 * pw * m * ar * tr * (1 + .3 * (1 - tc) * (1 - sp) + .9 * sp * sm(.5, 1, t)), rim = d0 * .3 * pw * (1 - .4 * s) * sm(.95, 1.15, r) * (1 - sm(1.15, 1.8, r));
+                    H[k] = Math.max(H0[k] - .12, H[k] - dp + rim);
+                }
+                mark(i0 - 1, j0 - 1, i1 + 1, j1 + 1);
+            }
+            function bump(x, z, m) {
+                const R = .1, i0 = Math.floor(gi(x - R)), i1 = Math.ceil(gi(x + R)), j0 = Math.floor(gj(z + R)), j1 = Math.ceil(gj(z - R));
+                for (let j = Math.max(1, j0); j <= Math.min(N - 2, j1); j++)for (let i = Math.max(1, i0); i <= Math.min(N - 2, i1); i++) { const r2 = ((i / (N - 1) - .5) * S - x) ** 2 + ((.5 - j / (N - 1)) * S - z) ** 2; H[j * N + i] += m * Math.exp(-r2 / .0025) }
+                mark(i0 - 1, j0 - 1, i1 + 1, j1 + 1)
+            }
+            function dent(x, z, rad, dp) {
+                const R = rad * 2.4, i0 = Math.floor(gi(x - R)), i1 = Math.ceil(gi(x + R)), j0 = Math.floor(gj(z + R)), j1 = Math.ceil(gj(z - R));
+                for (let j = Math.max(1, j0); j <= Math.min(N - 2, j1); j++)for (let i = Math.max(1, i0); i <= Math.min(N - 2, i1); i++) {
+                    const k = j * N + i, r = Math.hypot((i / (N - 1) - .5) * S - x, (.5 - j / (N - 1)) * S - z) / rad; if (r > 2.4) continue;
+                    H[k] = Math.max(H0[k] - .15, H[k] - dp * Math.exp(-r * r * 1.8) + dp * .3 * Math.exp(-(((r - 1.5) / .4) ** 2)));
+                }
+                mark(i0 - 1, j0 - 1, i1 + 1, j1 + 1);
+            }
+            const NO = [1, -1, N, -N, N + 1, N - 1, 1 - N, -N - 1], DF = [1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414];
+            function relax(a) {
+                for (let j = Math.max(1, a[1] - 1); j <= Math.min(N - 2, a[3] + 1); j++)for (let i = Math.max(1, a[0] - 1); i <= Math.min(N - 2, a[2] + 1); i++) {
+                    const k = j * N + i, s = Z[k], th = C * mix(1.6, .95, s), rt = mix(.04, .07, s) * .5;
+                    for (let n = 0; n < 8; n++) { const o = NO[n], d = H[k] - H[k + o] - th * DF[n]; if (d > 0) { const f = d * rt; H[k] -= f; H[k + o] += f } }
+                }
+            }
+
+            /* ---------- karakter manekin ---------- */
+            const MA = new T.MeshStandardMaterial({ color: 0xe9e5dd, roughness: .45 }), MB = new T.MeshStandardMaterial({ color: 0x2b2f36, roughness: .6 }), MO = new T.MeshStandardMaterial({ color: 0xe8742a, roughness: .5 });
+            const ms = (r, m, sx, sy, sz) => { const o = new T.Mesh(new T.SphereGeometry(r, 18, 12), m); o.scale.set(sx || 1, sy || 1, sz || 1); return o };
+            const limb = (ra, rb, m) => new T.Mesh(new T.CylinderGeometry(rb, ra, 1, 14), m);
+            const add = (p, o, x, y, z) => { o.position.set(x, y, z); p.add(o); return o };
+            const body = new T.Group(); scene.add(body);
+            add(body, ms(.1, MA, 1.15, .7, .85), 0, 0, 0);
+            const spine = new T.Group(); body.add(spine);
+            add(spine, ms(.12, MA, 1, 1.25, .78), 0, .2, 0); add(spine, ms(.1, MO, 1, .5, .8), 0, .07, 0); add(spine, limb(.035, .03, MA), 0, .38, 0).scale.y = .08;
+            const head = add(spine, ms(.085, MA, 1, 1.1, 1), 0, .48, 0); add(head, ms(.05, MB, 1.1, .4, .5), 0, .01, .06);
+            const arm = s => {
+                const sh = new T.Group(); sh.position.set(s * .16, .3, 0); spine.add(sh); add(sh, ms(.04, MB), 0, 0, 0);
+                const u = add(sh, limb(.036, .03, MA), 0, -.095, 0); u.scale.y = .19; const el = new T.Group(); el.position.y = -.19; sh.add(el); add(el, ms(.03, MB), 0, 0, 0);
+                const f = add(el, limb(.03, .024, MA), 0, -.09, 0); f.scale.y = .18; add(el, ms(.034, MO), 0, -.19, 0); return { sh, el }
+            };
+            const aL = arm(1), aR = arm(-1);
+            const leg = s => {
+                const th = limb(.055, .04, MA), sn = limb(.04, .028, MA), kn = ms(.04, MB), an = ms(.03, MB), hp = ms(.052, MB), fg = new T.Group();
+                add(fg, ms(1, MA, .048, .028, .125), 0, -.02, .04); add(fg, ms(1, MB, .05, .012, .128), 0, -.043, .04); add(fg, ms(1, MO, .03, .014, .04), 0, -.012, .1);
+                body.parent.add(th, sn, kn, an, fg); body.add(hp); hp.position.set(s * .07, 0, 0); return { th, sn, kn, an, fg, s }
+            };
+            const LG = [leg(1), leg(-1)];
+            const L1 = .27, L2 = .26, AH = .045;
+            const _u = new T.Vector3(), _p = new T.Vector3(), _fw = new T.Vector3(), _a = new T.Vector3(), _h = new T.Vector3(), _n = new T.Vector3(), _q = new T.Quaternion(), _q2 = new T.Quaternion();
+            function link(m, a, b) { m.position.addVectors(a, b).multiplyScalar(.5); _u.subVectors(b, a); m.scale.y = _u.length(); m.quaternion.setFromUnitVectors(Y, _u.normalize()) }
+
+            /* ---------- kontrol ---------- */
+            const keys = {}; let yaw = .4, pitch = .62, dist = 3.4, drag = 0;
+            addEventListener('keydown', e => { keys[e.code] = 1; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyR') reset() });
+            addEventListener('keyup', e => keys[e.code] = 0);
+            const cv = renderer.domElement;
+            cv.addEventListener('pointerdown', e => { drag = 1; cv.setPointerCapture(e.pointerId) });
+            cv.addEventListener('pointerup', () => drag = 0);
+            cv.addEventListener('pointermove', e => { if (drag) { yaw -= e.movementX * .005; pitch = Math.min(1.4, Math.max(.1, pitch + e.movementY * .005)) } });
+            cv.addEventListener('wheel', e => { dist = Math.min(8, Math.max(1.2, dist + e.deltaY * .003)) }, { passive: true });
+            function reset() { H.set(H0); upN(0, 0, N - 1, N - 1); ht.needsUpdate = true; pl.fill(0); pp.fill(-99) }
+            document.getElementById('rst').onclick = reset;
+            function resize() { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); U.uScale.value = cv.height / (2 * Math.tan(cam.fov * Math.PI / 360)) }
+            addEventListener('resize', resize); resize();
+
+            const P = { x: 0, y: 0, z: 2.5, vx: 0, vz: 0, vy: 0, g: 1, psi: Math.PI }; P.y = hAt(P.x, P.z);
+            const F = [1, -1].map(s => ({ s, x: 0, y: 0, z: 0, psi: P.psi, sw: 0, t: 0, sx: 0, sy: 0, sz: 0, tx: 0, tz: 0, ix: 0, iz: 0 }));
+            F.forEach(f => { f.x = P.x + Math.cos(P.psi) * f.s * .075; f.z = P.z - Math.sin(P.psi) * f.s * .075; f.y = hAt(f.x, f.z) });
+            const ns = new T.Vector3(0, 1, 0), info = document.getElementById('info'); let lastS = '', tm = 0, prev = 0, fps = 60;
+            function plant(f, pw) {
+                f.sw = 0; f.psi = P.psi; const sp = Math.hypot(P.vx, P.vz), sf = Math.min(1, Math.max(0, (sp - 1.6) / 1.6));
+                foot(f.x, f.z, f.psi, pw * (1 + .3 * sf), sf); f.y = hAt(f.x, f.z); burst(f.x, f.y, f.z, Math.round(4 + 14 * sf), .3 + .5 * sf)
+            }
+            function land(v) {
+                const pw = Math.min(1.8, v / 3), c = Math.cos(P.psi), s = Math.sin(P.psi);
+                dent(P.x, P.z, .17, .035 * pw); burst(P.x, P.y, P.z, Math.round(120 * pw), 1.5 * pw);
+                for (const f of F) { f.x = P.x + c * f.s * .075; f.z = P.z - s * f.s * .075; plant(f, 1.3 * pw) }
+            }
+            function frame(t) {
+                requestAnimationFrame(frame); const dt = Math.min(.05, (t - prev) / 1000 || .016); prev = t; fps += (1 / dt - fps) * .05;
+                if (keys.KeyQ) yaw += dt * 1.6; if (keys.KeyE) yaw -= dt * 1.6;
+                const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+                let dx = fx * iz - fz * ix, dz = fz * iz + fx * ix; const l = Math.hypot(dx, dz); if (l > 0) { dx /= l; dz /= l }
+                const run = keys.ShiftLeft || keys.ShiftRight, sA = sandAt(P.x, P.z), mv = (run ? 3 : 1.5) * (1 - .25 * sA) * (P.g ? 1 : .9), ac = P.g ? mix(12, 7, sA) : 2;
+                P.vx += (dx * mv - P.vx) * Math.min(1, ac * dt); P.vz += (dz * mv - P.vz) * Math.min(1, ac * dt);
+                P.x = Math.max(-3.6, Math.min(3.6, P.x + P.vx * dt)); P.z = Math.max(-3.6, Math.min(3.6, P.z + P.vz * dt));
+                const sp = Math.hypot(P.vx, P.vz), mov = sp > .2;
+                if (sp > .12) { const tg = Math.atan2(P.vx, P.vz), d = ((tg - P.psi + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; P.psi += d * Math.min(1, 12 * dt) }
+                const cs = Math.cos(P.psi), sn = Math.sin(P.psi), Lx = cs, Lz = -sn, vd = mov ? [P.vx / sp, P.vz / sp] : [sn, cs];
+                const gA = (hAt(P.x, P.z) + hAt(P.x + sn * .12, P.z + cs * .12) + hAt(P.x - sn * .12, P.z - cs * .12)) / 3;
+                if (P.g) {
+                    let best = null, bs = 0;
+                    for (const f of F) {
+                        f.ix = P.x + Lx * f.s * .075; f.iz = P.z + Lz * f.s * .075; if (f.sw) continue;
+                        const rx = f.x - f.ix, rz = f.z - f.iz, off = Math.hypot(rx, rz), bh = -(rx * vd[0] + rz * vd[1]), sc = mov ? Math.max(bh - .14 - .03 * sp, off - .3) : off - .15; if (sc > bs) { bs = sc; best = f }
+                    }
+                    if (best && !F.some(f => f.sw)) {
+                        const f = best, dur = Math.max(.18, .3 - .05 * sp), ld = mov ? sp * dur + .14 : 0; f.sw = 1; f.t = 0; f.sx = f.x; f.sy = f.y; f.sz = f.z; f.tx = f.ix + vd[0] * ld; f.tz = f.iz + vd[1] * ld;
+                        if (mov) { burst(f.x, f.y, f.z, Math.round(3 + 5 * sp / 2), .2, -vd[0] * .6, -vd[1] * .6); bump(f.x - vd[0] * .1, f.z - vd[1] * .1, .003 + .002 * sp) }
+                    }
+                    for (const f of F) if (f.sw) {
+                        const dur = Math.max(.18, .3 - .05 * sp); f.t += dt / dur; if (f.t >= 1) { f.x = f.tx; f.z = f.tz; plant(f, 1) } else {
+                            const e = f.t * f.t * (3 - 2 * f.t);
+                            f.x = mix(f.sx, f.tx, e); f.z = mix(f.sz, f.tz, e); f.y = mix(f.sy, hAt(f.tx, f.tz), e) + Math.sin(Math.PI * f.t) * (.06 + .03 * Math.min(sp, 3))
+                        }
+                    }
+                    let sy = 0, c = 0; for (const f of F) if (!f.sw) { sy += f.y; c++ } P.y += ((c ? sy / c : P.y) - P.y) * Math.min(1, dt * 16);
+                    if (keys.Space) { P.vy = 3.4; P.g = 0 }
+                } else {
+                    P.vy -= 9.8 * dt; P.y += P.vy * dt; for (const f of F) { f.sw = 0; f.x = P.x + Lx * f.s * .075; f.z = P.z + Lz * f.s * .075; f.y = P.y - .03 }
+                    if (P.vy < 0 && P.y <= gA + .02) { const v = -P.vy; P.g = 1; P.y = gA; P.vy = 0; land(Math.max(v, 1)) }
+                }
+                nAt(P.x, P.z, _n); ns.lerp(_n, Math.min(1, dt * 6)).normalize(); if (ns.y < .9) { ns.y = .9; ns.normalize() }
+                const LEGH = .42 - (run ? .03 : 0); body.position.set(P.x, P.y + LEGH, P.z);
+                body.quaternion.setFromUnitVectors(Y, ns).multiply(_q.setFromAxisAngle(Y, P.psi)); body.updateMatrixWorld(true);
+                spine.rotation.x = .04 + .12 * Math.min(1, sp / 3);
+                _fw.set(0, 0, 1).applyQuaternion(body.quaternion);
+                for (let i = 0; i < 2; i++) {
+                    const f = F[i], g = LG[i]; _h.set(g.s * .07, 0, 0); body.localToWorld(_h);
+                    _a.set(f.x, f.y + AH, f.z); _u.subVectors(_a, _h); let d = _u.length(); d = Math.min(L1 + L2 - .002, Math.max(.05, d)); _u.normalize(); _a.copy(_h).addScaledVector(_u, d);
+                    const cc = (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), ss = Math.sqrt(Math.max(0, 1 - cc * cc)); _p.copy(_fw).addScaledVector(_u, -_fw.dot(_u)).normalize();
+                    g.kn.position.copy(_h).addScaledVector(_u, L1 * cc).addScaledVector(_p, L1 * ss);
+                    link(g.th, _h, g.kn.position); link(g.sn, g.kn.position, _a); g.fg.position.copy(_a); g.an.position.copy(_a);
+                    nAt(f.x, f.z, _n); g.fg.quaternion.setFromUnitVectors(Y, _n).multiply(_q.setFromAxisAngle(Y, f.sw ? P.psi : f.psi));
+                    if (f.sw) g.fg.quaternion.multiply(_q2.setFromAxisAngle(X, -.35 * Math.sin(Math.PI * f.t)));
+                    const rel = ((f.x - P.x) * sn + (f.z - P.z) * cs), k = Math.min(1, sp / 1);
+                    const ar = i ? aR : aL; ar.sh.rotation.x = Math.max(-.9, Math.min(.9, rel * 2.2)) * k; ar.el.rotation.x = -.25 - .35 * (run ? 1 : 0) * k;
+                    SP[3 + i].set(g.kn.position.x, g.kn.position.y, g.kn.position.z, .07); SP[5 + i].set(_a.x, _a.y, _a.z, .06)
+                }
+                body.updateMatrixWorld(true);
+                SP[0].set(...head.getWorldPosition(_h).toArray(), .09); SP[1].set(...spine.localToWorld(_h.set(0, .2, 0)).toArray(), .14); SP[2].set(P.x, body.position.y, P.z, .12); SP[7].set(...spine.localToWorld(_h.set(0, .08, 0)).toArray(), .12);
+                if (at > 0) { const ar = (A[2] - A[0]) * (A[3] - A[1]); for (let q = 0; q < (ar > 40000 ? 1 : 2); q++)relax(A); D = un(D, A); if (--at === 0) A = null }
+                if (D) { upN(D[0], D[1], D[2], D[3]); ht.needsUpdate = true; D = null }
+                stepP(dt);
+                U.uCh.value.set(P.x, P.z);
+                sun.position.copy(SUN).multiplyScalar(10).add(body.position); sun.target.position.copy(body.position);
+                const ty = body.position.y + .2, cp = Math.cos(pitch);
+                cam.position.set(P.x + Math.sin(yaw) * cp * dist, Math.max(hAt(P.x, P.z) + .2, ty + Math.sin(pitch) * dist), P.z + Math.cos(yaw) * cp * dist); cam.lookAt(P.x, ty, P.z); sky.position.copy(cam.position);
+                if ((tm += dt) > .2) { tm = 0; const s = `Hamparan pasir pantai · kemiringan ${Math.round(Math.acos(ns.y) * 57.3)}° · ${Math.round(fps)} fps · ~4,2 Juta partikel`; if (s !== lastS) { info.textContent = s; lastS = s } }
+                renderer.render(scene, cam);
+            }
+            requestAnimationFrame(frame);
+        })();
+    </script>
+</body>
+
+</html>

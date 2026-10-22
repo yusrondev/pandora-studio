@@ -702,11 +702,7 @@ function applySkyPreset(presetKey) {
     skyMat.uniforms.uMidColor.value.setHex(p.midColor);
     skyMat.uniforms.uBottomColor.value.setHex(p.bottomColor);
 
-    if (scene.fog) {
-        scene.fog.color.setHex(p.fogColor);
-        scene.fog.near = p.fogNear || 35;
-        scene.fog.far = p.fogFar || 120;
-    }
+    scene.fog = null;
     if (scene.background) {
         scene.background.setHex(p.bottomColor);
     }

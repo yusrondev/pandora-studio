@@ -680,7 +680,7 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
 /* --- BRUSH MODE TABS (BLENDER SEGMENTED PILL SWITCH) --- */
 .brush-mode-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
     background: #1c1c1c;
     border: 1px solid var(--panel-border);
     border-radius: var(--radius-sm);

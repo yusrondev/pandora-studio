@@ -49,6 +49,9 @@ function animate() {
     if (typeof updateWater === 'function') {
         updateWater(delta, elapsedTime);
     }
+    if (typeof updateFog === 'function') {
+        updateFog(delta, elapsedTime);
+    }
 
     if (typeof SelectionOutlineManager !== 'undefined') {
         SelectionOutlineManager.updateAnimation(elapsedTime, delta);

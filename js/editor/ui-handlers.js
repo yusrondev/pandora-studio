@@ -249,6 +249,10 @@ function updateActiveModeHUD() {
         const text = selectWaterBrush.options[selectWaterBrush.selectedIndex] ? selectWaterBrush.options[selectWaterBrush.selectedIndex].text : selectWaterBrush.value;
         modeLabel = `Kuas Air: ${text}`;
         modeIcon = '🌊';
+    } else if (typeof selectFogBrush !== 'undefined' && selectFogBrush && selectFogBrush.value !== 'none') {
+        const text = selectFogBrush.options[selectFogBrush.selectedIndex] ? selectFogBrush.options[selectFogBrush.selectedIndex].text : selectFogBrush.value;
+        modeLabel = `Kuas Kabut: ${text}`;
+        modeIcon = '🌫️';
     } else if (selectTerrainMode && selectTerrainMode.value !== 'none') {
         const text = selectTerrainMode.options[selectTerrainMode.selectedIndex] ? selectTerrainMode.options[selectTerrainMode.selectedIndex].text : selectTerrainMode.value;
         modeLabel = `Sculpt Tanah: ${text}`;
@@ -277,6 +281,8 @@ function updateActiveModeHUD() {
                 actionHint = `Klik Kiri: Gambar Area Berputar &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush && selectWaterBrush.value !== 'none') {
                 actionHint = `Klik Kiri: Lukis Air &bull; Klik Kanan: Keringkan &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
+            } else if (typeof selectFogBrush !== 'undefined' && selectFogBrush && selectFogBrush.value !== 'none') {
+                actionHint = `Klik Kiri: Lukis Kabut &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else if (selectRoadBrush && selectRoadBrush.value !== 'none') {
                 actionHint = `Klik Kiri: Buat Jalan &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else {
@@ -328,6 +334,13 @@ function updateActiveModeHUD() {
             c.classList.toggle('active', c.getAttribute('data-value') === val);
         });
     }
+    const fogGrid = document.getElementById('fog-picker-grid');
+    if (fogGrid && typeof selectFogBrush !== 'undefined' && selectFogBrush) {
+        const val = selectFogBrush.value;
+        fogGrid.querySelectorAll('.spawner-card').forEach(c => {
+            c.classList.toggle('active', c.getAttribute('data-value') === val);
+        });
+    }
 }
 
 function cancelAllSelections() {
@@ -338,6 +351,7 @@ function cancelAllSelections() {
     if (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush) selectFlowerBrush.value = 'none';
     if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush) selectButterflyBrush.value = 'none';
     if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush) selectWaterBrush.value = 'none';
+    if (typeof selectFogBrush !== 'undefined' && selectFogBrush) selectFogBrush.value = 'none';
     if (selectTerrainMode) selectTerrainMode.value = 'none';
 
     if (typeof brushReticleGroup !== 'undefined') {
@@ -501,14 +515,16 @@ setupSpawnerCardGrid('grass-picker-grid', 'select-grass-brush');
 setupSpawnerCardGrid('rock-picker-grid', 'select-rock-brush');
 setupSpawnerCardGrid('flower-picker-grid', 'select-flower-brush');
 setupSpawnerCardGrid('butterfly-picker-grid', 'select-butterfly-brush');
+setupSpawnerCardGrid('fog-picker-grid', 'select-fog-brush');
 
-// Tab switcher between Rumput, Jalan, Air, Bebatuan, Bunga, and Kupu-kupu in Brush accordion
+// Tab switcher between Rumput, Jalan, Air, Bebatuan, Bunga, Kupu-kupu, dan Kabut in Brush accordion
 const tabBrushGrass = document.getElementById('btn-tab-brush-grass');
 const tabBrushRoad = document.getElementById('btn-tab-brush-road');
 const tabBrushWater = document.getElementById('btn-tab-brush-water');
 const tabBrushRock = document.getElementById('btn-tab-brush-rock');
 const tabBrushFlower = document.getElementById('btn-tab-brush-flower');
 const tabBrushButterfly = document.getElementById('btn-tab-brush-butterfly');
+const tabBrushFog = document.getElementById('btn-tab-brush-fog');
 
 const subpanelBrushGrass = document.getElementById('subpanel-brush-grass');
 const subpanelBrushRoad = document.getElementById('subpanel-brush-road');
@@ -516,6 +532,7 @@ const subpanelBrushWater = document.getElementById('subpanel-brush-water');
 const subpanelBrushRock = document.getElementById('subpanel-brush-rock');
 const subpanelBrushFlower = document.getElementById('subpanel-brush-flower');
 const subpanelBrushButterfly = document.getElementById('subpanel-brush-butterfly');
+const subpanelBrushFog = document.getElementById('subpanel-brush-fog');
 
 const allBrushTabs = [
     { btn: tabBrushGrass, panel: subpanelBrushGrass },
@@ -523,7 +540,8 @@ const allBrushTabs = [
     { btn: tabBrushWater, panel: subpanelBrushWater },
     { btn: tabBrushRock, panel: subpanelBrushRock },
     { btn: tabBrushFlower, panel: subpanelBrushFlower },
-    { btn: tabBrushButterfly, panel: subpanelBrushButterfly }
+    { btn: tabBrushButterfly, panel: subpanelBrushButterfly },
+    { btn: tabBrushFog, panel: subpanelBrushFog }
 ];
 
 allBrushTabs.forEach(tab => {
@@ -567,6 +585,10 @@ function unsetOtherTools(activeToolName) {
         selectWaterBrush.value = 'none';
         selectWaterBrush.dispatchEvent(new Event('change'));
     }
+    if (activeToolName !== 'fog' && typeof selectFogBrush !== 'undefined' && selectFogBrush && selectFogBrush.value !== 'none') {
+        selectFogBrush.value = 'none';
+        selectFogBrush.dispatchEvent(new Event('change'));
+    }
     if (activeToolName !== 'sculpt' && typeof selectTerrainMode !== 'undefined' && selectTerrainMode && selectTerrainMode.value !== 'none') {
         selectTerrainMode.value = 'none';
     }
@@ -587,6 +609,16 @@ if (typeof selectRoadBrush !== 'undefined' && selectRoadBrush) {
 if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush) {
     selectWaterBrush.addEventListener('change', () => {
         if (selectWaterBrush.value !== 'none') unsetOtherTools('water');
+        else {
+            if (typeof updateToolControlsState === 'function') updateToolControlsState();
+            if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
+        }
+    });
+}
+
+if (typeof selectFogBrush !== 'undefined' && selectFogBrush) {
+    selectFogBrush.addEventListener('change', () => {
+        if (selectFogBrush.value !== 'none') unsetOtherTools('fog');
         else {
             if (typeof updateToolControlsState === 'function') updateToolControlsState();
             if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();

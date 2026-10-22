@@ -331,6 +331,7 @@ function serializeMapData(name, existingId = null) {
             level: typeof getWaterCurrentLevel === 'function' ? getWaterCurrentLevel() : 0.02,
             mask: (typeof hasWaterDrawn === 'function' && hasWaterDrawn() && typeof waterCanvas !== 'undefined') ? waterCanvas.toDataURL('image/png') : null
         },
+        fog: typeof exportFogData === 'function' ? exportFogData() : null,
         activeGrass: activeGrass,
         meta: {
             treeCount: trees.length,
@@ -557,6 +558,13 @@ function applyMapDataToScene(mapData) {
         }
     } else if (typeof clearAllWater === 'function') {
         clearAllWater();
+    }
+
+    // 9. Terapkan Kabut (Fog Mask & Parameters)
+    if (mapData.fog && typeof importFogData === 'function') {
+        importFogData(mapData.fog);
+    } else if (typeof clearAllFog === 'function') {
+        clearAllFog();
     }
 
     selectedTreeIndex = treesList.length > 0 ? treesList.length - 1 : -1;

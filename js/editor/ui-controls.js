@@ -76,6 +76,114 @@ const sliderWaterLevel = document.getElementById('slider-water-level');
 const valWaterLevel = document.getElementById('val-water-level');
 const btnClearAllWater = document.getElementById('btn-clear-all-water');
 
+// Fog Brush Controls (100% dari kabut.html)
+const selectFogBrush = document.getElementById('select-fog-brush');
+const sliderFogRadius = document.getElementById('slider-fog-radius');
+const valFogRadius = document.getElementById('val-fog-radius');
+const sliderFogSize = document.getElementById('slider-fog-size');
+const valFogSize = document.getElementById('val-fog-size');
+const sliderFogOpacity = document.getElementById('slider-fog-opacity');
+const valFogOpacity = document.getElementById('val-fog-opacity');
+const sliderFogHeight = document.getElementById('slider-fog-height');
+const valFogHeight = document.getElementById('val-fog-height');
+const sliderFogSpeed = document.getElementById('slider-fog-speed');
+const valFogSpeed = document.getElementById('val-fog-speed');
+const sliderFogWind = document.getElementById('slider-fog-wind');
+const valFogWind = document.getElementById('val-fog-wind');
+const sliderFogTurb = document.getElementById('slider-fog-turb');
+const valFogTurb = document.getElementById('val-fog-turb');
+const sliderFogCount = document.getElementById('slider-fog-count');
+const valFogCount = document.getElementById('val-fog-count');
+const pickerFogColor = document.getElementById('picker-fog-color');
+const pickerFogLightColor = document.getElementById('picker-fog-light-color');
+const btnFogReseed = document.getElementById('btn-fog-reseed');
+const btnClearAllFog = document.getElementById('btn-clear-all-fog');
+
+if (sliderFogRadius && valFogRadius) {
+    sliderFogRadius.addEventListener('input', () => {
+        valFogRadius.innerText = parseFloat(sliderFogRadius.value).toFixed(1);
+    });
+}
+if (sliderFogSize && valFogSize) {
+    sliderFogSize.addEventListener('input', () => {
+        const v = parseFloat(sliderFogSize.value);
+        valFogSize.innerText = v.toFixed(1);
+        if (typeof fogParams !== 'undefined') { fogParams.size = v; applyFogUniforms(); }
+    });
+}
+if (sliderFogOpacity && valFogOpacity) {
+    sliderFogOpacity.addEventListener('input', () => {
+        const v = parseFloat(sliderFogOpacity.value);
+        valFogOpacity.innerText = v.toFixed(3);
+        if (typeof fogParams !== 'undefined') { fogParams.opacity = v; applyFogUniforms(); }
+    });
+}
+if (sliderFogHeight && valFogHeight) {
+    sliderFogHeight.addEventListener('input', () => {
+        const v = parseFloat(sliderFogHeight.value);
+        valFogHeight.innerText = v.toFixed(1);
+        if (typeof fogParams !== 'undefined') { fogParams.height = v; applyFogUniforms(); }
+    });
+}
+if (sliderFogSpeed && valFogSpeed) {
+    sliderFogSpeed.addEventListener('input', () => {
+        const v = parseFloat(sliderFogSpeed.value);
+        valFogSpeed.innerText = v.toFixed(2);
+        if (typeof fogParams !== 'undefined') { fogParams.speed = v; applyFogUniforms(); }
+    });
+}
+if (sliderFogWind && valFogWind) {
+    sliderFogWind.addEventListener('input', () => {
+        const v = parseInt(sliderFogWind.value);
+        valFogWind.innerText = v + '°';
+        if (typeof fogParams !== 'undefined') { fogParams.wind = v; applyFogUniforms(); }
+    });
+}
+if (sliderFogTurb && valFogTurb) {
+    sliderFogTurb.addEventListener('input', () => {
+        const v = parseFloat(sliderFogTurb.value);
+        valFogTurb.innerText = v.toFixed(1);
+        if (typeof fogParams !== 'undefined') { fogParams.turb = v; applyFogUniforms(); }
+    });
+}
+if (sliderFogCount && valFogCount) {
+    sliderFogCount.addEventListener('input', () => {
+        const v = parseInt(sliderFogCount.value);
+        valFogCount.innerText = v;
+        if (typeof fogParams !== 'undefined') { fogParams.count = v; applyFogUniforms(); }
+    });
+}
+if (pickerFogColor) {
+    pickerFogColor.addEventListener('input', (e) => {
+        if (typeof setFogHex === 'function') setFogHex(e.target.value);
+    });
+}
+if (pickerFogLightColor) {
+    pickerFogLightColor.addEventListener('input', (e) => {
+        if (typeof setFogLightHex === 'function') setFogLightHex(e.target.value);
+    });
+}
+if (btnFogReseed) {
+    btnFogReseed.addEventListener('click', () => {
+        if (typeof reseedFog === 'function') reseedFog();
+    });
+}
+if (btnClearAllFog) {
+    btnClearAllFog.addEventListener('click', () => {
+        if (typeof saveState === 'function') saveState();
+        if (typeof clearAllFog === 'function') clearAllFog();
+    });
+}
+
+document.querySelectorAll('.btn-fog-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const presetName = btn.getAttribute('data-preset');
+        if (typeof applyFogPreset === 'function') {
+            applyFogPreset(presetName);
+        }
+    });
+});
+
 let isPanMode = false;
 
 btnHandMode.addEventListener('click', () => {
@@ -213,6 +321,15 @@ if (btnClearAllWater) {
         if (typeof saveState === 'function') saveState();
         if (typeof clearAllWater === 'function') {
             clearAllWater();
+        }
+    });
+}
+
+const checkOuterOcean = document.getElementById('check-outer-ocean');
+if (checkOuterOcean) {
+    checkOuterOcean.addEventListener('change', () => {
+        if (typeof setOuterOceanEnabled === 'function') {
+            setOuterOceanEnabled(checkOuterOcean.checked);
         }
     });
 }

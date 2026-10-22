@@ -5,9 +5,8 @@
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xb8ecff);
 
-// Genshin Impact Atmospheric Distance Fog (Kabut Jarak Jauh)
-// Jarak dekat tetap jernih dan tajam (35m), jarak jauh melebur lembut ke biru muda cakrawala (120m)
-scene.fog = new THREE.Fog(0xb8ecff, 35, 120);
+// Fog dinonaktifkan total (scene.fog = null)
+scene.fog = null;
 
 const viewportContainer = document.getElementById('viewport-container') || document.body;
 const initW = viewportContainer.clientWidth || window.innerWidth;

@@ -33,6 +33,7 @@ function updateToolControlsState() {
         (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
         (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') ||
         (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') ||
+        (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') ||
         (typeof selectTreeMode !== 'undefined' && selectTreeMode.value !== 'none')
     );
 
@@ -111,6 +112,16 @@ function handleBrushAction(event) {
             const mode = waterBrush === 'remove' ? 'erase' : 'paint';
             if (typeof paintWaterAt === 'function') {
                 paintWaterAt(hitPoint, waterRad, mode);
+            }
+            return;
+        }
+
+        const fogBrush = (typeof selectFogBrush !== 'undefined') ? selectFogBrush.value : 'none';
+        if (fogBrush !== 'none') {
+            const fogRad = (typeof sliderFogRadius !== 'undefined') ? (parseFloat(sliderFogRadius.value) || 5.0) : 5.0;
+            const mode = fogBrush === 'remove' ? 'erase' : 'paint';
+            if (typeof paintFogAt === 'function') {
+                paintFogAt(hitPoint, fogRad, mode);
             }
             return;
         }
@@ -338,6 +349,21 @@ function handleCanvasPointerDown(e) {
             return;
         }
 
+        // Mode Fog Brush: Klik kanan = hapus / tipiskan kabut
+        if (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') {
+            const groundHits = raycaster.intersectObject(ground);
+            if (groundHits.length > 0) {
+                saveState();
+                isRightMouseDown = true;
+                const radius = (typeof sliderFogRadius !== 'undefined') ? (parseFloat(sliderFogRadius.value) || 5.0) : 5.0;
+                if (typeof paintFogAt === 'function') {
+                    paintFogAt(groundHits[0].point, radius, 'erase');
+                }
+            }
+            if (e.stopPropagation) e.stopPropagation();
+            return;
+        }
+
         // 4. Mode Rock Brush: Klik kanan = hapus bebatuan dalam radius kursor
         if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
             const groundHits = raycaster.intersectObject(ground);
@@ -395,7 +421,7 @@ function handleCanvasPointerDown(e) {
                 return;
             }
 
-            if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none')) {
+            if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none')) {
                 saveState();
                 isMouseDown = true;
                 if (typeof controls !== 'undefined') controls.enabled = false;
@@ -414,6 +440,7 @@ function handleCanvasPointerDown(e) {
             (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
             (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') ||
             (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') ||
+            (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') ||
             (typeof CinematicManager !== 'undefined' && (CinematicManager.isDrawingMode || CinematicManager.isDrawingFoxMode));
 
         if (!isBrushActive) {
@@ -528,9 +555,10 @@ function updateBrushReticle(hitPoint, normal) {
     const rockBrush = (typeof selectRockBrush !== 'undefined') ? selectRockBrush.value : 'none';
     const flowerBrush = (typeof selectFlowerBrush !== 'undefined') ? selectFlowerBrush.value : 'none';
     const butterflyBrush = (typeof selectButterflyBrush !== 'undefined') ? selectButterflyBrush.value : 'none';
+    const fogBrush = (typeof selectFogBrush !== 'undefined') ? selectFogBrush.value : 'none';
     const treeMode = selectTreeMode.value;
 
-    const isActive = (sculptMode !== 'none' || roadBrush !== 'none' || waterBrush !== 'none' || grassBrush !== 'none' || rockBrush !== 'none' || flowerBrush !== 'none' || butterflyBrush !== 'none' || treeMode !== 'none');
+    const isActive = (sculptMode !== 'none' || roadBrush !== 'none' || waterBrush !== 'none' || grassBrush !== 'none' || rockBrush !== 'none' || flowerBrush !== 'none' || butterflyBrush !== 'none' || fogBrush !== 'none' || treeMode !== 'none');
     if (!isActive || !hitPoint) {
         brushReticleGroup.visible = false;
         return;
@@ -588,6 +616,10 @@ function updateBrushReticle(hitPoint, normal) {
         if (butterflyBrush === 'remove') colorHex = 0xef4444;
         else if (butterflyBrush === 'spawn_butterfly_cyan') colorHex = 0x06b6d4;
         else colorHex = 0xa855f7;
+    } else if (fogBrush !== 'none') {
+        radius = (typeof sliderFogRadius !== 'undefined') ? (parseFloat(sliderFogRadius.value) || 5.0) : 5.0;
+        if (fogBrush === 'remove') colorHex = 0xef4444;
+        else colorHex = 0x9fb4c4;
     } else if (treeMode !== 'none') {
         radius = 1.8; // Radius tajuk pohon rata-rata
         treeReticleGroup.visible = true;
@@ -641,8 +673,8 @@ function handleCanvasPointerMove(e) {
         if (brushReticleGroup.visible) brushReticleGroup.visible = false;
     }
 
-    // Left mouse drag (Sculpt, Road paint, Water paint, Grass paint, Rock paint, Flower paint, Butterfly paint)
-    if (isMouseDown && (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none'))) {
+    // Left mouse drag (Sculpt, Road paint, Water paint, Grass paint, Rock paint, Flower paint, Butterfly paint, Fog paint)
+    if (isMouseDown && (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none'))) {
         if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
             if (selectRockBrush.value === 'remove' || Math.random() > 0.65) {
                 handleBrushAction(e);
@@ -683,6 +715,11 @@ function handleCanvasPointerMove(e) {
         } else if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') {
             const radius = (typeof sliderButterflyRadius !== 'undefined') ? (parseFloat(sliderButterflyRadius.value) || 4.0) : 4.0;
             removeButterfliesInRadius(hitPoint, radius);
+        } else if (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') {
+            const radius = (typeof sliderFogRadius !== 'undefined') ? (parseFloat(sliderFogRadius.value) || 5.0) : 5.0;
+            if (typeof paintFogAt === 'function') {
+                paintFogAt(hitPoint, radius, 'erase');
+            }
         }
     }
 }
@@ -695,6 +732,7 @@ window.addEventListener('mouseleave', () => {
     isMouseDown = false;
     isRightMouseDown = false;
     if (typeof resetWaterStroke === 'function') resetWaterStroke();
+    if (typeof endFogStroke === 'function') endFogStroke();
 });
 
 // Update ukuran reticle saat slider radius digeser
@@ -768,6 +806,16 @@ if (typeof sliderButterflyRadius !== 'undefined') {
     });
 }
 
+if (typeof sliderFogRadius !== 'undefined') {
+    sliderFogRadius.addEventListener('input', () => {
+        if (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') {
+            const r = parseFloat(sliderFogRadius.value) || 5.0;
+            reticleOuterMesh.scale.set(r, 1, r);
+            reticleFillMesh.scale.set(r, 1, r);
+        }
+    });
+}
+
 function handleCanvasPointerUp(e) {
     if (typeof isPlayMode !== 'undefined' && isPlayMode) return;
     if (isMouseDown && selectTerrainMode.value !== 'none') {
@@ -778,6 +826,7 @@ function handleCanvasPointerUp(e) {
     isMouseDown = false;
     isRightMouseDown = false;
     if (typeof resetWaterStroke === 'function') resetWaterStroke();
+    if (typeof endFogStroke === 'function') endFogStroke();
     updateToolControlsState();
 
     // Seleksi & Fokus Objek HANYA dieksekusi jika Klik Cepat (Tap), BUKAN saat On-Hold / Drag Kamera

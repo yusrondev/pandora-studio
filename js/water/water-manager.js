@@ -102,8 +102,10 @@ function renderWaterDepthPass(renderer, scene, camera) {
 
     const prevWaterVisible = waterMesh ? waterMesh.visible : false;
     const prevOuterVisible = outerOceanMesh ? outerOceanMesh.visible : false;
+    const prevCliffVisible = islandCliffMesh ? islandCliffMesh.visible : false;
     if (waterMesh) waterMesh.visible = false;
     if (outerOceanMesh) outerOceanMesh.visible = false;
+    if (islandCliffMesh) islandCliffMesh.visible = false;
 
     const prevTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
@@ -112,6 +114,7 @@ function renderWaterDepthPass(renderer, scene, camera) {
 
     if (waterMesh) waterMesh.visible = prevWaterVisible;
     if (outerOceanMesh) outerOceanMesh.visible = prevOuterVisible;
+    if (islandCliffMesh) islandCliffMesh.visible = prevCliffVisible;
 
     if (waterMat && waterMat.uniforms) {
         if (waterMat.uniforms.uSceneDepth) waterMat.uniforms.uSceneDepth.value = target.depthTexture;
@@ -214,6 +217,8 @@ float ofbm(vec2 p){
     return s;
 }
 
+// ── NOISE UTILITIES ───
+
 // SDF badan objek (rubah / kapal) - 100% ocean.html
 float hullSDF(vec2 worldXZ, vec2 centerXZ, vec2 fwd, vec2 halfSize, out vec2 localPos){
     vec2 right = vec2(fwd.y, -fwd.x);
@@ -275,7 +280,7 @@ float mhgt(vec2 p){
 }
 vec2 mdN(vec2 p){ float e = 0.07, c = mhgt(p); return vec2(mhgt(p + vec2(e, 0.0)) - c, mhgt(p + vec2(0.0, e)) - c) / e; }
 
-// Fox/rubah wake (Kelvin circular ripples & foam trail yang TERTINGGAL di dunia seperti rumput/footprint)
+// Fox/rubah wake (Multi-harmonic concentric circular dispersion ripples & cellular foam trail)
 vec4 foxWakeField(vec2 q, vec4 trailPos[${OCEAN_TRAIL_MAX}], float t) {
     float h = 0.0, foam = 0.0;
     vec2 g = vec2(0.0);
@@ -284,27 +289,31 @@ vec4 foxWakeField(vec2 q, vec4 trailPos[${OCEAN_TRAIL_MAX}], float t) {
         if(age <= 0.0 || age >= 3.8) continue;
         vec2 rel = q - trailPos[i].xy;
         float d = length(rel);
-        if(d > 8.0) continue;
-        float R = age * 2.0;
-        float w = 0.9 + age * 0.50;
+        if(d > 8.5) continue;
+        float R = age * 2.2;
+        float w = 0.85 + age * 0.48;
         float u = (d - R) / w;
-        float k = 3.0;
+        float k = 3.2;
         float a = 1.0 - age / 3.8;
-        float fa = pow(a, 1.2) * trailPos[i].w;
+        float fa = pow(a, 1.15) * trailPos[i].w;
 
         // Buih jejak tertinggal di posisi dunia (world-anchored trail):
-        float rFoam = 0.42 + age * 0.32;
-        float trailCenterFoam = exp(-sq(d / rFoam)) * fa * 0.82;
-        float ringFoam = exp(-u * u) * fa * 0.45 * smoothstep(0.0, 0.35, age);
+        float rFoam = 0.45 + age * 0.35;
+        float trailCenterFoam = exp(-sq(d / rFoam)) * fa * 0.85;
+        float ringFoam = exp(-u * u) * fa * 0.52 * smoothstep(0.0, 0.30, age);
         foam = max(foam, trailCenterFoam + ringFoam);
 
-        if(abs(u) < 2.6){
-            float amp = a * a * trailPos[i].w * 0.065 / sqrt(1.0 + R * 0.5);
+        if(abs(u) < 2.8){
+            float amp = a * a * trailPos[i].w * 0.075 / sqrt(1.0 + R * 0.55);
             float e = exp(-u * u);
-            float ph = k * (d - R);
-            h += amp * e * cos(ph);
-            float dd = amp * e * (-k * sin(ph) - 2.0 * u / w * cos(ph));
-            g += dd * rel / max(d, 0.05);
+            // Riak dispersi multi-harmonik (gelombang utama + harmonik kapiler konsentris)
+            float ph1 = k * (d - R);
+            float ph2 = (k * 2.1) * (d - R * 0.78);
+            float waveShape = cos(ph1) * 0.72 + cos(ph2) * 0.32;
+            h += amp * e * waveShape;
+            float dWave = (-k * sin(ph1) * 0.72 - k * 2.1 * sin(ph2) * 0.32);
+            float dd = amp * e * (dWave - 2.0 * u / w * waveShape);
+            g += dd * rel / max(d, 0.04);
         }
     }
     float sc = 1.0 / (1.0 + 1.2 * abs(h));
@@ -327,14 +336,15 @@ float sampleTerrainHeightSmooth(sampler2D tex, vec2 uv, float gridStride) {
     return mix(mix(h00, h10, s.x), mix(h01, h11, s.x), s.y);
 }
 
-// Pola buih wake & foam alami di permukaan air (world-anchored, tidak berputar saat rubah berbelok)
+// Pola buih wake & foam alami di permukaan air (fluffy aerated froth lembut, bebas garis retakan)
 float wakeFoamPattern(vec2 p, float t){
-    vec2 warp = vec2(onoise(p * 0.75 + t * 0.12), onoise(p * 0.75 - t * 0.10 + 4.1));
-    vec2 pw = p + (warp - 0.5) * 1.1;
-    float n1 = onoise(pw * 2.4);
-    float n2 = onoise(om2 * pw * 5.8 - t * 0.22);
-    float web = 1.0 - abs(n2 * 2.0 - 1.0);
-    return n1 * 0.5 + pow(web, 1.8) * 0.5;
+    vec2 warp = vec2(onoise(p * 0.75 + t * 0.14), onoise(p * 0.75 - t * 0.12 + 4.1));
+    vec2 pw = p + (warp - 0.5) * 0.85;
+    float n1 = onoise(pw * 2.2);
+    float n2 = onoise(om2 * pw * 4.6 - t * 0.20);
+    float n3 = onoise(om2 * pw * 9.5 + t * 0.28);
+    float froth = n1 * 0.50 + n2 * 0.32 + n3 * 0.18;
+    return smoothstep(0.18, 0.72, froth);
 }
 
 // Sky color dinamis mengikuti suasana atmosfer (Siang, Sore, Malam)
@@ -442,7 +452,7 @@ const waterMat = new THREE.ShaderMaterial({
             float jxx = 1.0, jzz = 1.0, jxz = 0.0;
             float S = uChop * 0.9 / 9.0 * clamp(uAmp, 0.0, 1.2);
 
-            // 9-wave Gerstner displacement (100% dari ocean.html vertexShader)
+            // 9-wave Gerstner displacement (100% dari ocean.html vertexShader - kontinu melintasi batas canvas)
             for(int i = 0; i < 9; i++){
                 float fi = float(i);
                 float a = 0.5 + sin(fi * 12.9898 + 1.3) * 0.85;
@@ -655,71 +665,70 @@ const waterMat = new THREE.ShaderMaterial({
             float specVis = smoothstep(-0.05, 0.2, NdotL);
             float spec = (pow(NdotH, 180.0) * 3.5 + pow(NdotH, 32.0) * 0.35) * specVis;
 
-            // ── MULTI-LAYER FOAM (100% ocean.html: crest foam + wake foam) ──
+            // ── MULTI-LAYER FOAM (crest foam + wake foam) ──
             float pattern = wakeFoamPattern(q * 1.5, uTime);
-            float fineBubbles = onoise(q * 15.0);
+            float fineBubbles = onoise(q * 14.0);
             float combinedFoam = max(vCrestFoam * 0.9, wakeFoam);
-            float subFoam  = smoothstep(0.35, 0.78, combinedFoam * (0.4 + 0.75 * pattern));
-            float coreFoam = smoothstep(0.62, 0.95, combinedFoam * (0.45 + 0.65 * pattern) * (0.65 + 0.35 * fineBubbles));
+            float subFoam  = smoothstep(0.24, 0.75, combinedFoam * (0.60 + 0.40 * pattern));
+            float coreFoam = smoothstep(0.48, 0.88, combinedFoam * (0.65 + 0.35 * pattern) * (0.70 + 0.30 * fineBubbles));
 
-            col += uSunColor * spec * (1.0 - subFoam * 0.8);
+            col += uSunColor * spec * (1.0 - subFoam * 0.85);
 
-            vec3 underFoamCol = mix(shallow, vec3(0.50, 0.78, 0.84), 0.55) * sunF * (0.7 + 0.3 * shadow);
-            vec3 topFoamCol   = mix(uWaterFoamColor, vec3(1.0), 0.35) * (0.55 + 0.45 * sunF) * (0.68 + 0.32 * shadow);
+            vec3 underFoamCol = mix(shallow, vec3(0.50, 0.82, 0.88), 0.55) * sunF * (0.7 + 0.3 * shadow);
+            vec3 topFoamCol   = mix(uWaterFoamColor, vec3(1.0), 0.40) * (0.60 + 0.40 * sunF) * (0.70 + 0.30 * shadow);
             col = mix(col, underFoamCol, subFoam * 0.55);
-            col = mix(col, topFoamCol, coreFoam * 0.88);
+            col = mix(col, topFoamCol, coreFoam * 0.90);
 
-            // ── ACES TONEMAPPING & GAMMA (100% ocean.html) ───────────
-            col = aces(col * 0.95);
-
-            // ── REALISTIC CELLULAR SHORELINE FOAM & SWASH DYNAMICS ────────
-            // 1. Kedalaman efektif 3D presisi terhadap permukaan objek apapun di dalam air (0.0 di bibir kontak)
+            // ── SHORELINE FOAM & SWASH (Hanya pada pantai sculpt tanah/batu di dalam pulau, abaikan batas canvas) ────────
             float effDepth = contactDepth;
-            float dDepth = clamp(effDepth / 0.50, 0.0, 1.0);
-            float dMask = clamp((dynamicMask - 0.010) / 0.35, 0.0, 1.0);
+            float distToCanvasBorder = min(min(baseUV.x, 1.0 - baseUV.x), min(baseUV.y, 1.0 - baseUV.y)) * uGroundSize;
+            float isNearCanvasBorder = 1.0 - smoothstep(0.0, 1.5, distToCanvasBorder);
+
+            // Jika air menyentuh tepi batas canvas (terhubung ke laut luar), abaikan batas canvas (bukan bibir pantai!)
+            float dDepth = clamp(effDepth / 0.55, 0.0, 1.0);
+            float dMask = mix(clamp((dynamicMask - 0.010) / 0.35, 0.0, 1.0), 1.0, isNearCanvasBorder);
             float shoreDist = min(dDepth, dMask);
-            float shoreZone = 1.0 - shoreDist;
+            float shoreZone = (1.0 - shoreDist) * (1.0 - isNearCanvasBorder);
 
             // 2. Ombak bibir pantai (swash & backwash) berirama alami menyapu lereng sculpt tanah
             float swashPhase = uTime * 2.2 * uSpeed - shoreDist * 12.0 + onoise(q * 1.4) * 2.5;
             float waveSwash = sin(swashPhase);
             float waveCrest = smoothstep(0.20, 0.75, waveSwash);
 
-            // 3. Lapisan buih bibir pantai (swash lip & receding backwash suds)
-            float swashLip = waveCrest * smoothstep(0.40, 0.02, shoreDist) * 1.35;
-            float backwashSuds = exp(-shoreDist * 10.0) * 0.65;
-            float foamBand = clamp(swashLip + backwashSuds, 0.0, 1.0);
+            // 3. Lapisan buih bibir pantai & garis kontak presisi terhadap batu/tanah
+            float swashLip = waveCrest * smoothstep(0.42, 0.02, shoreDist) * 1.35;
+            float backwashSuds = exp(-shoreDist * 9.0) * 0.70;
+            float contactEdge = smoothstep(0.08, 0.00, effDepth) * 0.88;
+            float foamBand = clamp(swashLip + backwashSuds + contactEdge, 0.0, 1.0);
 
-            // 4. Pola busa seluler berpori alami (Cellular Bubble Lace & Micro-froth)
-            vec2 foamUV = q * 3.2;
-            vec2 fWarp = vec2(onoise(foamUV * 0.5 + uTime * 0.08), onoise(foamUV * 0.5 + vec2(3.1, -uTime * 0.07)));
-            vec2 pCell = foamUV + (fWarp - 0.5) * 1.2;
+            // 4. Pola buih lembut alami (Soft Aerated Froth & Micro-bubbles - bukan garis retakan)
+            vec2 foamUV = q * 3.0;
+            vec2 fWarp = vec2(onoise(foamUV * 0.6 + uTime * 0.10), onoise(foamUV * 0.6 - uTime * 0.08 + 3.1));
+            vec2 pCell = foamUV + (fWarp - 0.5) * 0.85;
 
-            // Inverted ridges membentuk dinding gelembung dan rongga/pori busa terbuka
-            float c1 = abs(onoise(pCell) * 2.0 - 1.0);
-            float c2 = abs(onoise(om2 * pCell * 2.1 - uTime * 0.16) * 2.0 - 1.0);
-            float bubbleLace = (1.0 - smoothstep(0.04, 0.38, c1)) * 0.70 
-                             + (1.0 - smoothstep(0.03, 0.32, c2)) * 0.35;
+            float nMain = onoise(pCell * 2.2);
+            float nSub  = onoise(om2 * pCell * 4.6 - uTime * 0.16);
+            float nMicro = onoise(q * 12.0 + fWarp * 1.6);
+            float naturalFroth = nMain * 0.50 + nSub * 0.32 + nMicro * 0.18;
+            float softShorePattern = smoothstep(0.18, 0.72, naturalFroth);
 
-            // Partikel buih mikro (micro-froth spatter)
-            float microFroth = pow(onoise(q * 8.5 + fWarp * 1.8), 1.6) * 0.70;
-            float naturalShorePattern = clamp(bubbleLace * 1.40 + microFroth, 0.0, 1.0);
-
-            // 5. Shoreline foam alami: terpecah menjadi jaring buih berongga (bukan blok putih cat solid)
-            float shorelineFoam = foamBand * naturalShorePattern * 1.45;
-            shorelineFoam = smoothstep(0.08, 0.55, shorelineFoam) * shoreZone;
+            // 5. Shoreline foam alami menyatu lembut dengan kontak tepi
+            float shorelineFoam = smoothstep(0.10, 0.60, foamBand * (0.50 + 0.50 * softShorePattern + contactEdge * 0.35)) * shoreZone;
 
             // 6. Rona kristal toska-aquamarine sangat cerah dan bercahaya di dekat dataran & objek 3D
-            vec3 luminousShoreCol = vec3(0.20, 0.98, 0.90) * (0.88 + 0.35 * sunF);
+            vec3 luminousShoreCol = vec3(0.22, 0.98, 0.92) * (0.88 + 0.35 * sunF);
             vec3 crystalShallowCol = mix(luminousShoreCol, shallow * (1.18 + 0.25 * sunF), 0.28);
             float gradFactor = smoothstep(0.02, 0.95, shoreZone);
             col = mix(col, crystalShallowCol, gradFactor * 0.92);
 
             // 7. Pewarnaan busa berbayang lembut & berkilau di puncak terkena sinar matahari
-            vec3 foamPeakCol = mix(uWaterFoamColor, vec3(1.0), 0.45) * (0.88 + 0.12 * sunF);
-            vec3 foamBodyCol = mix(crystalShallowCol, vec3(0.78, 0.92, 0.98), 0.65) * (0.80 + 0.20 * sunF);
-            vec3 finalShoreFoamCol = mix(foamBodyCol, foamPeakCol, smoothstep(0.15, 0.70, shorelineFoam));
-            col = mix(col, finalShoreFoamCol, shorelineFoam * 0.95);
+            vec3 foamPeakCol = mix(uWaterFoamColor, vec3(1.0), 0.55) * (0.88 + 0.12 * sunF);
+            vec3 foamBodyCol = mix(crystalShallowCol, vec3(0.80, 0.94, 0.98), 0.65) * (0.80 + 0.20 * sunF);
+            vec3 finalShoreFoamCol = mix(foamBodyCol, foamPeakCol, smoothstep(0.12, 0.65, shorelineFoam));
+            col = mix(col, finalShoreFoamCol, shorelineFoam * 0.96);
+
+            // ── ACES TONEMAPPING & GAMMA (Harmonis pada air, specular, dan busa pantai) ───
+            col = aces(col * 0.95);
 
             // 8. Transparansi dinamis jernih kristal di dekat dataran & objek 3D
             // Sangat bening di tepi sehingga kontur batu/tanah terlihat jelas, berangsur pekat di perairan dalam
@@ -728,7 +737,7 @@ const waterMat = new THREE.ShaderMaterial({
             float baseAlpha = maskAlpha * depthClarity;
 
             // Buih ombak pantai berkilau di atas air transparan tanpa pernah melubangi air
-            float edgeAlpha = clamp(baseAlpha + shorelineFoam * 0.85, 0.0, 1.0);
+            float edgeAlpha = clamp(baseAlpha + shorelineFoam * 0.88, 0.0, 1.0);
 
             gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), edgeAlpha);
         }
@@ -1153,6 +1162,7 @@ function initOuterOcean() {
 
             uniform float uTime, uAmp, uSpeed, uChop;
             uniform float uGroundSize;
+            uniform float uIslandHalfSize;
             uniform vec3  uFoxPos;
             uniform vec2  uFoxDir;
             uniform float uFoxSpeed;
@@ -1179,6 +1189,7 @@ function initOuterOcean() {
                 float jxx = 1.0, jzz = 1.0, jxz = 0.0;
                 float S = uChop * 0.9 / 9.0 * clamp(uAmp, 0.0, 1.2);
 
+                // 9-wave Gerstner displacement (100% dari ocean.html vertexShader - kontinu melintasi batas canvas)
                 for(int i = 0; i < 9; i++){
                     float fi = float(i);
                     float a = 0.5 + sin(fi * 12.9898 + 1.3) * 0.85;
@@ -1351,57 +1362,24 @@ function initOuterOcean() {
                 float specVis = smoothstep(-0.05, 0.2, NdotL);
                 float spec = (pow(NdotH, 180.0) * 3.5 + pow(NdotH, 32.0) * 0.35) * specVis;
 
-                // ── MULTI-LAYER FOAM (100% ocean.html: crest foam + wake foam) ──
+                // ── MULTI-LAYER FOAM (crest foam + wake foam) ──
                 float pattern = wakeFoamPattern(q * 1.5, uTime);
-                float fineBubbles = onoise(q * 15.0);
+                float fineBubbles = onoise(q * 14.0);
                 float combinedFoam = max(vCrestFoam * 0.9, wakeFoam);
-                float subFoam  = smoothstep(0.35, 0.78, combinedFoam * (0.4 + 0.75 * pattern));
-                float coreFoam = smoothstep(0.62, 0.95, combinedFoam * (0.45 + 0.65 * pattern) * (0.65 + 0.35 * fineBubbles));
+                float subFoam  = smoothstep(0.24, 0.75, combinedFoam * (0.60 + 0.40 * pattern));
+                float coreFoam = smoothstep(0.48, 0.88, combinedFoam * (0.65 + 0.35 * pattern) * (0.70 + 0.30 * fineBubbles));
 
-                col += uSunColor * spec * (1.0 - subFoam * 0.8);
+                col += uSunColor * spec * (1.0 - subFoam * 0.85);
 
-                vec3 underFoamCol = mix(shallow, vec3(0.50, 0.78, 0.84), 0.55) * sunF * (0.7 + 0.3 * shadow);
-                vec3 topFoamCol   = mix(uWaterFoamColor, vec3(1.0), 0.35) * (0.55 + 0.45 * sunF) * (0.68 + 0.32 * shadow);
+                vec3 underFoamCol = mix(shallow, vec3(0.50, 0.82, 0.88), 0.55) * sunF * (0.7 + 0.3 * shadow);
+                vec3 topFoamCol   = mix(uWaterFoamColor, vec3(1.0), 0.40) * (0.60 + 0.40 * sunF) * (0.70 + 0.30 * shadow);
                 col = mix(col, underFoamCol, subFoam * 0.55);
-                col = mix(col, topFoamCol, coreFoam * 0.88);
+                col = mix(col, topFoamCol, coreFoam * 0.90);
 
-                // ── ACES TONEMAPPING & GAMMA (100% ocean.html) ───────────
+                // ── ACES TONEMAPPING & GAMMA (Harmonis pada air dan specular) ───
                 col = aces(col * 0.95);
 
-                // ── CLIFF CONTACT FOAM & SWASH DYNAMICS ────────────────────
-                float effShoreDist = min(contactDepth * 1.4, distToIsland);
-                float shoreZone = clamp(1.0 - effShoreDist / 1.8, 0.0, 1.0);
-                if (shoreZone > 0.001) {
-                    float swashPhase = uTime * 2.2 * uSpeed - effShoreDist * 10.0 + onoise(q * 1.4) * 2.5;
-                    float waveSwash = sin(swashPhase);
-                    float waveCrest = smoothstep(0.20, 0.75, waveSwash);
-                    float swashLip = waveCrest * smoothstep(0.45, 0.02, effShoreDist) * 1.35;
-                    float backwashSuds = exp(-effShoreDist * 8.0) * 0.65;
-                    float foamBand = clamp(swashLip + backwashSuds, 0.0, 1.0);
-
-                    vec2 foamUV = q * 3.2;
-                    vec2 fWarp = vec2(onoise(foamUV * 0.5 + uTime * 0.08), onoise(foamUV * 0.5 + vec2(3.1, -uTime * 0.07)));
-                    vec2 pCell = foamUV + (fWarp - 0.5) * 1.2;
-                    float c1 = abs(onoise(pCell) * 2.0 - 1.0);
-                    float c2 = abs(onoise(om2 * pCell * 2.1 - uTime * 0.16) * 2.0 - 1.0);
-                    float bubbleLace = (1.0 - smoothstep(0.04, 0.38, c1)) * 0.70 + (1.0 - smoothstep(0.03, 0.32, c2)) * 0.35;
-                    float microFroth = pow(onoise(q * 8.5 + fWarp * 1.8), 1.6) * 0.70;
-                    float naturalShorePattern = clamp(bubbleLace * 1.40 + microFroth, 0.0, 1.0);
-
-                    float shorelineFoam = smoothstep(0.08, 0.55, foamBand * naturalShorePattern * 1.45) * shoreZone;
-
-                    vec3 luminousShoreCol = vec3(0.20, 0.98, 0.90) * (0.88 + 0.35 * sunF);
-                    vec3 crystalShallowCol = mix(luminousShoreCol, shallow * (1.18 + 0.25 * sunF), 0.28);
-                    col = mix(col, crystalShallowCol, smoothstep(0.0, 0.8, shoreZone) * 0.85);
-
-                    vec3 foamPeakCol = mix(uWaterFoamColor, vec3(1.0), 0.45) * (0.88 + 0.12 * sunF);
-                    vec3 foamBodyCol = mix(crystalShallowCol, vec3(0.78, 0.92, 0.98), 0.65) * (0.80 + 0.20 * sunF);
-                    vec3 finalShoreFoamCol = mix(foamBodyCol, foamPeakCol, smoothstep(0.15, 0.70, shorelineFoam));
-                    col = mix(col, finalShoreFoamCol, shorelineFoam * 0.95);
-                }
-
-                float edgeAlpha = mix(0.85, 1.0, smoothstep(0.0, 0.8, effShoreDist));
-                gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), edgeAlpha);
+                gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
             }
         `,
         side: THREE.DoubleSide

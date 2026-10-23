@@ -60,6 +60,18 @@ const valFlowerRadius = document.getElementById('val-flower-radius');
 const valFlowerDensity = document.getElementById('val-flower-density');
 const btnClearAllFlowers = document.getElementById('btn-clear-all-flowers');
 
+// Fern (Pakis) Brush Controls
+const selectFernBrush = document.getElementById('select-fern-brush');
+const sliderFernRadius = document.getElementById('slider-fern-radius');
+const sliderFernDensity = document.getElementById('slider-fern-density');
+const sliderFernMinSize = document.getElementById('slider-fern-min-size');
+const sliderFernMaxSize = document.getElementById('slider-fern-max-size');
+const valFernRadius = document.getElementById('val-fern-radius');
+const valFernDensity = document.getElementById('val-fern-density');
+const valFernMinSize = document.getElementById('val-fern-min-size');
+const valFernMaxSize = document.getElementById('val-fern-max-size');
+const btnClearAllFerns = document.getElementById('btn-clear-all-ferns');
+
 // Butterfly Brush Controls
 const selectButterflyBrush = document.getElementById('select-butterfly-brush');
 const sliderButterflyRadius = document.getElementById('slider-butterfly-radius');
@@ -275,6 +287,40 @@ if (btnClearAllFlowers) {
         if (typeof saveState === 'function') saveState();
         if (typeof clearAllFlowers === 'function') {
             clearAllFlowers();
+        }
+    });
+}
+
+// Fern brush slider listeners
+if (sliderFernRadius && valFernRadius) {
+    sliderFernRadius.addEventListener('input', () => {
+        valFernRadius.innerText = parseFloat(sliderFernRadius.value).toFixed(1);
+        if (typeof fernParams !== 'undefined') fernParams.brushRadius = parseFloat(sliderFernRadius.value);
+    });
+}
+if (sliderFernDensity && valFernDensity) {
+    sliderFernDensity.addEventListener('input', () => {
+        valFernDensity.innerText = sliderFernDensity.value;
+        if (typeof fernParams !== 'undefined') fernParams.fernDensity = parseInt(sliderFernDensity.value);
+    });
+}
+if (sliderFernMinSize && valFernMinSize) {
+    sliderFernMinSize.addEventListener('input', () => {
+        valFernMinSize.innerText = parseFloat(sliderFernMinSize.value).toFixed(1);
+        if (typeof fernParams !== 'undefined') fernParams.minSize = parseFloat(sliderFernMinSize.value);
+    });
+}
+if (sliderFernMaxSize && valFernMaxSize) {
+    sliderFernMaxSize.addEventListener('input', () => {
+        valFernMaxSize.innerText = parseFloat(sliderFernMaxSize.value).toFixed(1);
+        if (typeof fernParams !== 'undefined') fernParams.maxSize = parseFloat(sliderFernMaxSize.value);
+    });
+}
+if (btnClearAllFerns) {
+    btnClearAllFerns.addEventListener('click', () => {
+        if (typeof saveState === 'function') saveState();
+        if (typeof clearAllFerns === 'function') {
+            clearAllFerns();
         }
     });
 }

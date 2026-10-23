@@ -315,6 +315,20 @@ function serializeMapData(name, existingId = null) {
             flowerType: f.flowerType || (f.userData ? f.userData.flowerType : 'spawn_flower_cyan'),
             themeKey: f.themeKey || (f.userData ? f.userData.themeKey : 'cyan')
         })) : [],
+        ferns: typeof fernsList !== 'undefined' ? fernsList.map(f => ({
+            posX: f.position.x,
+            posY: f.position.y,
+            posZ: f.position.z,
+            rotX: f.rotation.x,
+            rotY: f.rotation.y,
+            rotZ: f.rotation.z,
+            scaleX: f.scale.x,
+            scaleY: f.scale.y,
+            scaleZ: f.scale.z,
+            scaleBase: f.userData ? f.userData.scaleBase : 1.0,
+            fernType: f.userData ? f.userData.fernType : 'spawn_fern_clump',
+            variantIndex: f.userData ? f.userData.variantIndex : 0
+        })) : [],
         butterflies: typeof butterfliesList !== 'undefined' ? butterfliesList.map(b => ({
             centerX: b.centerX,
             centerZ: b.centerZ,
@@ -337,6 +351,7 @@ function serializeMapData(name, existingId = null) {
             treeCount: trees.length,
             rockCount: typeof rocksList !== 'undefined' ? rocksList.length : 0,
             flowerCount: typeof flowersList !== 'undefined' ? flowersList.length : 0,
+            fernCount: typeof fernsList !== 'undefined' ? fernsList.length : 0,
             butterflyCount: typeof butterfliesList !== 'undefined' ? butterfliesList.length : 0,
             grassCount: activeGrass.length,
             version: '1.0'
@@ -524,6 +539,14 @@ function applyMapDataToScene(mapData) {
     }
     if (Array.isArray(mapData.flowers) && typeof recreateFlower === 'function') {
         mapData.flowers.forEach(fData => recreateFlower(fData));
+    }
+
+    // 6b. Terapkan Pakis (Ferns)
+    if (typeof clearAllFerns === 'function') {
+        clearAllFerns();
+    }
+    if (Array.isArray(mapData.ferns) && typeof recreateFern === 'function') {
+        mapData.ferns.forEach(fData => recreateFern(fData));
     }
 
     // 7. Terapkan Kupu-kupu (Butterflies)

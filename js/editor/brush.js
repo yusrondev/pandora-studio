@@ -32,6 +32,7 @@ function updateToolControlsState() {
         (typeof selectGrassBrush !== 'undefined' && selectGrassBrush.value !== 'none') ||
         (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
         (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') ||
+        (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') ||
         (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') ||
         (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') ||
         (typeof selectTreeMode !== 'undefined' && selectTreeMode.value !== 'none')
@@ -229,6 +230,17 @@ function handleBrushAction(event) {
             return;
         }
 
+        const fernBrush = (typeof selectFernBrush !== 'undefined') ? selectFernBrush.value : 'none';
+        if (fernBrush !== 'none') {
+            const radius = (typeof sliderFernRadius !== 'undefined') ? parseFloat(sliderFernRadius.value) : 3.5;
+            if (fernBrush === 'remove') {
+                removeFernsInRadius(hitPoint, radius);
+            } else {
+                placeFernsAt(hitPoint, fernBrush);
+            }
+            return;
+        }
+
         const butterflyBrush = (typeof selectButterflyBrush !== 'undefined') ? selectButterflyBrush.value : 'none';
         if (butterflyBrush !== 'none') {
             const radius = (typeof sliderButterflyRadius !== 'undefined') ? parseFloat(sliderButterflyRadius.value) : 4.0;
@@ -245,6 +257,7 @@ function handleBrushAction(event) {
 let lastPointerActionTime = 0;
 let selectionPointerDownInfo = null;
 let isHoldingForCamera = false;
+let lastFernSingleDragPos = null;
 
 function handleCanvasPointerDown(e) {
     if (typeof isPlayMode !== 'undefined' && isPlayMode) return;
@@ -253,8 +266,9 @@ function handleCanvasPointerDown(e) {
     if (typeof CinematicManager !== 'undefined' && (CinematicManager.isDraggingWaypoint || CinematicManager.isDragModeActive)) return;
 
     // Cegah double-trigger dari pointerdown + mousedown berturut-turut
+    if (e.type === 'mousedown' && window.PointerEvent) return;
     const now = Date.now();
-    if (now - lastPointerActionTime < 50) return;
+    if (now - lastPointerActionTime < 120) return;
     lastPointerActionTime = now;
 
     if (typeof updateMouseCoords === 'function') updateMouseCoords(e, mouse);
@@ -390,6 +404,19 @@ function handleCanvasPointerDown(e) {
             return;
         }
 
+        // 5b. Mode Fern Brush: Klik kanan = hapus pakis dalam radius kursor
+        if (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') {
+            const groundHits = raycaster.intersectObject(ground);
+            if (groundHits.length > 0) {
+                saveState();
+                isRightMouseDown = true;
+                const radius = (typeof sliderFernRadius !== 'undefined') ? (parseFloat(sliderFernRadius.value) || 3.5) : 3.5;
+                removeFernsInRadius(groundHits[0].point, radius);
+            }
+            if (e.stopPropagation) e.stopPropagation();
+            return;
+        }
+
         // 6. Mode Butterfly Brush: Klik kanan = hapus kupu-kupu dalam radius kursor
         if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') {
             const groundHits = raycaster.intersectObject(ground);
@@ -421,9 +448,12 @@ function handleCanvasPointerDown(e) {
                 return;
             }
 
-            if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none')) {
+            if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none')) {
                 saveState();
                 isMouseDown = true;
+                if (typeof selectFernBrush !== 'undefined' && selectFernBrush.value === 'spawn_fern_single') {
+                    lastFernSingleDragPos = hitPoint.clone();
+                }
                 if (typeof controls !== 'undefined') controls.enabled = false;
                 handleBrushAction(e);
                 if (e.stopPropagation) e.stopPropagation();
@@ -439,6 +469,7 @@ function handleCanvasPointerDown(e) {
             (selectGrassBrush && selectGrassBrush.value !== 'none') ||
             (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
             (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') ||
+            (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') ||
             (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') ||
             (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') ||
             (typeof CinematicManager !== 'undefined' && (CinematicManager.isDrawingMode || CinematicManager.isDrawingFoxMode));
@@ -554,11 +585,12 @@ function updateBrushReticle(hitPoint, normal) {
     const grassBrush = selectGrassBrush.value;
     const rockBrush = (typeof selectRockBrush !== 'undefined') ? selectRockBrush.value : 'none';
     const flowerBrush = (typeof selectFlowerBrush !== 'undefined') ? selectFlowerBrush.value : 'none';
+    const fernBrush = (typeof selectFernBrush !== 'undefined') ? selectFernBrush.value : 'none';
     const butterflyBrush = (typeof selectButterflyBrush !== 'undefined') ? selectButterflyBrush.value : 'none';
     const fogBrush = (typeof selectFogBrush !== 'undefined') ? selectFogBrush.value : 'none';
     const treeMode = selectTreeMode.value;
 
-    const isActive = (sculptMode !== 'none' || roadBrush !== 'none' || waterBrush !== 'none' || grassBrush !== 'none' || rockBrush !== 'none' || flowerBrush !== 'none' || butterflyBrush !== 'none' || fogBrush !== 'none' || treeMode !== 'none');
+    const isActive = (sculptMode !== 'none' || roadBrush !== 'none' || waterBrush !== 'none' || grassBrush !== 'none' || rockBrush !== 'none' || flowerBrush !== 'none' || fernBrush !== 'none' || butterflyBrush !== 'none' || fogBrush !== 'none' || treeMode !== 'none');
     if (!isActive || !hitPoint) {
         brushReticleGroup.visible = false;
         return;
@@ -611,6 +643,11 @@ function updateBrushReticle(hitPoint, normal) {
         else if (flowerBrush === 'spawn_flower_violet') colorHex = 0xc084fc;
         else if (flowerBrush === 'spawn_flower_solar') colorHex = 0xf59e0b;
         else colorHex = 0x38bdf8;
+    } else if (fernBrush !== 'none') {
+        radius = (typeof sliderFernRadius !== 'undefined') ? (parseFloat(sliderFernRadius.value) || 3.5) : 3.5;
+        if (fernBrush === 'remove') colorHex = 0xef4444;
+        else if (fernBrush === 'spawn_fern_golden') colorHex = 0xf59e0b;
+        else colorHex = 0x22c55e;
     } else if (butterflyBrush !== 'none') {
         radius = (typeof sliderButterflyRadius !== 'undefined') ? (parseFloat(sliderButterflyRadius.value) || 4.0) : 4.0;
         if (butterflyBrush === 'remove') colorHex = 0xef4444;
@@ -673,14 +710,30 @@ function handleCanvasPointerMove(e) {
         if (brushReticleGroup.visible) brushReticleGroup.visible = false;
     }
 
-    // Left mouse drag (Sculpt, Road paint, Water paint, Grass paint, Rock paint, Flower paint, Butterfly paint, Fog paint)
-    if (isMouseDown && (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none'))) {
+    // Left mouse drag (Sculpt, Road paint, Water paint, Grass paint, Rock paint, Flower paint, Fern paint, Butterfly paint, Fog paint)
+    if (isMouseDown && (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none'))) {
         if (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') {
             if (selectRockBrush.value === 'remove' || Math.random() > 0.65) {
                 handleBrushAction(e);
             }
         } else if (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') {
             if (selectFlowerBrush.value === 'remove' || Math.random() > 0.65) {
+                handleBrushAction(e);
+            }
+        } else if (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') {
+            if (selectFernBrush.value === 'remove') {
+                handleBrushAction(e);
+            } else if (selectFernBrush.value === 'spawn_fern_single') {
+                // Untuk Helai Tunggal, cegah spawn ganda akibat getaran kursor / micro-drag saat klik
+                const intersects = raycaster.intersectObject(ground);
+                if (intersects.length > 0) {
+                    const hitPt = intersects[0].point;
+                    if (!lastFernSingleDragPos || lastFernSingleDragPos.distanceTo(hitPt) > 2.0) {
+                        lastFernSingleDragPos = hitPt.clone();
+                        handleBrushAction(e);
+                    }
+                }
+            } else if (Math.random() > 0.65) {
                 handleBrushAction(e);
             }
         } else if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') {
@@ -692,7 +745,7 @@ function handleCanvasPointerMove(e) {
         }
     }
 
-    // Right mouse drag (Grass erase, Road erase, Water erase, Rock erase, Flower erase, Butterfly erase)
+    // Right mouse drag (Grass erase, Road erase, Water erase, Rock erase, Flower erase, Fern erase, Butterfly erase)
     if (isRightMouseDown && intersects.length > 0) {
         const hitPoint = intersects[0].point;
         if (selectGrassBrush.value !== 'none') {
@@ -712,6 +765,9 @@ function handleCanvasPointerMove(e) {
         } else if (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') {
             const radius = (typeof sliderFlowerRadius !== 'undefined') ? (parseFloat(sliderFlowerRadius.value) || 3.5) : 3.5;
             removeFlowersInRadius(hitPoint, radius);
+        } else if (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') {
+            const radius = (typeof sliderFernRadius !== 'undefined') ? (parseFloat(sliderFernRadius.value) || 3.5) : 3.5;
+            removeFernsInRadius(hitPoint, radius);
         } else if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') {
             const radius = (typeof sliderButterflyRadius !== 'undefined') ? (parseFloat(sliderButterflyRadius.value) || 4.0) : 4.0;
             removeButterfliesInRadius(hitPoint, radius);
@@ -731,6 +787,7 @@ window.addEventListener('mouseleave', () => {
     brushReticleGroup.visible = false;
     isMouseDown = false;
     isRightMouseDown = false;
+    lastFernSingleDragPos = null;
     if (typeof resetWaterStroke === 'function') resetWaterStroke();
     if (typeof endFogStroke === 'function') endFogStroke();
 });
@@ -796,6 +853,16 @@ if (typeof sliderFlowerRadius !== 'undefined') {
     });
 }
 
+if (typeof sliderFernRadius !== 'undefined') {
+    sliderFernRadius.addEventListener('input', () => {
+        if (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') {
+            const r = parseFloat(sliderFernRadius.value) || 3.5;
+            reticleOuterMesh.scale.set(r, 1, r);
+            reticleFillMesh.scale.set(r, 1, r);
+        }
+    });
+}
+
 if (typeof sliderButterflyRadius !== 'undefined') {
     sliderButterflyRadius.addEventListener('input', () => {
         if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') {
@@ -825,6 +892,7 @@ function handleCanvasPointerUp(e) {
     }
     isMouseDown = false;
     isRightMouseDown = false;
+    lastFernSingleDragPos = null;
     if (typeof resetWaterStroke === 'function') resetWaterStroke();
     if (typeof endFogStroke === 'function') endFogStroke();
     updateToolControlsState();

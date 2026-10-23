@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daun Pakis</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--ink:#e9ffe9;--bg:#0e2f26}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#e9ffe9;--bg:#0e2f26}}
+:root[data-theme="dark"]{--ink:#e9ffe9;--bg:#0e2f26}
+html,body{height:100%;margin:0;background:var(--bg);overflow:hidden;font-family:Georgia,'Times New Roman',serif}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.c{position:fixed;left:16px;bottom:calc(14px + env(safe-area-inset-bottom,0px));color:var(--ink);font-size:14px;opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="c">Seret untuk memutar, gulir atau cubit untuk zoom</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const T=THREE;let s_=11;const R=()=>(s_=(s_*16807)%2147483647)/2147483647,rr=(a,b)=>a+(b-a)*R();
+const cv=document.getElementById('c');
+const ren=new T.WebGLRenderer({canvas:cv,antialias:true});ren.setPixelRatio(Math.min(devicePixelRatio,2));
+ren.toneMapping=T.ACESFilmicToneMapping;ren.toneMappingExposure=1.35;
+const scene=new T.Scene();
+const bc=document.createElement('canvas');bc.width=2;bc.height=256;const bg=bc.getContext('2d');
+const gr=bg.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#2f6a54');gr.addColorStop(.55,'#1c4132');gr.addColorStop(1,'#0a1d14');
+bg.fillStyle=gr;bg.fillRect(0,0,2,256);scene.background=new T.CanvasTexture(bc);
+scene.add(new T.HemisphereLight(0xbfe8d8,0x22442a,1.1));
+const sun=new T.DirectionalLight(0xffe7a0,1.25);sun.position.set(-4,7,4);scene.add(sun);
+const back=new T.DirectionalLight(0x9fe0b0,.7);back.position.set(3,3,-5);scene.add(back);
+const cam=new T.PerspectiveCamera(38,1,.1,60);
+const timeU={value:0};
+function mat(p){const m=new T.MeshStandardMaterial(Object.assign({roughness:.5,metalness:0},p));
+m.onBeforeCompile=sh=>{sh.uniforms.uTime=timeU;
+sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>','vec3 transformed=vec3(position);float k=length(position)*0.03;transformed.x+=sin(uTime*1.4+position.y*1.5)*k;transformed.z+=cos(uTime*1.1+position.x*2.0)*k*0.7;');
+sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','float rim=pow(1.0-clamp(dot(normalize(normal),normalize(vViewPosition)),0.0,1.0),3.0);gl_FragColor.rgb+=vec3(0.55,0.75,0.3)*rim*0.12;\n#include <dithering_fragment>');};
+return m;}
+// tekstur tulang daun dan urat halus pada tiap pinna
+const fcv=document.createElement('canvas');fcv.width=64;fcv.height=128;{const g=fcv.getContext('2d');g.fillStyle='#e8f5e0';g.fillRect(0,0,64,128);g.strokeStyle='rgba(255,255,230,.9)';g.lineWidth=2;g.beginPath();g.moveTo(32,0);g.lineTo(32,128);g.stroke();g.strokeStyle='rgba(120,170,100,.5)';g.lineWidth=1;for(let i=0;i<14;i++){const y=i*9;[-1,1].forEach(s=>{g.beginPath();g.moveTo(32,y+8);g.lineTo(32+s*30,y-6);g.stroke();});}}
+const frondMat=mat({vertexColors:true,map:new T.CanvasTexture(fcv),side:T.DoubleSide});
+const stemMat=mat({color:0x4f8f45});
+function frond(o){
+const n=40,dl=o.len/n,P=[],Tn=[],Nn=[];let th=o.th0,p=new T.Vector3();
+for(let i=0;i<=n;i++){const t=i/n;P.push(p.clone());const tg=new T.Vector3(0,Math.cos(th),Math.sin(th));Tn.push(tg);Nn.push(new T.Vector3(0,-Math.sin(th),Math.cos(th)));th+=o.bend/n*(.5+t);p.addScaledVector(tg,dl);}
+const pos=[],col=[],uv=[],idx=[],c0=new T.Color(o.c0),c1=new T.Color(o.c1),hi=new T.Color(0xb6f08a),tc=new T.Color();
+const pinna=(Pt,Tg,Nr,dir,len,t)=>{const W=len*.16,Sd=Tg.clone().addScaledVector(dir,-Tg.dot(dir)).normalize(),b=pos.length/3;
+for(let r=0;r<=8;r++){const u=r/8,C=Pt.clone().addScaledVector(dir,len*u).addScaledVector(Nr,-o.droop*u*u*len);
+const h=W*Math.pow(Math.sin(Math.PI*(.1+.9*u)*.97),.8);
+[[1,.22],[0,0],[-1,.22]].forEach(([s,f],j)=>{const q=C.clone().addScaledVector(Sd,s*h).addScaledVector(Nr,h*f+Math.sin(u*9+t*20)*h*.08);pos.push(q.x,q.y,q.z);
+tc.copy(c0).lerp(c1,.3*t+.7*Math.pow(u,.8));if(j==1)tc.lerp(hi,.25);col.push(tc.r,tc.g,tc.b);uv.push((s+1)/2,u);});
+if(r<8){const a=b+r*3;for(let j=0;j<2;j++){idx.push(a+j,a+3+j,a+1+j,a+1+j,a+3+j,a+4+j);}}}};
+for(let k=0;k<o.pairs;k++){const t=.1+.88*k/(o.pairs-1),f=t*n,i=Math.min(n-1,Math.floor(f)),w=f-i;
+const Pt=P[i].clone().lerp(P[i+1],w),Tg=Tn[i],Nr=Nn[i],len=o.pw*(1-t*.82)*Math.min(1,.45+t*5);
+for(const s of[1,-1]){const ph=.75+rr(-.06,.06),dir=new T.Vector3(s*Math.cos(ph),0,0).addScaledVector(Tg,Math.sin(ph)).normalize();pinna(Pt,Tg,Nr,dir,len,t);}}
+pinna(P[n],Tn[n],Nn[n],Tn[n],o.pw*.3,1);
+const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+const grp=new T.Group();grp.add(new T.Mesh(g,frondMat));
+grp.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(P.filter((_,i)=>i%3==0)),20,.016,5),stemMat));
+scene.add(grp);}
+frond({len:2.7,bend:.8,th0:.05,pw:.62,pairs:34,droop:.25,c0:0x1f5f34,c1:0x5fae4a});
+// kamera orbit dengan putaran pelan otomatis
+let th=.5,ph=1.4,rad=5.2,drag=false,lx=0,ly=0,idle=0;const tg=new T.Vector3(0,1.25,.35);
+cv.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing'});
+cv.addEventListener('pointerup',()=>{drag=false;cv.style.cursor='grab'});
+cv.addEventListener('pointermove',e=>{if(!drag)return;th-=(e.clientX-lx)*.006;ph=Math.min(1.7,Math.max(.7,ph-(e.clientY-ly)*.005));lx=e.clientX;ly=e.clientY;});
+cv.addEventListener('wheel',e=>{e.preventDefault();rad=Math.min(9,Math.max(2,rad+e.deltaY*.004));},{passive:false});
+function size(){const w=innerWidth,h=innerHeight;ren.setSize(w,h,false);cam.aspect=w/h;cam.fov=w<h?55:38;cam.updateProjectionMatrix();}
+addEventListener('resize',size);size();
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,clk=new T.Clock();
+function loop(){const dt=clk.getDelta();timeU.value=reduce?0:clk.elapsedTime;if(!drag&&!reduce)th+=dt*.15;
+cam.position.set(tg.x+rad*Math.sin(ph)*Math.sin(th),tg.y+rad*Math.cos(ph),tg.z+rad*Math.sin(ph)*Math.cos(th));cam.lookAt(tg);
+ren.render(scene,cam);requestAnimationFrame(loop);}
+loop();
+</script>
+</body>
+</html>

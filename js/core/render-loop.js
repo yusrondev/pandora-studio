@@ -43,6 +43,9 @@ function animate() {
     if (typeof updateFlowers === 'function') {
         updateFlowers(delta, elapsedTime);
     }
+    if (typeof updateFerns === 'function') {
+        updateFerns(delta, elapsedTime);
+    }
     if (typeof updateButterflies === 'function') {
         updateButterflies(delta, elapsedTime);
     }

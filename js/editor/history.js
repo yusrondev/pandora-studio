@@ -69,6 +69,20 @@ function captureStateSnapshot() {
             flowerType: f.flowerType || (f.userData ? f.userData.flowerType : 'spawn_flower_cyan'),
             themeKey: f.themeKey || (f.userData ? f.userData.themeKey : 'cyan')
         })) : [],
+        ferns: (typeof fernsList !== 'undefined') ? fernsList.map(f => ({
+            posX: f.position.x,
+            posY: f.position.y,
+            posZ: f.position.z,
+            rotX: f.rotation.x,
+            rotY: f.rotation.y,
+            rotZ: f.rotation.z,
+            scaleX: f.scale.x,
+            scaleY: f.scale.y,
+            scaleZ: f.scale.z,
+            scaleBase: f.userData ? f.userData.scaleBase : 1.0,
+            fernType: f.userData ? f.userData.fernType : 'spawn_fern_clump',
+            variantIndex: f.userData ? f.userData.variantIndex : 0
+        })) : [],
         butterflies: (typeof butterfliesList !== 'undefined') ? butterfliesList.map(b => ({
             centerX: b.centerX,
             centerZ: b.centerZ,
@@ -239,7 +253,13 @@ function applyState(state) {
         state.flowers.forEach(fData => recreateFlower(fData));
     }
 
-    // 3d. Restore Kupu-kupu (Butterflies)
+    // 3d. Restore Pakis (Ferns)
+    if (state.ferns && typeof fernsList !== 'undefined' && typeof recreateFern === 'function') {
+        clearAllFerns();
+        state.ferns.forEach(fData => recreateFern(fData));
+    }
+
+    // 3e. Restore Kupu-kupu (Butterflies)
     if (state.butterflies && typeof butterfliesList !== 'undefined' && typeof recreateButterfly === 'function') {
         clearAllButterflies();
         state.butterflies.forEach(bData => recreateButterfly(bData));

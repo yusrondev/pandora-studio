@@ -1018,6 +1018,20 @@
                             </span>
                             <span>Bunga</span>
                         </button>
+                        <button type="button" class="brush-tab-btn" data-brush-tab="fern" id="btn-tab-brush-fern">
+                            <span class="svg-icon" style="color:#22c55e; width:13px; height:13px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M12 22C12 14 13 8 20 4"></path>
+                                    <path d="M12 18c3-2 5-2 7-1"></path>
+                                    <path d="M12 15c-3-2-5-2-7-1"></path>
+                                    <path d="M13 12c3-2 5-2 6-1"></path>
+                                    <path d="M12 9c-3-2-4-2-6-1"></path>
+                                    <path d="M14 6c2-1 3-1 4 0"></path>
+                                    <path d="M13 4c-2-1-3-1-4 0"></path>
+                                </svg>
+                            </span>
+                            <span>Pakis</span>
+                        </button>
                         <button type="button" class="brush-tab-btn" data-brush-tab="butterfly" id="btn-tab-brush-butterfly">
                             <span class="svg-icon" style="color:#a855f7; width:13px; height:13px;">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1563,6 +1577,152 @@
                         </button>
                     </div>
 
+                    <!-- SUBPANEL: PAKIS (FERNS FROM PAKIS.HTML) -->
+                    <div id="subpanel-brush-fern" class="brush-subpanel" style="display:none;">
+                        <div class="control-group">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <label style="margin:0;">Pilihan Kuas Pakis</label>
+                                <span id="val-fern-count" class="val-badge" style="background:#262626; color:#4ade80;">0 Pakis</span>
+                            </div>
+                            <select id="select-fern-brush" style="display:none;">
+                                <option value="none">Off</option>
+                                <option value="spawn_fern_clump">Rumpun Pakis</option>
+                                <option value="spawn_fern_single">Helai Tunggal</option>
+                                <option value="spawn_fern_giant">Pakis Hutan</option>
+                                <option value="spawn_fern_golden">Pakis Emas</option>
+                                <option value="remove">Hapus Pakis</option>
+                            </select>
+                            <div class="spawner-card-grid fern-grid" id="fern-picker-grid">
+                                <button type="button" class="spawner-card active" data-value="none" title="Matikan Kuas Pakis">
+                                    <div class="card-preview">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <circle cx="20" cy="20" r="13" fill="none" stroke="#64748b" stroke-width="2.5" stroke-dasharray="4 2" />
+                                            <line x1="12" y1="28" x2="28" y2="12" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Off</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_fern_clump" title="Tanam Rumpun Daun Pakis Hijau Segar">
+                                    <div class="card-preview" style="background:#09291e;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <ellipse cx="20" cy="35" rx="14" ry="3" fill="rgba(0,0,0,0.4)" />
+                                            <path d="M20 35 Q18 20 8 12" stroke="#4ade80" stroke-width="2" fill="none" stroke-linecap="round" />
+                                            <path d="M20 35 Q20 16 20 6" stroke="#22c55e" stroke-width="2.2" fill="none" stroke-linecap="round" />
+                                            <path d="M20 35 Q22 20 32 12" stroke="#4ade80" stroke-width="2" fill="none" stroke-linecap="round" />
+                                            <path d="M12 25 L8 22 M14 20 L9 17 M17 14 L12 11" stroke="#86efac" stroke-width="1.8" stroke-linecap="round" />
+                                            <path d="M28 25 L32 22 M26 20 L31 17 M23 14 L28 11" stroke="#86efac" stroke-width="1.8" stroke-linecap="round" />
+                                            <path d="M18 12 L14 10 M22 12 L26 10 M19 8 L16 6 M21 8 L24 6" stroke="#bbf7d0" stroke-width="1.8" stroke-linecap="round" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Rumpun Pakis</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_fern_single" title="Tanam Sehelai Daun Pakis Melengkung Anggun (pakis.html)">
+                                    <div class="card-preview" style="background:#0c3626;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <ellipse cx="14" cy="35" rx="8" ry="2.5" fill="rgba(0,0,0,0.35)" />
+                                            <path d="M12 36 Q18 22 34 10" stroke="#22c55e" stroke-width="2.2" fill="none" stroke-linecap="round" />
+                                            <path d="M16 28 L23 32 M19 23 L27 26 M23 18 L31 20 M27 14 L34 14" stroke="#86efac" stroke-width="1.8" stroke-linecap="round" />
+                                            <path d="M16 28 L11 23 M19 23 L14 18 M23 18 L19 12 M27 14 L24 8" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Helai Tunggal</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_fern_giant" title="Tanam Rumpun Pakis Hutan Rimba Raksasa">
+                                    <div class="card-preview" style="background:#051f15;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <ellipse cx="20" cy="35" rx="16" ry="3.5" fill="rgba(0,0,0,0.45)" />
+                                            <path d="M20 35 Q14 18 5 10" stroke="#15803d" stroke-width="2.4" fill="none" stroke-linecap="round" />
+                                            <path d="M20 35 Q20 14 19 4" stroke="#16a34a" stroke-width="2.4" fill="none" stroke-linecap="round" />
+                                            <path d="M20 35 Q26 18 35 10" stroke="#15803d" stroke-width="2.4" fill="none" stroke-linecap="round" />
+                                            <path d="M10 22 L5 18 M12 16 L6 13 M16 11 L9 8" stroke="#4ade80" stroke-width="2" stroke-linecap="round" />
+                                            <path d="M30 22 L35 18 M28 16 L34 13 M24 11 L31 8" stroke="#4ade80" stroke-width="2" stroke-linecap="round" />
+                                            <path d="M17 12 L12 9 M23 12 L28 9 M18 7 L14 4 M22 7 L26 4" stroke="#86efac" stroke-width="2" stroke-linecap="round" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Pakis Hutan</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_fern_golden" title="Tanam Pakis Emas Nuansa Musim Gugur">
+                                    <div class="card-preview" style="background:#38270b;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <ellipse cx="20" cy="35" rx="14" ry="3" fill="rgba(0,0,0,0.4)" />
+                                            <path d="M20 35 Q18 20 8 12" stroke="#eab308" stroke-width="2" fill="none" stroke-linecap="round" />
+                                            <path d="M20 35 Q20 16 20 6" stroke="#ca8a04" stroke-width="2.2" fill="none" stroke-linecap="round" />
+                                            <path d="M20 35 Q22 20 32 12" stroke="#eab308" stroke-width="2" fill="none" stroke-linecap="round" />
+                                            <path d="M12 25 L8 22 M14 20 L9 17 M17 14 L12 11" stroke="#fde047" stroke-width="1.8" stroke-linecap="round" />
+                                            <path d="M28 25 L32 22 M26 20 L31 17 M23 14 L28 11" stroke="#fde047" stroke-width="1.8" stroke-linecap="round" />
+                                            <path d="M18 12 L14 10 M22 12 L26 10 M19 8 L16 6 M21 8 L24 6" stroke="#fef08a" stroke-width="1.8" stroke-linecap="round" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Pakis Emas</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="remove" title="Hapus Pakis dalam Radius">
+                                    <div class="card-preview" style="background:#352121;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <ellipse cx="20" cy="34" rx="12" ry="2.5" fill="rgba(0,0,0,0.3)" />
+                                            <path d="M17 34 Q19 25 24 18" stroke="#64748b" stroke-width="1.8" opacity="0.6" stroke-linecap="round" />
+                                            <circle cx="20" cy="18" r="9" fill="none" stroke="#ef4444" stroke-width="2" />
+                                            <line x1="14" y1="24" x2="26" y2="12" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Hapus Pakis</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="shortcut-hint">
+                            <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
+                            </span>
+                            <span>Klik kiri seret untuk menanam pakis botani realistis, klik kanan seret untuk menghapus. Tekan <span class="esc-kbd">Esc</span> selesai.</span>
+                        </div>
+
+                        <div class="control-group">
+                            <label>
+                                <span>Radius Kuas</span>
+                                <span id="val-fern-radius" class="val-badge">3.5</span>
+                            </label>
+                            <input type="range" id="slider-fern-radius" min="1.0" max="12.0" step="0.5" value="3.5">
+                        </div>
+
+                        <div class="control-group">
+                            <label>
+                                <span>Kepadatan Rumpun</span>
+                                <span id="val-fern-density" class="val-badge">2</span>
+                            </label>
+                            <input type="range" id="slider-fern-density" min="1" max="6" step="1" value="2">
+                        </div>
+
+                        <div class="control-group">
+                            <label>
+                                <span>Ukuran Min</span>
+                                <span id="val-fern-min-size" class="val-badge">0.7</span>
+                            </label>
+                            <input type="range" id="slider-fern-min-size" min="0.3" max="2.0" step="0.1" value="0.7">
+                        </div>
+
+                        <div class="control-group">
+                            <label>
+                                <span>Ukuran Max</span>
+                                <span id="val-fern-max-size" class="val-badge">1.3</span>
+                            </label>
+                            <input type="range" id="slider-fern-max-size" min="0.6" max="3.0" step="0.1" value="1.3">
+                        </div>
+
+                        <button type="button" id="btn-clear-all-ferns" class="btn-compact" style="width:100%; margin-top:6px; justify-content:center; color:#f87171; border-color:#7f1d1d;">
+                            <span class="svg-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </span>
+                            <span>Hapus Semua Pakis</span>
+                        </button>
+                    </div>
+
                     <!-- SUBPANEL 4: KUPU-KUPU (BUTTERFLIES) -->
                     <div id="subpanel-brush-butterfly" class="brush-subpanel" style="display:none;">
                         <div class="control-group">
@@ -2095,6 +2255,7 @@
     <script src="js/grass/grass.js"></script>
     <script src="js/rocks/rock-manager.js"></script>
     <script src="js/flowers/flower-manager.js"></script>
+    <script src="js/ferns/fern-manager.js"></script>
     <script src="js/butterflies/butterfly-manager.js"></script>
     <script src="js/trees/tree-manager.js"></script>
     <script src="js/character/play-state.js"></script>

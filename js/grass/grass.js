@@ -452,6 +452,11 @@ function updateTreesAndGrassPositions() {
     if (typeof rebuildFlowerTransforms === 'function') {
         rebuildFlowerTransforms();
     }
+    if (typeof fernsList !== 'undefined') {
+        fernsList.forEach(f => {
+            f.position.y = getTerrainHeightFast(f.position.x, f.position.z);
+        });
+    }
 }
 
 // ==========================================

@@ -261,7 +261,11 @@ function serializeMapData(name, existingId = null) {
         posZ: Math.round(t.position.z * 100) / 100,
         rotY: Math.round(t.rotation.y * 100) / 100,
         trunkScaleY: t.userData.trunkGroup ? Math.round(t.userData.trunkGroup.scale.y * 100) / 100 : 1.0,
-        trunkThickness: t.userData.trunkGroup ? Math.round(t.userData.trunkGroup.scale.x * 100) / 100 : 1.0,
+        trunkThickness: t.userData.trunkGroup ? (
+            t.userData.isPine && t.userData.trunkGroup.scale.y > 0.001
+                ? Math.round((t.userData.trunkGroup.scale.x / t.userData.trunkGroup.scale.y) * 100) / 100
+                : Math.round(t.userData.trunkGroup.scale.x * 100) / 100
+        ) : 1.0,
         branchCount: t.userData.branchCount || 3,
         curvature: t.userData.curvature !== undefined ? Math.round(t.userData.curvature * 100) / 100 : 0.5,
         leafCount: t.userData.leafMesh ? t.userData.leafMesh.count : 1200,
@@ -312,8 +316,9 @@ function serializeMapData(name, existingId = null) {
             posY: f.posY !== undefined ? f.posY : (f.position ? f.position.y : 0),
             posZ: f.posZ !== undefined ? f.posZ : (f.position ? f.position.z : 0),
             rotY: f.rotY !== undefined ? f.rotY : (f.rotation ? f.rotation.y : 0),
-            flowerType: f.flowerType || (f.userData ? f.userData.flowerType : 'spawn_flower_cyan'),
-            themeKey: f.themeKey || (f.userData ? f.userData.themeKey : 'cyan')
+            flowerType: f.flowerType || (f.userData ? f.userData.flowerType : 'spawn_flower_stem'),
+            scaleBase: f.scaleBase !== undefined ? f.scaleBase : (f.userData ? f.userData.scaleBase : 1.0),
+            seed: f.seed !== undefined ? f.seed : (f.userData ? f.userData.seed : 0)
         })) : [],
         ferns: typeof fernsList !== 'undefined' ? fernsList.map(f => ({
             posX: f.position.x,
@@ -329,6 +334,7 @@ function serializeMapData(name, existingId = null) {
             fernType: f.userData ? f.userData.fernType : 'spawn_fern_clump',
             variantIndex: f.userData ? f.userData.variantIndex : 0
         })) : [],
+        bushes: typeof exportBushesData === 'function' ? exportBushesData() : [],
         butterflies: typeof butterfliesList !== 'undefined' ? butterfliesList.map(b => ({
             centerX: b.centerX,
             centerZ: b.centerZ,
@@ -343,7 +349,11 @@ function serializeMapData(name, existingId = null) {
         })) : [],
         water: {
             level: typeof getWaterCurrentLevel === 'function' ? getWaterCurrentLevel() : 0.02,
-            mask: (typeof hasWaterDrawn === 'function' && hasWaterDrawn() && typeof waterCanvas !== 'undefined') ? waterCanvas.toDataURL('image/png') : null
+            mask: (typeof hasWaterDrawn === 'function' && hasWaterDrawn() && typeof waterCanvas !== 'undefined') ? waterCanvas.toDataURL('image/png') : null,
+            waveAmp: (typeof waterMat !== 'undefined' && waterMat && waterMat.uniforms && waterMat.uniforms.uAmp) ? waterMat.uniforms.uAmp.value : 0.70,
+            waveSpeed: (typeof waterMat !== 'undefined' && waterMat && waterMat.uniforms && waterMat.uniforms.uSpeed) ? waterMat.uniforms.uSpeed.value : 1.00,
+            waveChop: (typeof waterMat !== 'undefined' && waterMat && waterMat.uniforms && waterMat.uniforms.uChop) ? waterMat.uniforms.uChop.value : 0.80,
+            outerOcean: (typeof isOuterOceanEnabled !== 'undefined') ? isOuterOceanEnabled : true
         },
         fog: typeof exportFogData === 'function' ? exportFogData() : null,
         activeGrass: activeGrass,
@@ -352,6 +362,7 @@ function serializeMapData(name, existingId = null) {
             rockCount: typeof rocksList !== 'undefined' ? rocksList.length : 0,
             flowerCount: typeof flowersList !== 'undefined' ? flowersList.length : 0,
             fernCount: typeof fernsList !== 'undefined' ? fernsList.length : 0,
+            bushCount: typeof bushesList !== 'undefined' ? bushesList.length : 0,
             butterflyCount: typeof butterfliesList !== 'undefined' ? butterfliesList.length : 0,
             grassCount: activeGrass.length,
             version: '1.0'
@@ -509,10 +520,18 @@ function applyMapDataToScene(mapData) {
             if (tree.userData.trunkGroup) {
                 const thick = tData.trunkThickness || 1.0;
                 const hScale = tData.trunkScaleY || 1.0;
-                tree.userData.trunkGroup.scale.set(thick, hScale, thick);
-                if (tree.userData.leafMesh && tree.userData.baseTrunkHeight) {
-                    const baseOffset = tree.userData.leafMesh.userData.baseYOffset || 0;
-                    tree.userData.leafMesh.position.y = baseOffset + tree.userData.baseTrunkHeight * (hScale - 1.0);
+                if (tree.userData.isPine) {
+                    const scaleXZ = hScale * thick;
+                    tree.userData.trunkGroup.scale.set(scaleXZ, hScale, scaleXZ);
+                    if (tree.userData.leafMesh) {
+                        tree.userData.leafMesh.scale.set(scaleXZ, hScale, scaleXZ);
+                    }
+                } else {
+                    tree.userData.trunkGroup.scale.set(thick, hScale, thick);
+                    if (tree.userData.leafMesh && tree.userData.baseTrunkHeight) {
+                        const baseOffset = tree.userData.leafMesh.userData.baseYOffset || 0;
+                        tree.userData.leafMesh.position.y = baseOffset + tree.userData.baseTrunkHeight * (hScale - 1.0);
+                    }
                 }
             }
 
@@ -549,6 +568,14 @@ function applyMapDataToScene(mapData) {
         mapData.ferns.forEach(fData => recreateFern(fData));
     }
 
+    // 6c. Terapkan Semak Belukar (Bushes)
+    if (typeof clearAllBushes === 'function') {
+        clearAllBushes();
+    }
+    if (Array.isArray(mapData.bushes) && typeof recreateBush === 'function') {
+        mapData.bushes.forEach(bData => recreateBush(bData));
+    }
+
     // 7. Terapkan Kupu-kupu (Butterflies)
     if (typeof clearAllButterflies === 'function') {
         clearAllButterflies();
@@ -565,6 +592,34 @@ function applyMapDataToScene(mapData) {
             const valWaterLevel = document.getElementById('val-water-level');
             if (sliderWaterLevel) sliderWaterLevel.value = mapData.water.level;
             if (valWaterLevel) valWaterLevel.innerText = mapData.water.level.toFixed(2);
+        }
+        if (typeof setWaterParam === 'function') {
+            if (typeof mapData.water.waveAmp === 'number') {
+                setWaterParam('uAmp', mapData.water.waveAmp);
+                const s = document.getElementById('slider-wave-amp');
+                const v = document.getElementById('val-wave-amp');
+                if (s) s.value = mapData.water.waveAmp;
+                if (v) v.innerText = mapData.water.waveAmp.toFixed(2);
+            }
+            if (typeof mapData.water.waveSpeed === 'number') {
+                setWaterParam('uSpeed', mapData.water.waveSpeed);
+                const s = document.getElementById('slider-wave-speed');
+                const v = document.getElementById('val-wave-speed');
+                if (s) s.value = mapData.water.waveSpeed;
+                if (v) v.innerText = mapData.water.waveSpeed.toFixed(2);
+            }
+            if (typeof mapData.water.waveChop === 'number') {
+                setWaterParam('uChop', mapData.water.waveChop);
+                const s = document.getElementById('slider-wave-chop');
+                const v = document.getElementById('val-wave-chop');
+                if (s) s.value = mapData.water.waveChop;
+                if (v) v.innerText = mapData.water.waveChop.toFixed(2);
+            }
+        }
+        if (typeof mapData.water.outerOcean === 'boolean' && typeof setOuterOceanEnabled === 'function') {
+            setOuterOceanEnabled(mapData.water.outerOcean);
+            const c = document.getElementById('check-outer-ocean');
+            if (c) c.checked = mapData.water.outerOcean;
         }
         if (mapData.water.mask && typeof waterCanvas !== 'undefined' && typeof waterCtx !== 'undefined') {
             const img = new Image();

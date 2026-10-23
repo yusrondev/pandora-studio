@@ -245,6 +245,10 @@ function updateActiveModeHUD() {
         const text = selectFernBrush.options[selectFernBrush.selectedIndex] ? selectFernBrush.options[selectFernBrush.selectedIndex].text : selectFernBrush.value;
         modeLabel = `Kuas Pakis: ${text}`;
         modeIcon = '🌿';
+    } else if (typeof selectBushBrush !== 'undefined' && selectBushBrush && selectBushBrush.value !== 'none') {
+        const text = selectBushBrush.options[selectBushBrush.selectedIndex] ? selectBushBrush.options[selectBushBrush.selectedIndex].text : selectBushBrush.value;
+        modeLabel = `Kuas Semak: ${text}`;
+        modeIcon = '🌳';
     } else if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush && selectButterflyBrush.value !== 'none') {
         const text = selectButterflyBrush.options[selectButterflyBrush.selectedIndex] ? selectButterflyBrush.options[selectButterflyBrush.selectedIndex].text : selectButterflyBrush.value;
         modeLabel = `Kuas Kupu-kupu: ${text}`;
@@ -340,6 +344,13 @@ function updateActiveModeHUD() {
             c.classList.toggle('active', c.getAttribute('data-value') === val);
         });
     }
+    const bushGrid = document.getElementById('bush-picker-grid');
+    if (bushGrid && typeof selectBushBrush !== 'undefined' && selectBushBrush) {
+        const val = selectBushBrush.value;
+        bushGrid.querySelectorAll('.spawner-card').forEach(c => {
+            c.classList.toggle('active', c.getAttribute('data-value') === val);
+        });
+    }
     const butterflyGrid = document.getElementById('butterfly-picker-grid');
     if (butterflyGrid && typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush) {
         const val = selectButterflyBrush.value;
@@ -363,6 +374,7 @@ function cancelAllSelections() {
     if (typeof selectRockBrush !== 'undefined' && selectRockBrush) selectRockBrush.value = 'none';
     if (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush) selectFlowerBrush.value = 'none';
     if (typeof selectFernBrush !== 'undefined' && selectFernBrush) selectFernBrush.value = 'none';
+    if (typeof selectBushBrush !== 'undefined' && selectBushBrush) selectBushBrush.value = 'none';
     if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush) selectButterflyBrush.value = 'none';
     if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush) selectWaterBrush.value = 'none';
     if (typeof selectFogBrush !== 'undefined' && selectFogBrush) selectFogBrush.value = 'none';
@@ -529,16 +541,18 @@ setupSpawnerCardGrid('grass-picker-grid', 'select-grass-brush');
 setupSpawnerCardGrid('rock-picker-grid', 'select-rock-brush');
 setupSpawnerCardGrid('flower-picker-grid', 'select-flower-brush');
 setupSpawnerCardGrid('fern-picker-grid', 'select-fern-brush');
+setupSpawnerCardGrid('bush-picker-grid', 'select-bush-brush');
 setupSpawnerCardGrid('butterfly-picker-grid', 'select-butterfly-brush');
 setupSpawnerCardGrid('fog-picker-grid', 'select-fog-brush');
 
-// Tab switcher between Rumput, Jalan, Air, Bebatuan, Bunga, Pakis, Kupu-kupu, dan Kabut in Brush accordion
+// Tab switcher between Rumput, Jalan, Air, Bebatuan, Bunga, Pakis, Semak, Kupu-kupu, dan Kabut in Brush accordion
 const tabBrushGrass = document.getElementById('btn-tab-brush-grass');
 const tabBrushRoad = document.getElementById('btn-tab-brush-road');
 const tabBrushWater = document.getElementById('btn-tab-brush-water');
 const tabBrushRock = document.getElementById('btn-tab-brush-rock');
 const tabBrushFlower = document.getElementById('btn-tab-brush-flower');
 const tabBrushFern = document.getElementById('btn-tab-brush-fern');
+const tabBrushBush = document.getElementById('btn-tab-brush-bush');
 const tabBrushButterfly = document.getElementById('btn-tab-brush-butterfly');
 const tabBrushFog = document.getElementById('btn-tab-brush-fog');
 
@@ -548,6 +562,7 @@ const subpanelBrushWater = document.getElementById('subpanel-brush-water');
 const subpanelBrushRock = document.getElementById('subpanel-brush-rock');
 const subpanelBrushFlower = document.getElementById('subpanel-brush-flower');
 const subpanelBrushFern = document.getElementById('subpanel-brush-fern');
+const subpanelBrushBush = document.getElementById('subpanel-brush-bush');
 const subpanelBrushButterfly = document.getElementById('subpanel-brush-butterfly');
 const subpanelBrushFog = document.getElementById('subpanel-brush-fog');
 
@@ -558,6 +573,7 @@ const allBrushTabs = [
     { btn: tabBrushRock, panel: subpanelBrushRock },
     { btn: tabBrushFlower, panel: subpanelBrushFlower },
     { btn: tabBrushFern, panel: subpanelBrushFern },
+    { btn: tabBrushBush, panel: subpanelBrushBush },
     { btn: tabBrushButterfly, panel: subpanelBrushButterfly },
     { btn: tabBrushFog, panel: subpanelBrushFog }
 ];
@@ -590,6 +606,10 @@ function unsetOtherTools(activeToolName) {
     if (activeToolName !== 'fern' && typeof selectFernBrush !== 'undefined' && selectFernBrush && selectFernBrush.value !== 'none') {
         selectFernBrush.value = 'none';
         selectFernBrush.dispatchEvent(new Event('change'));
+    }
+    if (activeToolName !== 'bush' && typeof selectBushBrush !== 'undefined' && selectBushBrush && selectBushBrush.value !== 'none') {
+        selectBushBrush.value = 'none';
+        selectBushBrush.dispatchEvent(new Event('change'));
     }
     if (activeToolName !== 'butterfly' && typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush && selectButterflyBrush.value !== 'none') {
         selectButterflyBrush.value = 'none';
@@ -681,6 +701,16 @@ if (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush) {
 if (typeof selectFernBrush !== 'undefined' && selectFernBrush) {
     selectFernBrush.addEventListener('change', () => {
         if (selectFernBrush.value !== 'none') unsetOtherTools('fern');
+        else {
+            if (typeof updateToolControlsState === 'function') updateToolControlsState();
+            if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
+        }
+    });
+}
+
+if (typeof selectBushBrush !== 'undefined' && selectBushBrush) {
+    selectBushBrush.addEventListener('change', () => {
+        if (selectBushBrush.value !== 'none') unsetOtherTools('bush');
         else {
             if (typeof updateToolControlsState === 'function') updateToolControlsState();
             if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();

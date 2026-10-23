@@ -142,5 +142,33 @@ class FoxSoundController {
         osc.start(now);
         osc.stop(now + 0.14);
     }
+    playBushRustle(intensity = 0.5) {
+        if (this.muted || !this.ctx) return;
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const now = this.ctx.currentTime;
+        const dur = 0.16;
+        const bufferSize = Math.floor(this.ctx.sampleRate * dur);
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.45));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1200 + Math.random() * 600, now);
+        filter.Q.setValueAtTime(1.2, now);
+        const gain = this.ctx.createGain();
+        const vol = Math.min(0.18, 0.08 * (intensity || 0.5));
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+        noise.stop(now + dur);
+    }
 }
 const foxSoundFX = new FoxSoundController();

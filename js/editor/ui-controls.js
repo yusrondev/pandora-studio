@@ -72,6 +72,16 @@ const valFernMinSize = document.getElementById('val-fern-min-size');
 const valFernMaxSize = document.getElementById('val-fern-max-size');
 const btnClearAllFerns = document.getElementById('btn-clear-all-ferns');
 
+// Bush (Semak Belukar) Brush Controls
+const selectBushBrush = document.getElementById('select-bush-brush');
+const sliderBushRadius = document.getElementById('slider-bush-radius');
+const sliderBushDensity = document.getElementById('slider-bush-density');
+const sliderBushSize = document.getElementById('slider-bush-size');
+const valBushRadius = document.getElementById('val-bush-radius');
+const valBushDensity = document.getElementById('val-bush-density');
+const valBushSize = document.getElementById('val-bush-size');
+const btnClearAllBushes = document.getElementById('btn-clear-all-bushes');
+
 // Butterfly Brush Controls
 const selectButterflyBrush = document.getElementById('select-butterfly-brush');
 const sliderButterflyRadius = document.getElementById('slider-butterfly-radius');
@@ -325,6 +335,34 @@ if (btnClearAllFerns) {
     });
 }
 
+// Bush brush slider listeners
+if (sliderBushRadius && valBushRadius) {
+    sliderBushRadius.addEventListener('input', () => {
+        valBushRadius.innerText = parseFloat(sliderBushRadius.value).toFixed(1);
+        if (typeof bushParams !== 'undefined') bushParams.brushRadius = parseFloat(sliderBushRadius.value);
+    });
+}
+if (sliderBushDensity && valBushDensity) {
+    sliderBushDensity.addEventListener('input', () => {
+        valBushDensity.innerText = sliderBushDensity.value;
+        if (typeof bushParams !== 'undefined') bushParams.bushDensity = parseInt(sliderBushDensity.value);
+    });
+}
+if (sliderBushSize && valBushSize) {
+    sliderBushSize.addEventListener('input', () => {
+        valBushSize.innerText = parseFloat(sliderBushSize.value).toFixed(1);
+        if (typeof bushParams !== 'undefined') bushParams.bushSize = parseFloat(sliderBushSize.value);
+    });
+}
+if (btnClearAllBushes) {
+    btnClearAllBushes.addEventListener('click', () => {
+        if (typeof saveState === 'function') saveState();
+        if (typeof clearAllBushes === 'function') {
+            clearAllBushes();
+        }
+    });
+}
+
 // Butterfly brush slider listeners
 if (sliderButterflyRadius && valButterflyRadius) {
     sliderButterflyRadius.addEventListener('input', () => {
@@ -482,7 +520,10 @@ function updateEditorUI() {
     sliderTreeHeight.value = trunkValY;
     valTreeHeight.innerText = trunkValY.toFixed(2);
 
-    const trunkValThickness = targetTree.userData.trunkGroup ? targetTree.userData.trunkGroup.scale.x : 1.0;
+    let trunkValThickness = targetTree.userData.trunkGroup ? targetTree.userData.trunkGroup.scale.x : 1.0;
+    if (targetTree.userData.isPine && trunkValY > 0.001) {
+        trunkValThickness = trunkValThickness / trunkValY;
+    }
     sliderTreeThickness.value = trunkValThickness;
     valTreeThickness.innerText = trunkValThickness.toFixed(2);
 
@@ -511,11 +552,19 @@ sliderTreeHeight.addEventListener('input', () => {
 
     valTreeHeight.innerText = val.toFixed(2);
     if (targetTree && targetTree.userData.trunkGroup) {
-        targetTree.userData.trunkGroup.scale.y = val;
-
-        if (targetTree.userData.leafMesh && targetTree.userData.baseTrunkHeight) {
-            const baseOffset = targetTree.userData.leafMesh.userData.baseYOffset || 0;
-            targetTree.userData.leafMesh.position.y = baseOffset + targetTree.userData.baseTrunkHeight * (val - 1.0);
+        if (targetTree.userData.isPine) {
+            const thickVal = sliderTreeThickness ? parseFloat(sliderTreeThickness.value) || 1.0 : 1.0;
+            const scaleXZ = val * thickVal;
+            targetTree.userData.trunkGroup.scale.set(scaleXZ, val, scaleXZ);
+            if (targetTree.userData.leafMesh) {
+                targetTree.userData.leafMesh.scale.set(scaleXZ, val, scaleXZ);
+            }
+        } else {
+            targetTree.userData.trunkGroup.scale.y = val;
+            if (targetTree.userData.leafMesh && targetTree.userData.baseTrunkHeight) {
+                const baseOffset = targetTree.userData.leafMesh.userData.baseYOffset || 0;
+                targetTree.userData.leafMesh.position.y = baseOffset + targetTree.userData.baseTrunkHeight * (val - 1.0);
+            }
         }
         if (typeof SelectionOutlineManager !== 'undefined') {
             SelectionOutlineManager.updateBounds();
@@ -529,8 +578,17 @@ sliderTreeThickness.addEventListener('input', () => {
 
     valTreeThickness.innerText = val.toFixed(2);
     if (targetTree && targetTree.userData.trunkGroup) {
-        targetTree.userData.trunkGroup.scale.x = val;
-        targetTree.userData.trunkGroup.scale.z = val;
+        if (targetTree.userData.isPine) {
+            const heightVal = sliderTreeHeight ? parseFloat(sliderTreeHeight.value) || 1.0 : 1.0;
+            const scaleXZ = heightVal * val;
+            targetTree.userData.trunkGroup.scale.set(scaleXZ, heightVal, scaleXZ);
+            if (targetTree.userData.leafMesh) {
+                targetTree.userData.leafMesh.scale.set(scaleXZ, heightVal, scaleXZ);
+            }
+        } else {
+            targetTree.userData.trunkGroup.scale.x = val;
+            targetTree.userData.trunkGroup.scale.z = val;
+        }
         if (typeof SelectionOutlineManager !== 'undefined') {
             SelectionOutlineManager.updateBounds();
         }
@@ -586,7 +644,9 @@ sliderTreeCurvature.addEventListener('input', () => {
 
         if (updatedTree.userData.trunkGroup) {
             updatedTree.userData.trunkGroup.scale.set(trunkThickness, trunkScaleY, trunkThickness);
-            if (updatedTree.userData.leafMesh && updatedTree.userData.baseTrunkHeight) {
+            if (updatedTree.userData.isPine && updatedTree.userData.leafMesh) {
+                updatedTree.userData.leafMesh.scale.set(trunkThickness, trunkScaleY, trunkThickness);
+            } else if (updatedTree.userData.leafMesh && updatedTree.userData.baseTrunkHeight) {
                 const baseOffset = updatedTree.userData.leafMesh.userData.baseYOffset || 0;
                 updatedTree.userData.leafMesh.position.y = baseOffset + updatedTree.userData.baseTrunkHeight * (trunkScaleY - 1.0);
             }

@@ -1,797 +1,527 @@
 /* ========================================================
-   GENSHIN / GHIBLI STYLIZED LOTUS FLOWER MANAGER
-   High-performance GPU InstancedMesh system (Zero framedrops)
-   with anime cel-shaded foliage shader, matte watercolor
-   gradient, alpha cutout, and wind-responsive vertex sway
-   matching the dynamic grass system perfectly.
+   REALISTIC BOTANICAL FLOWER (BUNGA) MANAGER
+   Ported 100% from:
+   1. bunga-bertangkai.html (Bunga Bertangkai Kuning dengan Mahkota Berlapis, Cakram, & Benang Sari)
+   2. bunga-kuning.html (Tanaman Bunga Daun Kuning Berlobus Bertingkat)
+   High-performance procedural 3D flowers with organic wind sway,
+   brush placement & removal, terrain snapping, map-storage, and undo/redo.
    ======================================================== */
 
 // Global state for Flowers
+const flowersGroup = new THREE.Group();
+flowersGroup.name = 'flowersGroup';
+if (typeof scene !== 'undefined') {
+    scene.add(flowersGroup);
+}
+
 const flowersList = [];
 window.flowersList = flowersList;
+window.flowersGroup = flowersGroup;
 
-const maxFlowerCapacity = 10000;
-let instancedFlowerMesh = null;
-let flowerSystem = null;
+const maxFlowerCapacity = 5000;
 
-// Parameter kuas bunga (Ukuran static kecil, tidak ada slider ukuran di UI)
-// Parameter kuas bunga (Ukuran proporsional, bervolume, dan serasi dengan rumput & bebatuan)
+// Parameter kuas bunga
 const flowerParams = {
     brushRadius: 3.5,
     flowerDensity: 3,
     staticScale: 1.0
 };
 
-// 1. TEMA WARNA BUNGA GENSHIN (CEL-SHADED ANIME PALETTE)
-const FLOWER_THEMES = {
-    cyan: {
-        id: 'spawn_flower_cyan',
-        name: 'Nilotpala Cyan',
-        color: new THREE.Color(0x38bdf8),
-        stamenColor: new THREE.Color(0xfacc15)
-    },
-    blue: {
-        id: 'spawn_flower_blue',
-        name: 'Mystic Blue',
-        color: new THREE.Color(0x3b82f6),
-        stamenColor: new THREE.Color(0xfb923c)
-    },
-    violet: {
-        id: 'spawn_flower_violet',
-        name: 'Lunar Violet',
-        color: new THREE.Color(0xc084fc),
-        stamenColor: new THREE.Color(0xfde047)
-    },
-    solar: {
-        id: 'spawn_flower_solar',
-        name: 'Solar Amber',
-        color: new THREE.Color(0xfbbf24),
-        stamenColor: new THREE.Color(0xef4444)
-    }
+// ==========================================
+// 1. PSEUDO-RANDOM NUMBER GENERATOR (PRNG)
+// ==========================================
+function flowerRng(seed) {
+    let s = (seed || 123456789) % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return {
+        rnd: () => {
+            s = (s * 16807) % 2147483647;
+            return (s - 1) / 2147483646;
+        },
+        rr: (a, b) => {
+            s = (s * 16807) % 2147483647;
+            return a + (b - a) * ((s - 1) / 2147483646);
+        }
+    };
+}
+
+const smSmooth = (a, b, x) => {
+    x = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return x * x * (3 - 2 * x);
 };
 
-// 2. GENERATOR TEKSTUR ATLAS BUNGA ANIME (HAND-PAINTED GHIBLI/GENSHIN STYLE - ZERO BLACK OUTLINE)
-function createGenshinFlowerAtlasTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, 512, 512);
+// ==========================================
+// 2. PROCEDURAL TEXTURES (DARI SOURCE HTML)
+// ==========================================
+let _cachedFlowerLeafTex = null;
+function getFlowerLeafTexture() {
+    if (_cachedFlowerLeafTex) return _cachedFlowerLeafTex;
+    const W = 256, H = 512, c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
 
-    // ==========================================
-    // BAGIAN BAWAH (y: 256 s/d 512): SATU RANTING & DAUN ALAMI
-    // ==========================================
-    ctx.save();
+    const grd = g.createLinearGradient(0, H, 0, 0);
+    grd.addColorStop(0, '#c9c53c');
+    grd.addColorStop(0.18, '#e8b92a');
+    grd.addColorStop(0.55, '#f6b81a');
+    grd.addColorStop(1, '#ffc93c');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, W, H);
 
-    // 1. Batang Utama Tegak Alami (Tepat di tengah x=256, dari tanah y=512 sampai ujung mahkota y=260)
-    ctx.lineWidth = 12;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#059669';
-    ctx.beginPath();
-    ctx.moveTo(256, 512);
-    ctx.quadraticCurveTo(253, 386, 256, 260);
-    ctx.stroke();
+    const eg = g.createLinearGradient(0, 0, W, 0);
+    eg.addColorStop(0, 'rgba(235,130,20,.38)');
+    eg.addColorStop(0.28, 'rgba(235,130,20,0)');
+    eg.addColorStop(0.72, 'rgba(235,130,20,0)');
+    eg.addColorStop(1, 'rgba(235,130,20,.38)');
+    g.fillStyle = eg;
+    g.fillRect(0, 0, W, H);
 
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = '#10b981';
-    ctx.beginPath();
-    ctx.moveTo(256, 512);
-    ctx.quadraticCurveTo(253, 386, 256, 260);
-    ctx.stroke();
-
-    // Highlight batang
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#6ee7b7';
-    ctx.beginPath();
-    ctx.moveTo(255, 508);
-    ctx.quadraticCurveTo(252, 386, 255, 265);
-    ctx.stroke();
-
-    // 2. Sepasang Daun Bawah (Terhubung langsung ke batang di y=420)
-    // Daun kiri bawah
-    ctx.fillStyle = '#059669';
-    ctx.beginPath();
-    ctx.moveTo(254, 428);
-    ctx.bezierCurveTo(210, 436, 155, 418, 138, 386);
-    ctx.bezierCurveTo(152, 360, 208, 372, 254, 404);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.moveTo(254, 424);
-    ctx.bezierCurveTo(212, 430, 164, 414, 150, 388);
-    ctx.bezierCurveTo(162, 368, 208, 378, 254, 404);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = '#6ee7b7';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(254, 412);
-    ctx.quadraticCurveTo(200, 398, 148, 386);
-    ctx.stroke();
-
-    // Daun kanan bawah
-    ctx.fillStyle = '#047857';
-    ctx.beginPath();
-    ctx.moveTo(258, 418);
-    ctx.bezierCurveTo(302, 426, 356, 408, 374, 376);
-    ctx.bezierCurveTo(360, 350, 304, 362, 258, 394);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.moveTo(258, 414);
-    ctx.bezierCurveTo(300, 420, 348, 404, 362, 378);
-    ctx.bezierCurveTo(350, 358, 304, 368, 258, 394);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = '#a7f3d0';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(258, 402);
-    ctx.quadraticCurveTo(312, 388, 364, 376);
-    ctx.stroke();
-
-    // 3. Sepasang Daun Atas (Lebih ramping di y=335)
-    // Daun kiri atas
-    ctx.fillStyle = '#059669';
-    ctx.beginPath();
-    ctx.moveTo(255, 345);
-    ctx.bezierCurveTo(222, 350, 185, 336, 172, 312);
-    ctx.bezierCurveTo(182, 294, 220, 304, 255, 328);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.moveTo(255, 342);
-    ctx.bezierCurveTo(224, 346, 192, 334, 182, 314);
-    ctx.bezierCurveTo(190, 300, 220, 308, 255, 328);
-    ctx.closePath();
-    ctx.fill();
-
-    // Daun kanan atas
-    ctx.fillStyle = '#047857';
-    ctx.beginPath();
-    ctx.moveTo(257, 335);
-    ctx.bezierCurveTo(290, 340, 326, 326, 340, 302);
-    ctx.bezierCurveTo(330, 284, 292, 294, 257, 318);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.moveTo(257, 332);
-    ctx.bezierCurveTo(288, 336, 320, 324, 330, 304);
-    ctx.bezierCurveTo(322, 290, 292, 298, 257, 318);
-    ctx.closePath();
-    ctx.fill();
-
-    // 4. Kelopak Calyx Pelindung di Pucuk Ranting (Membungkus dasar bunga tepat di y=260)
-    ctx.fillStyle = '#059669';
-    ctx.beginPath();
-    ctx.moveTo(232, 260);
-    ctx.lineTo(244, 276);
-    ctx.lineTo(256, 266);
-    ctx.lineTo(268, 276);
-    ctx.lineTo(280, 260);
-    ctx.lineTo(256, 256);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = '#6ee7b7';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.restore();
-
-    // ==========================================
-    // BAGIAN ATAS (y: 0 s/d 256): SATU KEPALA BUNGA MEKAR (SINGLE BLOSSOM)
-    // ==========================================
-    const centerX = 256;
-    const centerY = 128;
-
-    // Helper fungsi menggambar kelopak bunga teratai bergaya anime watercolor (Tanpa outline gelap!)
-    function drawPetal(angle, length, width, baseColor, tipColor) {
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(angle);
-
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.bezierCurveTo(-width * 0.45, -length * 0.35, -width * 0.65, -length * 0.75, 0, -length);
-        ctx.bezierCurveTo(width * 0.65, -length * 0.75, width * 0.45, -length * 0.35, 0, 0);
-        ctx.closePath();
-
-        const grad = ctx.createLinearGradient(0, 0, 0, -length);
-        grad.addColorStop(0.0, baseColor);
-        grad.addColorStop(0.55, tipColor);
-        grad.addColorStop(1.0, '#ffffff'); // Ujung kelopak putih bersinar murni
-        ctx.fillStyle = grad;
-        ctx.fill();
-
-        // Stroke lembut putih translusen sebagai pendaran anime
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-        ctx.lineWidth = 1.0;
-        ctx.stroke();
-
-        ctx.restore();
+    const rng = flowerRng(987654);
+    for (let i = 0; i < 2600; i++) {
+        g.fillStyle = `rgba(${rng.rnd() < 0.5 ? '255,235,140' : '200,110,10'},${rng.rnd() * 0.07})`;
+        g.fillRect(rng.rnd() * W, rng.rnd() * H, rng.rr(1, 5), rng.rr(2, 10));
     }
 
-    // Layer 1: 12 Kelopak Luar Melingkar Penuh (Outer Petals)
-    const outerCount = 12;
-    for (let i = 0; i < outerCount; i++) {
-        const ang = (i * Math.PI * 2) / outerCount;
-        drawPetal(ang, 114, 48, '#cbd5e1', '#f1f5f9');
-    }
-
-    // Layer 2: 12 Kelopak Tengah (Mid Petals bersilang 15 derajat)
-    for (let i = 0; i < outerCount; i++) {
-        const ang = (i * Math.PI * 2) / outerCount + (Math.PI / outerCount);
-        drawPetal(ang, 94, 40, '#e2e8f0', '#ffffff');
-    }
-
-    // Layer 3: 8 Kelopak Dalam (Inner Petals)
-    for (let i = 0; i < 8; i++) {
-        const ang = (i * Math.PI * 2) / 8 + (Math.PI / 16);
-        drawPetal(ang, 70, 32, '#f1f5f9', '#ffffff');
-    }
-
-    // Inti Benang Sari Emas Cerah (Golden Stamen & Pod - Tanpa warna gelap)
-    ctx.save();
-
-    // 14 Titik Benang Sari Emas
-    const stamenRadius = 26;
-    for (let i = 0; i < 14; i++) {
-        const ang = (i * Math.PI * 2) / 14;
-        const px = centerX + Math.cos(ang) * stamenRadius;
-        const py = centerY + Math.sin(ang) * stamenRadius;
-
-        ctx.fillStyle = '#fef08a';
-        ctx.beginPath();
-        ctx.arc(px, py, 3.6, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = '#f59e0b';
-        ctx.lineWidth = 1.0;
-        ctx.stroke();
-    }
-
-    // Kantung sari tengah (Warm Honey Golden Seed Pod)
-    const podGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 18);
-    podGrad.addColorStop(0.0, '#fef9c3');
-    podGrad.addColorStop(0.60, '#facc15');
-    podGrad.addColorStop(1.0, '#d97706');
-    ctx.fillStyle = podGrad;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 18, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Bintik halus biji teratai keemasan
-    ctx.fillStyle = '#b45309';
-    for (let i = 0; i < 6; i++) {
-        const ang = (i * Math.PI * 2) / 6;
-        const bx = centerX + Math.cos(ang) * 9;
-        const by = centerY + Math.sin(ang) * 9;
-        ctx.beginPath();
-        ctx.arc(bx, by, 1.8, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 2.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.anisotropy = 4;
-    return texture;
-}
-
-// 3. GEOMETRI TERATAI 1 RANTING 1 BUNGA (PRESISI DUDUK DI PUNCAK RANTING)
-function createGenshinFlowerGeometry() {
-    const geometries = [];
-
-    // --- BAGIAN 1: SATU RANTING UTAMA (Single Upright Stem + Attached Leaves) ---
-    // 2 kartu bersilang 90 derajat: dasar menempel tanah (y=0.0), puncak tepat di y=0.60m
-    const stemHeight = 0.60;
-    const stemWidth = 0.40;
-    const stemPlane = new THREE.PlaneGeometry(stemWidth, stemHeight);
-    stemPlane.translate(0, stemHeight / 2, 0); // Dasar di y = 0.0, puncak di y = 0.60m
-
-    // Remap UV ranting ke separuh bawah tekstur atlas (v: 0.0 s/d 0.5)
-    const stemUv = stemPlane.attributes.uv;
-    for (let i = 0; i < stemUv.count; i++) {
-        stemUv.setY(i, stemUv.getY(i) * 0.5);
-    }
-
-    [0, Math.PI / 2].forEach(ang => {
-        const g = stemPlane.clone();
-        g.rotateY(ang);
-        geometries.push(g);
-    });
-
-    // --- BAGIAN 2: SATU KEPALA BUNGA TEPAT DI PUNCAK RANTING (Single Blossom Cup) ---
-    // Pusat bunga menempel persis di ujung atas ranting (y = 0.60m)
-    // Menggunakan grid 4x4 segmen agar kelopak melengkung membentuk cangkang bunga mekar 3D
-    const blossomSize = 0.50;
-    const blossomPlane = new THREE.PlaneGeometry(blossomSize, blossomSize, 4, 4);
-    blossomPlane.rotateX(-Math.PI / 2); // Menghadap ke atas
-    blossomPlane.translate(0, stemHeight, 0); // Duduk presisi di puncak ranting (y = 0.60m)
-
-    // Cekungkan kelopak ke atas (Pusat di y=0.60m menempel ranting, ujung kelopak naik melengkung anggun)
-    const bPos = blossomPlane.attributes.position;
-    for (let i = 0; i < bPos.count; i++) {
-        const x = bPos.getX(i);
-        const z = bPos.getZ(i);
-        const distCenter = Math.hypot(x, z);
-        bPos.setY(i, bPos.getY(i) + Math.pow(distCenter / (blossomSize * 0.5), 1.5) * 0.07);
-    }
-    blossomPlane.computeVertexNormals();
-
-    // Remap UV kelopak ke separuh atas tekstur atlas (v: 0.5 s/d 1.0)
-    const blossomUv = blossomPlane.attributes.uv;
-    for (let i = 0; i < blossomUv.count; i++) {
-        blossomUv.setY(i, 0.5 + blossomUv.getY(i) * 0.5);
-    }
-
-    // 3 layer silang mahkota bunga untuk volume rimbun dari segala arah (0, 45, dan 22.5 derajat)
-    [0, Math.PI / 4, Math.PI / 8].forEach((ang, idx) => {
-        const g = blossomPlane.clone();
-        g.rotateY(ang);
-        if (idx > 0) g.translate(0, idx * 0.006, 0); // Offset elevasi sangat tipis untuk layer kelopak
-        geometries.push(g);
-    });
-
-    // Gabungkan seluruh plane ke dalam 1 BufferGeometry tunggal
-    let totalVertices = 0;
-    let totalIndices = 0;
-    geometries.forEach(g => {
-        totalVertices += g.attributes.position.count;
-        totalIndices += g.index.count;
-    });
-
-    const posArray = new Float32Array(totalVertices * 3);
-    const uvArray = new Float32Array(totalVertices * 2);
-    const indexArray = new Uint32Array(totalIndices);
-
-    let vOffset = 0;
-    let iOffset = 0;
-
-    geometries.forEach(g => {
-        const pos = g.attributes.position.array;
-        const uv = g.attributes.uv.array;
-        const idx = g.index.array;
-
-        posArray.set(pos, vOffset * 3);
-        uvArray.set(uv, vOffset * 2);
-
-        for (let j = 0; j < idx.length; j++) {
-            indexArray[iOffset + j] = idx[j] + vOffset;
-        }
-
-        vOffset += g.attributes.position.count;
-        iOffset += idx.length;
-    });
-
-    const compoundGeo = new THREE.BufferGeometry();
-    compoundGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-    compoundGeo.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
-    compoundGeo.setIndex(new THREE.BufferAttribute(indexArray, 1));
-    compoundGeo.computeVertexNormals();
-
-    return compoundGeo;
-}
-
-const flowerTrampleSegAB = (typeof trampleSegABArray !== 'undefined') ? trampleSegABArray : [];
-const flowerTrampleSegData = (typeof trampleSegDataArray !== 'undefined') ? trampleSegDataArray : [];
-if (flowerTrampleSegAB.length === 0) {
-    for (let i = 0; i < 36; i++) {
-        flowerTrampleSegAB.push(new THREE.Vector4(0, 0, 0, 0));
-        flowerTrampleSegData.push(new THREE.Vector4(0, 0, 0, 0));
-    }
-}
-
-// 4. SHADER BUNGA KHAS ANIME GENSHIN IMPACT (CEL-SHADED + MATTE WATERCOLOR + ANGIN + TRAMPLE DEFORM)
-const genshinFlowerShader = {
-    uniforms: THREE.UniformsUtils.merge([
-        THREE.UniformsLib.lights,
-        THREE.UniformsLib.fog,
-        {
-            uTexture: { value: null },
-            uTime: { value: 0 },
-            uWindSpeed: { value: 1.0 },
-            uTrampleSegAB: { value: flowerTrampleSegAB },
-            uTrampleSegData: { value: flowerTrampleSegData },
-            uTrampleCount: { value: 0 },
-            uTrampleCenter: { value: new THREE.Vector2(0, 0) },
-            uTrampleRadiusSq: { value: 0.0 }
-        }
-    ]),
-    vertexShader: `
-        #include <common>
-        #include <shadowmap_pars_vertex>
-        #include <fog_pars_vertex>
-
-        #define MAX_TRAMPLE_SEGMENTS 36
-        uniform float uTime;
-        uniform float uWindSpeed;
-        uniform vec4 uTrampleSegAB[MAX_TRAMPLE_SEGMENTS];
-        uniform vec4 uTrampleSegData[MAX_TRAMPLE_SEGMENTS];
-        uniform int uTrampleCount;
-        uniform vec2 uTrampleCenter;
-        uniform float uTrampleRadiusSq;
-
-        varying vec2 vUv;
-        varying vec3 vWorldPosition;
-        varying vec3 vInstanceColor;
-
-        attribute vec3 instanceColor;
-
-        void main() {
-            vUv = uv;
-            vInstanceColor = instanceColor;
-            vec3 pos = position;
-
-            // Hitung injakan rubah (Trample) - kapsul trail jejak langkah
-            vec2 instXZ = vec2(instanceMatrix[3][0], instanceMatrix[3][2]);
-            float totalBend = 0.0;
-            vec2 bendDir = vec2(0.0);
-
-            vec2 trailDelta = instXZ - uTrampleCenter;
-            if (uTrampleCount > 0 && dot(trailDelta, trailDelta) <= uTrampleRadiusSq) {
-                for (int i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
-                    if (i >= uTrampleCount) break;
-                    float rawStrength = uTrampleSegData[i].x;
-                    if (rawStrength > 0.005) {
-                        vec2 a = uTrampleSegAB[i].xy;
-                        vec2 b = uTrampleSegAB[i].zw;
-                        float rad = uTrampleSegData[i].y * 1.35; // radius kontak injakan sedikit lebih luas untuk batang bunga
-
-                        vec2 pa = instXZ - a;
-                        vec2 ba = b - a;
-                        float baLenSq = dot(ba, ba);
-                        float h = (baLenSq > 0.0001) ? clamp(dot(pa, ba) / baLenSq, 0.0, 1.0) : 0.0;
-                        vec2 diff = pa - ba * h;
-                        float distSq = dot(diff, diff);
-                        float radSq = rad * rad;
-
-                        if (distSq < radSq) {
-                            float dist = sqrt(distSq);
-                            float t = 1.0 - (dist / rad);
-                            float smoothStrength = rawStrength * rawStrength * (3.0 - 2.0 * rawStrength);
-                            float weight = (t * t * (3.0 - 2.0 * t)) * smoothStrength;
-                            totalBend = max(totalBend, weight);
-                            vec2 dir = (dist > 0.005) ? (diff / dist) : vec2(0.0, 1.0);
-                            bendDir += dir * weight;
-                        }
-                    }
-                }
-            }
-
-            float bendFactor = clamp(totalBend, 0.0, 1.0);
-
-            // Goyangan hembusan angin organik selaras dengan rumput
-            if (uWindSpeed > 0.0) {
-                float instX = instanceMatrix[3][0];
-                float instZ = instanceMatrix[3][2];
-
-                float waveX = sin(uTime * 2.8 * uWindSpeed + instX * 1.5 + instZ * 1.5) * 0.10 * uWindSpeed;
-                float waveZ = cos(uTime * 2.2 * uWindSpeed + instX * 1.2 + instZ * 1.2) * 0.06 * uWindSpeed;
-
-                // Redam goyangan angin saat bunga sedang terinjak/roboh
-                waveX *= (1.0 - bendFactor * 0.85);
-                waveZ *= (1.0 - bendFactor * 0.85);
-
-                float swayHeight = pow(clamp(pos.y / 0.60, 0.0, 1.0), 1.35);
-                pos.x += waveX * swayHeight;
-                pos.z += waveZ * swayHeight;
-
-                pos.y += sin(uTime * 2.5 + instX + instZ) * 0.008 * swayHeight;
-            }
-
-            // Deformasi Roboh Saat Diinjak & Bangkit Kembali Berdiri
-            if (bendFactor > 0.001) {
-                float hRatio = clamp(pos.y / 0.60, 0.0, 1.0);
-                // Bunga rebah ke tanah (pos.y pipih mendekati tanah)
-                float squash = mix(1.0, 0.20, bendFactor * pow(hRatio, 0.85));
-                pos.y *= squash;
-
-                // Batang melengkung rebah ke arah langkah injakan
-                vec2 leanOffset = (length(bendDir) > 0.001) ? normalize(bendDir) * 0.42 * bendFactor * pow(hRatio, 1.2) : vec2(0.0);
-                pos.x += leanOffset.x;
-                pos.z += leanOffset.y;
-            }
-
-            vec4 worldPosition = modelMatrix * instanceMatrix * vec4(pos, 1.0);
-            vWorldPosition = worldPosition.xyz;
-
-            vec3 objectNormal = vec3(0.0, 1.0, 0.0);
-            vec3 transformedNormal = normalMatrix * objectNormal;
-
-            vec4 mvPosition = viewMatrix * worldPosition;
-            gl_Position = projectionMatrix * mvPosition;
-
-            #include <shadowmap_vertex>
-            #include <fog_vertex>
-        }
-    `,
-    fragmentShader: `
-        #include <common>
-        #include <packing>
-        #include <shadowmap_pars_fragment>
-        #include <fog_pars_fragment>
-
-        uniform sampler2D uTexture;
-        varying vec2 vUv;
-        varying vec3 vWorldPosition;
-        varying vec3 vInstanceColor;
-
-        // Helper non-linear smoothstep untuk gradasi kelopak cat air
-        float petalGradSpread(float t) {
-            return t * t * (3.0 - 2.0 * t);
-        }
-
-        void main() {
-            vec4 texColor = texture2D(uTexture, vUv);
-
-            // Cutoff alpha bersih (Mencegah garis tepi buram / halo gelap)
-            if (texColor.a < 0.48) discard;
-
-            // Unpremultiply alpha: pulihkan warna murni dari alpha anti-aliasing (Anti-border hitam!)
-            vec3 cleanTexRgb = clamp(texColor.rgb / max(texColor.a, 0.001), 0.0, 1.0);
-
-            vec3 finalColor;
-
-            if (vUv.y < 0.5) {
-                // Separuh Bawah: Rumpun Batang & Daun (Hijau jade/emerald alami)
-                vec3 stemBase = vec3(0.04, 0.36, 0.22);
-                vec3 stemTop = vec3(0.10, 0.64, 0.38);
-                vec3 greenTone = mix(stemBase, stemTop, vUv.y * 2.0);
-                finalColor = greenTone * cleanTexRgb * 1.25;
-            } else {
-                // Separuh Atas: Kepala Bunga Teratai
-                vec2 center = vec2(0.5, 0.75);
-                vec2 delta = (vUv - center);
-                delta.y *= 2.0; // Koreksi rasio lingkaran
-                float dist = length(delta);
-
-                if (dist < 0.12) {
-                    // Inti benang sari & putik emas cerah bercahaya
-                    vec3 goldCore = vec3(1.0, 0.82, 0.20);
-                    finalColor = mix(goldCore, cleanTexRgb, 0.25);
-                } else {
-                    // Kelopak Teratai: Diwarnai oleh vInstanceColor dengan gradasi cat air bersih tanpa border hitam
-                    float petalSpread = smoothstep(0.12, 0.44, dist);
-                    vec3 basePetal = vInstanceColor * 0.90;
-                    vec3 tipPetal = mix(vInstanceColor * 1.35, vec3(1.0, 1.0, 1.0), 0.45);
-
-                    vec3 watercolor = mix(basePetal, tipPetal, petalGradSpread(petalSpread));
-                    // Modulasi halus mempertahankan kecerahan kelopak murni (tidak pernah gelap ke hitam!)
-                    finalColor = watercolor * mix(vec3(0.92), vec3(1.08), cleanTexRgb.r);
-                }
-            }
-
-            // Pencahayaan Cel-Shaded Lembut (Soft Toon Diffuse, bukan plastik mengkilap!)
-            float shadowVal = 1.0;
-            #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
-                shadowVal = getShadow(
-                    directionalShadowMap[0],
-                    directionalLightShadows[0].shadowMapSize,
-                    directionalLightShadows[0].shadowBias,
-                    directionalLightShadows[0].shadowRadius,
-                    vDirectionalShadowCoord[0]
-                );
-            #endif
-
-            float softShadow = smoothstep(0.0, 0.9, shadowVal);
-            vec3 litColor = mix(finalColor * 0.52, finalColor * 1.08, softShadow);
-
-            // Cahaya pendaran magis tipis pada kelopak teratai saat senja/malam
-            if (vUv.y >= 0.5) {
-                litColor += vInstanceColor * 0.16;
-            }
-
-            gl_FragColor = vec4(litColor, 1.0);
-            #include <fog_fragment>
-        }
-    `
-};
-
-// 5. INISIALISASI SISTEM BUNGA INSTANCED
-function initGenshinFlowerSystem() {
-    const texture = createGenshinFlowerAtlasTexture();
-    const geometry = createGenshinFlowerGeometry();
-
-    const material = new THREE.ShaderMaterial({
-        uniforms: THREE.UniformsUtils.clone(genshinFlowerShader.uniforms),
-        vertexShader: genshinFlowerShader.vertexShader,
-        fragmentShader: genshinFlowerShader.fragmentShader,
-        side: THREE.DoubleSide,
-        lights: true,
-        fog: true
-    });
-    material.uniforms.uTexture.value = texture;
-
-    instancedFlowerMesh = new THREE.InstancedMesh(geometry, material, maxFlowerCapacity);
-    instancedFlowerMesh.receiveShadow = true;
-    instancedFlowerMesh.castShadow = true;
-    instancedFlowerMesh.count = 0; // Mulai dari 0 instance (Draw call 0 saat belum ada bunga)
-
-    // Material bayangan khusus berbasis alpha atlas: bayangan hanya mengikuti bentuk fisik ranting & kelopak, bukan kotak penuh!
-    const flowerDepthMaterial = new THREE.MeshDepthMaterial({
-        depthPacking: THREE.RGBADepthPacking,
-        map: texture,
-        alphaTest: 0.48,
-        side: THREE.DoubleSide
-    });
-
-    flowerDepthMaterial.onBeforeCompile = (shader) => {
-        shader.uniforms.uTime = genshinFlowerShader.uniforms.uTime;
-        shader.uniforms.uWindSpeed = genshinFlowerShader.uniforms.uWindSpeed;
-        shader.uniforms.uTrampleSegAB = genshinFlowerShader.uniforms.uTrampleSegAB;
-        shader.uniforms.uTrampleSegData = genshinFlowerShader.uniforms.uTrampleSegData;
-        shader.uniforms.uTrampleCount = genshinFlowerShader.uniforms.uTrampleCount;
-        shader.uniforms.uTrampleCenter = genshinFlowerShader.uniforms.uTrampleCenter;
-        shader.uniforms.uTrampleRadiusSq = genshinFlowerShader.uniforms.uTrampleRadiusSq;
-
-        shader.vertexShader = shader.vertexShader.replace(
-            '#include <common>',
-            `#include <common>
-            #define MAX_TRAMPLE_SEGMENTS 36
-            uniform float uTime;
-            uniform float uWindSpeed;
-            uniform vec4 uTrampleSegAB[MAX_TRAMPLE_SEGMENTS];
-            uniform vec4 uTrampleSegData[MAX_TRAMPLE_SEGMENTS];
-            uniform int uTrampleCount;
-            uniform vec2 uTrampleCenter;
-            uniform float uTrampleRadiusSq;
-            `
-        );
-
-        shader.vertexShader = shader.vertexShader.replace(
-            '#include <begin_vertex>',
-            `
-            vec3 transformed = vec3( position );
-
-            vec2 instXZ = vec2(instanceMatrix[3][0], instanceMatrix[3][2]);
-            float totalBend = 0.0;
-            vec2 bendDir = vec2(0.0);
-
-            vec2 trailDelta = instXZ - uTrampleCenter;
-            if (uTrampleCount > 0 && dot(trailDelta, trailDelta) <= uTrampleRadiusSq) {
-                for (int i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
-                    if (i >= uTrampleCount) break;
-                    float rawStrength = uTrampleSegData[i].x;
-                    if (rawStrength > 0.005) {
-                        vec2 a = uTrampleSegAB[i].xy;
-                        vec2 b = uTrampleSegAB[i].zw;
-                        float rad = uTrampleSegData[i].y * 1.35;
-
-                        vec2 pa = instXZ - a;
-                        vec2 ba = b - a;
-                        float baLenSq = dot(ba, ba);
-                        float h = (baLenSq > 0.0001) ? clamp(dot(pa, ba) / baLenSq, 0.0, 1.0) : 0.0;
-                        vec2 diff = pa - ba * h;
-                        float distSq = dot(diff, diff);
-                        float radSq = rad * rad;
-
-                        if (distSq < radSq) {
-                            float dist = sqrt(distSq);
-                            float t = 1.0 - (dist / rad);
-                            float smoothStrength = rawStrength * rawStrength * (3.0 - 2.0 * rawStrength);
-                            float weight = (t * t * (3.0 - 2.0 * t)) * smoothStrength;
-                            totalBend = max(totalBend, weight);
-                            vec2 dir = (dist > 0.005) ? (diff / dist) : vec2(0.0, 1.0);
-                            bendDir += dir * weight;
-                        }
-                    }
-                }
-            }
-
-            float bendFactor = clamp(totalBend, 0.0, 1.0);
-
-            if (uWindSpeed > 0.0) {
-                float instX = instanceMatrix[3][0];
-                float instZ = instanceMatrix[3][2];
-                float waveX = sin(uTime * 2.8 * uWindSpeed + instX * 1.5 + instZ * 1.5) * 0.10 * uWindSpeed * (1.0 - bendFactor * 0.85);
-                float waveZ = cos(uTime * 2.2 * uWindSpeed + instX * 1.2 + instZ * 1.2) * 0.06 * uWindSpeed * (1.0 - bendFactor * 0.85);
-                float swayHeight = pow(clamp(transformed.y / 0.60, 0.0, 1.0), 1.35);
-                transformed.x += waveX * swayHeight;
-                transformed.z += waveZ * swayHeight;
-            }
-
-            if (bendFactor > 0.001) {
-                float hRatio = clamp(transformed.y / 0.60, 0.0, 1.0);
-                float squash = mix(1.0, 0.20, bendFactor * pow(hRatio, 0.85));
-                transformed.y *= squash;
-
-                vec2 leanOffset = (length(bendDir) > 0.001) ? normalize(bendDir) * 0.42 * bendFactor * pow(hRatio, 1.2) : vec2(0.0);
-                transformed.x += leanOffset.x;
-                transformed.z += leanOffset.y;
-            }
-            `
-        );
+    const vein = (x0, y0, x1, y1, w, col) => {
+        g.strokeStyle = col;
+        g.lineWidth = w;
+        g.lineCap = 'round';
+        g.beginPath();
+        g.moveTo(x0, y0);
+        g.quadraticCurveTo((x0 + x1) / 2 + (x1 - x0) * 0.1, (y0 + y1) / 2 - 6, x1, y1);
+        g.stroke();
     };
 
-    instancedFlowerMesh.customDepthMaterial = flowerDepthMaterial;
-
-    const colorsArray = new Float32Array(maxFlowerCapacity * 3);
-    geometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorsArray, 3));
-
-    if (typeof scene !== 'undefined') {
-        scene.add(instancedFlowerMesh);
+    for (let k = 0; k < 8; k++) {
+        const u = 0.2 + k * 0.095, y = (1 - u) * H;
+        for (const s of [-1, 1]) {
+            vein(W / 2, y, W / 2 + s * W * 0.46, y - H * 0.075, 2.2, 'rgba(160,80,0,.22)');
+            vein(W / 2, y - 1, W / 2 + s * W * 0.46, y - H * 0.075 - 1, 1.2, 'rgba(255,236,150,.45)');
+            for (let m = 1; m < 4; m++) {
+                const f = m / 4;
+                vein(W / 2 + s * W * 0.46 * f, y - H * 0.075 * f, W / 2 + s * W * 0.46 * f + s * 14, y - H * 0.075 * f - 20, 0.8, 'rgba(255,230,140,.25)');
+            }
+        }
     }
+    vein(W / 2, H * 0.98, W / 2, H * 0.02, 4, 'rgba(150,80,0,.28)');
+    vein(W / 2 - 1, H * 0.98, W / 2 - 1, H * 0.02, 2, 'rgba(255,238,160,.65)');
 
-    return { mesh: instancedFlowerMesh, material: material };
+    _cachedFlowerLeafTex = new THREE.CanvasTexture(c);
+    _cachedFlowerLeafTex.anisotropy = 4;
+    return _cachedFlowerLeafTex;
 }
 
-flowerSystem = initGenshinFlowerSystem();
+let _cachedFlowerPetalTex = null;
+function getFlowerPetalTexture() {
+    if (_cachedFlowerPetalTex) return _cachedFlowerPetalTex;
+    const W = 128, H = 256, c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
 
-// 6. REBUILD TRANSFORMS BUNGA (1 PANGGILAN CEPAT UNTUK SEMUA INSTANCE AKTIF)
-function rebuildFlowerTransforms() {
-    if (!instancedFlowerMesh) return;
+    const gr = g.createLinearGradient(0, H, 0, 0);
+    grdColor: gr.addColorStop(0, '#f08a10');
+    gr.addColorStop(0.25, '#f9ae14');
+    gr.addColorStop(0.7, '#ffc928');
+    gr.addColorStop(1, '#ffe36a');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, W, H);
 
-    const count = flowersList.length;
-    const dummy = new THREE.Object3D();
-    const colorAttr = instancedFlowerMesh.geometry.attributes.instanceColor;
-
-    const worldUp = new THREE.Vector3(0, 1, 0);
-    const quat = new THREE.Quaternion();
-    const blendedNormal = new THREE.Vector3();
-
-    for (let i = 0; i < count; i++) {
-        const f = flowersList[i];
-
-        const terrainY = (typeof getTerrainHeightFast === 'function')
-            ? getTerrainHeightFast(f.posX, f.posZ)
-            : 0;
-        const terrainNormal = (typeof getTerrainNormalAt === 'function')
-            ? getTerrainNormalAt(f.posX, f.posZ)
-            : worldUp;
-
-        f.posY = terrainY;
-
-        blendedNormal.copy(terrainNormal).lerp(worldUp, 0.35).normalize();
-        quat.setFromUnitVectors(worldUp, blendedNormal);
-
-        dummy.position.set(f.posX, terrainY, f.posZ);
-        dummy.rotation.setFromQuaternion(quat);
-        dummy.rotateY(f.rotY || 0);
-
-        // Skala bervolume proporsional dengan sedikit variasi organik alami (0.92 s/d 1.18)
-        const seed = (Math.sin(f.posX * 12.9898 + f.posZ * 78.233) * 43758.5453) % 1;
-        const scaleVar = 0.92 + Math.abs(seed) * 0.26;
-        const s = flowerParams.staticScale * scaleVar;
-        dummy.scale.set(s, s, s);
-        dummy.updateMatrix();
-
-        instancedFlowerMesh.setMatrixAt(i, dummy.matrix);
-
-        // Terapkan warna instanced sesuai tema bunga
-        const themeKey = f.themeKey || 'cyan';
-        const theme = FLOWER_THEMES[themeKey] || FLOWER_THEMES.cyan;
-        colorAttr.setXYZ(i, theme.color.r, theme.color.g, theme.color.b);
+    for (let k = -7; k <= 7; k++) {
+        g.strokeStyle = `rgba(${k % 2 ? '200,100,0' : '255,235,150'},${k % 2 ? 0.16 : 0.3})`;
+        g.lineWidth = 1.3;
+        g.beginPath();
+        g.moveTo(W / 2 + k * 1.5, H * 0.98);
+        g.quadraticCurveTo(W / 2 + k * 6, H * 0.5, W / 2 + k * 8.5, H * 0.03);
+        g.stroke();
     }
 
-    instancedFlowerMesh.count = count;
-    instancedFlowerMesh.instanceMatrix.needsUpdate = true;
-    colorAttr.needsUpdate = true;
+    const rng = flowerRng(456789);
+    for (let i = 0; i < 900; i++) {
+        g.fillStyle = `rgba(255,${(200 + rng.rnd() * 50) | 0},120,${rng.rnd() * 0.08})`;
+        g.fillRect(rng.rnd() * W, rng.rnd() * H, 1, rng.rr(4, 14));
+    }
+
+    _cachedFlowerPetalTex = new THREE.CanvasTexture(c);
+    _cachedFlowerPetalTex.anisotropy = 4;
+    return _cachedFlowerPetalTex;
 }
 
+// ==========================================
+// 3. PROCEDURAL GEOMETRIES
+// ==========================================
+let _cachedLobedLeafGeo = null;
+function getSharedLobedLeafGeometry() {
+    if (_cachedLobedLeafGeo) return _cachedLobedLeafGeo;
+    const U = 36, V = 14, pos = [], uv = [], idx = [];
+    for (let i = 0; i <= U; i++) {
+        const u = i / U;
+        const env = Math.pow(Math.sin(Math.PI * Math.pow(u, 0.72)), 0.85);
+        const lobe = 0.4 + 0.6 * Math.pow(Math.abs(Math.sin(u * Math.PI * 3.5 + 0.6)), 0.55);
+        const w = 0.5 * env * lobe * (0.05 + 0.95 * smSmooth(0.05, 0.22, u));
+        for (let j = 0; j <= V; j++) {
+            const v = (j / V) * 2 - 1, x = v * w;
+            let y = u, z = -0.5 * u * u + 0.7 * x * x / (0.15 + w);
+            z += 0.025 * Math.sin(u * 38 + v * 4) * Math.abs(v) * smSmooth(0.2, 0.5, u);
+            z += 0.02 * Math.sin(u * 9) * v;
+            pos.push(x, y, z);
+            uv.push(j / V, u);
+        }
+    }
+    for (let i = 0; i < U; i++) {
+        for (let j = 0; j < V; j++) {
+            const a = i * (V + 1) + j, b = a + 1, c = a + V + 1, d = c + 1;
+            idx.push(a, c, b, b, c, d);
+        }
+    }
+    _cachedLobedLeafGeo = new THREE.BufferGeometry();
+    _cachedLobedLeafGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    _cachedLobedLeafGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    _cachedLobedLeafGeo.setIndex(idx);
+    _cachedLobedLeafGeo.computeVertexNormals();
+    return _cachedLobedLeafGeo;
+}
+
+let _cachedPetalGeo = null;
+function getSharedPetalGeometry() {
+    if (_cachedPetalGeo) return _cachedPetalGeo;
+    const U = 28, V = 12, pos = [], uv = [], idx = [];
+    for (let i = 0; i <= U; i++) {
+        const u = i / U;
+        const w = 0.5 * Math.pow(Math.sin(Math.PI * Math.pow(u, 0.82)), 0.75) * (0.12 + 0.88 * smSmooth(0, 0.35, u));
+        for (let j = 0; j <= V; j++) {
+            const v = (j / V) * 2 - 1, x = v * w;
+            let z = -0.5 * u * u * u + 0.9 * x * x / (0.18 + w) + 0.012 * Math.sin(u * 22 + v * 3) * Math.abs(v) * u;
+            pos.push(x, u, z);
+            uv.push(j / V, u);
+        }
+    }
+    for (let i = 0; i < U; i++) {
+        for (let j = 0; j < V; j++) {
+            const a = i * (V + 1) + j, b = a + 1, c = a + V + 1, d = c + 1;
+            idx.push(a, c, b, b, c, d);
+        }
+    }
+    _cachedPetalGeo = new THREE.BufferGeometry();
+    _cachedPetalGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    _cachedPetalGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    _cachedPetalGeo.setIndex(idx);
+    _cachedPetalGeo.computeVertexNormals();
+    return _cachedPetalGeo;
+}
+
+// ==========================================
+// 4. SHARED MATERIALS
+// ==========================================
+let _flowerMaterials = null;
+function getFlowerMaterials() {
+    if (_flowerMaterials) return _flowerMaterials;
+    const leafTex = getFlowerLeafTexture();
+    const petalTex = getFlowerPetalTexture();
+
+    _flowerMaterials = {
+        leaf: new THREE.MeshStandardMaterial({
+            map: leafTex,
+            roughness: 0.5,
+            side: THREE.DoubleSide,
+            emissive: 0xb0a000,
+            emissiveMap: leafTex,
+            emissiveIntensity: 0.12
+        }),
+        leafYellowPlant: new THREE.MeshStandardMaterial({
+            map: leafTex,
+            roughness: 0.5,
+            metalness: 0,
+            side: THREE.DoubleSide,
+            emissive: 0xffa000,
+            emissiveMap: leafTex,
+            emissiveIntensity: 0.16
+        }),
+        petal: new THREE.MeshStandardMaterial({
+            map: petalTex,
+            roughness: 0.42,
+            side: THREE.DoubleSide,
+            emissive: 0xff9a00,
+            emissiveMap: petalTex,
+            emissiveIntensity: 0.22
+        }),
+        stem: new THREE.MeshStandardMaterial({
+            color: 0x8fa22a,
+            roughness: 0.6
+        }),
+        stemYellowPlant: new THREE.MeshStandardMaterial({
+            color: 0x93a22c,
+            roughness: 0.65
+        }),
+        disc: new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.85
+        }),
+        filament: new THREE.MeshStandardMaterial({
+            color: 0xf2d170,
+            roughness: 0.6
+        }),
+        anther: new THREE.MeshStandardMaterial({
+            color: 0xe8870f,
+            roughness: 0.55
+        })
+    };
+    return _flowerMaterials;
+}
+
+// Helper orientasi basis transform matriks
+function orientPart(inst, i, p, d, up, sx, sy, roll, rng) {
+    let z = up.clone().sub(d.clone().multiplyScalar(up.dot(d)));
+    if (z.length() < 0.05) z.set(rng.rr(-1, 1), 0.3, rng.rr(-1, 1));
+    z.normalize();
+    const x = new THREE.Vector3().crossVectors(d, z).normalize();
+    z.applyAxisAngle(d, roll);
+    x.applyAxisAngle(d, roll);
+    const m = new THREE.Matrix4().makeBasis(x, d, z);
+    m.multiply(new THREE.Matrix4().makeScale(sx, sy, Math.min(sx, sy)));
+    m.setPosition(p);
+    inst.setMatrixAt(i, m);
+}
+
+// ==========================================
+// 5. PEMBUAT MODEL 1: BUNGA BERTANGKAI (FROM bunga-bertangkai.html)
+// ==========================================
+function createBungaBertangkaiMesh(seed, scale = 0.55) {
+    const rng = flowerRng(seed);
+    const mats = getFlowerMaterials();
+    const plant = new THREE.Group();
+    const Y = new THREE.Vector3(0, 1, 0);
+    const tmp = new THREE.Color();
+
+    // 1. Tangkai melengkung alami
+    const p1x = 0.05 + rng.rr(-0.02, 0.02);
+    const p1z = 0.02 + rng.rr(-0.02, 0.02);
+    const p2x = 0.10 + rng.rr(-0.03, 0.03);
+    const p2z = 0.04 + rng.rr(-0.03, 0.03);
+    const p3x = 0.08 + rng.rr(-0.04, 0.04);
+    const p3z = 0.22 + rng.rr(-0.04, 0.04);
+
+    const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(p1x, 0.6, p1z),
+        new THREE.Vector3(p2x, 1.2, p2z),
+        new THREE.Vector3(p3x, 1.7, p3z)
+    ]);
+
+    const stemGeo = new THREE.TubeGeometry(curve, 24, 0.017, 8, false);
+    const stemMesh = new THREE.Mesh(stemGeo, mats.stem);
+    stemMesh.castShadow = true;
+    stemMesh.receiveShadow = true;
+    plant.add(stemMesh);
+
+    // 2. Daun di tangkai (5 daun bertingkat)
+    const NL = 5;
+    const leavesInst = new THREE.InstancedMesh(getSharedLobedLeafGeometry(), mats.leaf, NL);
+    leavesInst.castShadow = true;
+    leavesInst.receiveShadow = true;
+
+    for (let k = 0; k < NL; k++) {
+        const t = 0.08 + k * 0.12;
+        const p = curve.getPointAt(t);
+        const T = curve.getTangentAt(t);
+        const P = new THREE.Vector3().crossVectors(T, Y).normalize();
+        const R = P.applyAxisAngle(T, k * 2.399 + 0.5);
+        const a = 1.05 + rng.rr(-0.1, 0.1);
+        const d = T.clone().multiplyScalar(Math.cos(a)).add(R.multiplyScalar(Math.sin(a))).normalize();
+        const sc = THREE.MathUtils.lerp(0.72, 0.45, k / NL) * rng.rr(0.95, 1.05);
+        orientPart(leavesInst, k, p, d, Y, sc * 1.2, sc, rng.rr(-0.3, 0.3), rng);
+        tmp.setRGB(0.5 + rng.rnd() * 0.12, 1, 0.45);
+        leavesInst.setColorAt(k, tmp);
+    }
+    leavesInst.instanceMatrix.needsUpdate = true;
+    leavesInst.instanceColor.needsUpdate = true;
+    plant.add(leavesInst);
+
+    // 3. Kepala Bunga (Mahkota Bunga 36 Kelopak dalam 4 Lingkaran)
+    const tp = curve.getPointAt(1);
+    const axis = curve.getTangentAt(1).normalize();
+    const P0 = new THREE.Vector3().crossVectors(axis, Y).normalize();
+    const P1 = new THREE.Vector3().crossVectors(axis, P0).normalize();
+    const rings = [
+        [9, 1.38, 0.46, 0],
+        [9, 1.08, 0.41, 0.5],
+        [8, 0.78, 0.34, 0.25],
+        [7, 0.46, 0.27, 0.7]
+    ];
+
+    const petalsInst = new THREE.InstancedMesh(getSharedPetalGeometry(), mats.petal, 36);
+    petalsInst.castShadow = true;
+    petalsInst.receiveShadow = true;
+    let pi = 0;
+
+    rings.forEach(([cnt, ang, len, off], r) => {
+        for (let k = 0; k < cnt; k++) {
+            const th = (k + off) / cnt * Math.PI * 2 + rng.rr(-0.06, 0.06);
+            const a = ang + rng.rr(-0.06, 0.06);
+            const rad = P0.clone().multiplyScalar(Math.cos(th)).add(P1.clone().multiplyScalar(Math.sin(th)));
+            const d = axis.clone().multiplyScalar(Math.cos(a)).add(rad.multiplyScalar(Math.sin(a))).normalize();
+            const L = len * rng.rr(0.94, 1.06);
+            orientPart(petalsInst, pi, tp.clone().add(axis.clone().multiplyScalar(0.01 * r)), d, axis, L * 1.3, L, rng.rr(-0.1, 0.1), rng);
+            const sh = 1 - r * 0.04;
+            tmp.setRGB(1, (0.93 - r * 0.03) + rng.rnd() * 0.05, sh - 0.08 + rng.rnd() * 0.1);
+            petalsInst.setColorAt(pi, tmp);
+            pi++;
+        }
+    });
+    petalsInst.instanceMatrix.needsUpdate = true;
+    petalsInst.instanceColor.needsUpdate = true;
+    plant.add(petalsInst);
+
+    // 4. Cakram Tengah Organik Bunga
+    const dg = new THREE.IcosahedronGeometry(0.1, 3);
+    const dp = dg.attributes.position;
+    const col = [];
+    for (let i = 0; i < dp.count; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(dp, i).normalize();
+        const bump = 0.5 + 0.5 * Math.sin(v.x * 70) * Math.sin(v.z * 70 + v.y * 20);
+        v.multiplyScalar(0.1 * (1 + 0.06 * bump));
+        dp.setXYZ(i, v.x, v.y, v.z);
+        const h = Math.max(0, v.y / 0.1);
+        tmp.setRGB(0.42 + 0.35 * bump * (1 - h * 0.4), 0.2 + 0.18 * bump, 0.04);
+        col.push(tmp.r, tmp.g, tmp.b);
+    }
+    dg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    dg.computeVertexNormals();
+
+    const disc = new THREE.Mesh(dg, mats.disc);
+    disc.scale.set(1, 0.55, 1);
+    disc.position.copy(tp).add(axis.clone().multiplyScalar(0.03));
+    disc.quaternion.setFromUnitVectors(Y, axis);
+    disc.castShadow = true;
+    disc.receiveShadow = true;
+    plant.add(disc);
+
+    // 5. Benang Sari (40 Filamen & Kepala Sari)
+    const NS = 40;
+    const filInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.0028, 0.0035, 0.13, 6), mats.filament, NS);
+    const anthInst = new THREE.InstancedMesh(new THREE.SphereGeometry(0.011, 8, 6), mats.anther, NS);
+    const qM = new THREE.Quaternion(), oneM = new THREE.Vector3(1, 1, 1), mat4 = new THREE.Matrix4();
+
+    for (let k = 0; k < NS; k++) {
+        const th = k * 2.399;
+        const rad = P0.clone().multiplyScalar(Math.cos(th)).add(P1.clone().multiplyScalar(Math.sin(th)));
+        const b = rng.rr(0.3, 0.95);
+        const d = axis.clone().multiplyScalar(Math.cos(b)).add(rad.multiplyScalar(Math.sin(b))).normalize();
+        const base = tp.clone().add(axis.clone().multiplyScalar(0.055)).add(rad.clone().multiplyScalar(rng.rr(0.01, 0.06)));
+        qM.setFromUnitVectors(Y, d);
+        const len = rng.rr(0.8, 1.2);
+        mat4.compose(base.clone().add(d.clone().multiplyScalar(0.065 * len)), qM, new THREE.Vector3(1, len, 1));
+        filInst.setMatrixAt(k, mat4);
+        mat4.compose(base.clone().add(d.clone().multiplyScalar(0.13 * len)), qM, oneM);
+        anthInst.setMatrixAt(k, mat4);
+    }
+    filInst.instanceMatrix.needsUpdate = true;
+    anthInst.instanceMatrix.needsUpdate = true;
+    plant.add(filInst);
+    plant.add(anthInst);
+
+    plant.scale.set(scale, scale, scale);
+    plant.userData = {
+        seed: seed,
+        scale: scale,
+        baseScale: scale,
+        windPhase: rng.rnd() * 6.28
+    };
+
+    return plant;
+}
+
+// ==========================================
+// 6. PEMBUAT MODEL 2: BUNGA KUNING (FROM bunga-kuning.html)
+// ==========================================
+function createBungaKuningMesh(seed, scale = 0.55) {
+    const rng = flowerRng(seed);
+    const mats = getFlowerMaterials();
+    const plant = new THREE.Group();
+    const Y = new THREE.Vector3(0, 1, 0);
+    const tmp = new THREE.Color();
+
+    const perStem = 13;
+    const inst = new THREE.InstancedMesh(getSharedLobedLeafGeometry(), mats.leafYellowPlant, perStem + 1);
+    inst.castShadow = true;
+    inst.receiveShadow = true;
+    let n = 0;
+
+    function addLeafToPlant(p, d, scVal, roll) {
+        let z = Y.clone().sub(d.clone().multiplyScalar(Y.dot(d)));
+        if (z.length() < 0.2) z = new THREE.Vector3(rng.rr(-1, 1), 0.2, rng.rr(-1, 1));
+        z.normalize();
+        const x = new THREE.Vector3().crossVectors(d, z).normalize();
+        z.applyAxisAngle(d, roll);
+        x.applyAxisAngle(d, roll);
+        const m = new THREE.Matrix4().makeBasis(x, d, z);
+        m.multiply(new THREE.Matrix4().makeScale(scVal * rng.rr(1.05, 1.3), scVal, scVal));
+        m.setPosition(p);
+        inst.setMatrixAt(n, m);
+        const r = rng.rnd();
+        tmp.setRGB(1, 0.88 + r * 0.12, 0.7 + rng.rnd() * 0.25);
+        inst.setColorAt(n, tmp);
+        n++;
+    }
+
+    const th = rng.rr(-Math.PI, Math.PI);
+    const h = 1.5;
+    const lean = 0.2;
+    const ox = Math.cos(th), oz = Math.sin(th);
+
+    const pts = [
+        new THREE.Vector3(rng.rr(-0.06, 0.06), 0, rng.rr(-0.06, 0.06)),
+        new THREE.Vector3(ox * lean * 0.2, h * 0.35, oz * lean * 0.2),
+        new THREE.Vector3(ox * lean * 0.6, h * 0.7, oz * lean * 0.6),
+        new THREE.Vector3(ox * lean, h, oz * lean)
+    ];
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const tubeGeo = new THREE.TubeGeometry(curve, 24, 0.013, 8, false);
+    const tubeMesh = new THREE.Mesh(tubeGeo, mats.stemYellowPlant);
+    tubeMesh.castShadow = true;
+    tubeMesh.receiveShadow = true;
+    plant.add(tubeMesh);
+
+    for (let k = 0; k < perStem; k++) {
+        const t = 0.1 + 0.9 * (k / perStem) + rng.rr(-0.02, 0.02);
+        const p = curve.getPointAt(Math.min(t, 1));
+        const T = curve.getTangentAt(Math.min(t, 1));
+        const P = new THREE.Vector3().crossVectors(T, Y);
+        if (P.length() < 0.1) P.set(1, 0, 0);
+        P.normalize();
+        const R = P.applyAxisAngle(T, k * 2.399 + rng.rr(-0.3, 0.3));
+        const a = THREE.MathUtils.lerp(1.0, 0.5, t) + rng.rr(-0.12, 0.12);
+        const d = T.clone().multiplyScalar(Math.cos(a)).add(R.multiplyScalar(Math.sin(a))).normalize();
+        addLeafToPlant(p, d, THREE.MathUtils.lerp(0.9, 0.38, t) * rng.rr(0.92, 1.08), rng.rr(-0.5, 0.5));
+    }
+    const tp = curve.getPointAt(1);
+    const tt = curve.getTangentAt(1);
+    addLeafToPlant(tp, tt.clone().add(new THREE.Vector3(ox * 0.15, 0.05, oz * 0.15)).normalize(), 0.3 * rng.rr(0.9, 1.1), rng.rr(-0.4, 0.4));
+
+    inst.count = n;
+    inst.instanceMatrix.needsUpdate = true;
+    inst.instanceColor.needsUpdate = true;
+    plant.add(inst);
+
+    plant.scale.set(scale, scale, scale);
+    plant.userData = {
+        seed: seed,
+        scale: scale,
+        baseScale: scale,
+        windPhase: rng.rnd() * 6.28
+    };
+
+    return plant;
+}
+
+// ==========================================
 // 7. PENEMPATAN BUNGA DENGAN KUAS (PLACE FLOWERS)
-function placeFlowersAt(intersectPoint, flowerType = 'spawn_flower_cyan') {
-    let themeKey = 'cyan';
-    if (flowerType === 'spawn_flower_blue') themeKey = 'blue';
-    else if (flowerType === 'spawn_flower_violet') themeKey = 'violet';
-    else if (flowerType === 'spawn_flower_solar') themeKey = 'solar';
+// ==========================================
+function placeFlowersAt(intersectPoint, flowerType = 'spawn_flower_stem') {
+    if (!intersectPoint || flowerType === 'none' || flowerType === 'remove') return;
 
-    const radius = flowerParams.brushRadius;
-    const count = (radius < 1.2) ? 1 : Math.max(1, Math.round(flowerParams.flowerDensity * (radius / 3.0)));
+    const radius = flowerParams.brushRadius || 3.5;
+    const density = flowerParams.flowerDensity || 3;
+    const count = (radius <= 1.2) ? 1 : Math.max(1, Math.round(density * (radius / 3.0)));
     const groundBound = (typeof groundSize !== 'undefined' ? groundSize / 2 : 75) - 1.0;
 
     let addedAny = false;
@@ -806,36 +536,67 @@ function placeFlowersAt(intersectPoint, flowerType = 'spawn_flower_cyan') {
 
         if (Math.abs(posX) > groundBound || Math.abs(posZ) > groundBound) continue;
 
-        // Cegah penumpukan terlalu rapat (< 0.50 unit untuk rumpun bervolume)
+        // Cegah penumpukan terlalu rapat (< 0.45 unit)
         let tooClose = false;
         for (let j = 0; j < flowersList.length; j++) {
             const existing = flowersList[j];
-            if (Math.hypot(existing.posX - posX, existing.posZ - posZ) < 0.50) {
+            if (Math.hypot(existing.posX - posX, existing.posZ - posZ) < 0.45) {
                 tooClose = true;
                 break;
             }
         }
-        if (tooClose) continue;
+        if (tooClose && count > 1) continue;
 
-        flowersList.push({
+        const posY = (typeof getTerrainHeightFast === 'function')
+            ? getTerrainHeightFast(posX, posZ)
+            : intersectPoint.y;
+
+        const rotY = Math.random() * Math.PI * 2;
+        const scale = (0.50 + Math.random() * 0.16) * (flowerParams.staticScale || 1.0);
+        const seed = Math.floor(Math.random() * 2147483647);
+
+        let mesh;
+        if (flowerType === 'spawn_flower_yellow') {
+            mesh = createBungaKuningMesh(seed, scale);
+        } else {
+            mesh = createBungaBertangkaiMesh(seed, scale);
+        }
+
+        mesh.position.set(posX, posY, posZ);
+        mesh.rotation.y = rotY;
+        flowersGroup.add(mesh);
+
+        const flowerItem = {
             posX: posX,
-            posY: 0,
+            posY: posY,
             posZ: posZ,
-            rotY: Math.random() * Math.PI * 2,
+            rotY: rotY,
+            scale: scale,
+            seed: seed,
             flowerType: flowerType,
-            themeKey: themeKey
-        });
+            mesh: mesh,
+            baseQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, 0, 'YXZ')),
+            trample: 0.0,
+            trampleVel: 0.0,
+            trampleDir: new THREE.Vector2(0, 1),
+            swayPhase: (posX * 0.5 + posZ * 0.3) + Math.random() * 2.0,
+            swaySpeed: 1.2 + Math.random() * 0.5,
+            wasTrampled: false,
+            isUnderPaws: false
+        };
 
+        flowersList.push(flowerItem);
         addedAny = true;
     }
 
     if (addedAny) {
-        rebuildFlowerTransforms();
         updateFlowerCountUI();
     }
 }
 
-// 8. HAPUS BUNGA DALAM RADIUS TERTENTU (KLIK KANAN ATAU KUAS REMOVE)
+// ==========================================
+// 8. HAPUS BUNGA DALAM RADIUS TERTENTU (KLIK KANAN / KUAS REMOVE)
+// ==========================================
 function removeFlowersInRadius(hitPoint, radius) {
     if (!flowersList || flowersList.length === 0) return false;
     let removedAny = false;
@@ -844,59 +605,262 @@ function removeFlowersInRadius(hitPoint, radius) {
         const f = flowersList[i];
         const dist = Math.hypot(f.posX - hitPoint.x, f.posZ - hitPoint.z);
         if (dist <= radius) {
+            if (f.mesh) {
+                flowersGroup.remove(f.mesh);
+            }
             flowersList.splice(i, 1);
             removedAny = true;
         }
     }
 
     if (removedAny) {
-        rebuildFlowerTransforms();
         updateFlowerCountUI();
     }
     return removedAny;
 }
 
+// ==========================================
 // 9. BERSIHKAN SEMUA BUNGA (CLEAR ALL)
+// ==========================================
 function clearAllFlowers() {
-    if (!flowersList || flowersList.length === 0) return;
+    for (let i = 0; i < flowersList.length; i++) {
+        if (flowersList[i].mesh) {
+            flowersGroup.remove(flowersList[i].mesh);
+        }
+    }
     flowersList.length = 0;
-    rebuildFlowerTransforms();
     updateFlowerCountUI();
 }
 
-// 10. RECREATE FLOWER (UNTUK UNDO/REDO & LOAD MAP)
+// ==========================================
+// 10. REKREASI BUNGA DARI SAVE DATA (MAP-STORAGE / UNDO-REDO)
+// ==========================================
 function recreateFlower(data) {
-    const themeKey = data.themeKey || (data.flowerType ? data.flowerType.replace('spawn_flower_', '') : 'cyan');
+    const rawType = data.flowerType || '';
+    const fType = (rawType.includes('yellow') || rawType.includes('solar'))
+        ? 'spawn_flower_yellow'
+        : 'spawn_flower_stem';
 
-    flowersList.push({
-        posX: data.posX !== undefined ? data.posX : (data.position ? data.position.x : 0),
-        posY: data.posY !== undefined ? data.posY : 0,
-        posZ: data.posZ !== undefined ? data.posZ : (data.position ? data.position.z : 0),
-        rotY: data.rotY !== undefined ? data.rotY : (data.rotation ? data.rotation.y : Math.random() * Math.PI * 2),
-        flowerType: data.flowerType || ('spawn_flower_' + themeKey),
-        themeKey: themeKey
-    });
+    const seed = data.seed || Math.floor(Math.random() * 2147483647);
+    const posX = data.posX !== undefined ? data.posX : 0;
+    const posZ = data.posZ !== undefined ? data.posZ : 0;
+    const posY = (data.posY !== undefined && data.posY !== 0)
+        ? data.posY
+        : (typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(posX, posZ) : 0);
+    const rotY = (data.rotY !== undefined) ? data.rotY : Math.random() * Math.PI * 2;
+    const scale = data.scale || data.scaleBase || (0.50 + Math.random() * 0.16);
 
-    rebuildFlowerTransforms();
+    let mesh;
+    if (fType === 'spawn_flower_yellow') {
+        mesh = createBungaKuningMesh(seed, scale);
+    } else {
+        mesh = createBungaBertangkaiMesh(seed, scale);
+    }
+
+    mesh.position.set(posX, posY, posZ);
+    mesh.rotation.y = rotY;
+    flowersGroup.add(mesh);
+
+    const flowerItem = {
+        posX: posX,
+        posY: posY,
+        posZ: posZ,
+        rotY: rotY,
+        scale: scale,
+        seed: seed,
+        flowerType: fType,
+        mesh: mesh,
+        baseQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, 0, 'YXZ')),
+        trample: 0.0,
+        trampleVel: 0.0,
+        trampleDir: new THREE.Vector2(0, 1),
+        swayPhase: (posX * 0.5 + posZ * 0.3) + Math.random() * 2.0,
+        swaySpeed: 1.2 + Math.random() * 0.5,
+        wasTrampled: false,
+        isUnderPaws: false
+    };
+
+    flowersList.push(flowerItem);
     updateFlowerCountUI();
 }
 
-// 11. UPDATE RENDER LOOP (ANIMASI WAKTU, ANGIN, DAN RESPON INJAKAN)
-function updateFlowers(delta, elapsedTime) {
-    if (flowerSystem && flowerSystem.material && flowerSystem.material.uniforms) {
-        const u = flowerSystem.material.uniforms;
-        if (u.uTime) u.uTime.value = elapsedTime;
-
-        if (typeof grassSystem !== 'undefined' && grassSystem && grassSystem.material && grassSystem.material.uniforms) {
-            const gu = grassSystem.material.uniforms;
-            if (u.uTrampleCount && gu.uTrampleCount) u.uTrampleCount.value = gu.uTrampleCount.value;
-            if (u.uTrampleCenter && gu.uTrampleCenter) u.uTrampleCenter.value.copy(gu.uTrampleCenter.value);
-            if (u.uTrampleRadiusSq && gu.uTrampleRadiusSq) u.uTrampleRadiusSq.value = gu.uTrampleRadiusSq.value;
+// ==========================================
+// 11. REBUILD TRANSFORMS (PENYESUAIAN KETINGGIAN TERRAIN SCULPT)
+// ==========================================
+function rebuildFlowerTransforms() {
+    if (!flowersList || flowersList.length === 0) return;
+    for (let i = 0; i < flowersList.length; i++) {
+        const f = flowersList[i];
+        if (f.mesh && typeof getTerrainHeightFast === 'function') {
+            const ty = getTerrainHeightFast(f.posX, f.posZ);
+            f.posY = ty;
+            f.mesh.position.y = ty;
         }
     }
 }
 
-// 12. UPDATE UI COUNTER
+// ==========================================
+// 12. UPDATE RENDER LOOP (FISIK ROBOH RUBAH & ANGIN ALAMI)
+// ==========================================
+const _flowerFoxSegA = new THREE.Vector2();
+const _flowerFoxSegB = new THREE.Vector2();
+const _flowerFoxSegDir = new THREE.Vector2();
+const _flowerPushAway = new THREE.Vector2();
+const _flowerPushDir = new THREE.Vector2();
+const _flowerRotAxis = new THREE.Vector3();
+const _flowerTrampleQuat = new THREE.Quaternion();
+const _flowerSwayQuat = new THREE.Quaternion();
+const _flowerEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+function updateFlowers(delta, elapsedTime) {
+    if (!flowersList || flowersList.length === 0) return;
+
+    const dt = Math.min(delta || 0.016, 0.1);
+
+    // 1. Deteksi Posisi, Arah, dan Tubuh Rubah (Fox)
+    let foxPos = null;
+    let foxFwd = null;
+    let isFoxActive = false;
+
+    if (typeof isPlayMode !== 'undefined' && isPlayMode && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root && wolfCharacter.root.visible) {
+        foxPos = wolfCharacter.root.position;
+        const rotY = wolfCharacter.root.rotation.y || 0;
+        foxFwd = new THREE.Vector2(-Math.cos(rotY), Math.sin(rotY));
+        isFoxActive = true;
+    } else if (typeof CinematicManager !== 'undefined' && CinematicManager.isFoxEnabled && wolfCharacter && wolfCharacter.root && wolfCharacter.root.visible) {
+        foxPos = wolfCharacter.root.position;
+        const rotY = wolfCharacter.root.rotation.y || 0;
+        foxFwd = new THREE.Vector2(-Math.cos(rotY), Math.sin(rotY));
+        isFoxActive = true;
+    }
+
+    let foxSegLenSq = 0.0;
+    if (isFoxActive && foxPos && foxFwd) {
+        // Kapsul tubuh rubah dari pinggul/belakang hingga dada/kepala
+        _flowerFoxSegA.set(foxPos.x - foxFwd.x * 0.38, foxPos.z - foxFwd.y * 0.38);
+        _flowerFoxSegB.set(foxPos.x + foxFwd.x * 0.48, foxPos.z + foxFwd.y * 0.48);
+        _flowerFoxSegDir.copy(_flowerFoxSegB).sub(_flowerFoxSegA);
+        foxSegLenSq = _flowerFoxSegDir.lengthSq();
+    }
+
+    // 2. Loop Simulasi Tiap Tangkai Bunga
+    for (let i = 0; i < flowersList.length; i++) {
+        const f = flowersList[i];
+        if (!f.mesh) continue;
+
+        // Inisialisasi properti jika belum ada
+        if (!f.baseQuaternion) {
+            f.baseQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, f.rotY || 0, 0, 'YXZ'));
+            f.trample = 0.0;
+            f.trampleVel = 0.0;
+            f.trampleDir = new THREE.Vector2(0, 1);
+            f.swayPhase = (f.posX * 0.5 + f.posZ * 0.3) + Math.random() * 2.0;
+            f.swaySpeed = 1.2 + Math.random() * 0.5;
+            f.wasTrampled = false;
+        }
+
+        let isUnderPaws = false;
+
+        // Evaluasi kontak fisik dengan rubah
+        if (isFoxActive && foxPos && foxFwd) {
+            const dy = Math.abs(foxPos.y - f.posY);
+            if (dy < 1.7) {
+                // Cari titik terdekat pada kapsul tubuh rubah ke posisi batang bunga
+                let t = 0.5;
+                if (foxSegLenSq > 0.0001) {
+                    const dotVal = (f.posX - _flowerFoxSegA.x) * _flowerFoxSegDir.x + (f.posZ - _flowerFoxSegA.y) * _flowerFoxSegDir.y;
+                    t = THREE.MathUtils.clamp(dotVal / foxSegLenSq, 0.0, 1.0);
+                }
+                const nearX = _flowerFoxSegA.x + _flowerFoxSegDir.x * t;
+                const nearZ = _flowerFoxSegA.y + _flowerFoxSegDir.y * t;
+                const dx = f.posX - nearX;
+                const dz = f.posZ - nearZ;
+                const dist = Math.hypot(dx, dz);
+
+                // Radius interaksi proporsional dengan skala tanaman (~0.9m - 1.25m)
+                const plantScale = f.scale || 0.6;
+                const contactRadius = 0.95 * (plantScale / 0.55);
+
+                if (dist < contactRadius) {
+                    isUnderPaws = true;
+                    // Kuat roboh semakin dalam ditabrak (0.0 -> 1.0)
+                    const targetStrength = Math.pow(1.0 - (dist / contactRadius), 0.65);
+
+                    // Arah rebah/roboh: menjauh dari tubuh rubah + terbawa laju langkah rubah
+                    if (dist > 0.02) {
+                        _flowerPushAway.set(dx / dist, dz / dist);
+                    } else {
+                        _flowerPushAway.copy(foxFwd);
+                    }
+                    _flowerPushDir.copy(_flowerPushAway).lerp(foxFwd, 0.42).normalize();
+                    f.trampleDir.copy(_flowerPushDir);
+
+                    // Rebah cepat saat tersentuh rubah
+                    f.trample = THREE.MathUtils.lerp(f.trample, targetStrength, Math.min(1.0, dt * 20.0));
+                    f.trampleVel = (targetStrength - f.trample) * 12.0;
+                }
+            }
+        }
+
+        // Jika rubah sudah lewat / menjauh: Fisik Pegas Membal (Damped Spring Rebound)
+        if (!isUnderPaws) {
+            const springK = 42.0; // Kekakuan pegas batang
+            const damping = 7.5;  // Redaman goyangan
+            const springAcc = -springK * f.trample - damping * f.trampleVel;
+            f.trampleVel += springAcc * dt;
+            f.trample += f.trampleVel * dt;
+
+            // Jika energi pegas sudah habis mendekati 0, set diam sempurna
+            if (Math.abs(f.trample) < 0.002 && Math.abs(f.trampleVel) < 0.01) {
+                f.trample = 0.0;
+                f.trampleVel = 0.0;
+            }
+        }
+
+        // Terapkan Deformasi Fisik Roboh dan Goyangan Angin
+        if (Math.abs(f.trample) > 0.001 || isUnderPaws) {
+            // Sudut rebah batang bunga hingga ~75 derajat
+            const bendAngle = f.trample * 1.32;
+            // Getaran gesekan halus saat rubah sedang bersentuhan langsung
+            const rustle = isUnderPaws ? (Math.sin(elapsedTime * 36.0 + f.seed) * 0.04 * f.trample) : 0.0;
+
+            // Sumbu rotasi (Cross product UP x PUSH): (pushDir.y, 0, -pushDir.x)
+            _flowerRotAxis.set(f.trampleDir.y, 0, -f.trampleDir.x).normalize();
+            _flowerTrampleQuat.setFromAxisAngle(_flowerRotAxis, bendAngle + rustle);
+
+            // Kalikan orientasi roboh dengan baseQuaternion tanaman
+            f.mesh.quaternion.copy(_flowerTrampleQuat).multiply(f.baseQuaternion);
+
+            // Kompresi rebah ke tanah dan mekar lateral
+            const trPos = Math.max(0, f.trample);
+            const squash = Math.max(0.22, 1.0 - trPos * 0.65);
+            const spread = 1.0 + trPos * 0.16;
+            const sc = f.scale || 0.6;
+            f.mesh.scale.set(sc * spread, sc * squash, sc * spread);
+
+            f.wasTrampled = true;
+        } else {
+            // Reset skala jika baru saja pulih dari injakan
+            if (f.wasTrampled) {
+                const sc = f.scale || 0.6;
+                f.mesh.scale.set(sc, sc, sc);
+                f.wasTrampled = false;
+            }
+
+            // Goyangan angin alami
+            const t = elapsedTime * f.swaySpeed + f.swayPhase;
+            const swayX = Math.sin(t * 0.9) * 0.025;
+            const swayZ = Math.cos(t * 0.7 + 1.0) * 0.02;
+            _flowerEuler.set(swayZ, 0, swayX, 'YXZ');
+            _flowerSwayQuat.setFromEuler(_flowerEuler);
+            f.mesh.quaternion.copy(_flowerSwayQuat).multiply(f.baseQuaternion);
+        }
+    }
+}
+
+// ==========================================
+// 13. UPDATE UI COUNTER
+// ==========================================
 function updateFlowerCountUI() {
     const countBadge = document.getElementById('val-flower-count');
     if (countBadge) {
@@ -908,8 +872,8 @@ function updateFlowerCountUI() {
 }
 
 // Export ke window global
-window.flowerSystem = flowerSystem;
-window.instancedFlowerMesh = instancedFlowerMesh;
+window.flowersGroup = flowersGroup;
+window.flowersList = flowersList;
 window.placeFlowersAt = placeFlowersAt;
 window.removeFlowersInRadius = removeFlowersInRadius;
 window.clearAllFlowers = clearAllFlowers;
@@ -918,3 +882,5 @@ window.rebuildFlowerTransforms = rebuildFlowerTransforms;
 window.updateFlowers = updateFlowers;
 window.updateFlowerCountUI = updateFlowerCountUI;
 window.flowerParams = flowerParams;
+window.createBungaBertangkaiMesh = createBungaBertangkaiMesh;
+window.createBungaKuningMesh = createBungaKuningMesh;

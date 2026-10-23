@@ -300,7 +300,7 @@ function spawnTreeAtLocation(typeCode, posX, posZ) {
     else if (typeCode === 'birch_yellow') tree = createGenshinBirchTree(birchYellowMat, 1000, initialBranchCount, initialCurvature);
     else if (typeCode === 'birch_teal') tree = createGenshinBirchTree(birchTealMat, 1000, initialBranchCount, initialCurvature);
     else if (typeCode === 'birch_red') tree = createGenshinBirchTree(autumnRedMat, 900, initialBranchCount, initialCurvature);
-    else if (typeCode === 'pine') tree = createGenshinPineTree(pineEmeraldMat, 2200, initialCurvature);
+    else if (typeCode === 'pine') tree = createGenshinPineTree(pineEmeraldMat, 3100, initialCurvature);
 
     if (!tree) {
         resetSeed();
@@ -321,10 +321,18 @@ function spawnTreeAtLocation(typeCode, posX, posZ) {
     const initialThickness = thicknessEl ? parseFloat(thicknessEl.value) || 1.0 : 1.0;
 
     if (tree.userData.trunkGroup) {
-        tree.userData.trunkGroup.scale.set(initialThickness, initialTrunkHeight, initialThickness);
-        if (tree.userData.leafMesh && tree.userData.baseTrunkHeight) {
-            const baseOffset = tree.userData.leafMesh.userData.baseYOffset || 0;
-            tree.userData.leafMesh.position.y = baseOffset + tree.userData.baseTrunkHeight * (initialTrunkHeight - 1.0);
+        if (tree.userData.isPine) {
+            const scaleXZ = initialTrunkHeight * initialThickness;
+            tree.userData.trunkGroup.scale.set(scaleXZ, initialTrunkHeight, scaleXZ);
+            if (tree.userData.leafMesh) {
+                tree.userData.leafMesh.scale.set(scaleXZ, initialTrunkHeight, scaleXZ);
+            }
+        } else {
+            tree.userData.trunkGroup.scale.set(initialThickness, initialTrunkHeight, initialThickness);
+            if (tree.userData.leafMesh && tree.userData.baseTrunkHeight) {
+                const baseOffset = tree.userData.leafMesh.userData.baseYOffset || 0;
+                tree.userData.leafMesh.position.y = baseOffset + tree.userData.baseTrunkHeight * (initialTrunkHeight - 1.0);
+            }
         }
     }
 

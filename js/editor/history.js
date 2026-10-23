@@ -43,7 +43,11 @@ function captureStateSnapshot() {
                 posZ: t.position.z,
                 rotY: t.rotation.y,
                 trunkScaleY: t.userData.trunkGroup ? t.userData.trunkGroup.scale.y : 1.0,
-                trunkThickness: t.userData.trunkGroup ? t.userData.trunkGroup.scale.x : 1.0,
+                trunkThickness: t.userData.trunkGroup ? (
+                    t.userData.isPine && t.userData.trunkGroup.scale.y > 0.001
+                        ? (t.userData.trunkGroup.scale.x / t.userData.trunkGroup.scale.y)
+                        : t.userData.trunkGroup.scale.x
+                ) : 1.0,
                 branchCount: t.userData.branchCount || 3,
                 curvature: t.userData.curvature !== undefined ? t.userData.curvature : 0.5,
                 leafCount: t.userData.leafMesh ? t.userData.leafMesh.count : 1200,
@@ -66,8 +70,9 @@ function captureStateSnapshot() {
             posY: f.posY !== undefined ? f.posY : (f.position ? f.position.y : 0),
             posZ: f.posZ !== undefined ? f.posZ : (f.position ? f.position.z : 0),
             rotY: f.rotY !== undefined ? f.rotY : (f.rotation ? f.rotation.y : 0),
-            flowerType: f.flowerType || (f.userData ? f.userData.flowerType : 'spawn_flower_cyan'),
-            themeKey: f.themeKey || (f.userData ? f.userData.themeKey : 'cyan')
+            flowerType: f.flowerType || (f.userData ? f.userData.flowerType : 'spawn_flower_stem'),
+            scaleBase: f.scaleBase !== undefined ? f.scaleBase : (f.userData ? f.userData.scaleBase : 1.0),
+            seed: f.seed !== undefined ? f.seed : (f.userData ? f.userData.seed : 0)
         })) : [],
         ferns: (typeof fernsList !== 'undefined') ? fernsList.map(f => ({
             posX: f.position.x,
@@ -83,6 +88,7 @@ function captureStateSnapshot() {
             fernType: f.userData ? f.userData.fernType : 'spawn_fern_clump',
             variantIndex: f.userData ? f.userData.variantIndex : 0
         })) : [],
+        bushes: (typeof exportBushesData === 'function') ? exportBushesData() : [],
         butterflies: (typeof butterfliesList !== 'undefined') ? butterfliesList.map(b => ({
             centerX: b.centerX,
             centerZ: b.centerZ,
@@ -220,10 +226,19 @@ function applyState(state) {
 
             if (tree.userData.trunkGroup) {
                 const thick = tData.trunkThickness || 1.0;
-                tree.userData.trunkGroup.scale.set(thick, tData.trunkScaleY, thick);
-                if (tree.userData.leafMesh && tree.userData.baseTrunkHeight) {
-                    const baseOffset = tree.userData.leafMesh.userData.baseYOffset || 0;
-                    tree.userData.leafMesh.position.y = baseOffset + tree.userData.baseTrunkHeight * (tData.trunkScaleY - 1.0);
+                const hScale = tData.trunkScaleY || 1.0;
+                if (tree.userData.isPine) {
+                    const scaleXZ = hScale * thick;
+                    tree.userData.trunkGroup.scale.set(scaleXZ, hScale, scaleXZ);
+                    if (tree.userData.leafMesh) {
+                        tree.userData.leafMesh.scale.set(scaleXZ, hScale, scaleXZ);
+                    }
+                } else {
+                    tree.userData.trunkGroup.scale.set(thick, hScale, thick);
+                    if (tree.userData.leafMesh && tree.userData.baseTrunkHeight) {
+                        const baseOffset = tree.userData.leafMesh.userData.baseYOffset || 0;
+                        tree.userData.leafMesh.position.y = baseOffset + tree.userData.baseTrunkHeight * (hScale - 1.0);
+                    }
                 }
             }
 
@@ -257,6 +272,12 @@ function applyState(state) {
     if (state.ferns && typeof fernsList !== 'undefined' && typeof recreateFern === 'function') {
         clearAllFerns();
         state.ferns.forEach(fData => recreateFern(fData));
+    }
+
+    // 3d2. Restore Semak Belukar (Bushes)
+    if (state.bushes && typeof bushesList !== 'undefined' && typeof recreateBush === 'function') {
+        clearAllBushes();
+        state.bushes.forEach(bData => recreateBush(bData));
     }
 
     // 3e. Restore Kupu-kupu (Butterflies)

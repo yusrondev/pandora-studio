@@ -204,88 +204,452 @@ function createGenshinBirchTree(foliageMat, initialLeafCount = 1000, branchCount
     return treeGroup;
 }
 
-function createGenshinPineTree(foliageMat, initialLeafCount = 2200, curvature = 0.5) {
+// ==========================================
+// 6.2 NEW POHON CEMARA (PINE) - FROM new-pine.html
+// ==========================================
+let _cachedPineBarkTex = null;
+let _cachedPineBarkMat = null;
+let _cachedPineLeafMap = null;
+let _cachedPineAlphaMap = null;
+let _cachedPineLeafMat = null;
+let _cachedPineDepthMat = null;
+
+function getPineNewBarkTexture() {
+    if (_cachedPineBarkTex) return _cachedPineBarkTex;
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = '#8b5a38';
+    g.fillRect(0, 0, 128, 256);
+
+    for (let i = 0; i < 80; i++) {
+        const x = Math.random() * 128;
+        const l = 30 + Math.random() * 90;
+        const y = Math.random() * 256;
+        g.strokeStyle = Math.random() < 0.5
+            ? 'rgba(70,40,24,' + (0.2 + Math.random() * 0.3) + ')'
+            : 'rgba(206,140,84,' + (0.25 + Math.random() * 0.3) + ')';
+        g.lineWidth = 1 + Math.random() * 2.5;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.bezierCurveTo(
+            x + (Math.random() - 0.5) * 10,
+            y + l * 0.3,
+            x + (Math.random() - 0.5) * 10,
+            y + l * 0.7,
+            x + (Math.random() - 0.5) * 8,
+            y + l
+        );
+        g.stroke();
+    }
+
+    _cachedPineBarkTex = new THREE.CanvasTexture(c);
+    _cachedPineBarkTex.wrapS = THREE.RepeatWrapping;
+    _cachedPineBarkTex.wrapT = THREE.RepeatWrapping;
+    _cachedPineBarkTex.anisotropy = 4;
+    return _cachedPineBarkTex;
+}
+
+function getPineNewBarkMaterial() {
+    if (!_cachedPineBarkMat) {
+        _cachedPineBarkMat = new THREE.MeshLambertMaterial({
+            map: getPineNewBarkTexture(),
+            color: 0xffffff,
+            side: THREE.DoubleSide
+        });
+    }
+    return _cachedPineBarkMat;
+}
+
+function initPineNewTextures() {
+    if (_cachedPineLeafMap && _cachedPineAlphaMap) return;
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const ca = document.createElement('canvas');
+    ca.width = ca.height = 256;
+    const g = c.getContext('2d');
+    const ga = ca.getContext('2d');
+
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, 256, 256);
+    ga.fillStyle = '#000000';
+    ga.fillRect(0, 0, 256, 256);
+
+    function needle(x, y, ang, len, w) {
+        [g, ga].forEach(function (cx) {
+            cx.save();
+            cx.translate(x, y);
+            cx.rotate(ang);
+            cx.fillStyle = '#ffffff';
+            cx.beginPath();
+            cx.moveTo(0, 0);
+            cx.quadraticCurveTo(w, -len * 0.5, 0, -len);
+            cx.quadraticCurveTo(-w, -len * 0.5, 0, 0);
+            cx.fill();
+            cx.restore();
+        });
+    }
+
+    needle(128, 252, 0, 236, 5);
+    for (let s = -1; s <= 1; s += 2) {
+        for (let i = 0; i < 36; i++) {
+            const t = i / 35;
+            const y = 248 - t * 210;
+            needle(
+                128,
+                y,
+                s * (1.05 - 0.5 * t) + (Math.random() - 0.5) * 0.12,
+                (58 + Math.random() * 22) * (1 - t * 0.6) + 10,
+                9 + Math.random() * 4
+            );
+        }
+    }
+
+    _cachedPineLeafMap = new THREE.CanvasTexture(c);
+    _cachedPineLeafMap.anisotropy = 4;
+    _cachedPineAlphaMap = new THREE.CanvasTexture(ca);
+    _cachedPineAlphaMap.anisotropy = 4;
+}
+
+function getPineNewLeafMaterial() {
+    initPineNewTextures();
+    if (!_cachedPineLeafMat) {
+        _cachedPineLeafMat = new THREE.MeshBasicMaterial({
+            map: _cachedPineLeafMap,
+            alphaMap: _cachedPineAlphaMap,
+            alphaTest: 0.8,
+            transparent: true,
+            side: THREE.DoubleSide
+        });
+    }
+    return _cachedPineLeafMat;
+}
+
+function getPineNewDepthMaterial() {
+    initPineNewTextures();
+    if (!_cachedPineDepthMat) {
+        _cachedPineDepthMat = new THREE.MeshDepthMaterial({
+            depthPacking: THREE.RGBADepthPacking,
+            map: _cachedPineLeafMap,
+            alphaMap: _cachedPineAlphaMap,
+            alphaTest: 0.8
+        });
+    }
+    return _cachedPineDepthMat;
+}
+
+function createGenshinPineTree(foliageMat, initialLeafCount = 3100, curvature = 0.5) {
     const pineGroup = new THREE.Group();
     const trunkGroup = new THREE.Group();
 
-    const p1X = (Math.random() - 0.5) * 0.8 * curvature;
-    const p1Z = (Math.random() - 0.5) * 0.8 * curvature;
+    function rr(a, b) {
+        return a + (b - a) * Math.random();
+    }
 
-    const curve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(p1X, 2.6, p1Z),
-        new THREE.Vector3(0, 5.2, 0)
+    /* ---------- tube builder tunggal (semua geometri kayu menjadi 1 mesh utuh) ---------- */
+    const P = [], N = [], U = [], I = [];
+
+    function addTube(curve, rf, seg, rad, vlen) {
+        const firstVertIdx = P.length / 3;
+
+        // Smooth continuous parallel transport frames along curve
+        // to prevent 90° frame jumps and holes in the mesh
+        let frames;
+        if (typeof curve.computeFrenetFrames === 'function') {
+            frames = curve.computeFrenetFrames(seg, false);
+        } else {
+            const tangents = [];
+            const normals = [];
+            const binormals = [];
+            for (let i = 0; i <= seg; i++) {
+                tangents.push(curve.getTangent(i / seg).normalize());
+            }
+            const t0 = tangents[0];
+            let minAxis = new THREE.Vector3(1, 0, 0);
+            const ax = Math.abs(t0.x), ay = Math.abs(t0.y), az = Math.abs(t0.z);
+            if (ay <= ax && ay <= az) minAxis = new THREE.Vector3(0, 1, 0);
+            else if (az <= ax && az <= ay) minAxis = new THREE.Vector3(0, 0, 1);
+            const n0 = new THREE.Vector3().crossVectors(t0, minAxis).normalize();
+            normals.push(n0);
+            binormals.push(new THREE.Vector3().crossVectors(t0, n0).normalize());
+            for (let i = 1; i <= seg; i++) {
+                const vPrev = tangents[i - 1];
+                const vCurr = tangents[i];
+                const axis = new THREE.Vector3().crossVectors(vPrev, vCurr);
+                let nCurr;
+                if (axis.lengthSq() > 1e-7) {
+                    axis.normalize();
+                    const dot = Math.min(1, Math.max(-1, vPrev.dot(vCurr)));
+                    const angle = Math.acos(dot);
+                    nCurr = normals[i - 1].clone().applyAxisAngle(axis, angle);
+                } else {
+                    nCurr = normals[i - 1].clone();
+                }
+                normals.push(nCurr);
+                binormals.push(new THREE.Vector3().crossVectors(vCurr, nCurr).normalize());
+            }
+            frames = { tangents, normals, binormals };
+        }
+
+        for (let i = 0; i <= seg; i++) {
+            const t = i / seg;
+            const c = curve.getPoint(t);
+            const nn = frames.normals[i];
+            const bb = frames.binormals[i];
+            const r = rf(t);
+
+            for (let j = 0; j <= rad; j++) {
+                const a = (j / rad) * Math.PI * 2;
+                const d = nn.clone().multiplyScalar(Math.cos(a)).add(bb.clone().multiplyScalar(Math.sin(a)));
+                P.push(c.x + d.x * r, c.y + d.y * r, c.z + d.z * r);
+                N.push(d.x, d.y, d.z);
+                U.push((j / rad) * 2, t * vlen);
+            }
+        }
+
+        for (let i2 = 0; i2 < seg; i2++) {
+            for (let j2 = 0; j2 < rad; j2++) {
+                const a0 = firstVertIdx + i2 * (rad + 1) + j2;
+                const b0 = a0 + (rad + 1);
+                I.push(a0, b0, a0 + 1);
+                I.push(b0, b0 + 1, a0 + 1);
+            }
+        }
+    }
+
+    const cFactor = (typeof curvature === 'number') ? curvature * 2.0 : 1.0;
+    const p1x = 0.07 * cFactor + (Math.random() - 0.5) * 0.1 * (curvature || 0.5);
+    const p1z = 0.04 * cFactor + (Math.random() - 0.5) * 0.1 * (curvature || 0.5);
+    const p2x = -0.05 * cFactor + (Math.random() - 0.5) * 0.1 * (curvature || 0.5);
+    const p2z = -0.04 * cFactor + (Math.random() - 0.5) * 0.1 * (curvature || 0.5);
+    const p3x = 0.08 * cFactor + (Math.random() - 0.5) * 0.1 * (curvature || 0.5);
+    const p3z = 0.05 * cFactor + (Math.random() - 0.5) * 0.1 * (curvature || 0.5);
+
+    const trunk = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, -0.3, 0),
+        new THREE.Vector3(p1x, 1.6, p1z),
+        new THREE.Vector3(p2x, 3.6, p2z),
+        new THREE.Vector3(p3x, 5.9, p3z),
+        new THREE.Vector3(0, 8.9, 0)
     ]);
 
-    const tubeGeo = new THREE.TubeGeometry(curve, 16, 0.14, 8, false);
-    const trunkMesh = new THREE.Mesh(tubeGeo, oakBarkMaterial);
+    addTube(trunk, function (t) {
+        return 0.25 * Math.pow(1 - t, 1.05) + 0.035 * Math.pow(1 - t, 0.5) + 0.2 * Math.exp(-t * 20);
+    }, 40, 14, 6);
+
+    function trunkAt(y) {
+        return trunk.getPoint(Math.min(1, Math.max(0, (y + 0.3) / 9.2)));
+    }
+
+    /* ---------- foliage & ranting ---------- */
+    const cards = [];
+    const cDark = new THREE.Color(0x1a5654);
+    const cMid = new THREE.Color(0x2a7d6e);
+    const cLight = new THREE.Color(0x70b88a);
+
+    if (foliageMat && foliageMat.uniforms && foliageMat.uniforms.uBaseColor) {
+        cMid.copy(foliageMat.uniforms.uBaseColor.value);
+        if (foliageMat.uniforms.uShadowColor) cDark.copy(foliageMat.uniforms.uShadowColor.value);
+        if (foliageMat.uniforms.uHighlightColor) cLight.copy(foliageMat.uniforms.uHighlightColor.value);
+    }
+
+    const Y0 = 2.3, Y1 = 8.3;
+    const sunDirVec = (typeof sunLight !== 'undefined' && sunLight.position)
+        ? sunLight.position.clone().normalize()
+        : new THREE.Vector3(-6, 10, 7).normalize();
+    const sunH = new THREE.Vector3(sunDirVec.x, 0, sunDirVec.z).normalize();
+
+    function tint(pos, dir, f) {
+        const R = 3.3 * Math.pow(1 - f, 0.82) + 0.6;
+        const out = Math.min(1, Math.hypot(pos.x, pos.z) / R);
+        const h = new THREE.Vector3(pos.x, 0, pos.z).normalize();
+        let t = 0.1 + 0.28 * out + 0.16 * Math.max(0, dir.y) + 0.2 * (h.dot(sunH) * 0.5 + 0.5) + 0.06 * f + rr(-0.07, 0.07);
+        t = Math.min(1, Math.max(0, t));
+        return t < 0.5 ? cDark.clone().lerp(cMid, t * 2) : cMid.clone().lerp(cLight, (t - 0.5) * 2);
+    }
+
+    function card(pos, dir, size, f) {
+        cards.push({
+            p: pos.clone(),
+            d: dir.clone().normalize(),
+            s: size,
+            c: tint(pos, dir, f)
+        });
+    }
+
+    function makeBranch(y, a, L, f, dense) {
+        const p0 = trunkAt(y);
+        const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+        const p1 = p0.clone().add(dir.clone().multiplyScalar(L * 0.5)).add(new THREE.Vector3(0, 0.25 + 0.1 * (1 - f), 0));
+        const p2 = p0.clone().add(dir.clone().multiplyScalar(L)).add(new THREE.Vector3(0, 0.12 - 0.3 * (1 - f), 0));
+        const bc = new THREE.QuadraticBezierCurve3(p0, p1, p2);
+
+        // Cabang utama
+        addTube(bc, function (t) {
+            return (0.055 * (1 - t) + 0.012) * (1 - t * 0.3);
+        }, 10, 8, Math.max(1, L * 0.8));
+
+        const step = dense ? 0.08 : 0.22;
+        for (let s = dense ? 0.15 : 0.25; s <= 0.95; s += step) {
+            const bp = bc.getPoint(s);
+            const tg = bc.getTangent(s).normalize();
+            const lat = new THREE.Vector3().crossVectors(tg, new THREE.Vector3(0, 1, 0)).normalize();
+
+            for (let k = -1; k <= 1; k += 2) {
+                const td = tg.clone().multiplyScalar(0.55)
+                    .add(lat.clone().multiplyScalar(k * 0.85))
+                    .add(new THREE.Vector3(0, rr(0.1, 0.45), 0)).normalize();
+                const tl = rr(0.55, 0.95) * (1 - s * 0.55) * Math.min(1, 0.45 + L * 0.28);
+                const tp1 = bp.clone().add(td.clone().multiplyScalar(tl * 0.5)).add(new THREE.Vector3(0, 0.04, 0));
+                const tp2 = bp.clone().add(td.clone().multiplyScalar(tl)).add(new THREE.Vector3(0, -0.05, 0));
+                const tc = new THREE.QuadraticBezierCurve3(bp, tp1, tp2);
+
+                // Anak ranting tersambung utuh dalam 1 mesh geometri kayu
+                addTube(tc, function (t) {
+                    return (0.02 * (1 - t) + 0.005) * (1 - t * 0.5);
+                }, 6, 6, 0.5);
+
+                if (dense) {
+                    for (let m = 0; m < 3; m++) {
+                        const cp = tc.getPoint(Math.min(1, 0.45 + m * 0.22));
+                        card(
+                            cp,
+                            td.clone().add(new THREE.Vector3(rr(-0.6, 0.6), rr(-0.1, 0.5), rr(-0.6, 0.6))),
+                            rr(0.85, 1.35) * (0.7 + 0.4 * Math.min(1, L / 2)),
+                            f
+                        );
+                    }
+                }
+            }
+        }
+
+        if (dense) {
+            const tipN = 5;
+            for (let q = 0; q < tipN; q++) {
+                card(
+                    p2.clone().add(new THREE.Vector3(rr(-0.12, 0.12), rr(0, 0.15), rr(-0.12, 0.12))),
+                    dir.clone().add(new THREE.Vector3(rr(-0.7, 0.7), rr(0, 0.6), rr(-0.7, 0.7))),
+                    rr(0.8, 1.2),
+                    f
+                );
+            }
+        }
+    }
+
+    const BR = 36;
+    for (let i = 0; i < BR; i++) {
+        const f = i / (BR - 1);
+        makeBranch(
+            Y0 + f * (Y1 - Y0) + rr(-0.08, 0.08),
+            i * 2.399 + rr(-0.3, 0.3),
+            3.4 * Math.pow(1 - f, 0.82) + 0.5,
+            f,
+            true
+        );
+    }
+    for (let i = 0; i < 6; i++) {
+        makeBranch(
+            0.9 + i * 0.2 + rr(-0.05, 0.05),
+            i * 2.399 + 1,
+            rr(0.7, 1.3),
+            0,
+            false
+        );
+    }
+
+    for (let n = 0; n < 500; n++) {
+        const ff = Math.random();
+        const yy = Y0 + 0.3 + ff * (Y1 - Y0 - 0.3);
+        const Rm = (3.3 * Math.pow(1 - ff, 0.82) + 0.6) * 0.55;
+        const ang = Math.random() * Math.PI * 2;
+        const rd = Math.sqrt(Math.random()) * Rm;
+        const tp = trunkAt(yy);
+        card(
+            new THREE.Vector3(tp.x + Math.cos(ang) * rd, yy + rr(-0.3, 0.3), tp.z + Math.sin(ang) * rd),
+            new THREE.Vector3(Math.cos(ang), rr(0, 0.6), Math.sin(ang)),
+            rr(0.9, 1.3),
+            ff * 0.6
+        );
+    }
+
+    // Menggabungkan seluruh geometri kayu (batang + semua cabang + semua ranting) dalam 1 Mesh utuh
+    const bg = new THREE.BufferGeometry();
+    bg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    bg.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+    bg.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+    bg.setIndex(I);
+
+    const trunkMesh = new THREE.Mesh(bg, getPineNewBarkMaterial());
     trunkMesh.castShadow = true;
     trunkMesh.receiveShadow = true;
     trunkGroup.add(trunkMesh);
     pineGroup.add(trunkGroup);
 
-    const numTiers = 14;
-    const leafGeo = new THREE.PlaneGeometry(0.55, 1.15);
-    leafGeo.translate(0, 0.57, 0);
+    // Dedaunan jarum pinus (Needle Cards)
+    const lg = new THREE.PlaneGeometry(1, 1);
+    lg.translate(0, 0.5, 0);
 
-    const instancedLeaves = new THREE.InstancedMesh(leafGeo, foliageMat, 4000);
-    instancedLeaves.castShadow = true;
-    instancedLeaves.receiveShadow = true;
-    instancedLeaves.customDepthMaterial = pineDepthMaterial;
+    const totalGeneratedCards = cards.length;
+    const maxCapacity = Math.max(totalGeneratedCards, 4500);
+    const inst = new THREE.InstancedMesh(lg, getPineNewLeafMaterial(), maxCapacity);
+    inst.castShadow = true;
+    inst.receiveShadow = true;
+    inst.customDepthMaterial = getPineNewDepthMaterial();
 
-    function populatePineLeavesDynamic(count) {
-        const dummy = new THREE.Object3D();
-        let idx = 0;
-        const currentPerTier = Math.floor(count / numTiers);
-        const countFactor = (count - 300) / (3200 - 300);
-        const widthExpansion = 1.0 + countFactor * 0.55;
+    const M = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const qr = new THREE.Quaternion();
+    const up0 = new THREE.Vector3(0, 1, 0);
 
-        for (let t = 0; t < numTiers; t++) {
-            const heightPercent = t / (numTiers - 1);
-            const tierY = 1.0 + heightPercent * 4.1;
+    for (let c = 0; c < cards.length; c++) {
+        const cd = cards[c];
+        const yv = cd.d;
+        const xv = new THREE.Vector3().crossVectors(yv, up0);
+        if (xv.lengthSq() < 1e-4) xv.set(1, 0, 0);
+        xv.normalize();
+        const zv = new THREE.Vector3().crossVectors(xv, yv);
 
-            let tierRadius = ((1.0 - Math.pow(heightPercent, 0.85)) * 1.25 + 0.08) * widthExpansion;
-            if (t === numTiers - 1) tierRadius = 0.02;
+        M.makeBasis(xv, yv, zv);
+        q.setFromRotationMatrix(M);
+        qr.setFromAxisAngle(yv, rr(-0.7, 0.7));
+        qr.multiply(q);
+        M.compose(cd.p, qr, new THREE.Vector3(cd.s, cd.s, 1));
 
-            for (let i = 0; i < currentPerTier; i++) {
-                const angle = (i / currentPerTier) * Math.PI * 2 + (t * 0.4) + (Math.random() - 0.5) * 0.25;
-                const dist = tierRadius * Math.pow(Math.random(), 0.35);
-
-                dummy.position.set(Math.cos(angle) * dist, tierY + (Math.random() - 0.5) * 0.2, Math.sin(angle) * dist);
-                const pitch = 0.25 + (1.0 - heightPercent) * 0.3;
-                dummy.rotation.set(
-                    Math.sin(angle) * pitch + (Math.random() - 0.5) * 0.15,
-                    angle + Math.PI / 2 + (Math.random() - 0.5) * 0.4,
-                    -Math.cos(angle) * pitch + (Math.random() - 0.5) * 0.15
-                );
-
-                const scaleX = (0.55 + Math.random() * 0.35) * (1.0 + countFactor * 0.15);
-                const scaleY = (0.65 + Math.random() * 0.45) * (1.0 + countFactor * 0.15);
-                dummy.scale.set(scaleX, scaleY, scaleX);
-                dummy.updateMatrix();
-
-                instancedLeaves.setMatrixAt(idx++, dummy.matrix);
-            }
-        }
-        instancedLeaves.instanceMatrix.needsUpdate = true;
+        inst.setMatrixAt(c, M);
+        inst.setColorAt(c, cd.c);
     }
 
-    populatePineLeavesDynamic(initialLeafCount);
-    instancedLeaves.count = initialLeafCount;
-    instancedLeaves.userData.baseYOffset = 0;
+    const targetLeafCount = (initialLeafCount && initialLeafCount > 0)
+        ? Math.min(totalGeneratedCards, initialLeafCount)
+        : totalGeneratedCards;
+    inst.count = targetLeafCount;
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    inst.userData.baseYOffset = 0;
 
-    pineGroup.add(instancedLeaves);
+    function populatePineLeavesDynamic(count) {
+        const activeCount = Math.min(totalGeneratedCards, Math.max(1, count));
+        inst.count = activeCount;
+        inst.instanceMatrix.needsUpdate = true;
+        if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    }
+
+    pineGroup.add(inst);
+
     pineGroup.userData = {
         type: 'Pine Tree',
         typeCode: 'pine',
         isPine: true,
+        branchCount: 36,
         curvature: curvature,
         populatePineLeaves: populatePineLeavesDynamic,
-        leafMesh: instancedLeaves,
+        leafMesh: inst,
         trunkGroup: trunkGroup,
-        baseTrunkHeight: 4.1,
+        baseTrunkHeight: 8.9,
         foliageMat: foliageMat
     };
 
     return pineGroup;
 }
+

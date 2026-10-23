@@ -89,7 +89,9 @@ function getWaterDepthTarget(width, height) {
 }
 
 function renderWaterDepthPass(renderer, scene, camera) {
-    if (!waterMesh || !waterMesh.visible || !hasAnyWaterDrawn) return;
+    const isWaterActive = (waterMesh && waterMesh.visible && hasAnyWaterDrawn);
+    const isOuterActive = (outerOceanMesh && outerOceanMesh.visible && isOuterOceanEnabled);
+    if (!isWaterActive && !isOuterActive) return;
     
     renderer.getDrawingBufferSize(_drawingBufferSize);
     const width = Math.floor(_drawingBufferSize.x);
@@ -98,12 +100,18 @@ function renderWaterDepthPass(renderer, scene, camera) {
 
     const target = getWaterDepthTarget(width, height);
 
-    waterMesh.visible = false;
+    const prevWaterVisible = waterMesh ? waterMesh.visible : false;
+    const prevOuterVisible = outerOceanMesh ? outerOceanMesh.visible : false;
+    if (waterMesh) waterMesh.visible = false;
+    if (outerOceanMesh) outerOceanMesh.visible = false;
+
     const prevTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
     renderer.render(scene, camera);
     renderer.setRenderTarget(prevTarget);
-    waterMesh.visible = true;
+
+    if (waterMesh) waterMesh.visible = prevWaterVisible;
+    if (outerOceanMesh) outerOceanMesh.visible = prevOuterVisible;
 
     if (waterMat && waterMat.uniforms) {
         if (waterMat.uniforms.uSceneDepth) waterMat.uniforms.uSceneDepth.value = target.depthTexture;
@@ -417,6 +425,7 @@ const waterMat = new THREE.ShaderMaterial({
         varying float vH;
         varying float vCrestFoam;
         varying vec2 vBaseUV;
+        varying vec2 vBaseXZ;
 
         ${oceanCommonGLSL}
 
@@ -427,6 +436,7 @@ const waterMat = new THREE.ShaderMaterial({
             vec3 p = p0;
             vec3 n = vec3(0.0, 1.0, 0.0);
             vBaseUV = vec2((p0.x + uGroundSize * 0.5) / uGroundSize, (p0.z + uGroundSize * 0.5) / uGroundSize);
+            vBaseXZ = p0.xz;
 
             // Jacobian untuk deteksi puncak gelombang (foam)
             float jxx = 1.0, jzz = 1.0, jxz = 0.0;
@@ -1032,62 +1042,148 @@ let outerOceanMesh = null;
 let islandCliffMesh = null;
 let isOuterOceanEnabled = true;
 
+function createOuterOceanGeometry(islandHalf, outerHalf, numRings, segmentsPerSide) {
+    const N = segmentsPerSide;
+    const vertsPerRing = 4 * N;
+    const totalVerts = (numRings + 1) * vertsPerRing;
+    const totalQuads = numRings * vertsPerRing;
+    const totalTris = totalQuads * 2;
+
+    const positions = new Float32Array(totalVerts * 3);
+    const normals = new Float32Array(totalVerts * 3);
+    const uvs = new Float32Array(totalVerts * 2);
+    const indices = new Uint32Array(totalTris * 3);
+
+    let vIdx = 0;
+    for (let r = 0; r <= numRings; r++) {
+        const t = r / numRings;
+        // Non-linear: kerapatan sangat rapat di tepi pulau (0.8m) menyebar mulus ke cakrawala luar (450m)
+        const S = islandHalf + (outerHalf - islandHalf) * Math.pow(t, 1.85);
+
+        for (let side = 0; side < 4; side++) {
+            for (let i = 0; i < N; i++) {
+                const frac = i / N;
+                let x = 0, z = 0;
+                if (side === 0) {
+                    x = -S + (2 * S) * frac;
+                    z = -S;
+                } else if (side === 1) {
+                    x = S;
+                    z = -S + (2 * S) * frac;
+                } else if (side === 2) {
+                    x = S - (2 * S) * frac;
+                    z = S;
+                } else if (side === 3) {
+                    x = -S;
+                    z = S - (2 * S) * frac;
+                }
+
+                positions[vIdx * 3]     = x;
+                positions[vIdx * 3 + 1] = 0.0;
+                positions[vIdx * 3 + 2] = z;
+
+                normals[vIdx * 3]       = 0.0;
+                normals[vIdx * 3 + 1]   = 1.0;
+                normals[vIdx * 3 + 2]   = 0.0;
+
+                uvs[vIdx * 2]     = (x / (2 * outerHalf)) + 0.5;
+                uvs[vIdx * 2 + 1] = (z / (2 * outerHalf)) + 0.5;
+
+                vIdx++;
+            }
+        }
+    }
+
+    let iIdx = 0;
+    for (let r = 0; r < numRings; r++) {
+        const ringStart = r * vertsPerRing;
+        const nextRingStart = (r + 1) * vertsPerRing;
+
+        for (let k = 0; k < vertsPerRing; k++) {
+            const next_k = (k + 1) % vertsPerRing;
+
+            const v0 = ringStart + k;
+            const v1 = ringStart + next_k;
+            const v2 = nextRingStart + k;
+            const v3 = nextRingStart + next_k;
+
+            // 2 segitiga CCW menghadap ke atas (+Y)
+            indices[iIdx++] = v0;
+            indices[iIdx++] = v1;
+            indices[iIdx++] = v2;
+
+            indices[iIdx++] = v1;
+            indices[iIdx++] = v3;
+            indices[iIdx++] = v2;
+        }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.setIndex(new THREE.BufferAttribute(indices, 1));
+    return geo;
+}
+
 function initOuterOcean() {
     if (outerOceanMesh || typeof scene === 'undefined' || !scene) return;
 
-    // 1. Geometri Lautan Luar: Grid radial non-linear hingga radius 380m
-    const segs = 180;
-    const outerGeo = new THREE.PlaneGeometry(2, 2, segs, segs);
-    const pos = outerGeo.attributes.position;
-    const OUTER_HALF = 380;
-    for (let i = 0; i < pos.count; i++) {
-        const u = pos.getX(i);
-        const v = pos.getY(i);
-        pos.setXY(
-            i,
-            Math.sign(u) * Math.pow(Math.abs(u), 1.6) * OUTER_HALF,
-            Math.sign(v) * Math.pow(Math.abs(v), 1.6) * OUTER_HALF
-        );
-    }
-    outerGeo.rotateX(-Math.PI / 2);
-
-    // 2. Material Lautan Luar: Berbagi parameter gelombang dan atmosfer air
     const islandHalf = (typeof waterGroundSize !== 'undefined' ? waterGroundSize : 80) / 2;
+    const segsPerSide = (typeof waterSegments !== 'undefined') ? waterSegments : 100;
+    const outerGeo = createOuterOceanGeometry(islandHalf, 450.0, 90, segsPerSide);
+
+    // 2. Material Lautan Luar: 100% Identik dengan Ocean Engine kanvas (Gerstner, Fox Wake, SSS, Multi-layer Foam, mdN)
     const outerMat = new THREE.ShaderMaterial({
-        uniforms: {
-            uTime: waterMat.uniforms.uTime,
-            uAmp: waterMat.uniforms.uAmp,
-            uSpeed: waterMat.uniforms.uSpeed,
-            uChop: waterMat.uniforms.uChop,
-            uSunDir: waterMat.uniforms.uSunDir,
-            uSunColor: waterMat.uniforms.uSunColor,
-            uWaterDeepColor: waterMat.uniforms.uWaterDeepColor,
-            uWaterShallowColor: waterMat.uniforms.uWaterShallowColor,
-            uWaterSkyColor: waterMat.uniforms.uWaterSkyColor,
-            uWaterFoamColor: waterMat.uniforms.uWaterFoamColor,
-            uIslandHalfSize: { value: islandHalf }
-        },
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        lights: true,
+        fog: false,
+        uniforms: Object.assign(
+            THREE.UniformsUtils.clone(THREE.UniformsLib.lights),
+            waterMat.uniforms,
+            {
+                uIslandHalfSize: { value: islandHalf }
+            }
+        ),
         vertexShader: `
             #include <common>
+            #include <shadowmap_pars_vertex>
 
             uniform float uTime, uAmp, uSpeed, uChop;
+            uniform float uGroundSize;
+            uniform vec3  uFoxPos;
+            uniform vec2  uFoxDir;
+            uniform float uFoxSpeed;
+            uniform float uFoxSubmerge;
+            uniform vec4  uOceanTrailPos[${OCEAN_TRAIL_MAX}];
+
             varying vec3 vWorldPos;
             varying vec3 vNormal;
             varying float vH;
             varying float vCrestFoam;
+            varying vec2 vBaseUV;
+            varying vec2 vBaseXZ;
+
+            ${oceanCommonGLSL}
 
             void main() {
-                vec3 p0 = position;
-                vec3 p = p0, n = vec3(0.0, 1.0, 0.0);
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vec3 p0 = worldPosition.xyz;
+                vec3 p = p0;
+                vec3 n = vec3(0.0, 1.0, 0.0);
+                vBaseUV = vec2((p0.x + uGroundSize * 0.5) / uGroundSize, (p0.z + uGroundSize * 0.5) / uGroundSize);
+                vBaseXZ = p0.xz;
+
                 float jxx = 1.0, jzz = 1.0, jxz = 0.0;
                 float S = uChop * 0.9 / 9.0 * clamp(uAmp, 0.0, 1.2);
 
-                for (int i = 0; i < 9; i++) {
+                for(int i = 0; i < 9; i++){
                     float fi = float(i);
                     float a = 0.5 + sin(fi * 12.9898 + 1.3) * 0.85;
                     vec2 d = vec2(cos(a), sin(a));
-                    float L = 95.0 * pow(0.64, fi);
-                    float k = 6.28318 / L;
+                    float L = 95.0 * pow(0.64, fi), k = 6.28318 / L;
                     float A = uAmp * L * 0.014;
                     float ph = dot(d, p0.xz) * k + uTime * sqrt(9.8 * k) * uSpeed + fi * 1.7;
                     float s = sin(ph), c = cos(ph);
@@ -1103,48 +1199,113 @@ function initOuterOcean() {
                     jxz -= S * d.x * d.y * s;
                 }
 
+                // Displacement fisik ombak & Kelvin wake di sekitar rubah
+                if (uFoxPos.y > -900.0 && length(p.xz - uFoxPos.xz) < 22.0) {
+                    vec2 objDir = (length(uFoxDir) > 0.001) ? normalize(uFoxDir) : vec2(0.0, 1.0);
+                    vec2 objSize = vec2(0.35, 0.70);
+                    p.y += hullField(p.xz, uFoxPos, objDir, objSize, uFoxSpeed, uFoxSubmerge).x + foxWakeField(p.xz, uOceanTrailPos, uTime).x;
+                }
+
                 float J = jxx * jzz - jxz * jxz;
                 vCrestFoam = 1.0 - smoothstep(0.12, 0.65, J);
                 vH = p.y;
                 vNormal = normalize((modelMatrix * vec4(n, 0.0)).xyz);
-                vWorldPos = (modelMatrix * vec4(p, 1.0)).xyz;
+                vWorldPos = p;
 
-                vec4 mvPosition = viewMatrix * vec4(vWorldPos, 1.0);
+                worldPosition = vec4(p, 1.0);
+                vec4 mvPosition = viewMatrix * worldPosition;
                 gl_Position = projectionMatrix * mvPosition;
+
+                vec3 transformedNormal = vNormal;
+
+                #include <shadowmap_vertex>
             }
         `,
         fragmentShader: `
             #include <common>
+            #include <packing>
+            #include <shadowmap_pars_fragment>
 
-            uniform float uTime, uAmp, uSpeed;
-            uniform vec3 uSunDir, uSunColor;
-            uniform vec3 uWaterDeepColor, uWaterShallowColor, uWaterSkyColor, uWaterFoamColor;
+            uniform float uTime, uAmp, uSpeed, uChop;
+            uniform sampler2D uSceneDepth;
+            uniform vec2  uResolution;
+            uniform float uCameraNear;
+            uniform float uCameraFar;
+            uniform float uGroundSize;
             uniform float uIslandHalfSize;
+            uniform vec3  uFoxPos;
+            uniform vec2  uFoxDir;
+            uniform float uFoxSpeed;
+            uniform float uFoxMoving;
+            uniform float uFoxSubmerge;
+            uniform vec3  uSunDir;
+            uniform vec3  uSunColor;
+            uniform vec3  uWaterDeepColor;
+            uniform vec3  uWaterShallowColor;
+            uniform vec3  uWaterSkyColor;
+            uniform vec3  uWaterFoamColor;
+            uniform vec4  uOceanTrailPos[${OCEAN_TRAIL_MAX}];
 
             varying vec3 vWorldPos;
             varying vec3 vNormal;
             varying float vH;
             varying float vCrestFoam;
+            varying vec2 vBaseUV;
+            varying vec2 vBaseXZ;
 
             ${oceanCommonGLSL}
 
             void main() {
-                // 1. Discard area pulau (canvas) tepat di batas ukuran pulau tanpa overlap
-                if (abs(vWorldPos.x) <= uIslandHalfSize && abs(vWorldPos.z) <= uIslandHalfSize) {
-                    discard;
+                // Jarak ke batas pulau (canvas): 0.0 di tebing pulau, membesar ke laut lepas
+                float distToIsland = max(max(abs(vBaseXZ.x), abs(vBaseXZ.y)) - uIslandHalfSize, 0.0);
+
+                // Deteksi 3D Depth kontak fisik terhadap tebing pulau & objek 3D (batu/karang)
+                vec2 screenUV = gl_FragCoord.xy / uResolution;
+                float sceneDepthRaw = texture2D(uSceneDepth, screenUV).r;
+                float contactDepth = 999.0;
+                if (sceneDepthRaw > 0.0001 && sceneDepthRaw < 0.9999) {
+                    float sceneViewZ = perspectiveDepthToViewZ(sceneDepthRaw, uCameraNear, uCameraFar);
+                    float waterViewZ = perspectiveDepthToViewZ(gl_FragCoord.z, uCameraNear, uCameraFar);
+                    float depthDiff = waterViewZ - sceneViewZ;
+                    if (depthDiff >= -0.05) {
+                        contactDepth = max(0.0, depthDiff);
+                    }
                 }
 
+                // ── VIEW & GEOMETRY (100% ocean.html) ─────────────────────
                 vec3 V = normalize(cameraPosition - vWorldPos);
                 float dist = length(cameraPosition - vWorldPos);
-                vec3 N = normalize(vNormal);
-
                 vec2 q = vWorldPos.xz;
-                vec2 dN = vec2(
-                    ofbm(q * 1.8 + vec2(uTime * 0.35, uTime * 0.18)) - 0.5,
-                    ofbm(q * 1.8 - vec2(uTime * 0.22, uTime * 0.30)) - 0.5
-                ) * 0.30;
-                N = normalize(vec3(N.x + dN.x, N.y, N.z + dN.y));
 
+                // ── WAKE & HULL INTERACTION (100% ocean.html) ─────────────
+                float wakeFoam = 0.0, wakeWaveH = 0.0;
+                vec2 wakeSlope = vec2(0.0);
+                vec2 objDir = (length(uFoxDir) > 0.001) ? normalize(uFoxDir) : vec2(0.0, 1.0);
+                vec2 objSize = vec2(0.35, 0.70);
+
+                if (uFoxPos.y > -900.0 && length(q - uFoxPos.xz) < 60.0) {
+                    float e = 0.1;
+                    vec2 hc = hullField(q, uFoxPos, objDir, objSize, uFoxSpeed, uFoxSubmerge);
+                    float hx = hullField(q + vec2(e, 0.0), uFoxPos, objDir, objSize, uFoxSpeed, uFoxSubmerge).x;
+                    float hz = hullField(q + vec2(0.0, e), uFoxPos, objDir, objSize, uFoxSpeed, uFoxSubmerge).x;
+                    vec4 wk = foxWakeField(q, uOceanTrailPos, uTime);
+                    wakeSlope = -(vec2(hx - hc.x, hz - hc.x) / e + wk.zw);
+                    wakeWaveH = hc.x + wk.x;
+                    wakeFoam = clamp(hc.y + wk.y, 0.0, 1.0);
+                } else {
+                    vec4 wk = foxWakeField(q, uOceanTrailPos, uTime);
+                    wakeSlope = -wk.zw;
+                    wakeWaveH = wk.x;
+                    wakeFoam = clamp(wk.y, 0.0, 1.0);
+                }
+
+                // ── OCEAN NORMAL (Analytical Gerstner normal + smooth isotropic capillary micro-detail) ──
+                vec2 dt = (mdN(q * 0.7 + uTime * vec2(0.25, 0.10)) + mdN(q * 1.6 - uTime * vec2(0.18, -0.20))) * 0.5;
+                float fade = exp(-dist * 0.014);
+                float rough = 0.18 * fade + 0.20 * wakeFoam;
+                vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.85 + dt.x * rough, 0.0, wakeSlope.y * 0.85 + dt.y * rough));
+
+                // ── FRESNEL & SUN (100% ocean.html) ──────────────────────
                 vec3 R = reflect(-V, N);
                 R.y = max(R.y, 0.015);
                 R = normalize(R);
@@ -1155,35 +1316,100 @@ function initOuterOcean() {
                 float NdotL = dot(N, sunDir);
                 float waveShadow = smoothstep(-0.25, 0.35, NdotL) * 0.45 + 0.55;
 
-                vec3 deep = uWaterDeepColor;
-                vec3 shallow = uWaterShallowColor;
-                float lit = smoothstep(-1.2 * uAmp, 2.0 * uAmp, vH);
-                vec3 body = mix(deep, shallow, lit * 0.75) * sunF * waveShadow;
+                // Shadow map dari pepohonan/batu jika aktif
+                float sceneShadow = 1.0;
+                #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+                    sceneShadow = getShadow(
+                        directionalShadowMap[0],
+                        directionalLightShadows[0].shadowMapSize,
+                        directionalLightShadows[0].shadowBias,
+                        directionalLightShadows[0].shadowRadius,
+                        vDirectionalShadowCoord[0]
+                    );
+                    sceneShadow = mix(0.45, 1.0, smoothstep(0.05, 0.95, sceneShadow));
+                #endif
 
+                float shadow = waveShadow * sceneShadow;
+
+                // ── BODY COLOR & LIT & SSS (Mengikuti suasana: Siang, Sore, Malam) ──────
+                vec3 deep    = uWaterDeepColor;
+                vec3 shallow = uWaterShallowColor;
+                float lit = smoothstep(-1.2 * uAmp, 2.0 * uAmp, vH + wakeWaveH * 1.8);
+                vec3 body = mix(deep, shallow, lit * 0.75) * sunF * shadow;
+
+                float back = pow(max(dot(V, -normalize(vec3(sunDir.x, 0.1, sunDir.z))), 0.0), 3.0);
+                float wakeSSS = clamp(wakeWaveH * 2.5, 0.0, 0.8);
+                body += mix(shallow, vec3(0.08, 0.52, 0.44), 0.45) * (back * lit + wakeSSS * 0.6) * 0.55 * sunF;
+                body = mix(body, shallow * sunF, clamp(wakeFoam * 0.45, 0.0, 0.45));
+
+                // ── SKY REFLECTION & COMPOSITION ─────────────────────────
                 vec3 col = mix(body, oceanSkyFast(R, sunDir, uWaterSkyColor), clamp(f, 0.0, 1.0));
 
+                // ── SPECULAR HIGHLIGHT (Silky smooth dual lobe ocean specular - tanpa facet/grid) ──
                 vec3 H = normalize(sunDir + V);
                 float NdotH = max(dot(N, H), 0.0);
                 float specVis = smoothstep(-0.05, 0.2, NdotL);
                 float spec = (pow(NdotH, 180.0) * 3.5 + pow(NdotH, 32.0) * 0.35) * specVis;
-                col += uSunColor * spec;
 
+                // ── MULTI-LAYER FOAM (100% ocean.html: crest foam + wake foam) ──
                 float pattern = wakeFoamPattern(q * 1.5, uTime);
-                float subFoam = smoothstep(0.35, 0.78, vCrestFoam * 0.9 * (0.4 + 0.75 * pattern));
-                col = mix(col, uWaterFoamColor, subFoam * 0.65);
+                float fineBubbles = onoise(q * 15.0);
+                float combinedFoam = max(vCrestFoam * 0.9, wakeFoam);
+                float subFoam  = smoothstep(0.35, 0.78, combinedFoam * (0.4 + 0.75 * pattern));
+                float coreFoam = smoothstep(0.62, 0.95, combinedFoam * (0.45 + 0.65 * pattern) * (0.65 + 0.35 * fineBubbles));
 
+                col += uSunColor * spec * (1.0 - subFoam * 0.8);
+
+                vec3 underFoamCol = mix(shallow, vec3(0.50, 0.78, 0.84), 0.55) * sunF * (0.7 + 0.3 * shadow);
+                vec3 topFoamCol   = mix(uWaterFoamColor, vec3(1.0), 0.35) * (0.55 + 0.45 * sunF) * (0.68 + 0.32 * shadow);
+                col = mix(col, underFoamCol, subFoam * 0.55);
+                col = mix(col, topFoamCol, coreFoam * 0.88);
+
+                // ── ACES TONEMAPPING & GAMMA (100% ocean.html) ───────────
                 col = aces(col * 0.95);
-                gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
+
+                // ── CLIFF CONTACT FOAM & SWASH DYNAMICS ────────────────────
+                float effShoreDist = min(contactDepth * 1.4, distToIsland);
+                float shoreZone = clamp(1.0 - effShoreDist / 1.8, 0.0, 1.0);
+                if (shoreZone > 0.001) {
+                    float swashPhase = uTime * 2.2 * uSpeed - effShoreDist * 10.0 + onoise(q * 1.4) * 2.5;
+                    float waveSwash = sin(swashPhase);
+                    float waveCrest = smoothstep(0.20, 0.75, waveSwash);
+                    float swashLip = waveCrest * smoothstep(0.45, 0.02, effShoreDist) * 1.35;
+                    float backwashSuds = exp(-effShoreDist * 8.0) * 0.65;
+                    float foamBand = clamp(swashLip + backwashSuds, 0.0, 1.0);
+
+                    vec2 foamUV = q * 3.2;
+                    vec2 fWarp = vec2(onoise(foamUV * 0.5 + uTime * 0.08), onoise(foamUV * 0.5 + vec2(3.1, -uTime * 0.07)));
+                    vec2 pCell = foamUV + (fWarp - 0.5) * 1.2;
+                    float c1 = abs(onoise(pCell) * 2.0 - 1.0);
+                    float c2 = abs(onoise(om2 * pCell * 2.1 - uTime * 0.16) * 2.0 - 1.0);
+                    float bubbleLace = (1.0 - smoothstep(0.04, 0.38, c1)) * 0.70 + (1.0 - smoothstep(0.03, 0.32, c2)) * 0.35;
+                    float microFroth = pow(onoise(q * 8.5 + fWarp * 1.8), 1.6) * 0.70;
+                    float naturalShorePattern = clamp(bubbleLace * 1.40 + microFroth, 0.0, 1.0);
+
+                    float shorelineFoam = smoothstep(0.08, 0.55, foamBand * naturalShorePattern * 1.45) * shoreZone;
+
+                    vec3 luminousShoreCol = vec3(0.20, 0.98, 0.90) * (0.88 + 0.35 * sunF);
+                    vec3 crystalShallowCol = mix(luminousShoreCol, shallow * (1.18 + 0.25 * sunF), 0.28);
+                    col = mix(col, crystalShallowCol, smoothstep(0.0, 0.8, shoreZone) * 0.85);
+
+                    vec3 foamPeakCol = mix(uWaterFoamColor, vec3(1.0), 0.45) * (0.88 + 0.12 * sunF);
+                    vec3 foamBodyCol = mix(crystalShallowCol, vec3(0.78, 0.92, 0.98), 0.65) * (0.80 + 0.20 * sunF);
+                    vec3 finalShoreFoamCol = mix(foamBodyCol, foamPeakCol, smoothstep(0.15, 0.70, shorelineFoam));
+                    col = mix(col, finalShoreFoamCol, shorelineFoam * 0.95);
+                }
+
+                float edgeAlpha = mix(0.85, 1.0, smoothstep(0.0, 0.8, effShoreDist));
+                gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), edgeAlpha);
             }
         `,
-        side: THREE.DoubleSide,
-        depthWrite: true,
-        fog: false
+        side: THREE.DoubleSide
     });
 
     outerOceanMesh = new THREE.Mesh(outerGeo, outerMat);
     outerOceanMesh.position.y = (typeof waterCurrentLevel === 'number') ? waterCurrentLevel : 0.0;
-    outerOceanMesh.renderOrder = 1;
+    outerOceanMesh.renderOrder = 2;
     scene.add(outerOceanMesh);
 
     // 3. Dinding Tebing Pantai Pulau (Island Cliff Skirt)
@@ -1203,9 +1429,6 @@ function createIslandCliffSkirt() {
     const colors = new Float32Array(vertCount * 3);
     const indices = [];
 
-    const topColor = new THREE.Color(0x605247);
-    const botColor = new THREE.Color(0x1a1512);
-
     let vIdx = 0;
     function addEdge(getGroundVertexIdx, normalVec) {
         const startV = vIdx;
@@ -1215,28 +1438,36 @@ function createIslandCliffSkirt() {
             const gy = groundGeo.attributes.position.getY(gIdx);
             const gz = groundGeo.attributes.position.getZ(gIdx);
 
-            // Vertex atas (mengikuti tinggi tanah pulau)
+            // Warna tebing atas sinkron dengan warna tanah/rumput terrain di tepian
+            let tr = 0.38, tg = 0.33, tb = 0.27;
+            if (groundGeo.attributes.color) {
+                tr = groundGeo.attributes.color.getX(gIdx);
+                tg = groundGeo.attributes.color.getY(gIdx);
+                tb = groundGeo.attributes.color.getZ(gIdx);
+            }
+
+            // Vertex atas (mengikuti tinggi tanah pulau & warna tanah tepi)
             positions[vIdx * 3]     = gx;
             positions[vIdx * 3 + 1] = gy;
             positions[vIdx * 3 + 2] = gz;
             normals[vIdx * 3]       = normalVec.x;
             normals[vIdx * 3 + 1]   = normalVec.y;
             normals[vIdx * 3 + 2]   = normalVec.z;
-            colors[vIdx * 3]        = topColor.r;
-            colors[vIdx * 3 + 1]    = topColor.g;
-            colors[vIdx * 3 + 2]    = topColor.b;
+            colors[vIdx * 3]        = tr;
+            colors[vIdx * 3 + 1]    = tg;
+            colors[vIdx * 3 + 2]    = tb;
             vIdx++;
 
-            // Vertex bawah (menembus ke dasar laut)
+            // Vertex bawah (menembus ke dasar laut, warna batu gelap alami)
             positions[vIdx * 3]     = gx;
             positions[vIdx * 3 + 1] = -18.0;
             positions[vIdx * 3 + 2] = gz;
             normals[vIdx * 3]       = normalVec.x;
             normals[vIdx * 3 + 1]   = normalVec.y;
             normals[vIdx * 3 + 2]   = normalVec.z;
-            colors[vIdx * 3]        = botColor.r;
-            colors[vIdx * 3 + 1]    = botColor.g;
-            colors[vIdx * 3 + 2]    = botColor.b;
+            colors[vIdx * 3]        = tr * 0.35;
+            colors[vIdx * 3 + 1]    = tg * 0.35;
+            colors[vIdx * 3 + 2]    = tb * 0.35;
             vIdx++;
 
             if (i < segs) {
@@ -1276,7 +1507,9 @@ function syncIslandCliffSkirt() {
     const segs = (typeof groundSegments !== 'undefined') ? groundSegments : 100;
     const stride = segs + 1;
     const cliffPos = islandCliffMesh.geometry.attributes.position;
+    const cliffCol = islandCliffMesh.geometry.attributes.color;
     const groundPos = groundGeo.attributes.position;
+    const groundCol = groundGeo.attributes.color;
 
     let vIdx = 0;
     function updateEdge(getGroundVertexIdx) {
@@ -1284,6 +1517,14 @@ function syncIslandCliffSkirt() {
             const gIdx = getGroundVertexIdx(i);
             const gy = groundPos.getY(gIdx);
             cliffPos.setY(vIdx * 2, gy);
+
+            if (groundCol && cliffCol) {
+                const tr = groundCol.getX(gIdx);
+                const tg = groundCol.getY(gIdx);
+                const tb = groundCol.getZ(gIdx);
+                cliffCol.setXYZ(vIdx * 2, tr, tg, tb);
+                cliffCol.setXYZ(vIdx * 2 + 1, tr * 0.35, tg * 0.35, tb * 0.35);
+            }
             vIdx++;
         }
     }
@@ -1294,6 +1535,7 @@ function syncIslandCliffSkirt() {
     updateEdge(i => i * stride + segs);
 
     cliffPos.needsUpdate = true;
+    if (cliffCol) cliffCol.needsUpdate = true;
 }
 
 function setOuterOceanEnabled(enabled) {

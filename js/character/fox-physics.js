@@ -588,7 +588,7 @@ function updateWolfPhysics(dt, elapsed) {
                 let baseRadius = 0.32;
                 const tType = (tree.userData && tree.userData.type) ? tree.userData.type.toLowerCase() : '';
                 if (tType.includes('birch')) baseRadius = 0.22;
-                else if (tType.includes('pine')) baseRadius = 0.20;
+                else if (tType.includes('pine')) baseRadius = 0.45;
 
                 const trunkScale = (tree.userData && tree.userData.trunkGroup) ? tree.userData.trunkGroup.scale.x : 1.0;
                 const trunkRadius = baseRadius * trunkScale;
@@ -1169,10 +1169,11 @@ function updateWolfPhysics(dt, elapsed) {
                 } else if (tree.userData && (tree.userData.isPine || tree.userData.typeCode === 'pine')) {
                     // Dedaunan pohon cemara (Pine) bertingkat
                     const pineTiers = [
-                        { y: 1.8, r: 1.8 },
-                        { y: 2.8, r: 1.5 },
-                        { y: 3.8, r: 1.2 },
-                        { y: 4.8, r: 0.85 }
+                        { y: 2.3, r: 3.5 },
+                        { y: 3.8, r: 2.9 },
+                        { y: 5.3, r: 2.3 },
+                        { y: 6.8, r: 1.6 },
+                        { y: 8.3, r: 1.0 }
                     ];
                     for (let t = 0; t < pineTiers.length; t++) {
                         candidateTreeClusters.push({

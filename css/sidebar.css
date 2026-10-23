@@ -661,6 +661,10 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
     grid-template-columns: repeat(3, 1fr);
 }
 
+.spawner-card-grid.bush-grid {
+    grid-template-columns: repeat(3, 1fr);
+}
+
 .spawner-card-grid.butterfly-grid {
     grid-template-columns: repeat(2, 1fr);
 }

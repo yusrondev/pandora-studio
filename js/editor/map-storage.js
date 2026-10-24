@@ -358,6 +358,19 @@ function serializeMapData(name, existingId = null) {
             rotY: Math.round(f.root.rotation.y * 100) / 100,
             scale: f.scaleMultiplier || 1.0
         })) : [],
+        itemBoxes: (typeof itemBoxManagerInstance !== 'undefined' && itemBoxManagerInstance.boxes) ? itemBoxManagerInstance.boxes.map(b => ({
+            x: Math.round(b.baseX * 100) / 100,
+            z: Math.round(b.baseZ * 100) / 100
+        })) : [],
+        importedObjects: (typeof window.importedObjectsList !== 'undefined') ? window.importedObjectsList.map(o => ({
+            name: o.name,
+            posX: Math.round(o.root.position.x * 100) / 100,
+            posY: Math.round(o.root.position.y * 100) / 100,
+            posZ: Math.round(o.root.position.z * 100) / 100,
+            rotY: o.rotY || 0,
+            scale: o.scale || 1.0,
+            hasCollision: !!o.hasCollision
+        })) : [],
         water: {
             level: typeof getWaterCurrentLevel === 'function' ? getWaterCurrentLevel() : 0.02,
             mask: (typeof hasWaterDrawn === 'function' && hasWaterDrawn() && typeof waterCanvas !== 'undefined') ? waterCanvas.toDataURL('image/png') : null,
@@ -614,6 +627,28 @@ function applyMapDataToScene(mapData) {
     if (Array.isArray(mapData.foxes) && typeof spawnFoxAtLocation === 'function') {
         mapData.foxes.forEach(fData => {
             spawnFoxAtLocation(fData.species || 'red', fData.pose || 'idle', fData.posX, fData.posZ, fData.rotY, fData.scale || 1.0);
+        });
+    }
+
+    // 7c. Terapkan Item Boxes
+    if (typeof itemBoxManagerInstance !== 'undefined' && Array.isArray(mapData.itemBoxes)) {
+        itemBoxManagerInstance.clearAll();
+        mapData.itemBoxes.forEach(b => {
+            itemBoxManagerInstance.createItemBox(b.x, b.z);
+        });
+        itemBoxManagerInstance.updateCountUI();
+    }
+
+    // 7d. Terapkan GLB Imported Objects Transform & Collision
+    if (typeof window.glbImporterInstance !== 'undefined' && Array.isArray(mapData.importedObjects) && window.importedObjectsList.length > 0) {
+        mapData.importedObjects.forEach((saved, idx) => {
+            if (window.importedObjectsList[idx]) {
+                const item = window.importedObjectsList[idx];
+                item.root.position.set(saved.posX, saved.posY, saved.posZ);
+                window.glbImporterInstance.setScale(idx, saved.scale);
+                window.glbImporterInstance.setRotationY(idx, saved.rotY);
+                window.glbImporterInstance.setCollision(idx, saved.hasCollision);
+            }
         });
     }
 

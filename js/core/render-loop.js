@@ -67,6 +67,17 @@ function animate() {
         SelectionOutlineManager.updateAnimation(elapsedTime, delta);
     }
 
+    // --- ITEM BOX SPANWER & PLASMA WEAPON SYSTEM ---
+    if (typeof itemBoxManagerInstance !== 'undefined' && itemBoxManagerInstance) {
+        itemBoxManagerInstance.update(delta, elapsedTime);
+    }
+    if (typeof ItemSystem !== 'undefined' && ItemSystem) {
+        ItemSystem.update(delta, elapsedTime);
+    }
+    if (typeof glbImporterInstance !== 'undefined' && glbImporterInstance) {
+        glbImporterInstance.update(delta, elapsedTime);
+    }
+
     if (isPlayMode && wolfCharacter) {
         updateWolfPhysics(delta, elapsedTime);
     } else if (typeof CinematicManager !== 'undefined' && CinematicManager.isPlaying) {

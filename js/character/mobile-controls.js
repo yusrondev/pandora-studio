@@ -21,6 +21,7 @@ function initMobileControls() {
     const btnJump = document.getElementById('btn-mobile-jump');
     const btnSprint = document.getElementById('btn-mobile-sprint');
     const btnExit = document.getElementById('btn-mobile-exit-demo');
+    const btnUseItem = document.getElementById('btn-mobile-use-item');
 
     if (!controlsContainer || !joystickZone || !joystickBase || !joystickStick) {
         return;
@@ -151,6 +152,30 @@ function initMobileControls() {
             resetJoystick();
         }
     });
+
+    // 1B. ITEM ACTION BUTTON (PLASMA BAZOOKA)
+    if (btnUseItem) {
+        btnUseItem.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            btnUseItem.classList.add('firing');
+            if (typeof ItemSystem !== 'undefined') {
+                ItemSystem.useEquippedItem();
+            }
+            if (navigator.vibrate) navigator.vibrate(30);
+        }, { passive: false });
+
+        btnUseItem.addEventListener('touchend', () => {
+            btnUseItem.classList.remove('firing');
+        });
+
+        btnUseItem.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (typeof ItemSystem !== 'undefined') {
+                ItemSystem.useEquippedItem();
+            }
+        });
+    }
 
     // 2. JUMP BUTTON
     if (btnJump) {

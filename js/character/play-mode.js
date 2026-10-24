@@ -103,12 +103,14 @@ function startPlayMode() {
     if (typeof foxSitBlend !== 'undefined') foxSitBlend = 0;
     if (typeof foxState !== 'undefined') foxState = 'IDLE';
     if (typeof manualProne !== 'undefined') manualProne = false;
-    keys.w = false;
-    keys.a = false;
-    keys.s = false;
-    keys.d = false;
-    keys.shift = false;
-    keys.space = false;
+    if (typeof keys !== 'undefined') {
+        keys.w = false;
+        keys.a = false;
+        keys.s = false;
+        keys.d = false;
+        keys.shift = false;
+        keys.space = false;
+    }
 
     // Atur OrbitControls agar persis seperti new-character.html
     controls.enabled = true;
@@ -133,6 +135,9 @@ function startPlayMode() {
     }
 
     isPlayMode = true;
+    if (typeof window.glbImporterInstance !== 'undefined' && window.glbImporterInstance.transformControl) {
+        window.glbImporterInstance.transformControl.detach();
+    }
     document.body.classList.add('play-mode-active');
     if (typeof updateViewportSize === 'function') updateViewportSize();
     const btnPlay = document.getElementById('btn-play-mode');
@@ -159,6 +164,18 @@ function startPlayMode() {
     if (typeof showMobileControls === 'function') {
         showMobileControls();
     }
+
+    if (window.isItemBoxSpawnerActive && window.itemBoxManagerInstance) {
+        window.itemBoxManagerInstance.toggleSpawnerMode(false);
+    }
+
+    if (window.itemBoxManagerInstance) {
+        window.itemBoxManagerInstance.init();
+    }
+
+    if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.prewarm === 'function') {
+        window.plasmaWeaponInstance.prewarm(renderer, scene, camera);
+    }
 }
 
 function stopPlayMode() {
@@ -176,6 +193,10 @@ function stopPlayMode() {
 
     if (wolfCharacter) {
         wolfCharacter.root.visible = false;
+    }
+
+    if (typeof ItemSystem !== 'undefined') {
+        ItemSystem.reset();
     }
 
     const speciesBar = document.getElementById('fox-species-bar');
@@ -231,6 +252,9 @@ function stopPlayMode() {
 
     controls.enabled = true;
     document.body.classList.remove('play-mode-active');
+    if (typeof window.glbImporterInstance !== 'undefined' && window.glbImporterInstance.selectedIndex >= 0) {
+        window.glbImporterInstance.selectObject(window.glbImporterInstance.selectedIndex);
+    }
     if (typeof updateViewportSize === 'function') updateViewportSize();
     if (typeof updateActiveModeHUD === 'function') {
         updateActiveModeHUD();
@@ -260,6 +284,10 @@ function switchFoxSpecies(speciesKey) {
     wolfCharacter.root.rotation.y = rotY;
     wolfCharacter.root.visible = isPlayMode || (typeof CinematicManager !== 'undefined' && CinematicManager.isFoxEnabled);
     scene.add(wolfCharacter.root);
+
+    if (typeof ItemSystem !== 'undefined') {
+        ItemSystem.onFoxSpeciesChanged(wolfCharacter);
+    }
 
     // Update tombol UI aktif
     document.querySelectorAll('.btn-species-pill').forEach(btn => {

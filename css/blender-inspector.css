@@ -1,0 +1,310 @@
+/* ===================================================================
+   PANDORA 3D - BLENDER DESKTOP STYLE 3D INSPECTOR
+   Authentic dark-mode high-density 3D DCC software aesthetics (Blender)
+   Features draggable number fields, Outliner tree list, and unified XYZ.
+   =================================================================== */
+
+.blender-root {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 11px;
+    color: #dedede;
+    background: #1e1e1e;
+    border: 1px solid #323232;
+    border-radius: 4px;
+    padding: 6px;
+    box-sizing: border-box;
+    user-select: none;
+}
+
+/* --- BLENDER TOOLBAR --- */
+.blender-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #2d2d2d;
+}
+
+.blender-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: #2b2b2b;
+    border: 1px solid #3c3c3c;
+    border-radius: 3px;
+    color: #cccccc;
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 3px 7px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+    outline: none;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.blender-btn:hover {
+    background: #383838;
+    border-color: #555555;
+    color: #ffffff;
+}
+
+.blender-btn:active, .blender-btn.active {
+    background: #4772b3;
+    border-color: #638ecb;
+    color: #ffffff;
+}
+
+.blender-btn-primary {
+    background: #2d3b4e;
+    border-color: #3f5573;
+    color: #93c5fd;
+    font-weight: 600;
+}
+
+.blender-btn-primary:hover {
+    background: #3b4e68;
+    border-color: #5b7da8;
+    color: #dbeafe;
+}
+
+.blender-btn-danger:hover {
+    background: #522525;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+}
+
+/* --- BLENDER OUTLINER (ASSET LIST) --- */
+.blender-outliner {
+    background: #181818;
+    border: 1px solid #2d2d2d;
+    border-radius: 3px;
+    max-height: 140px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+
+.blender-outliner::-webkit-scrollbar {
+    width: 6px;
+}
+.blender-outliner::-webkit-scrollbar-thumb {
+    background: #3a3a3a;
+    border-radius: 3px;
+}
+
+.blender-outliner-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 23px;
+    padding: 0 6px;
+    border-bottom: 1px solid #222222;
+    cursor: pointer;
+    transition: background 0.08s;
+}
+
+.blender-outliner-row:hover {
+    background: #282828;
+}
+
+.blender-outliner-row.selected {
+    background: #2e4d75;
+    color: #ffffff;
+}
+
+.blender-outliner-item-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.blender-icon-mesh {
+    color: #e68523; /* Blender mesh orange */
+    font-size: 11px;
+}
+
+.blender-outliner-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.blender-pill-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.blender-badge-solid {
+    background: rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.blender-badge-ghost {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+/* --- BLENDER PANEL ACCORDION / PROPERTY SECTION --- */
+.blender-panel {
+    background: #232323;
+    border: 1px solid #303030;
+    border-radius: 3px;
+    margin-bottom: 6px;
+    overflow: hidden;
+}
+
+.blender-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    background: #282828;
+    border-bottom: 1px solid #303030;
+    font-weight: 600;
+    font-size: 10px;
+    color: #aaaaaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: default;
+}
+
+.blender-panel-body {
+    padding: 6px 8px;
+}
+
+/* --- BLENDER DRAGGABLE NUMBER SCRUBBER FIELDS --- */
+.blender-property-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+    gap: 6px;
+}
+
+.blender-property-label {
+    width: 65px;
+    font-size: 10.5px;
+    color: #9e9e9e;
+    text-align: right;
+    padding-right: 2px;
+}
+
+.blender-scrub-group {
+    display: flex;
+    flex: 1;
+    gap: 3px;
+}
+
+.blender-scrub-field {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    background: #181818;
+    border: 1px solid #383838;
+    border-radius: 3px;
+    overflow: hidden;
+    height: 22px;
+    box-sizing: border-box;
+    transition: border-color 0.15s, background 0.15s;
+    cursor: ew-resize;
+}
+
+.blender-scrub-field:hover {
+    border-color: #555555;
+    background: #202020;
+}
+
+.blender-scrub-field.focus {
+    border-color: #4772b3;
+    background: #111111;
+}
+
+.blender-axis-tag {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 100%;
+    font-size: 9.5px;
+    font-weight: 800;
+    color: #ffffff;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.blender-tag-x { background: #b93838; }
+.blender-tag-y { background: #3fa03f; }
+.blender-tag-z { background: #3b74b9; }
+.blender-tag-rot { background: #7c3aed; }
+.blender-tag-scale { background: #d97706; }
+
+.blender-scrub-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #dedede;
+    font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    text-align: right;
+    padding: 0 5px 0 2px;
+    outline: none;
+    cursor: ew-resize;
+    width: 100%;
+    min-width: 0;
+}
+
+.blender-scrub-input:focus {
+    cursor: text;
+    color: #ffffff;
+    background: #0f0f0f;
+}
+
+/* Blender Checkbox Row */
+.blender-checkbox-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px;
+    background: #1c1c1c;
+    border: 1px solid #2d2d2d;
+    border-radius: 3px;
+    margin-top: 4px;
+}
+
+.blender-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    color: #cccccc;
+    cursor: pointer;
+}
+
+.blender-checkbox {
+    width: 13px;
+    height: 13px;
+    accent-color: #38bdf8;
+    cursor: pointer;
+}
+
+/* Blender Footer Hint */
+.blender-hint-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 9.5px;
+    color: #7e7e7e;
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid #2a2a2a;
+}

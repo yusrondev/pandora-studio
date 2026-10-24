@@ -296,6 +296,35 @@ function handleCanvasPointerDown(e) {
     if (e.button === 2) {
         e.preventDefault();
 
+        // 0. Mode Item Box Spawner: Klik kanan = hapus item box di pointer atau dekat klik
+        if (window.isItemBoxSpawnerActive) {
+            let deletedBox = false;
+            if (window.itemBoxManagerInstance && window.itemBoxManagerInstance.boxes.length > 0) {
+                const boxGroups = window.itemBoxManagerInstance.boxes.map(b => b.group).filter(Boolean);
+                const boxHits = raycaster.intersectObjects(boxGroups, true);
+                if (boxHits.length > 0) {
+                    let hitMesh = boxHits[0].object;
+                    while (hitMesh && hitMesh.parent && hitMesh.parent !== window.itemBoxManagerInstance.containerGroup) {
+                        hitMesh = hitMesh.parent;
+                    }
+                    const foundBox = window.itemBoxManagerInstance.boxes.find(b => b.group === hitMesh);
+                    if (foundBox) {
+                        window.itemBoxManagerInstance.deleteItemBox(foundBox);
+                        deletedBox = true;
+                    }
+                }
+            }
+            if (!deletedBox) {
+                const groundHits = raycaster.intersectObject(ground);
+                if (groundHits.length > 0) {
+                    const pt = groundHits[0].point;
+                    window.itemBoxManagerInstance.deleteItemBoxAtLocation(pt.x, pt.z, 3.0);
+                }
+            }
+            if (e.stopPropagation) e.stopPropagation();
+            return;
+        }
+
         // 1. Mode Tree Spawner: Klik kanan = hapus pohon yang ada di pointer
         if (selectTreeMode.value !== 'none') {
             let deleted = false;
@@ -598,6 +627,16 @@ function handleCanvasPointerDown(e) {
         if (intersects.length > 0) {
             const hitPoint = intersects[0].point;
 
+            // Mode Item Box Spawner: Klik kiri = letakkan item box di permukaan tanah
+            if (window.isItemBoxSpawnerActive) {
+                if (window.itemBoxManagerInstance) {
+                    window.itemBoxManagerInstance.createItemBox(hitPoint.x, hitPoint.z);
+                    window.itemBoxManagerInstance.updateCountUI();
+                }
+                if (e.stopPropagation) e.stopPropagation();
+                return;
+            }
+
             const treeMode = selectTreeMode.value;
             if (treeMode !== 'none') {
                 spawnTreeAtLocation(treeMode, hitPoint.x, hitPoint.z);
@@ -633,6 +672,7 @@ function handleCanvasPointerDown(e) {
         const currentFoxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
         const isBrushActive = (selectTreeMode && selectTreeMode.value !== 'none') ||
             (currentFoxSelect && currentFoxSelect.value !== 'none') ||
+            window.isItemBoxSpawnerActive ||
             (selectTerrainMode && selectTerrainMode.value !== 'none') ||
             (selectRoadBrush && selectRoadBrush.value !== 'none') ||
             (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') ||

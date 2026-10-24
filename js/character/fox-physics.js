@@ -1,6 +1,7 @@
 /* Low-Poly Fox Physics, Locomotion, 3D Collision, and Spring-Arm Camera Occlusion */
 
 const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
+window.keys = keys;
 
 window.addEventListener('keydown', (e) => {
     if (!isPlayMode) return;
@@ -602,6 +603,61 @@ function updateWolfPhysics(dt, elapsed) {
                     const dz = nodeZ - tree.position.z;
                     const distSq = dx * dx + dz * dz;
                     const minAllowedDist = trunkRadius + node.radius;
+
+                    if (distSq < minAllowedDist * minAllowedDist) {
+                        const dist = Math.sqrt(distSq);
+                        if (dist > 0.0001) {
+                            const pushDist = minAllowedDist - dist;
+                            foxRoot.position.x += (dx / dist) * pushDist;
+                            foxRoot.position.z += (dz / dist) * pushDist;
+                            camera.position.x += (dx / dist) * pushDist;
+                            camera.position.z += (dz / dist) * pushDist;
+                        } else {
+                            foxRoot.position.x += minAllowedDist;
+                            camera.position.x += minAllowedDist;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ========================================================
+    // 1C. COLLISION ASSET 3D IMPORT (GLB / GLTF)
+    // Menahan laju rubah jika Auto Collision = ON (bisa ditembus jika OFF)
+    // ========================================================
+    if (Array.isArray(window.importedObjectsList) && window.importedObjectsList.length > 0) {
+        const foxPosX = foxRoot.position.x;
+        const foxPosZ = foxRoot.position.z;
+        const foxPosY = foxRoot.position.y;
+
+        for (let iter = 0; iter < 2; iter++) {
+            for (let i = 0; i < window.importedObjectsList.length; i++) {
+                const item = window.importedObjectsList[i];
+                if (!item || !item.hasCollision || !item.root || !item.root.visible) continue;
+
+                const rootPos = item.root.position;
+                const colRadius = item.collisionRadius || 1.2;
+                const colHeight = item.collisionHeight || 2.5;
+
+                // Broadphase: jarak ke objek
+                const dxObj = foxPosX - rootPos.x;
+                const dzObj = foxPosZ - rootPos.z;
+                const maxCheckDist = colRadius + 4.0;
+                if (dxObj * dxObj + dzObj * dzObj > maxCheckDist * maxCheckDist) continue;
+
+                // Cek batas vertikal
+                if (foxPosY < rootPos.y - 0.5 || foxPosY > rootPos.y + colHeight + 0.5) continue;
+
+                for (let n = 0; n < foxCollisionNodes.length; n++) {
+                    const node = foxCollisionNodes[n];
+                    const nodeX = foxRoot.position.x + fwdX * node.offset;
+                    const nodeZ = foxRoot.position.z + fwdZ * node.offset;
+
+                    const dx = nodeX - rootPos.x;
+                    const dz = nodeZ - rootPos.z;
+                    const distSq = dx * dx + dz * dz;
+                    const minAllowedDist = colRadius + node.radius;
 
                     if (distSq < minAllowedDist * minAllowedDist) {
                         const dist = Math.sqrt(distSq);

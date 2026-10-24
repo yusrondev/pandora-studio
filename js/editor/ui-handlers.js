@@ -401,6 +401,10 @@ function cancelAllSelections() {
     if (typeof selectFogBrush !== 'undefined' && selectFogBrush) selectFogBrush.value = 'none';
     if (selectTerrainMode) selectTerrainMode.value = 'none';
 
+    if (window.isItemBoxSpawnerActive && window.itemBoxManagerInstance) {
+        window.itemBoxManagerInstance.toggleSpawnerMode(false);
+    }
+
     if (typeof brushReticleGroup !== 'undefined') {
         brushReticleGroup.visible = false;
     }

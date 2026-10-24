@@ -368,6 +368,10 @@ function serializeMapData(name, existingId = null) {
         },
         fog: typeof exportFogData === 'function' ? exportFogData() : null,
         activeGrass: activeGrass,
+        cinematic: (typeof CinematicManager !== 'undefined' && CinematicManager.scenes && CinematicManager.scenes.length > 0) ? {
+            activeSceneIndex: CinematicManager.activeSceneIndex,
+            scenes: (typeof CinematicManager.saveCurrentSceneState === 'function' && CinematicManager.saveCurrentSceneState(), JSON.parse(JSON.stringify(CinematicManager.scenes)))
+        } : null,
         meta: {
             treeCount: trees.length,
             rockCount: typeof rocksList !== 'undefined' ? rocksList.length : 0,
@@ -672,6 +676,15 @@ function applyMapDataToScene(mapData) {
         importFogData(mapData.fog);
     } else if (typeof clearAllFog === 'function') {
         clearAllFog();
+    }
+
+    // 10. Terapkan Cinematic Sequences & Subtitles
+    if (mapData.cinematic && typeof CinematicManager !== 'undefined' && Array.isArray(mapData.cinematic.scenes)) {
+        CinematicManager.scenes = JSON.parse(JSON.stringify(mapData.cinematic.scenes));
+        const sIdx = (mapData.cinematic.activeSceneIndex !== undefined && mapData.cinematic.activeSceneIndex >= 0 && mapData.cinematic.activeSceneIndex < CinematicManager.scenes.length)
+            ? mapData.cinematic.activeSceneIndex
+            : 0;
+        CinematicManager.loadScene(sIdx);
     }
 
     selectedTreeIndex = treesList.length > 0 ? treesList.length - 1 : -1;

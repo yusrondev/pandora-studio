@@ -510,6 +510,11 @@
                         <input type="checkbox" id="toggle-cinematic-letterbox" checked style="accent-color:var(--accent); cursor:pointer;">
                         <span>Letterbox</span>
                     </label>
+
+                    <label style="display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; color:var(--text-main);" title="Tampilkan Subtitle / Teks Sinematik">
+                        <input type="checkbox" id="toggle-cinematic-subtitles-top" checked style="accent-color:#10b981; cursor:pointer;">
+                        <span style="color:#34d399;">Subs</span>
+                    </label>
                 </div>
 
                 <!-- Overflow 3-Dots Button (Opens upward dropdown on mobile/compact views) -->
@@ -630,6 +635,10 @@
                         <label style="display:flex; align-items:center; gap:4px; font-size:11px; cursor:pointer; color:var(--text-main);">
                             <input type="checkbox" id="toggle-cinematic-letterbox-overflow" checked style="accent-color:var(--accent); cursor:pointer;">
                             <span>Cinema 2.35:1 Letterbox</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:4px; font-size:11px; cursor:pointer; color:var(--text-main);">
+                            <input type="checkbox" id="toggle-cinematic-subtitles-overflow" checked style="accent-color:#10b981; cursor:pointer;">
+                            <span style="color:#34d399;">Subtitles / Teks</span>
                         </label>
                     </div>
                 </div>
@@ -765,6 +774,89 @@
                     </div>
                 </div>
 
+                <!-- Track 3: Subtitle / Teks Header -->
+                <div class="cinematic-track-header subtitle-track">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:500; font-size:11px; color:var(--text-bright); display:flex; align-items:center; gap:5px;">
+                            <span class="svg-icon" style="width:13px; height:13px; color:#10b981;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                    <line x1="8" y1="9" x2="16" y2="9"></line>
+                                    <line x1="8" y1="13" x2="14" y2="13"></line>
+                                </svg>
+                            </span>
+                            Subtitle Track
+                            <span id="subtitle-total-badge" class="cinematic-badge" style="background:#133328; color:#34d399; border-color:#1e523f;">0 Subs</span>
+                        </span>
+                        <label style="display:flex; align-items:center; gap:4px; font-size:10px; cursor:pointer; color:var(--text-muted);" title="Toggle Aktifkan Teks Subtitle">
+                            <input type="checkbox" id="toggle-cinematic-subtitles" checked style="accent-color:#10b981; cursor:pointer;">
+                            <span>Active</span>
+                        </label>
+                    </div>
+
+                    <div style="display:flex; gap:4px; margin-top:2px;">
+                        <button type="button" id="btn-cinematic-add-sub" class="btn-compact" style="flex:1; padding:2px 6px; font-size:11px; background:#1e3a31; color:#34d399; border:1px solid #2d5a4c;" title="Tambah Subtitle di Detik Ini (+)">
+                            <span>+ Add Subtitle</span>
+                        </button>
+                        <button type="button" id="btn-cinematic-clear-subs" class="btn-icon-only" style="width:22px; height:22px;" title="Reset Semua Subtitle">
+                            <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+                        </button>
+                    </div>
+
+                    <!-- Panel Editor Subtitle Terpilih -->
+                    <div id="subtitle-editor-controls" style="display:none; flex-direction:column; gap:4px; margin-top:4px; padding:5px 6px; background:var(--bg-dark); border:1px solid #1e3a31; border-radius:var(--radius-sm);">
+                        <!-- Header & Dropdown Pilihan Subtitle -->
+                        <div style="display:flex; gap:3px; align-items:center;">
+                            <select id="select-cinematic-active-sub" class="cinematic-mini-select" style="flex:1; font-weight:500; color:#34d399; padding:2px 4px; font-size:10px;" title="Pilih Subtitle Aktif">
+                                <option value="0">Subtitle 1</option>
+                            </select>
+                            <button type="button" id="btn-snap-sub-to-current" class="btn-compact" style="font-size:10px; padding:1px 5px; height:22px;" title="Atur Waktu Mulai ke Posisi Playhead Saat Ini">Snap Now</button>
+                            <button type="button" id="btn-delete-selected-sub" class="btn-icon-only" style="width:22px; height:22px; font-size:10px;" title="Hapus Subtitle Ini">
+                                <span class="svg-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
+                            </button>
+                        </div>
+
+                        <!-- Teks Subtitle -->
+                        <div style="display:flex; flex-direction:column; gap:2px;">
+                            <textarea id="input-subtitle-text" rows="2" placeholder="Tulis teks subtitle di sini..." style="width:100%; box-sizing:border-box; font-size:11px; padding:4px 6px; background:#191919; color:var(--text-bright); border:1px solid #333; border-radius:3px; resize:vertical; font-family:inherit;"></textarea>
+                        </div>
+
+                        <!-- Speaker / Karakter (Opsional) -->
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            <input type="text" id="input-subtitle-speaker" placeholder="Nama Pembicara (opsional, misal: Rubah)" style="flex:1; height:22px; box-sizing:border-box; font-size:10px; padding:2px 5px; background:#191919; color:#38bdf8; border:1px solid #333; border-radius:3px;">
+                        </div>
+
+                        <!-- Timing Waktu Mulai & Selesai -->
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px; font-size:10px; color:var(--text-muted);">
+                            <div style="display:flex; align-items:center; gap:3px;">
+                                <span>Start:</span>
+                                <input type="number" id="input-subtitle-start" min="0" max="30" step="0.1" value="0.0" style="flex:1; width:100%; height:20px; box-sizing:border-box; font-size:10px; padding:1px 3px; background:#191919; color:var(--text-bright); border:1px solid #333; border-radius:3px; font-family:'JetBrains Mono',monospace;">
+                                <span>s</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:3px;">
+                                <span>End:</span>
+                                <input type="number" id="input-subtitle-end" min="0.1" max="30" step="0.1" value="3.0" style="flex:1; width:100%; height:20px; box-sizing:border-box; font-size:10px; padding:1px 3px; background:#191919; color:var(--text-bright); border:1px solid #333; border-radius:3px; font-family:'JetBrains Mono',monospace;">
+                                <span>s</span>
+                            </div>
+                        </div>
+
+                        <!-- Gaya & Posisi -->
+                        <div style="display:flex; gap:4px; margin-top:1px;">
+                            <select id="select-subtitle-style" class="cinematic-mini-select" style="flex:1; font-size:10px; height:20px;" title="Gaya Tampilan Subtitle">
+                                <option value="capsule" selected>Gaya: Kapsul Gelap (Modern)</option>
+                                <option value="shadow">Gaya: Bayangan Bioskop (Clean)</option>
+                                <option value="gold">Gaya: Emas Elegan (Sinematik)</option>
+                                <option value="comic">Gaya: Storybook Bold</option>
+                            </select>
+                            <select id="select-subtitle-position" class="cinematic-mini-select" style="width:75px; font-size:10px; height:20px;" title="Posisi Subtitle">
+                                <option value="bottom" selected>Bawah</option>
+                                <option value="top">Atas</option>
+                                <option value="center">Tengah</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Resizer Splitter Handle between Controls Sidebar and Timeline -->
@@ -796,6 +888,15 @@
                         <span id="fox-lane-hint" style="font-size:10px; color:var(--text-muted); font-weight:normal;">(Enable 'Active' &amp; Draw Path)</span>
                     </span>
                     <div id="fox-waypoint-markers-lane" style="position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:none;"></div>
+                </div>
+
+                <!-- Subtitle Track Lane -->
+                <div class="cinematic-track-lane subtitle-lane" id="subtitle-track-lane">
+                    <span style="font-size:11px; color:#34d399; font-weight:500; display:flex; align-items:center; gap:6px; z-index:2; pointer-events:none;">
+                        Subtitles
+                        <span id="subtitle-lane-hint" style="font-size:10px; color:var(--text-muted); font-weight:normal;">(+ Add Subtitle untuk teks sinematik)</span>
+                    </span>
+                    <div id="subtitle-clips-container" style="position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:auto;"></div>
                 </div>
 
                 <!-- Global Playhead Slider Overlay across all tracks -->

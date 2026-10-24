@@ -123,6 +123,11 @@ const CinematicManager = {
     activeSceneIndex: 0,
     isPlayingAllScenes: false,
 
+    // Subtitle & Captions state
+    subtitles: [],
+    selectedSubtitleIndex: -1,
+    isSubtitlesEnabled: true,
+
     // Stored camera state for restore
     savedCameraPos: new THREE.Vector3(),
     savedControlsTarget: new THREE.Vector3(),
@@ -319,6 +324,15 @@ const CinematicManager = {
             dof.id = 'cinematic-dof-overlay';
             dof.className = 'cinematic-dof-overlay';
             mountTarget.appendChild(dof);
+        }
+
+        // 3. Cinematic Subtitle Viewport Overlay
+        if (!document.getElementById('cinematic-subtitle-overlay')) {
+            const sub = document.createElement('div');
+            sub.id = 'cinematic-subtitle-overlay';
+            sub.className = 'cinematic-subtitle-overlay sub-pos-bottom sub-style-capsule';
+            sub.innerHTML = '<div class="cinematic-subtitle-box" id="cinematic-subtitle-content"></div>';
+            mountTarget.appendChild(sub);
         }
     },
 
@@ -2076,6 +2090,8 @@ const CinematicManager = {
                     blurAmount: 6.0,
                     isDoFActive: true,
                     isLetterboxActive: true,
+                    isSubtitlesEnabled: true,
+                    subtitles: [],
                     isFoxEnabled: this.isFoxEnabled,
                     activeFoxIndex: 0,
                     foxes: (this.foxes && this.foxes.length > 0) ? this.foxes.map(f => ({
@@ -2110,6 +2126,8 @@ const CinematicManager = {
         cur.blurAmount = this.blurAmount;
         cur.isDoFActive = this.isDoFActive;
         cur.isLetterboxActive = this.isLetterboxActive;
+        cur.isSubtitlesEnabled = this.isSubtitlesEnabled;
+        cur.subtitles = JSON.parse(JSON.stringify(this.subtitles || []));
         cur.isFoxEnabled = this.isFoxEnabled;
         cur.activeFoxIndex = this.activeFoxIndex;
         cur.foxes = this.foxes.map(f => ({
@@ -2208,6 +2226,9 @@ const CinematicManager = {
         this.blurAmount = sc.blurAmount !== undefined ? sc.blurAmount : 6.0;
         this.isDoFActive = sc.isDoFActive !== undefined ? sc.isDoFActive : true;
         this.isLetterboxActive = sc.isLetterboxActive !== undefined ? sc.isLetterboxActive : true;
+        this.isSubtitlesEnabled = sc.isSubtitlesEnabled !== undefined ? sc.isSubtitlesEnabled : true;
+        this.subtitles = Array.isArray(sc.subtitles) ? JSON.parse(JSON.stringify(sc.subtitles)) : [];
+        this.selectedSubtitleIndex = this.subtitles.length > 0 ? 0 : -1;
         this.isFoxEnabled = !!sc.isFoxEnabled;
         this.waypoints = JSON.parse(JSON.stringify(sc.waypoints || []));
 
@@ -2304,6 +2325,9 @@ const CinematicManager = {
         this.renderSceneTabsUI();
         this.renderWaypointUI();
         this.renderTimelineLanePips();
+        this.renderSubtitleUI();
+        this.updateRulerLabels();
+        this.updateSubtitleOverlay(this.progress * this.duration);
 
         if (keepPlaying || this.isPlaying) {
             if (this.pathGroup) this.pathGroup.visible = false;
@@ -2386,6 +2410,8 @@ const CinematicManager = {
             blurAmount: prevScene ? prevScene.blurAmount : this.blurAmount,
             isDoFActive: prevScene ? prevScene.isDoFActive : this.isDoFActive,
             isLetterboxActive: prevScene ? prevScene.isLetterboxActive : this.isLetterboxActive,
+            isSubtitlesEnabled: true,
+            subtitles: [],
             isFoxEnabled: prevScene ? prevScene.isFoxEnabled : this.isFoxEnabled,
             activeFoxIndex: prevScene ? (prevScene.activeFoxIndex || 0) : this.activeFoxIndex,
             foxes: newFoxes,
@@ -2629,6 +2655,7 @@ const CinematicManager = {
         }
 
         this.setLetterboxActive(false);
+        this.updateSubtitleOverlay(-1);
         const dofOverlay = document.getElementById('cinematic-dof-overlay');
         if (dofOverlay) {
             dofOverlay.classList.remove('active');
@@ -2695,6 +2722,7 @@ const CinematicManager = {
         if (this.curve || this.waypoints.length === 1) {
             this.applyProgressToCamera(this.progress);
         }
+        this.updateSubtitleOverlay(currentTimeSeconds);
         this.updateTimelineUI();
     },
 
@@ -2959,6 +2987,9 @@ const CinematicManager = {
             this.applyProgressToCamera(this.progress);
         }
 
+        // 3. Update Subtitle Teks Sinematik
+        this.updateSubtitleOverlay(currentTimeSeconds);
+
         this.updateTimelineUI();
     },
 
@@ -3100,6 +3131,403 @@ const CinematicManager = {
         }
     },
 
+    // --- 1B. SUBTITLE / TEXT CAPTIONS SYSTEM ---
+    escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    updateRulerLabels() {
+        const ruler = document.querySelector('.cinematic-timeline-ruler');
+        if (!ruler) return;
+        const dur = this.duration || 10.0;
+        ruler.innerHTML = `
+            <span style="position:absolute; left:0; font-size:9px; color:var(--text-dim);">0.0s</span>
+            <span style="position:absolute; left:25%; font-size:9px; color:var(--text-dim); transform:translateX(-50%);">${(dur * 0.25).toFixed(1)}s</span>
+            <span style="position:absolute; left:50%; font-size:9px; color:var(--text-dim); transform:translateX(-50%);">${(dur * 0.5).toFixed(1)}s</span>
+            <span style="position:absolute; left:75%; font-size:9px; color:var(--text-dim); transform:translateX(-50%);">${(dur * 0.75).toFixed(1)}s</span>
+            <span style="position:absolute; right:0; font-size:9px; color:var(--text-dim);">${dur.toFixed(1)}s</span>
+        `;
+    },
+
+    addSubtitle(startTime = null, duration = 2.5, text = 'Teks subtitle di sini...', speaker = '') {
+        if (typeof saveState === 'function') {
+            saveState();
+        }
+
+        let start = (startTime !== null && startTime !== undefined) ? startTime : (this.progress * this.duration);
+        start = Math.round(start * 10) / 10;
+        if (start < 0) start = 0;
+        if (start > Math.max(0, this.duration - 0.5)) start = Math.max(0, this.duration - 0.5);
+
+        let end = Math.min(this.duration, Math.round((start + duration) * 10) / 10);
+        if (end <= start) end = Math.min(this.duration, Math.round((start + 1.0) * 10) / 10);
+
+        const newSub = {
+            id: 'sub_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            startTime: start,
+            endTime: end,
+            text: text,
+            speaker: speaker,
+            style: 'capsule',
+            position: 'bottom'
+        };
+
+        if (!Array.isArray(this.subtitles)) this.subtitles = [];
+        this.subtitles.push(newSub);
+        this.sortSubtitles();
+        this.selectedSubtitleIndex = this.subtitles.indexOf(newSub);
+
+        this.renderSubtitleUI();
+        this.updateSubtitleOverlay(start);
+        this.saveCurrentSceneState();
+
+        // Seek timeline to subtitle start for instant preview
+        this.seek(start / Math.max(0.1, this.duration));
+
+        // Focus text input so user can type immediately
+        setTimeout(() => {
+            const input = document.getElementById('input-subtitle-text');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }, 60);
+    },
+
+    sortSubtitles() {
+        if (!Array.isArray(this.subtitles)) return;
+        const selectedSub = (this.selectedSubtitleIndex >= 0 && this.selectedSubtitleIndex < this.subtitles.length)
+            ? this.subtitles[this.selectedSubtitleIndex]
+            : null;
+
+        this.subtitles.sort((a, b) => a.startTime - b.startTime);
+
+        if (selectedSub) {
+            this.selectedSubtitleIndex = this.subtitles.indexOf(selectedSub);
+        }
+    },
+
+    deleteSubtitle(idx) {
+        if (idx < 0 || !this.subtitles || idx >= this.subtitles.length) return;
+        if (typeof saveState === 'function') {
+            saveState();
+        }
+        this.subtitles.splice(idx, 1);
+        if (this.selectedSubtitleIndex >= this.subtitles.length) {
+            this.selectedSubtitleIndex = this.subtitles.length - 1;
+        }
+        this.renderSubtitleUI();
+        this.updateSubtitleOverlay(this.progress * this.duration);
+        this.saveCurrentSceneState();
+    },
+
+    clearAllSubtitles() {
+        if (!this.subtitles || this.subtitles.length === 0) return;
+        if (typeof saveState === 'function') {
+            saveState();
+        }
+        this.subtitles = [];
+        this.selectedSubtitleIndex = -1;
+        this.renderSubtitleUI();
+        this.updateSubtitleOverlay(-1);
+        this.saveCurrentSceneState();
+    },
+
+    selectSubtitle(idx) {
+        if (idx < 0 || !this.subtitles || idx >= this.subtitles.length) {
+            this.selectedSubtitleIndex = -1;
+            this.renderSubtitleUI();
+            return;
+        }
+        this.selectedSubtitleIndex = idx;
+        this.renderSubtitleUI();
+
+        // Seek timeline to the start of this subtitle for immediate preview
+        const sub = this.subtitles[idx];
+        if (sub) {
+            this.seek(sub.startTime / Math.max(0.1, this.duration));
+            this.updateSubtitleOverlay(sub.startTime);
+        }
+    },
+
+    setSubtitlesEnabled(enabled) {
+        this.isSubtitlesEnabled = !!enabled;
+        const toggleTop = document.getElementById('toggle-cinematic-subtitles-top');
+        const toggleTrack = document.getElementById('toggle-cinematic-subtitles');
+        const toggleOver = document.getElementById('toggle-cinematic-subtitles-overflow');
+        if (toggleTop) toggleTop.checked = this.isSubtitlesEnabled;
+        if (toggleTrack) toggleTrack.checked = this.isSubtitlesEnabled;
+        if (toggleOver) toggleOver.checked = this.isSubtitlesEnabled;
+
+        this.updateSubtitleOverlay(this.progress * this.duration);
+        this.saveCurrentSceneState();
+    },
+
+    renderSubtitleUI() {
+        const totalBadge = document.getElementById('subtitle-total-badge');
+        const count = this.subtitles ? this.subtitles.length : 0;
+        if (totalBadge) totalBadge.innerText = `${count} Sub${count === 1 ? '' : 's'}`;
+
+        const toggleTop = document.getElementById('toggle-cinematic-subtitles-top');
+        const toggleTrack = document.getElementById('toggle-cinematic-subtitles');
+        const toggleOver = document.getElementById('toggle-cinematic-subtitles-overflow');
+        if (toggleTop) toggleTop.checked = this.isSubtitlesEnabled;
+        if (toggleTrack) toggleTrack.checked = this.isSubtitlesEnabled;
+        if (toggleOver) toggleOver.checked = this.isSubtitlesEnabled;
+
+        const editBox = document.getElementById('subtitle-editor-controls');
+        const selectActive = document.getElementById('select-cinematic-active-sub');
+
+        if (count === 0 || this.selectedSubtitleIndex < 0 || this.selectedSubtitleIndex >= count) {
+            if (editBox) editBox.style.display = 'none';
+        } else {
+            if (editBox) editBox.style.display = 'flex';
+            const curSub = this.subtitles[this.selectedSubtitleIndex];
+
+            // Update dropdown options
+            if (selectActive) {
+                selectActive.innerHTML = '';
+                this.subtitles.forEach((s, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    const previewText = s.text.length > 18 ? (s.text.substring(0, 18) + '...') : s.text;
+                    opt.innerText = `#${i + 1} [${s.startTime.toFixed(1)}s-${s.endTime.toFixed(1)}s] ${previewText}`;
+                    if (i === this.selectedSubtitleIndex) opt.selected = true;
+                    selectActive.appendChild(opt);
+                });
+            }
+
+            // Sync form inputs
+            const txtInput = document.getElementById('input-subtitle-text');
+            const spkInput = document.getElementById('input-subtitle-speaker');
+            const startInput = document.getElementById('input-subtitle-start');
+            const endInput = document.getElementById('input-subtitle-end');
+            const styleSelect = document.getElementById('select-subtitle-style');
+            const posSelect = document.getElementById('select-subtitle-position');
+
+            if (txtInput && document.activeElement !== txtInput) txtInput.value = curSub.text || '';
+            if (spkInput && document.activeElement !== spkInput) spkInput.value = curSub.speaker || '';
+            if (startInput && document.activeElement !== startInput) {
+                startInput.value = curSub.startTime.toFixed(1);
+                startInput.max = this.duration;
+            }
+            if (endInput && document.activeElement !== endInput) {
+                endInput.value = curSub.endTime.toFixed(1);
+                endInput.max = this.duration;
+            }
+            if (styleSelect) styleSelect.value = curSub.style || 'capsule';
+            if (posSelect) posSelect.value = curSub.position || 'bottom';
+        }
+
+        this.renderSubtitleTimelineClips();
+    },
+
+    renderSubtitleTimelineClips() {
+        const container = document.getElementById('subtitle-clips-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (!this.subtitles || this.subtitles.length === 0) return;
+
+        const dur = Math.max(0.1, this.duration);
+
+        this.subtitles.forEach((sub, idx) => {
+            const leftPct = (Math.max(0, sub.startTime) / dur) * 100;
+            const widthPct = Math.max(2, ((sub.endTime - sub.startTime) / dur) * 100);
+
+            const clip = document.createElement('div');
+            clip.className = `cinematic-subtitle-clip ${idx === this.selectedSubtitleIndex ? 'selected' : ''}`;
+            clip.style.left = `${leftPct.toFixed(2)}%`;
+            clip.style.width = `${Math.min(100 - leftPct, widthPct).toFixed(2)}%`;
+            clip.title = `Subtitle #${idx + 1}: ${sub.startTime.toFixed(1)}s - ${sub.endTime.toFixed(1)}s\n"${sub.text}"`;
+
+            // Text label inside clip
+            const label = document.createElement('span');
+            label.style.overflow = 'hidden';
+            label.style.textOverflow = 'ellipsis';
+            label.style.whiteSpace = 'nowrap';
+            label.style.pointerEvents = 'none';
+            label.innerText = (sub.speaker ? `[${sub.speaker}] ` : '') + (sub.text || '(Kosong)');
+            clip.appendChild(label);
+
+            // Left resize handle
+            const handleL = document.createElement('div');
+            handleL.className = 'cinematic-subtitle-clip-handle handle-left';
+            handleL.title = 'Tarik untuk ubah waktu mulai';
+            clip.appendChild(handleL);
+
+            // Right resize handle
+            const handleR = document.createElement('div');
+            handleR.className = 'cinematic-subtitle-clip-handle handle-right';
+            handleR.title = 'Tarik untuk ubah waktu selesai';
+            clip.appendChild(handleR);
+
+            // Click clip to select
+            clip.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectSubtitle(idx);
+            });
+
+            // Interactive dragging for handles & clip body
+            this.initSubtitleClipDrag(clip, handleL, handleR, idx);
+
+            container.appendChild(clip);
+        });
+    },
+
+    initSubtitleClipDrag(clip, handleL, handleR, subIdx) {
+        const lane = document.getElementById('subtitle-track-lane');
+        if (!lane) return;
+
+        // 1. Drag left handle (adjust startTime)
+        handleL.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.selectSubtitle(subIdx);
+            const sub = this.subtitles[subIdx];
+            if (!sub) return;
+
+            const rect = lane.getBoundingClientRect();
+            const dur = Math.max(0.1, this.duration);
+            handleL.classList.add('dragging');
+
+            const onMove = (ev) => {
+                const offsetX = ev.clientX - rect.left;
+                const ratio = Math.max(0, Math.min(1, offsetX / rect.width));
+                let newStart = Math.round(ratio * dur * 10) / 10;
+                if (newStart >= sub.endTime - 0.2) newStart = Math.max(0, sub.endTime - 0.2);
+                sub.startTime = newStart;
+                this.renderSubtitleUI();
+                this.seek(sub.startTime / dur);
+            };
+
+            const onUp = () => {
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+                handleL.classList.remove('dragging');
+                this.sortSubtitles();
+                this.renderSubtitleUI();
+                this.saveCurrentSceneState();
+            };
+
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+        });
+
+        // 2. Drag right handle (adjust endTime)
+        handleR.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.selectSubtitle(subIdx);
+            const sub = this.subtitles[subIdx];
+            if (!sub) return;
+
+            const rect = lane.getBoundingClientRect();
+            const dur = Math.max(0.1, this.duration);
+            handleR.classList.add('dragging');
+
+            const onMove = (ev) => {
+                const offsetX = ev.clientX - rect.left;
+                const ratio = Math.max(0, Math.min(1, offsetX / rect.width));
+                let newEnd = Math.round(ratio * dur * 10) / 10;
+                if (newEnd <= sub.startTime + 0.2) newEnd = Math.min(dur, sub.startTime + 0.2);
+                sub.endTime = newEnd;
+                this.renderSubtitleUI();
+                this.seek(sub.endTime / dur);
+            };
+
+            const onUp = () => {
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+                handleR.classList.remove('dragging');
+                this.sortSubtitles();
+                this.renderSubtitleUI();
+                this.saveCurrentSceneState();
+            };
+
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+        });
+
+        // 3. Drag clip body (shift both startTime and endTime)
+        clip.addEventListener('pointerdown', (e) => {
+            if (e.target === handleL || e.target === handleR) return;
+            e.stopPropagation();
+            this.selectSubtitle(subIdx);
+            const sub = this.subtitles[subIdx];
+            if (!sub) return;
+
+            const rect = lane.getBoundingClientRect();
+            const dur = Math.max(0.1, this.duration);
+            const clipDur = sub.endTime - sub.startTime;
+            const startX = e.clientX;
+            const origStart = sub.startTime;
+            let hasMoved = false;
+
+            const onMove = (ev) => {
+                const deltaX = ev.clientX - startX;
+                if (Math.abs(deltaX) > 3) hasMoved = true;
+                const deltaSec = (deltaX / rect.width) * dur;
+                let newStart = Math.round((origStart + deltaSec) * 10) / 10;
+                if (newStart < 0) newStart = 0;
+                if (newStart + clipDur > dur) newStart = Math.max(0, dur - clipDur);
+                sub.startTime = newStart;
+                sub.endTime = Math.round((newStart + clipDur) * 10) / 10;
+                this.renderSubtitleUI();
+                this.seek(sub.startTime / dur);
+            };
+
+            const onUp = () => {
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+                if (hasMoved) {
+                    this.sortSubtitles();
+                    this.renderSubtitleUI();
+                    this.saveCurrentSceneState();
+                }
+            };
+
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+        });
+    },
+
+    updateSubtitleOverlay(currentTimeSeconds) {
+        const overlay = document.getElementById('cinematic-subtitle-overlay');
+        const contentBox = document.getElementById('cinematic-subtitle-content');
+        if (!overlay || !contentBox) return;
+
+        if (!this.isSubtitlesEnabled || !this.subtitles || this.subtitles.length === 0 || currentTimeSeconds < 0) {
+            overlay.classList.remove('visible');
+            return;
+        }
+
+        // Cari subtitle yang aktif pada detik currentTimeSeconds
+        const activeSub = this.subtitles.find(s => currentTimeSeconds >= s.startTime && currentTimeSeconds <= s.endTime);
+
+        if (activeSub && activeSub.text && activeSub.text.trim()) {
+            const style = activeSub.style || 'capsule';
+            const position = activeSub.position || 'bottom';
+
+            overlay.className = `cinematic-subtitle-overlay sub-pos-${position} sub-style-${style} visible`;
+
+            let html = '';
+            if (activeSub.speaker && activeSub.speaker.trim()) {
+                html += `<span class="cinematic-subtitle-speaker">${this.escapeHtml(activeSub.speaker)}:</span> `;
+            }
+            html += `<span class="cinematic-subtitle-text">${this.escapeHtml(activeSub.text)}</span>`;
+            contentBox.innerHTML = html;
+        } else {
+            overlay.classList.remove('visible');
+        }
+    },
+
     bindEvents() {
         // 0. Toggle Bottom Sequencer Dock
         const btnToggleDock = document.getElementById('btn-toggle-cinematic-dock');
@@ -3208,6 +3636,8 @@ const CinematicManager = {
                 this.duration = parseFloat(e.target.value);
                 if (valD) valD.innerText = this.duration + 's';
                 this.updateTimelineUI();
+                this.updateRulerLabels();
+                this.renderSubtitleTimelineClips();
             });
         }
 
@@ -3460,6 +3890,8 @@ const CinematicManager = {
                     if (sliderD) sliderD.value = e.target.value;
                     if (valD) valD.innerText = this.duration + 's';
                     this.updateTimelineUI();
+                    this.updateRulerLabels();
+                    this.renderSubtitleTimelineClips();
                 });
             }
 
@@ -3497,6 +3929,13 @@ const CinematicManager = {
                 });
             }
 
+            const toggleSubOver = document.getElementById('toggle-cinematic-subtitles-overflow');
+            if (toggleSubOver) {
+                toggleSubOver.addEventListener('change', (e) => {
+                    this.setSubtitlesEnabled(e.target.checked);
+                });
+            }
+
             const btnOverflowPlayAll = document.getElementById('btn-overflow-play-all');
             if (btnOverflowPlayAll) {
                 btnOverflowPlayAll.addEventListener('click', () => {
@@ -3506,6 +3945,142 @@ const CinematicManager = {
                     this.playAll();
                 });
             }
+        }
+
+        // --- 12B. Subtitle / Text Track Event Listeners ---
+        const toggleSubTop = document.getElementById('toggle-cinematic-subtitles-top');
+        if (toggleSubTop) {
+            toggleSubTop.addEventListener('change', (e) => this.setSubtitlesEnabled(e.target.checked));
+        }
+
+        const toggleSubTrack = document.getElementById('toggle-cinematic-subtitles');
+        if (toggleSubTrack) {
+            toggleSubTrack.addEventListener('change', (e) => this.setSubtitlesEnabled(e.target.checked));
+        }
+
+        const btnAddSub = document.getElementById('btn-cinematic-add-sub');
+        if (btnAddSub) {
+            btnAddSub.addEventListener('click', () => {
+                this.addSubtitle();
+            });
+        }
+
+        const btnClearSubs = document.getElementById('btn-cinematic-clear-subs');
+        if (btnClearSubs) {
+            btnClearSubs.addEventListener('click', () => {
+                if (!this.subtitles || this.subtitles.length === 0) return;
+                if (confirm('Hapus semua subtitle di scene ini?')) {
+                    this.clearAllSubtitles();
+                }
+            });
+        }
+
+        const selectActiveSub = document.getElementById('select-cinematic-active-sub');
+        if (selectActiveSub) {
+            selectActiveSub.addEventListener('change', (e) => {
+                this.selectSubtitle(parseInt(e.target.value, 10));
+            });
+        }
+
+        const btnSnapSubNow = document.getElementById('btn-snap-sub-to-current');
+        if (btnSnapSubNow) {
+            btnSnapSubNow.addEventListener('click', () => {
+                if (this.selectedSubtitleIndex < 0 || !this.subtitles[this.selectedSubtitleIndex]) return;
+                const sub = this.subtitles[this.selectedSubtitleIndex];
+                const clipDur = Math.max(0.5, sub.endTime - sub.startTime);
+                const curTime = Math.round((this.progress * this.duration) * 10) / 10;
+                sub.startTime = curTime;
+                sub.endTime = Math.min(this.duration, Math.round((curTime + clipDur) * 10) / 10);
+                this.sortSubtitles();
+                this.renderSubtitleUI();
+                this.updateSubtitleOverlay(curTime);
+                this.saveCurrentSceneState();
+            });
+        }
+
+        const btnDelSub = document.getElementById('btn-delete-selected-sub');
+        if (btnDelSub) {
+            btnDelSub.addEventListener('click', () => {
+                this.deleteSubtitle(this.selectedSubtitleIndex);
+            });
+        }
+
+        const inputSubText = document.getElementById('input-subtitle-text');
+        if (inputSubText) {
+            inputSubText.addEventListener('input', (e) => {
+                if (this.selectedSubtitleIndex < 0 || !this.subtitles[this.selectedSubtitleIndex]) return;
+                this.subtitles[this.selectedSubtitleIndex].text = e.target.value;
+                this.renderSubtitleTimelineClips();
+                this.updateSubtitleOverlay(this.progress * this.duration);
+            });
+            inputSubText.addEventListener('change', () => {
+                this.saveCurrentSceneState();
+            });
+        }
+
+        const inputSubSpeaker = document.getElementById('input-subtitle-speaker');
+        if (inputSubSpeaker) {
+            inputSubSpeaker.addEventListener('input', (e) => {
+                if (this.selectedSubtitleIndex < 0 || !this.subtitles[this.selectedSubtitleIndex]) return;
+                this.subtitles[this.selectedSubtitleIndex].speaker = e.target.value;
+                this.renderSubtitleTimelineClips();
+                this.updateSubtitleOverlay(this.progress * this.duration);
+            });
+            inputSubSpeaker.addEventListener('change', () => {
+                this.saveCurrentSceneState();
+            });
+        }
+
+        const inputSubStart = document.getElementById('input-subtitle-start');
+        if (inputSubStart) {
+            inputSubStart.addEventListener('change', (e) => {
+                if (this.selectedSubtitleIndex < 0 || !this.subtitles[this.selectedSubtitleIndex]) return;
+                const sub = this.subtitles[this.selectedSubtitleIndex];
+                let val = parseFloat(e.target.value);
+                if (isNaN(val)) val = 0;
+                val = Math.max(0, Math.min(this.duration - 0.2, val));
+                sub.startTime = Math.round(val * 10) / 10;
+                if (sub.endTime <= sub.startTime) sub.endTime = Math.min(this.duration, Math.round((sub.startTime + 1.0) * 10) / 10);
+                this.sortSubtitles();
+                this.renderSubtitleUI();
+                this.seek(sub.startTime / Math.max(0.1, this.duration));
+                this.saveCurrentSceneState();
+            });
+        }
+
+        const inputSubEnd = document.getElementById('input-subtitle-end');
+        if (inputSubEnd) {
+            inputSubEnd.addEventListener('change', (e) => {
+                if (this.selectedSubtitleIndex < 0 || !this.subtitles[this.selectedSubtitleIndex]) return;
+                const sub = this.subtitles[this.selectedSubtitleIndex];
+                let val = parseFloat(e.target.value);
+                if (isNaN(val)) val = sub.startTime + 1.0;
+                val = Math.max(sub.startTime + 0.2, Math.min(this.duration, val));
+                sub.endTime = Math.round(val * 10) / 10;
+                this.renderSubtitleUI();
+                this.seek(sub.endTime / Math.max(0.1, this.duration));
+                this.saveCurrentSceneState();
+            });
+        }
+
+        const selectSubStyle = document.getElementById('select-subtitle-style');
+        if (selectSubStyle) {
+            selectSubStyle.addEventListener('change', (e) => {
+                if (this.selectedSubtitleIndex < 0 || !this.subtitles[this.selectedSubtitleIndex]) return;
+                this.subtitles[this.selectedSubtitleIndex].style = e.target.value;
+                this.updateSubtitleOverlay(this.progress * this.duration);
+                this.saveCurrentSceneState();
+            });
+        }
+
+        const selectSubPos = document.getElementById('select-subtitle-position');
+        if (selectSubPos) {
+            selectSubPos.addEventListener('change', (e) => {
+                if (this.selectedSubtitleIndex < 0 || !this.subtitles[this.selectedSubtitleIndex]) return;
+                this.subtitles[this.selectedSubtitleIndex].position = e.target.value;
+                this.updateSubtitleOverlay(this.progress * this.duration);
+                this.saveCurrentSceneState();
+            });
         }
 
         // 12B. Waypoint Camera Angle, Height & Zoom (FOV) Controls

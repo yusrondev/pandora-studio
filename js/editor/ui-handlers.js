@@ -225,6 +225,11 @@ function updateActiveModeHUD() {
         const text = selectTreeMode.options[selectTreeMode.selectedIndex] ? selectTreeMode.options[selectTreeMode.selectedIndex].text : selectTreeMode.value;
         modeLabel = `Tanam Pohon: ${text}`;
         modeIcon = '🌲';
+    } else if (typeof selectFoxMode !== 'undefined' && selectFoxMode && selectFoxMode.value !== 'none') {
+        const text = selectFoxMode.options[selectFoxMode.selectedIndex] ? selectFoxMode.options[selectFoxMode.selectedIndex].text : selectFoxMode.value;
+        const poseName = (typeof currentSpawnerPose === 'string') ? (currentSpawnerPose === 'sit' ? 'Duduk' : (currentSpawnerPose === 'prone' ? 'Prone' : 'Idle')) : 'Idle';
+        modeLabel = `Spawner Rubah: ${text} (${poseName})`;
+        modeIcon = '🦊';
     } else if (selectRoadBrush && selectRoadBrush.value !== 'none') {
         const text = selectRoadBrush.options[selectRoadBrush.selectedIndex] ? selectRoadBrush.options[selectRoadBrush.selectedIndex].text : selectRoadBrush.value;
         modeLabel = `Kuas Jalan: ${text}`;
@@ -269,6 +274,11 @@ function updateActiveModeHUD() {
         const tree = treesList[selectedTreeIndex];
         modeLabel = `Pohon #${selectedTreeIndex + 1} Terpilih (${tree.userData.type || 'Pohon'})`;
         modeIcon = '📍';
+    } else if (typeof selectedFoxIndex !== 'undefined' && selectedFoxIndex >= 0 && typeof spawnedFoxesList !== 'undefined' && spawnedFoxesList[selectedFoxIndex]) {
+        const fox = spawnedFoxesList[selectedFoxIndex];
+        const sName = (typeof FOX_SPECIES !== 'undefined' && FOX_SPECIES[fox.species]) ? FOX_SPECIES[fox.species].name : fox.species;
+        modeLabel = `Rubah #${selectedFoxIndex + 1} Terpilih (${sName})`;
+        modeIcon = '🦊';
     } else if (isPanMode) {
         modeLabel = 'Hand / Pan Tool Aktif';
         modeIcon = '✋';
@@ -281,6 +291,8 @@ function updateActiveModeHUD() {
             let actionHint = `Tekan <span class="esc-kbd">Esc</span> untuk batal / unset`;
             if (selectTreeMode && selectTreeMode.value !== 'none') {
                 actionHint = `Klik Kiri: Tanam &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
+            } else if (typeof selectFoxMode !== 'undefined' && selectFoxMode && selectFoxMode.value !== 'none') {
+                actionHint = `Klik Kiri: Spawn Rubah &bull; Klik Kanan: Hapus &bull; Klik Rubah: Seleksi &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else if (selectGrassBrush && selectGrassBrush.value !== 'none') {
                 actionHint = `Klik Kiri: Tanam &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else if (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush && selectFlowerBrush.value !== 'none') {
@@ -320,6 +332,13 @@ function updateActiveModeHUD() {
     if (treeGrid && selectTreeMode) {
         const val = selectTreeMode.value;
         treeGrid.querySelectorAll('.spawner-card').forEach(c => {
+            c.classList.toggle('active', c.getAttribute('data-value') === val);
+        });
+    }
+    const foxGrid = document.getElementById('fox-picker-grid');
+    if (foxGrid && typeof selectFoxMode !== 'undefined' && selectFoxMode) {
+        const val = selectFoxMode.value;
+        foxGrid.querySelectorAll('.spawner-card').forEach(c => {
             c.classList.toggle('active', c.getAttribute('data-value') === val);
         });
     }
@@ -369,6 +388,8 @@ function updateActiveModeHUD() {
 
 function cancelAllSelections() {
     if (selectTreeMode) selectTreeMode.value = 'none';
+    const sFoxMode = document.getElementById('select-fox-mode');
+    if (sFoxMode) sFoxMode.value = 'none';
     if (selectRoadBrush) selectRoadBrush.value = 'none';
     if (selectGrassBrush) selectGrassBrush.value = 'none';
     if (typeof selectRockBrush !== 'undefined' && selectRockBrush) selectRockBrush.value = 'none';
@@ -505,15 +526,22 @@ function setupSpawnerCardGrid(gridId, selectId) {
     const select = document.getElementById(selectId);
     if (!grid || !select) return;
 
-    const cards = grid.querySelectorAll('.spawner-card');
-
     function syncCards() {
         const val = select.value;
+        const cards = grid.querySelectorAll('.spawner-card');
         cards.forEach(card => {
             const cardVal = card.getAttribute('data-value');
             card.classList.toggle('active', cardVal === val);
         });
     }
+
+    if (grid.dataset.gridInitialized === 'true') {
+        syncCards();
+        return;
+    }
+    grid.dataset.gridInitialized = 'true';
+
+    const cards = grid.querySelectorAll('.spawner-card');
 
     cards.forEach(card => {
         card.addEventListener('click', (e) => {
@@ -537,6 +565,7 @@ function setupSpawnerCardGrid(gridId, selectId) {
 }
 
 setupSpawnerCardGrid('tree-picker-grid', 'select-tree-mode');
+setupSpawnerCardGrid('fox-picker-grid', 'select-fox-mode');
 setupSpawnerCardGrid('grass-picker-grid', 'select-grass-brush');
 setupSpawnerCardGrid('rock-picker-grid', 'select-rock-brush');
 setupSpawnerCardGrid('flower-picker-grid', 'select-flower-brush');
@@ -618,6 +647,13 @@ function unsetOtherTools(activeToolName) {
     if (activeToolName !== 'tree' && typeof selectTreeMode !== 'undefined' && selectTreeMode && selectTreeMode.value !== 'none') {
         selectTreeMode.value = 'none';
         selectTreeMode.dispatchEvent(new Event('change'));
+    }
+    if (activeToolName !== 'fox') {
+        const sFox = document.getElementById('select-fox-mode');
+        if (sFox && sFox.value !== 'none') {
+            sFox.value = 'none';
+            sFox.dispatchEvent(new Event('change'));
+        }
     }
     if (activeToolName !== 'road' && typeof selectRoadBrush !== 'undefined' && selectRoadBrush && selectRoadBrush.value !== 'none') {
         selectRoadBrush.value = 'none';
@@ -721,6 +757,17 @@ if (typeof selectBushBrush !== 'undefined' && selectBushBrush) {
 if (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush) {
     selectButterflyBrush.addEventListener('change', () => {
         if (selectButterflyBrush.value !== 'none') unsetOtherTools('butterfly');
+        else {
+            if (typeof updateToolControlsState === 'function') updateToolControlsState();
+            if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
+        }
+    });
+}
+
+const sFoxModeEl = document.getElementById('select-fox-mode');
+if (sFoxModeEl) {
+    sFoxModeEl.addEventListener('change', () => {
+        if (sFoxModeEl.value !== 'none') unsetOtherTools('fox');
         else {
             if (typeof updateToolControlsState === 'function') updateToolControlsState();
             if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();

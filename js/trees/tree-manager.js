@@ -12,7 +12,8 @@ window.selectedRockIndex = selectedRockIndex;
 const layerGroupStates = {
     trees: true,
     rocks: true,
-    grass: true
+    grass: true,
+    foxes: true
 };
 
 const treeLayerList = document.getElementById('tree-layer-list');
@@ -28,7 +29,8 @@ function refreshLayerUI() {
     const currentRocks = (typeof rocksList !== 'undefined' && Array.isArray(rocksList)) ? rocksList : [];
     const flowerCount = (typeof flowersList !== 'undefined' && Array.isArray(flowersList)) ? flowersList.length : 0;
     const butterflyCount = (typeof butterfliesList !== 'undefined' && Array.isArray(butterfliesList)) ? butterfliesList.length : 0;
-    const totalCount = treesList.length + currentRocks.length + flowerCount + butterflyCount;
+    const foxCount = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) ? spawnedFoxesList.length : 0;
+    const totalCount = treesList.length + currentRocks.length + flowerCount + butterflyCount + foxCount;
     if (layerCount) layerCount.innerText = totalCount;
 
     if (layerEmptyMsg) layerEmptyMsg.style.display = 'none';
@@ -42,6 +44,9 @@ function refreshLayerUI() {
     // ==========================================
     // 1. GROUP POHON [POHON]
     // ==========================================
+    if (typeof window.selectedTreeIndex === 'number' && window.selectedTreeIndex >= 0) {
+        layerGroupStates.trees = true;
+    }
     const treeGroup = document.createElement('li');
     treeGroup.className = `layer-group ${layerGroupStates.trees ? '' : 'collapsed'}`;
     const allTreesVisible = treesList.length === 0 || treesList.some(t => t.visible);
@@ -93,8 +98,13 @@ function refreshLayerUI() {
     } else {
         treesList.forEach((tree, idx) => {
             const li = document.createElement('li');
-            const isTreeActive = idx === window.selectedTreeIndex && window.selectedRockIndex === -1;
+            const isTreeActive = idx === window.selectedTreeIndex && (typeof window.selectedRockIndex === 'undefined' || window.selectedRockIndex === -1) && (typeof window.selectedFoxIndex === 'undefined' || window.selectedFoxIndex === -1);
             li.className = `layer-item ${isTreeActive ? 'active' : ''}`;
+            if (isTreeActive) {
+                setTimeout(() => {
+                    li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 10);
+            }
             const tPos = tree.position;
             li.innerHTML = `
                 <span class="svg-icon layer-icon" style="color:${tree.visible ? 'inherit' : '#ef4444'};">
@@ -115,8 +125,10 @@ function refreshLayerUI() {
                 if (e.target && e.target.closest && e.target.closest('.btn-layer-delete')) return;
                 window.selectedTreeIndex = idx;
                 window.selectedRockIndex = -1;
+                window.selectedFoxIndex = -1;
                 selectedTreeIndex = idx;
                 selectedRockIndex = -1;
+                if (typeof selectedFoxIndex !== 'undefined') selectedFoxIndex = -1;
                 refreshLayerUI();
                 if (typeof updateEditorUI === 'function') updateEditorUI();
                 if (typeof SelectionOutlineManager !== 'undefined') {
@@ -141,6 +153,9 @@ function refreshLayerUI() {
     // ==========================================
     // 2. GROUP BEBATUAN [BEBATUAN]
     // ==========================================
+    if (typeof window.selectedRockIndex === 'number' && window.selectedRockIndex >= 0) {
+        layerGroupStates.rocks = true;
+    }
     const rockGroup = document.createElement('li');
     rockGroup.className = `layer-group ${layerGroupStates.rocks ? '' : 'collapsed'}`;
     const allRocksVisible = typeof rocksGroup === 'undefined' || rocksGroup.visible !== false;
@@ -190,8 +205,13 @@ function refreshLayerUI() {
     } else {
         currentRocks.forEach((rock, idx) => {
             const li = document.createElement('li');
-            const isRockActive = idx === window.selectedRockIndex && window.selectedTreeIndex === -1;
+            const isRockActive = idx === window.selectedRockIndex && (typeof window.selectedTreeIndex === 'undefined' || window.selectedTreeIndex === -1) && (typeof window.selectedFoxIndex === 'undefined' || window.selectedFoxIndex === -1);
             li.className = `layer-item ${isRockActive ? 'active' : ''}`;
+            if (isRockActive) {
+                setTimeout(() => {
+                    li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 10);
+            }
             const rData = rock.userData || {};
             const rName = rData.rockType === 'spawn_boulder' ? 'Bongkahan Boulder' : 'Batu Slate';
             const rPos = rock.position;
@@ -215,8 +235,10 @@ function refreshLayerUI() {
                 if (e.target && e.target.closest && e.target.closest('.btn-layer-delete')) return;
                 window.selectedRockIndex = idx;
                 window.selectedTreeIndex = -1;
+                window.selectedFoxIndex = -1;
                 selectedRockIndex = idx;
                 selectedTreeIndex = -1;
+                if (typeof selectedFoxIndex !== 'undefined') selectedFoxIndex = -1;
                 refreshLayerUI();
                 if (typeof updateEditorUI === 'function') updateEditorUI();
                 if (typeof SelectionOutlineManager !== 'undefined') {
@@ -239,6 +261,106 @@ function refreshLayerUI() {
         });
     }
     treeLayerList.appendChild(rockGroup);
+
+    // ==========================================
+    // 3. GROUP RUBAH [FOX]
+    // ==========================================
+    const currentFoxes = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) ? spawnedFoxesList : [];
+    const foxGroup = document.createElement('li');
+    foxGroup.className = `layer-group ${(typeof layerGroupStates !== 'undefined' && layerGroupStates.foxes !== false) ? '' : 'collapsed'}`;
+    const allFoxesVisible = currentFoxes.length === 0 || currentFoxes.some(f => f.root && f.root.visible);
+
+    foxGroup.innerHTML = `
+        <div class="layer-group-header" data-group="foxes">
+            <span class="layer-group-chevron">${chevronSvg}</span>
+            <div class="layer-group-title">
+                <span class="svg-icon" style="color:#fb923c;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M4 19c0-1.5 1.5-3 4-3h8c2.5 0 4 1.5 4 3v1H4v-1z"></path>
+                        <circle cx="12" cy="11" r="5"></circle>
+                    </svg>
+                </span>
+                <span>Rubah (Fox)</span>
+                <span class="layer-group-badge">${currentFoxes.length}</span>
+            </div>
+            <div class="layer-group-actions">
+                <button type="button" class="btn-group-action ${allFoxesVisible ? '' : 'muted'}" title="Toggle Visibilitas Semua Rubah" data-action="toggle-vis-foxes">
+                    ${allFoxesVisible ? eyeSvg : eyeOffSvg}
+                </button>
+            </div>
+        </div>
+        <ul class="layer-group-children" id="group-children-foxes"></ul>
+    `;
+
+    foxGroup.querySelector('.layer-group-header').addEventListener('click', (e) => {
+        if (e.target.closest('.layer-group-actions')) return;
+        layerGroupStates.foxes = !layerGroupStates.foxes;
+        foxGroup.classList.toggle('collapsed', !layerGroupStates.foxes);
+    });
+
+    const btnVisFoxes = foxGroup.querySelector('[data-action="toggle-vis-foxes"]');
+    if (btnVisFoxes) {
+        btnVisFoxes.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newVis = !allFoxesVisible;
+            currentFoxes.forEach(f => {
+                if (f.root) f.root.visible = newVis;
+            });
+            refreshLayerUI();
+        });
+    }
+
+    const foxChildrenUl = foxGroup.querySelector('#group-children-foxes');
+    if (currentFoxes.length === 0) {
+        const emptyLi = document.createElement('li');
+        emptyLi.style.cssText = 'padding:4px 8px; font-size:10px; color:var(--text-muted); font-style:italic;';
+        emptyLi.innerText = '(Belum ada rubah diletakkan)';
+        foxChildrenUl.appendChild(emptyLi);
+    } else {
+        currentFoxes.forEach((fox, idx) => {
+            const li = document.createElement('li');
+            const isFoxActive = idx === window.selectedFoxIndex;
+            li.className = `layer-item ${isFoxActive ? 'active' : ''}`;
+            const fPos = fox.root ? fox.root.position : { x: 0, z: 0 };
+            const sName = (typeof FOX_SPECIES !== 'undefined' && FOX_SPECIES[fox.species]) ? FOX_SPECIES[fox.species].name : fox.species;
+            const pLabel = fox.pose === 'sit' ? 'Duduk' : (fox.pose === 'prone' ? 'Prone' : 'Idle');
+            li.innerHTML = `
+                <span class="svg-icon layer-icon" style="color:#fb923c;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="11" r="5"></circle></svg>
+                </span>
+                <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${idx + 1}. ${sName} (${pLabel})
+                </span>
+                <span style="font-size:9px; opacity:0.6; font-family:'JetBrains Mono',monospace;">
+                    [${fPos.x.toFixed(0)},${fPos.z.toFixed(0)}]
+                </span>
+                <button type="button" class="btn-layer-delete" title="Hapus Rubah #${idx + 1}">
+                    ${trashSvg}
+                </button>
+            `;
+
+            li.addEventListener('click', (e) => {
+                if (e.target && e.target.closest && e.target.closest('.btn-layer-delete')) return;
+                if (typeof selectFoxByIndex === 'function') {
+                    selectFoxByIndex(idx, true);
+                }
+            });
+
+            const delBtn = li.querySelector('.btn-layer-delete');
+            if (delBtn) {
+                delBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (typeof deleteFoxByIndex === 'function') {
+                        deleteFoxByIndex(idx);
+                    }
+                });
+            }
+
+            foxChildrenUl.appendChild(li);
+        });
+    }
+    treeLayerList.appendChild(foxGroup);
 
     // ==========================================
     // SELESAI POPULASI LAYER

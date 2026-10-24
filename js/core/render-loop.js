@@ -59,6 +59,10 @@ function animate() {
         updateFog(delta, elapsedTime);
     }
 
+    if (typeof updateAllSpawnedFoxesAnimation === 'function') {
+        updateAllSpawnedFoxesAnimation(elapsedTime);
+    }
+
     if (typeof SelectionOutlineManager !== 'undefined') {
         SelectionOutlineManager.updateAnimation(elapsedTime, delta);
     }

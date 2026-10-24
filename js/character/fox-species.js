@@ -107,23 +107,23 @@ const FOX_SPECIES = {
         name: 'Darwin Fox',
         subtitle: 'Lycalopex fulvipes',
         badge: '🌲',
-        scale: 0.55,
+        scale: 0.56,
         colors: {
-            ORANGE: new THREE.Color(0x3e3838),       // Abu-abu arang gelap hutan
-            ORANGE_TOP: new THREE.Color(0x2b2525),   // Punggung arang pekat
-            EYE_BROW: new THREE.Color(0x823b20),     // Aksen karat kemerahan
-            WHITE: new THREE.Color(0xf2eee6),        // Dagu & tenggorokan putih kontras
-            WHITE_SHADE: new THREE.Color(0xd2cdc4),  // Bayangan putih
-            DARK: new THREE.Color(0x1a1616),         // Moncong & ekor hitam legam
-            DARK_PAW: new THREE.Color(0x141010),     // Cakar pekat
-            EAR_IN: new THREE.Color(0x944222),       // Aksen telinga merah karat khas Darwin
-            EAR_IN_DEEP: new THREE.Color(0x6b2e16)   // Rongga dalam karat gelap
+            ORANGE: new THREE.Color(0x282b31),       // Abu-abu arang gelap hutan dingin & elegan (senada tone Silver Fox)
+            ORANGE_TOP: new THREE.Color(0x1a1c21),   // Punggung arang pekat bertekstur
+            EYE_BROW: new THREE.Color(0x5c6270),     // Aksen dahi & pipi perak slate sejuk (bersih, tanpa karat kusam)
+            WHITE: new THREE.Color(0xeef2f7),        // Dagu & tenggorokan putih mutiara kontras cerah
+            WHITE_SHADE: new THREE.Color(0x9199aa),  // Bayangan putih perak lembut
+            DARK: new THREE.Color(0x101114),         // Moncong & ekor hitam legam tegas
+            DARK_PAW: new THREE.Color(0x0c0d10),     // Cakar pekat
+            EAR_IN: new THREE.Color(0x545a68),       // Dalam telinga perak arang elegan
+            EAR_IN_DEEP: new THREE.Color(0x363a44)   // Rongga dalam telinga gelap pekat
         },
         legGradient: function (t) {
             t = THREE.MathUtils.clamp(t, 0.0, 1.0);
-            if (t < 0.30) return new THREE.Color(0x3e3838).lerp(new THREE.Color(0x8a3a1e), t / 0.30);
-            if (t < 0.65) return new THREE.Color(0x8a3a1e).lerp(new THREE.Color(0x4a2014), (t - 0.30) / 0.35);
-            return new THREE.Color(0x4a2014).lerp(new THREE.Color(0x141010), (t - 0.65) / 0.35);
+            if (t < 0.30) return new THREE.Color(0x3c404b).lerp(new THREE.Color(0x282b31), t / 0.30);
+            if (t < 0.70) return new THREE.Color(0x282b31).lerp(new THREE.Color(0x16181d), (t - 0.30) / 0.40);
+            return new THREE.Color(0x16181d).lerp(new THREE.Color(0x0c0d10), (t - 0.70) / 0.30);
         }
     },
 
@@ -177,5 +177,8 @@ const FOX_SPECIES = {
         }
     }
 };
+
+// Alias sinkronisasi nama spesies Golden <-> Swift
+FOX_SPECIES.golden = FOX_SPECIES.swift;
 
 let currentFoxSpeciesKey = 'red';

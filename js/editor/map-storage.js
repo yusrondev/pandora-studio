@@ -280,8 +280,11 @@ function serializeMapData(name, existingId = null) {
     const sliderElev = document.getElementById('slider-elevation');
     const sliderWind = document.getElementById('slider-wind-speed');
     const sliderLeaf = document.getElementById('slider-leaf-fall');
+    const sliderCanvasSize = document.getElementById('slider-canvas-size');
+    const canvasSizeVal = sliderCanvasSize ? parseFloat(sliderCanvasSize.value) : ((typeof groundSize !== 'undefined') ? groundSize : 80);
 
     const env = {
+        canvasSize: canvasSizeVal,
         planeColor: pickerPlaneColor ? pickerPlaneColor.value : '#cbb6b8',
         showGrid: toggleGrid ? toggleGrid.checked : true,
         skyPreset: selectSky ? selectSky.value : 'day',
@@ -347,6 +350,14 @@ function serializeMapData(name, existingId = null) {
             type: b.type,
             theme: b.theme
         })) : [],
+        foxes: (typeof spawnedFoxesList !== 'undefined') ? spawnedFoxesList.map(f => ({
+            species: f.species,
+            pose: f.pose,
+            posX: Math.round(f.root.position.x * 100) / 100,
+            posZ: Math.round(f.root.position.z * 100) / 100,
+            rotY: Math.round(f.root.rotation.y * 100) / 100,
+            scale: f.scaleMultiplier || 1.0
+        })) : [],
         water: {
             level: typeof getWaterCurrentLevel === 'function' ? getWaterCurrentLevel() : 0.02,
             mask: (typeof hasWaterDrawn === 'function' && hasWaterDrawn() && typeof waterCanvas !== 'undefined') ? waterCanvas.toDataURL('image/png') : null,
@@ -364,6 +375,7 @@ function serializeMapData(name, existingId = null) {
             fernCount: typeof fernsList !== 'undefined' ? fernsList.length : 0,
             bushCount: typeof bushesList !== 'undefined' ? bushesList.length : 0,
             butterflyCount: typeof butterfliesList !== 'undefined' ? butterfliesList.length : 0,
+            foxCount: typeof spawnedFoxesList !== 'undefined' ? spawnedFoxesList.length : 0,
             grassCount: activeGrass.length,
             version: '1.0'
         }
@@ -381,6 +393,11 @@ function applyMapDataToScene(mapData) {
     // 1. Terapkan Environment Settings
     if (mapData.environment) {
         const env = mapData.environment;
+
+        // Canvas Size
+        if (typeof env.canvasSize !== 'undefined' && typeof setCanvasSize === 'function') {
+            setCanvasSize(parseFloat(env.canvasSize));
+        }
 
         // Plane color
         if (env.planeColor) {
@@ -582,6 +599,18 @@ function applyMapDataToScene(mapData) {
     }
     if (Array.isArray(mapData.butterflies) && typeof recreateButterfly === 'function') {
         mapData.butterflies.forEach(bData => recreateButterfly(bData));
+    }
+
+    // 7b. Terapkan Rubah Terspawn (Foxes)
+    if (typeof spawnedFoxesList !== 'undefined') {
+        while (spawnedFoxesList.length > 0) {
+            deleteFoxByIndex(0);
+        }
+    }
+    if (Array.isArray(mapData.foxes) && typeof spawnFoxAtLocation === 'function') {
+        mapData.foxes.forEach(fData => {
+            spawnFoxAtLocation(fData.species || 'red', fData.pose || 'idle', fData.posX, fData.posZ, fData.rotY, fData.scale || 1.0);
+        });
     }
 
     // 8. Terapkan Air (Water Mask & Level)

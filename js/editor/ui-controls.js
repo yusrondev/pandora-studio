@@ -806,3 +806,28 @@ if (toggleStudioGrid) {
         }
     });
 }
+
+// Canvas Size Controls (Dynamic Resizing)
+const sliderCanvasSize = document.getElementById('slider-canvas-size');
+const labelCanvasSize = document.getElementById('label-canvas-size');
+
+if (sliderCanvasSize) {
+    sliderCanvasSize.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (labelCanvasSize) labelCanvasSize.innerText = `${Math.round(val)}m x ${Math.round(val)}m`;
+        if (typeof setCanvasSize === 'function') {
+            setCanvasSize(val);
+        }
+    });
+}
+
+document.querySelectorAll('.btn-canvas-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const size = parseFloat(btn.getAttribute('data-size'));
+        if (sliderCanvasSize) sliderCanvasSize.value = size;
+        if (labelCanvasSize) labelCanvasSize.innerText = `${Math.round(size)}m x ${Math.round(size)}m`;
+        if (typeof setCanvasSize === 'function') {
+            setCanvasSize(size);
+        }
+    });
+});

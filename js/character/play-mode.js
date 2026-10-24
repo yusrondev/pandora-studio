@@ -23,9 +23,15 @@ function startPlayMode() {
     const overflowBtn = document.getElementById('btn-toolbar-overflow');
     if (overflowBtn) overflowBtn.classList.remove('active');
 
-    // Simpan posisi kamera editor
+    // Simpan posisi & konfigurasi OrbitControls kamera editor
     savedEditorCamera.position.copy(camera.position);
     savedEditorCamera.target.copy(controls.target);
+    savedEditorCamera.minPolarAngle = (typeof controls.minPolarAngle === 'number') ? controls.minPolarAngle : 0;
+    savedEditorCamera.maxPolarAngle = (typeof controls.maxPolarAngle === 'number') ? controls.maxPolarAngle : (Math.PI / 2 - 0.04);
+    savedEditorCamera.minDistance = (typeof controls.minDistance === 'number') ? controls.minDistance : 1.0;
+    savedEditorCamera.maxDistance = (typeof controls.maxDistance === 'number') ? controls.maxDistance : 160.0;
+    savedEditorCamera.enablePan = (typeof controls.enablePan === 'boolean') ? controls.enablePan : true;
+    savedEditorCamera.enableDamping = (typeof controls.enableDamping === 'boolean') ? controls.enableDamping : true;
 
     // Simpan status sidebar dan collapse agar tampilan full-screen imersif
     const sidebarLeft = document.getElementById('sidebar-left');
@@ -185,13 +191,14 @@ function stopPlayMode() {
         if (txt) txt.innerText = 'Play Demo';
     }
 
-    // Kembalikan batasan OrbitControls editor
+    // Kembalikan batasan OrbitControls editor studio agar kamera bisa up-down bebas seperti semula
     controls.enableZoom = true;
-    controls.enablePan = true;
-    controls.enableDamping = true; // Kembalikan damping untuk editor
-    controls.minDistance = 0.1;
-    controls.maxDistance = Infinity;
-    controls.maxPolarAngle = Math.PI;
+    controls.enablePan = (typeof savedEditorCamera.enablePan === 'boolean') ? savedEditorCamera.enablePan : true;
+    controls.enableDamping = (typeof savedEditorCamera.enableDamping === 'boolean') ? savedEditorCamera.enableDamping : true;
+    controls.minPolarAngle = (typeof savedEditorCamera.minPolarAngle === 'number') ? savedEditorCamera.minPolarAngle : 0;
+    controls.maxPolarAngle = (typeof savedEditorCamera.maxPolarAngle === 'number') ? savedEditorCamera.maxPolarAngle : (Math.PI / 2 - 0.04);
+    controls.minDistance = (typeof savedEditorCamera.minDistance === 'number') ? savedEditorCamera.minDistance : 1.0;
+    controls.maxDistance = (typeof savedEditorCamera.maxDistance === 'number') ? savedEditorCamera.maxDistance : 160.0;
 
     camera.position.copy(savedEditorCamera.position);
     controls.target.copy(savedEditorCamera.target);
@@ -295,13 +302,14 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Shortcut Keyboard: 1=Red, 2=Arctic, 3=Corsac, 4=Swift, 5=Darwin, ESC=Exit
+// Shortcut Keyboard: 1=Red, 2=Arctic, 3=Corsac, 4=Golden/Swift, 5=Silver, 6=Darwin, ESC=Exit
 window.addEventListener('keydown', (e) => {
     if (!isPlayMode) return;
     if (e.key === '1') switchFoxSpecies('red');
     else if (e.key === '2') switchFoxSpecies('arctic');
     else if (e.key === '3') switchFoxSpecies('corsac');
     else if (e.key === '4') switchFoxSpecies('swift');
-    else if (e.key === '5') switchFoxSpecies('darwin');
+    else if (e.key === '5') switchFoxSpecies('silver');
+    else if (e.key === '6') switchFoxSpecies('darwin');
     else if (e.key === 'Escape') stopPlayMode();
 });

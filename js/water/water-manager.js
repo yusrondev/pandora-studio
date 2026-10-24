@@ -3,7 +3,8 @@
 // 4B. GENSHIN SERENE GLASSY WATER MANAGER
 // ==========================================
 
-const waterGroundSize = (typeof groundSize !== 'undefined') ? groundSize : 80;
+let waterGroundSize = (typeof groundSize !== 'undefined') ? groundSize : 80;
+window.waterGroundSize = waterGroundSize;
 const waterMaskResolution = 1024; // Resolusi tinggi agar tepian air sangat halus
 
 // Canvas untuk dynamic brush mask
@@ -127,7 +128,7 @@ window.renderWaterDepthPass = renderWaterDepthPass;
 
 // Geometry bidang air horizontal datar (flat surface) dengan performa optimal 60 FPS
 const waterSegments = 100;
-const waterGeo = new THREE.PlaneGeometry(waterGroundSize, waterGroundSize, waterSegments, waterSegments);
+let waterGeo = new THREE.PlaneGeometry(waterGroundSize, waterGroundSize, waterSegments, waterSegments);
 waterGeo.rotateX(-Math.PI / 2);
 
 // Preset Palet Warna Air Berdasarkan Suasana Waktu (Siang, Sore, Malam)
@@ -1700,6 +1701,52 @@ setTimeout(() => {
         setWaterAtmospherePreset(skySelect.value);
     }
 }, 50);
+
+function updateWaterCanvasSize(newSize) {
+    waterGroundSize = newSize;
+    window.waterGroundSize = newSize;
+
+    // 1. Rebuild water plane geometry
+    if (typeof waterMesh !== 'undefined' && waterMesh) {
+        if (waterMesh.geometry) waterMesh.geometry.dispose();
+        waterGeo = new THREE.PlaneGeometry(waterGroundSize, waterGroundSize, waterSegments, waterSegments);
+        waterGeo.rotateX(-Math.PI / 2);
+        waterMesh.geometry = waterGeo;
+    }
+
+    // 2. Update water material uniform
+    if (typeof waterMat !== 'undefined' && waterMat && waterMat.uniforms) {
+        if (waterMat.uniforms.uGroundSize) {
+            waterMat.uniforms.uGroundSize.value = newSize;
+        }
+    }
+
+    // 3. Rebuild outer ocean geometry (lingkaran luar yang mengitari kanvas)
+    const islandHalf = newSize / 2;
+    if (typeof outerOceanMesh !== 'undefined' && outerOceanMesh) {
+        if (outerOceanMesh.geometry) outerOceanMesh.geometry.dispose();
+        const segsPerSide = (typeof waterSegments !== 'undefined') ? waterSegments : 100;
+        outerOceanMesh.geometry = createOuterOceanGeometry(islandHalf, 450.0, 90, segsPerSide);
+        if (outerOceanMesh.material && outerOceanMesh.material.uniforms) {
+            if (outerOceanMesh.material.uniforms.uGroundSize) {
+                outerOceanMesh.material.uniforms.uGroundSize.value = newSize;
+            }
+            if (outerOceanMesh.material.uniforms.uIslandHalfSize) {
+                outerOceanMesh.material.uniforms.uIslandHalfSize.value = islandHalf;
+            }
+        }
+    }
+
+    // 4. Rebuild tebing pulau (island cliff skirt) yang menempel tepat di perimeter baru
+    if (typeof islandCliffMesh !== 'undefined' && islandCliffMesh && typeof scene !== 'undefined') {
+        scene.remove(islandCliffMesh);
+        if (islandCliffMesh.geometry) islandCliffMesh.geometry.dispose();
+        if (islandCliffMesh.material) islandCliffMesh.material.dispose();
+        islandCliffMesh = null;
+        createIslandCliffSkirt();
+    }
+}
+window.updateWaterCanvasSize = updateWaterCanvasSize;
 
 // Export global untuk digunakan oleh brush.js, UI controls, sky.js, fox-physics.js dan map-storage.js
 window.paintWaterAt = paintWaterAt;

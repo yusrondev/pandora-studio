@@ -334,6 +334,39 @@ function handleCanvasPointerDown(e) {
             return;
         }
 
+        // Mode Fox Spawner: Klik kanan = hapus rubah di dekat kursor atau yang diklik
+        const currentFoxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
+        if (currentFoxSelect && currentFoxSelect.value !== 'none') {
+            let deletedFox = false;
+            if (typeof spawnedFoxesList !== 'undefined' && spawnedFoxesList.length > 0) {
+                const foxRoots = spawnedFoxesList.map(f => f.root).filter(Boolean);
+                const foxHits = raycaster.intersectObjects(foxRoots, true);
+                if (foxHits.length > 0) {
+                    for (let i = 0; i < foxHits.length; i++) {
+                        const hitObj = foxHits[i].object;
+                        const targetRoot = (hitObj.userData && hitObj.userData.foxRoot) ? hitObj.userData.foxRoot : hitObj;
+                        const foxIdx = spawnedFoxesList.findIndex(f => f.root === targetRoot);
+                        if (foxIdx !== -1) {
+                            deleteFoxByIndex(foxIdx);
+                            deletedFox = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!deletedFox) {
+                const groundHits = raycaster.intersectObject(ground);
+                if (groundHits.length > 0) {
+                    const pt = groundHits[0].point;
+                    if (typeof deleteFoxAtLocation === 'function') {
+                        deleteFoxAtLocation(pt.x, pt.z, 3.5);
+                    }
+                }
+            }
+            if (e.stopPropagation) e.stopPropagation();
+            return;
+        }
+
         // 2. Mode Grass Brush: Klik kanan = hapus rumput dalam radius kursor
         if (selectGrassBrush.value !== 'none') {
             const groundHits = raycaster.intersectObject(ground);
@@ -462,6 +495,105 @@ function handleCanvasPointerDown(e) {
     // LEFT CLICK (e.button === 0) -> SPAWN / PAINT
     // ==========================================
     if (e.button === 0) {
+        // 0. Prioritaskan Seleksi Rubah jika pointer mengklik tepat pada Rubah yang sudah ada di scene!
+        if (typeof spawnedFoxesList !== 'undefined' && spawnedFoxesList.length > 0) {
+            const foxRoots = spawnedFoxesList.map(f => f.root).filter(Boolean);
+            const foxHits = raycaster.intersectObjects(foxRoots, true);
+            if (foxHits.length > 0) {
+                let targetRoot = null;
+                for (let i = 0; i < foxHits.length; i++) {
+                    const hitObj = foxHits[i].object;
+                    if (hitObj.userData && hitObj.userData.foxRoot) {
+                        targetRoot = hitObj.userData.foxRoot;
+                        break;
+                    }
+                    let curr = hitObj;
+                    while (curr && curr.parent && curr.parent !== scene) {
+                        if (curr.userData && curr.userData.isSpawnedFox) {
+                            targetRoot = curr;
+                            break;
+                        }
+                        curr = curr.parent;
+                    }
+                    if (targetRoot) break;
+                }
+                if (targetRoot) {
+                    const foxIdx = spawnedFoxesList.findIndex(f => f.root === targetRoot);
+                    if (foxIdx !== -1) {
+                        if (typeof selectFoxByIndex === 'function') {
+                            selectFoxByIndex(foxIdx, true);
+                        }
+                        if (e.stopPropagation) e.stopPropagation();
+                        return; // Langsung pilih rubah dan cegah spawn menumpuk!
+                    }
+                }
+            }
+        }
+
+        // Prioritaskan Seleksi Pohon jika mengklik tepat pada Pohon yang sudah ada di scene
+        if (typeof treesList !== 'undefined' && treesList.length > 0) {
+            const treeHits = raycaster.intersectObjects(treesList, true);
+            if (treeHits.length > 0) {
+                let rootTree = treeHits[0].object;
+                while (rootTree && rootTree.parent && rootTree.parent !== scene) {
+                    rootTree = rootTree.parent;
+                }
+                const treeIdx = treesList.indexOf(rootTree);
+                if (treeIdx !== -1) {
+                    selectedTreeIndex = treeIdx;
+                    window.selectedTreeIndex = treeIdx;
+                    window.selectedRockIndex = -1;
+                    if (typeof selectedRockIndex !== 'undefined') selectedRockIndex = -1;
+                    if (typeof selectedFoxIndex !== 'undefined') {
+                        selectedFoxIndex = -1;
+                        window.selectedFoxIndex = -1;
+                    }
+                    if (typeof layerGroupStates !== 'undefined') {
+                        layerGroupStates.trees = true;
+                    }
+                    refreshLayerUI();
+                    if (typeof updateEditorUI === 'function') updateEditorUI();
+                    if (typeof SelectionOutlineManager !== 'undefined') {
+                        SelectionOutlineManager.selectObject(rootTree, true);
+                    }
+                    if (e.stopPropagation) e.stopPropagation();
+                    return;
+                }
+            }
+        }
+
+        // Prioritaskan Seleksi Bebatuan jika mengklik tepat pada Bebatuan yang sudah ada di scene
+        if (typeof rocksList !== 'undefined' && rocksList.length > 0) {
+            const rockHits = raycaster.intersectObjects(rocksList, true);
+            if (rockHits.length > 0) {
+                let rootRock = rockHits[0].object;
+                while (rootRock && rootRock.parent && rootRock.parent !== scene && (typeof rocksGroup === 'undefined' || rootRock.parent !== rocksGroup)) {
+                    rootRock = rootRock.parent;
+                }
+                const rockIdx = rocksList.indexOf(rootRock);
+                if (rockIdx !== -1) {
+                    selectedRockIndex = rockIdx;
+                    window.selectedRockIndex = rockIdx;
+                    window.selectedTreeIndex = -1;
+                    if (typeof selectedTreeIndex !== 'undefined') selectedTreeIndex = -1;
+                    if (typeof selectedFoxIndex !== 'undefined') {
+                        selectedFoxIndex = -1;
+                        window.selectedFoxIndex = -1;
+                    }
+                    if (typeof layerGroupStates !== 'undefined') {
+                        layerGroupStates.rocks = true;
+                    }
+                    refreshLayerUI();
+                    if (typeof updateEditorUI === 'function') updateEditorUI();
+                    if (typeof SelectionOutlineManager !== 'undefined') {
+                        SelectionOutlineManager.selectObject(rootRock, true);
+                    }
+                    if (e.stopPropagation) e.stopPropagation();
+                    return;
+                }
+            }
+        }
+
         const intersects = raycaster.intersectObject(ground);
         if (intersects.length > 0) {
             const hitPoint = intersects[0].point;
@@ -469,6 +601,17 @@ function handleCanvasPointerDown(e) {
             const treeMode = selectTreeMode.value;
             if (treeMode !== 'none') {
                 spawnTreeAtLocation(treeMode, hitPoint.x, hitPoint.z);
+                if (e.stopPropagation) e.stopPropagation();
+                return;
+            }
+
+            const currentFoxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
+            const foxMode = currentFoxSelect ? currentFoxSelect.value : 'none';
+            if (foxMode !== 'none') {
+                const pose = (typeof currentSpawnerPose === 'string') ? currentSpawnerPose : 'idle';
+                if (typeof spawnFoxAtLocation === 'function') {
+                    spawnFoxAtLocation(foxMode, pose, hitPoint.x, hitPoint.z);
+                }
                 if (e.stopPropagation) e.stopPropagation();
                 return;
             }
@@ -487,7 +630,9 @@ function handleCanvasPointerDown(e) {
         }
 
         // 3. Selection Tracker: Jika tidak ada mode brush aktif, catat titik pointerdown untuk bedakan Click vs Hold
+        const currentFoxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
         const isBrushActive = (selectTreeMode && selectTreeMode.value !== 'none') ||
+            (currentFoxSelect && currentFoxSelect.value !== 'none') ||
             (selectTerrainMode && selectTerrainMode.value !== 'none') ||
             (selectRoadBrush && selectRoadBrush.value !== 'none') ||
             (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') ||
@@ -975,7 +1120,41 @@ function handleCanvasPointerUp(e) {
                 }
             }
 
-            // 2. Cek Seleksi Pohon & Smooth Focus Kamera
+            // 2. Cek Seleksi Rubah Terspawn
+            if (!handled && typeof spawnedFoxesList !== 'undefined' && spawnedFoxesList.length > 0) {
+                const foxRoots = spawnedFoxesList.map(f => f.root).filter(Boolean);
+                const foxHits = raycaster.intersectObjects(foxRoots, true);
+                if (foxHits.length > 0) {
+                    let targetRoot = null;
+                    for (let i = 0; i < foxHits.length; i++) {
+                        const hitObj = foxHits[i].object;
+                        if (hitObj.userData && hitObj.userData.foxRoot) {
+                            targetRoot = hitObj.userData.foxRoot;
+                            break;
+                        }
+                        let curr = hitObj;
+                        while (curr && curr.parent && curr.parent !== scene) {
+                            if (curr.userData && curr.userData.isSpawnedFox) {
+                                targetRoot = curr;
+                                break;
+                            }
+                            curr = curr.parent;
+                        }
+                        if (targetRoot) break;
+                    }
+                    if (targetRoot) {
+                        const foxIdx = spawnedFoxesList.findIndex(f => f.root === targetRoot);
+                        if (foxIdx !== -1) {
+                            if (typeof selectFoxByIndex === 'function') {
+                                selectFoxByIndex(foxIdx, true);
+                            }
+                            handled = true;
+                        }
+                    }
+                }
+            }
+
+            // 3. Cek Seleksi Pohon & Smooth Focus Kamera
             if (!handled && typeof treesList !== 'undefined' && treesList.length > 0) {
                 const treeHits = raycaster.intersectObjects(treesList, true);
                 if (treeHits.length > 0) {
@@ -986,6 +1165,16 @@ function handleCanvasPointerUp(e) {
                     const treeIdx = treesList.indexOf(rootTree);
                     if (treeIdx !== -1) {
                         selectedTreeIndex = treeIdx;
+                        window.selectedTreeIndex = treeIdx;
+                        window.selectedRockIndex = -1;
+                        if (typeof selectedRockIndex !== 'undefined') selectedRockIndex = -1;
+                        if (typeof selectedFoxIndex !== 'undefined') {
+                            selectedFoxIndex = -1;
+                            window.selectedFoxIndex = -1;
+                        }
+                        if (typeof layerGroupStates !== 'undefined') {
+                            layerGroupStates.trees = true;
+                        }
                         refreshLayerUI();
                         updateEditorUI();
                         if (typeof SelectionOutlineManager !== 'undefined') {
@@ -993,11 +1182,53 @@ function handleCanvasPointerUp(e) {
                         }
                         handled = true;
                     }
-                } else {
-                    // Klik di luar objek (tanah kosong): bersihkan seleksi outline jika ada
-                    if (typeof SelectionOutlineManager !== 'undefined') {
-                        SelectionOutlineManager.clearSelection();
+                }
+            }
+
+            // 4. Cek Seleksi Bebatuan & Smooth Focus Kamera
+            if (!handled && typeof rocksList !== 'undefined' && rocksList.length > 0) {
+                const rockHits = raycaster.intersectObjects(rocksList, true);
+                if (rockHits.length > 0) {
+                    let rootRock = rockHits[0].object;
+                    while (rootRock && rootRock.parent && rootRock.parent !== scene && (typeof rocksGroup === 'undefined' || rootRock.parent !== rocksGroup)) {
+                        rootRock = rootRock.parent;
                     }
+                    const rockIdx = rocksList.indexOf(rootRock);
+                    if (rockIdx !== -1) {
+                        selectedRockIndex = rockIdx;
+                        window.selectedRockIndex = rockIdx;
+                        window.selectedTreeIndex = -1;
+                        if (typeof selectedTreeIndex !== 'undefined') selectedTreeIndex = -1;
+                        if (typeof selectedFoxIndex !== 'undefined') {
+                            selectedFoxIndex = -1;
+                            window.selectedFoxIndex = -1;
+                        }
+                        if (typeof layerGroupStates !== 'undefined') {
+                            layerGroupStates.rocks = true;
+                        }
+                        refreshLayerUI();
+                        updateEditorUI();
+                        if (typeof SelectionOutlineManager !== 'undefined') {
+                            SelectionOutlineManager.selectObject(rootRock, true);
+                        }
+                        handled = true;
+                    }
+                }
+            }
+
+            if (!handled) {
+                // Klik di luar objek (tanah kosong): bersihkan seleksi outline jika ada
+                window.selectedTreeIndex = -1;
+                window.selectedRockIndex = -1;
+                if (typeof window.selectedFoxIndex !== 'undefined') window.selectedFoxIndex = -1;
+                if (typeof selectedTreeIndex !== 'undefined') selectedTreeIndex = -1;
+                if (typeof selectedRockIndex !== 'undefined') selectedRockIndex = -1;
+                if (typeof selectedFoxIndex !== 'undefined') selectedFoxIndex = -1;
+                refreshLayerUI();
+                if (typeof updateEditorUI === 'function') updateEditorUI();
+                if (typeof updateFoxInspectorUI === 'function') updateFoxInspectorUI();
+                if (typeof SelectionOutlineManager !== 'undefined') {
+                    SelectionOutlineManager.clearSelection();
                 }
             }
         }

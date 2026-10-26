@@ -61,7 +61,7 @@ function applyFoxPose(foxModel, poseName, animTime = 0) {
         BASE_HIP_Y
     } = foxModel;
 
-    const baseHipY = typeof BASE_HIP_Y === 'number' ? BASE_HIP_Y : 1.62;
+    const baseHipY = typeof BASE_HIP_Y === 'number' ? BASE_HIP_Y : 1.66;
 
     if (poseName === 'sit') {
         // -------------------------------------------------------------
@@ -180,7 +180,7 @@ function applyFoxPose(foxModel, poseName, animTime = 0) {
         // POSE IDLE (BERDIRI TEGAP & ALAMI)
         // -------------------------------------------------------------
         const breath = Math.sin(animTime * 2.0) * 0.010;
-        bodyTiltGroup.position.y = baseHipY + breath;
+        bodyTiltGroup.position.y = baseHipY + Math.max(0, breath);
         bodyTiltGroup.position.x = 0;
         bodyTiltGroup.position.z = 0;
         bodyTiltGroup.rotation.z = 0;
@@ -278,17 +278,31 @@ function spawnFoxAtLocation(species = 'red', pose = 'idle', posX, posZ, rotY = n
 
     scene.add(model.root);
 
+    const defaultSpawnerAI = document.getElementById('select-spawner-fox-ai')
+        ? document.getElementById('select-spawner-fox-ai').value
+        : 'combat';
+
+    const defaultSpawnerRadius = document.getElementById('slider-spawner-ai-radius')
+        ? parseFloat(document.getElementById('slider-spawner-ai-radius').value)
+        : 18.0;
+
     const foxRecord = {
         id: 'fox_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
         model: model,
         root: model.root,
         species: species,
         pose: pose,
+        aiMode: defaultSpawnerAI || 'combat',
+        detectionRadius: defaultSpawnerRadius || 18.0,
         animOffset: Math.random() * 50,
         scaleMultiplier: customScale,
         visible: true
     };
     spawnedFoxesList.push(foxRecord);
+
+    if (typeof FoxAIManager !== 'undefined' && FoxAIManager.syncSpawnedFoxes) {
+        FoxAIManager.syncSpawnedFoxes();
+    }
 
     selectedFoxIndex = spawnedFoxesList.length - 1;
     window.selectedFoxIndex = selectedFoxIndex;
@@ -485,11 +499,40 @@ function setFoxSpeciesByIndex(idx, newSpecies) {
 }
 window.setFoxSpeciesByIndex = setFoxSpeciesByIndex;
 
+function setFoxAIModeByIndex(idx, newAIMode) {
+    if (idx < 0 || idx >= spawnedFoxesList.length) return;
+    const fox = spawnedFoxesList[idx];
+    if (!fox) return;
+    if (typeof saveState === 'function') saveState();
+    fox.aiMode = newAIMode;
+    if (fox.ai) fox.ai.aiMode = newAIMode;
+    updateFoxInspectorUI();
+}
+window.setFoxAIModeByIndex = setFoxAIModeByIndex;
+
+function setFoxAIRadiusByIndex(idx, newRadius) {
+    if (idx < 0 || idx >= spawnedFoxesList.length) return;
+    const fox = spawnedFoxesList[idx];
+    if (!fox) return;
+    if (typeof saveState === 'function') saveState();
+    fox.detectionRadius = newRadius;
+    if (fox.ai && typeof fox.ai.setDetectionRadius === 'function') {
+        fox.ai.setDetectionRadius(newRadius);
+    }
+    updateFoxInspectorUI();
+}
+window.setFoxAIRadiusByIndex = setFoxAIRadiusByIndex;
+
 // ==========================================
 // 3. ANIMASI LOOP UNTUK SEMUA RUBAH DI SCENE
 // ==========================================
 function updateAllSpawnedFoxesAnimation(elapsedTime) {
     if (!spawnedFoxesList || spawnedFoxesList.length === 0) return;
+
+    // Jika dalam Play Mode, pergerakan & animasi rubah dikendalikan secara dinamis & cerdas oleh FoxAIManager!
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) {
+        return;
+    }
 
     for (let i = 0; i < spawnedFoxesList.length; i++) {
         const fox = spawnedFoxesList[i];
@@ -506,6 +549,7 @@ function updateFoxInspectorUI() {
     const acc = document.getElementById('accordion-fox-inspector');
     const badge = document.getElementById('fox-inspector-badge');
     const selectSpecies = document.getElementById('select-fox-inspector-species');
+    const selectAI = document.getElementById('select-fox-inspector-ai');
     const sliderHeading = document.getElementById('slider-fox-heading');
     const valHeading = document.getElementById('val-fox-heading');
     const sliderScale = document.getElementById('slider-fox-scale');
@@ -536,6 +580,15 @@ function updateFoxInspectorUI() {
     }
 
     if (selectSpecies) selectSpecies.value = fox.species;
+    if (selectAI) selectAI.value = fox.aiMode || 'combat';
+
+    const sliderAIRadius = document.getElementById('slider-fox-ai-radius');
+    const valAIRadius = document.getElementById('val-fox-ai-radius');
+    if (sliderAIRadius && valAIRadius) {
+        const rad = Math.round(fox.detectionRadius !== undefined ? fox.detectionRadius : 18);
+        sliderAIRadius.value = rad;
+        valAIRadius.innerText = `${rad} m`;
+    }
 
     // Tombol pose aktif
     if (btnPoseIdle) btnPoseIdle.classList.toggle('active', fox.pose === 'idle');
@@ -609,6 +662,39 @@ function initFoxSpawnerUI() {
             if (selectedFoxIndex >= 0) {
                 setFoxSpeciesByIndex(selectedFoxIndex, selectSpecies.value);
             }
+        });
+    }
+
+    // 3B. Inspector AI Mode Selector
+    const selectAI = document.getElementById('select-fox-inspector-ai');
+    if (selectAI) {
+        selectAI.addEventListener('change', () => {
+            if (selectedFoxIndex >= 0) {
+                setFoxAIModeByIndex(selectedFoxIndex, selectAI.value);
+            }
+        });
+    }
+
+    // 3C. Inspector AI Radius Slider
+    const sliderAIRadius = document.getElementById('slider-fox-ai-radius');
+    const valAIRadius = document.getElementById('val-fox-ai-radius');
+    if (sliderAIRadius) {
+        sliderAIRadius.addEventListener('input', () => {
+            if (selectedFoxIndex >= 0) {
+                const r = parseFloat(sliderAIRadius.value) || 18;
+                if (valAIRadius) valAIRadius.innerText = `${r} m`;
+                setFoxAIRadiusByIndex(selectedFoxIndex, r);
+            }
+        });
+    }
+
+    // 3D. Spawner Default AI Radius Slider
+    const sliderSpawnerRadius = document.getElementById('slider-spawner-ai-radius');
+    const valSpawnerRadius = document.getElementById('val-spawner-ai-radius');
+    if (sliderSpawnerRadius) {
+        sliderSpawnerRadius.addEventListener('input', () => {
+            const r = parseFloat(sliderSpawnerRadius.value) || 18;
+            if (valSpawnerRadius) valSpawnerRadius.innerText = `${r} m`;
         });
     }
 

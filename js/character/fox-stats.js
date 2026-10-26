@@ -18,16 +18,16 @@ const FOX_STATS_CONFIG = {
         tagline: 'Seimbang & Adaptif',
 
         // --- SPEED & MOBILITY ---
-        walkSpeed: 4.6,             // Kecepatan jalan normal (m/s)
-        runSpeed: 9.6,              // Kecepatan sprint / hunting (m/s)
-        reverseSpeed: 3.0,          // Kecepatan mundur (m/s)
+        walkSpeed: 1.65,            // Kecepatan jalan santai dan tenang (m/s)
+        runSpeed: 6.5,              // Kecepatan lari sprint teratur (m/s)
+        reverseSpeed: 1.2,          // Kecepatan mundur tenang (m/s)
 
         // --- TURNING AGILITY (KETANGKASAN WAKTU BELOK) ---
         turnRate: 2.6,              // Kecepatan belok maksimum (rad/s)
         turnAccel: 8.5,             // Responsivitas / kelincahan rotasi (lerp speed)
 
         // --- JUMP (LOMPATAN) ---
-        jumpPower: 9.6,             // Kekuatan awal loncatan vertikal
+        jumpPower: 5.2,             // Kekuatan awal loncatan vertikal (proporsional)
 
         // --- STAMINA SYSTEM ---
         maxStamina: 100,            // Total kapasitas stamina
@@ -46,16 +46,16 @@ const FOX_STATS_CONFIG = {
         tagline: 'Daya Tahan Tinggi & Stamina Terbesar',
 
         // --- SPEED & MOBILITY ---
-        walkSpeed: 4.4,
-        runSpeed: 9.0,
-        reverseSpeed: 2.8,
+        walkSpeed: 1.55,
+        runSpeed: 6.2,
+        reverseSpeed: 1.2,
 
         // --- TURNING AGILITY ---
         turnRate: 2.3,
         turnAccel: 7.5,
 
         // --- JUMP ---
-        jumpPower: 9.2,
+        jumpPower: 5.0,
 
         // --- STAMINA SYSTEM ---
         maxStamina: 145,            // Stamina paling melimpah (tahan lari jauh di salju)
@@ -74,16 +74,16 @@ const FOX_STATS_CONFIG = {
         tagline: 'Lompatan Ekstrem & Manuver Lincah',
 
         // --- SPEED & MOBILITY ---
-        walkSpeed: 4.8,
-        runSpeed: 9.8,
-        reverseSpeed: 3.2,
+        walkSpeed: 1.70,
+        runSpeed: 6.8,
+        reverseSpeed: 1.3,
 
         // --- TURNING AGILITY ---
         turnRate: 3.2,              // Sangat tangkas berbelok di savana/gurun
         turnAccel: 10.5,            // Transisi arah sangat tajam
 
         // --- JUMP ---
-        jumpPower: 11.5,            // Lompatan tertinggi di antara semua rubah!
+        jumpPower: 5.6,
 
         // --- STAMINA SYSTEM ---
         maxStamina: 90,             // Kapasitas sedang
@@ -102,16 +102,16 @@ const FOX_STATS_CONFIG = {
         tagline: 'Kecepatan Kilat & Belok Tajam',
 
         // --- SPEED & MOBILITY ---
-        walkSpeed: 5.4,             // Jalan tercepat
-        runSpeed: 12.2,             // Sprint super cepat (sensasi kecepatan tinggi!)
-        reverseSpeed: 3.6,
+        walkSpeed: 1.85,            // Jalan relatif gesit
+        runSpeed: 7.4,              // Sprint super cepat
+        reverseSpeed: 1.4,
 
         // --- TURNING AGILITY ---
         turnRate: 3.6,              // Belok paling tajam & responsif
         turnAccel: 12.0,            // Akselerasi belok instan
 
         // --- JUMP ---
-        jumpPower: 9.8,
+        jumpPower: 5.4,
 
         // --- STAMINA SYSTEM ---
         maxStamina: 80,             // Stamina paling cepat habis karena lari kilat
@@ -130,9 +130,9 @@ const FOX_STATS_CONFIG = {
         tagline: 'Langkah Kokoh, Berat & Lompat Bertenaga',
 
         // --- SPEED & MOBILITY ---
-        walkSpeed: 4.2,
-        runSpeed: 8.6,
-        reverseSpeed: 2.8,
+        walkSpeed: 1.50,
+        runSpeed: 6.0,
+        reverseSpeed: 1.1,
 
         // --- TURNING AGILITY ---
         turnRate: 2.4,

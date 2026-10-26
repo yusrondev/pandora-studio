@@ -1,409 +1,954 @@
-/* Low-Poly Fox 3D Model Builder (Reusable for all Fox Species) */
+/* ===================================================================
+   HERO 3D CHARACTER MODEL & ANIMATION MANAGER (hero/red/*)
+   Features:
+   - Mixamo-rigged FBX Skinned Mesh
+   - 100% Matte Texture (MeshLambertMaterial with shadow support & ambient detail lift)
+   - Three.js SkeletonUtils cloning for multi-instance support
+   - AnimationMixer integration for 6 distinct cycles:
+     * idle: Stand / Idle breathing (triggered after 4s idle)
+     * idle2: Alternate expressive idle (randomly picked with idle after 4s idle)
+     * walk: Synchronized footstep stride (calm, unhurried pace)
+     * run: Athletic sprint stride
+     * jump: Backflip acrobatic salto (Backflip.fbx)
+     * jumpRun: Running jump in full stride (Jump-withrun.fbx)
+   - Proportional scale (~1.81m height) matching Pandora Studio world
+   - Ground alignment (feet aligned to y = 0)
+   =================================================================== */
 
-function createWolfCharacterModel(speciesKey = 'red') {
-    if (typeof setFoxActiveSpeciesColors === 'function') {
-        setFoxActiveSpeciesColors(speciesKey);
+function getHeroBasePath() {
+    if (typeof document !== 'undefined') {
+        const scripts = document.getElementsByTagName('script');
+        for (let i = 0; i < scripts.length; i++) {
+            const src = scripts[i].src;
+            if (src && src.includes('fox-model.js')) {
+                return src.replace(/js\/character\/fox-model\.js(\?.*)?$/, 'hero/red/');
+            }
+        }
     }
-    const spec = (typeof FOX_SPECIES !== 'undefined' && FOX_SPECIES[speciesKey]) ? FOX_SPECIES[speciesKey] : null;
-    const baseScale = spec ? spec.scale : 0.58;
+    return 'hero/red/';
+}
 
+const HERO_CHARACTER_CONFIG = {
+    getPath() {
+        return getHeroBasePath();
+    },
+    files: {
+        idle: 'idle.fbx',
+        idle2: 'idle2.fbx',
+        idle3: 'idle3.fbx',
+        walk: 'walk.fbx',
+        run: 'run.fbx',
+        jump: 'Jump-withrun.fbx',
+        jumpRun: 'Jump-withrun.fbx',
+        jumpNormal: 'jump-normal.fbx',
+        kick1: 'combat/kick/kick1.fbx',
+        kick2: 'combat/kick/kick2.fbx',
+        kick3: 'combat/kick/kick3.fbx'
+    },
+    baseScale: 1.85, // Ukuran proporsional pahlawan (~1.81m), gagah dan seimbang dengan dunia Pandora
+    yOffset: 0.0,    // Kaki menapak tanah secara natural di y = 0
+    facingDirection: new THREE.Vector3(0, 0, 1) // Karakter menghadap +Z
+};
+
+// Global Asset Cache for Hero Character
+window.HeroAssetManager = {
+    isLoaded: false,
+    isLoading: false,
+    loadPromise: null,
+    baseModel: null,
+    clips: {
+        idle: null,
+        idle2: null,
+        idle3: null,
+        walk: null,
+        run: null,
+        jump: null,
+        jumpRun: null,
+        jumpNormal: null,
+        kick1: null,
+        kick2: null,
+        kick3: null
+    },
+    instancesPending: [],
+    kick3RootMotion: null,
+
+    sampleKick3Z(t) {
+        if (!this.kick3RootMotion) return 0;
+        const { times, z, totalZ } = this.kick3RootMotion;
+        if (t <= times[0]) return 0;
+        if (t >= times[times.length - 1]) return totalZ;
+        let i = 0;
+        while (i < times.length - 1 && times[i + 1] < t) i++;
+        const alpha = (t - times[i]) / (times[i + 1] - times[i]);
+        return z[i] + alpha * (z[i + 1] - z[i]);
+    },
+
+    load() {
+        if (this.loadPromise) return this.loadPromise;
+        this.isLoading = true;
+
+        this.loadPromise = new Promise(async (resolve, reject) => {
+            try {
+                if (typeof THREE.FBXLoader === 'undefined') {
+                    throw new Error('THREE.FBXLoader is not available. Please include FBXLoader.js and fflate.min.js.');
+                }
+
+                const loader = new THREE.FBXLoader();
+                const loadFBX = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+
+                const basePath = HERO_CHARACTER_CONFIG.getPath();
+                const files = HERO_CHARACTER_CONFIG.files;
+
+                console.log('[HeroAssetManager] Loading hero FBX assets from', basePath);
+
+                // 1. Load Idle (Base Model + Rig + Primary Idle Animation)
+                const idleObj = await loadFBX(basePath + files.idle);
+                
+                // Configure meshes, shadows, and 100% matte materials (folds/details clearly visible)
+                idleObj.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            const makeMatte = (m) => {
+                                const newMat = new THREE.MeshLambertMaterial({
+                                    map: m.map || null,
+                                    color: m.color ? m.color : new THREE.Color(0xffffff),
+                                    emissive: new THREE.Color(0x222222), // Soft ambient lift so black suit folds and belt are clearly visible
+                                    skinning: true
+                                });
+                                if (newMat.map) {
+                                    newMat.map.encoding = THREE.LinearEncoding;
+                                }
+                                return newMat;
+                            };
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(makeMatte);
+                            } else {
+                                child.material = makeMatte(child.material);
+                            }
+                        }
+                    }
+                });
+
+                this.baseModel = idleObj;
+                if (idleObj.animations && idleObj.animations.length > 0) {
+                    const idleClip = idleObj.animations[0].clone();
+                    idleClip.name = 'idle';
+                    this.clips.idle = idleClip;
+                }
+
+                // 2. Load Secondary Idle Animation Clip (idle2.fbx)
+                try {
+                    const idle2Obj = await loadFBX(basePath + files.idle2);
+                    if (idle2Obj.animations && idle2Obj.animations.length > 0) {
+                        const idle2Clip = idle2Obj.animations[0].clone();
+                        idle2Clip.name = 'idle2';
+                        this.clips.idle2 = idle2Clip;
+                    }
+                } catch (i2Err) {
+                    console.warn('[HeroAssetManager] Could not load idle2.fbx:', i2Err);
+                }
+
+                // 3. Load Tertiary Idle Animation Clip (idle3.fbx)
+                try {
+                    const idle3Obj = await loadFBX(basePath + files.idle3);
+                    if (idle3Obj.animations && idle3Obj.animations.length > 0) {
+                        const idle3Clip = idle3Obj.animations[0].clone();
+                        idle3Clip.name = 'idle3';
+                        this.clips.idle3 = idle3Clip;
+                    }
+                } catch (i3Err) {
+                    console.warn('[HeroAssetManager] Could not load idle3.fbx:', i3Err);
+                }
+
+                // 3. Load Walk Animation Clip
+                const walkObj = await loadFBX(basePath + files.walk);
+                if (walkObj.animations && walkObj.animations.length > 0) {
+                    const walkClip = walkObj.animations[0].clone();
+                    walkClip.name = 'walk';
+                    this.clips.walk = walkClip;
+                }
+
+                // 4. Load Run Animation Clip
+                const runObj = await loadFBX(basePath + files.run);
+                if (runObj.animations && runObj.animations.length > 0) {
+                    const runClip = runObj.animations[0].clone();
+                    runClip.name = 'run';
+                    this.clips.run = runClip;
+                }
+
+                // 5. Load Jump Animation Clip (Jump-withrun.fbx untuk semua aksi lompat)
+                try {
+                    const jumpObj = await loadFBX(basePath + files.jump);
+                    if (jumpObj.animations && jumpObj.animations.length > 0) {
+                        const jumpClip = jumpObj.animations[0].clone();
+                        jumpClip.name = 'jump';
+                        this.clips.jump = jumpClip;
+                        this.clips.jumpRun = jumpClip;
+                    }
+                } catch (jErr) {
+                    console.warn('[HeroAssetManager] Could not load Jump-withrun.fbx:', jErr);
+                }
+                // 5b. Load Jump Normal (lompat diam / jalan santai, tanpa sprint)
+                try {
+                    const jnObj = await loadFBX(basePath + files.jumpNormal);
+                    if (jnObj.animations && jnObj.animations.length > 0) {
+                        const jnClip = jnObj.animations[0].clone();
+                        jnClip.name = 'jumpNormal';
+                        this.clips.jumpNormal = jnClip;
+                    }
+                } catch (jnErr) {
+                    console.warn('[HeroAssetManager] Could not load jump-normal.fbx:', jnErr);
+                }
+                // 6. Load Combat Kick Combo Animation Clips (kick1.fbx, kick2.fbx, kick3.fbx)
+                for (const kKey of ['kick1', 'kick2', 'kick3']) {
+                    try {
+                        const kickObj = await loadFBX(basePath + files[kKey]);
+                        if (kickObj.animations && kickObj.animations.length > 0) {
+                            const kickClip = kickObj.animations[0].clone();
+                            kickClip.name = kKey;
+
+                            if (kKey === 'kick3') {
+                                // Ekstraksi Root Motion (Mixamo Hips forward translation)
+                                const hipsTrack = kickClip.tracks.find(t => t.name.toLowerCase().includes('hips.position'));
+                                if (hipsTrack && hipsTrack.values && hipsTrack.values.length >= 6) {
+                                    const origZ = hipsTrack.values[2];
+                                    const times = Float32Array.from(hipsTrack.times);
+                                    const z = new Float32Array(hipsTrack.times.length);
+                                    for (let i = 0; i < hipsTrack.times.length; i++) {
+                                        z[i] = hipsTrack.values[i * 3 + 2] - origZ;
+                                        // Flatten Z di track agar skeleton stabil di origin lokal
+                                        hipsTrack.values[i * 3 + 2] = origZ;
+                                    }
+                                    this.kick3RootMotion = { times, z, totalZ: z[z.length - 1] };
+                                    console.log('[HeroAssetManager] Extracted kick3 root motion! Total Z displacement:', z[z.length - 1].toFixed(3), 'm');
+                                }
+                            }
+
+                            this.clips[kKey] = kickClip;
+                        }
+                    } catch (kErr) {
+                        console.warn(`[HeroAssetManager] Could not load ${files[kKey]}:`, kErr);
+                    }
+                }
+
+
+                this.isLoaded = true;
+                this.isLoading = false;
+                console.log('[HeroAssetManager] Hero 3D assets loaded successfully! Clips:', Object.keys(this.clips));
+
+                // Resolve all pending instances waiting for asset load
+                this.instancesPending.forEach(inst => this.setupInstance(inst));
+                this.instancesPending = [];
+
+                resolve(this);
+            } catch (err) {
+                console.error('[HeroAssetManager] Failed to load hero FBX assets:', err);
+                this.isLoading = false;
+                reject(err);
+            }
+        });
+
+        return this.loadPromise;
+    },
+
+    setupInstance(instance) {
+        if (!this.baseModel) return;
+
+        // Clone baseModel with its skeleton hierarchy
+        let modelClone;
+        if (typeof THREE.SkeletonUtils !== 'undefined') {
+            modelClone = THREE.SkeletonUtils.clone(this.baseModel);
+        } else {
+            console.warn('[HeroAssetManager] THREE.SkeletonUtils missing, falling back to direct clone');
+            modelClone = this.baseModel.clone(true);
+        }
+
+        // Align model feet so they rest on y = 0
+        modelClone.position.set(0, HERO_CHARACTER_CONFIG.yOffset, 0);
+
+        modelClone.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(m => {
+                        m.roughness = 1.0;
+                        m.metalness = 0.0;
+                        if (m.shininess !== undefined) m.shininess = 0;
+                        if (m.specular) m.specular.set(0x000000);
+                        if (m.emissive) m.emissive.set(0x222222);
+                    });
+                }
+            }
+        });
+
+        instance.meshContainer.add(modelClone);
+        instance.modelMesh = modelClone;
+
+        // Initialize AnimationMixer on the cloned character
+        const mixer = new THREE.AnimationMixer(modelClone);
+        instance.mixer = mixer;
+
+        // Bind animation actions
+        instance.actions = {};
+        instance.currentWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 };
+        instance.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 };
+        instance.idleTimer = 0.0;
+        instance.activeIdleKey = null;
+        instance.idleCycleTimer = 0.0;
+
+        if (this.clips.idle) {
+            const idleAction = mixer.clipAction(this.clips.idle);
+            idleAction.setEffectiveWeight(1.0);
+            idleAction.play();
+            instance.actions.idle = idleAction;
+        }
+
+        if (this.clips.idle2) {
+            const idle2Action = mixer.clipAction(this.clips.idle2);
+            idle2Action.setEffectiveWeight(0.0);
+            idle2Action.play();
+            instance.actions.idle2 = idle2Action;
+        }
+
+        if (this.clips.idle3) {
+            const idle3Action = mixer.clipAction(this.clips.idle3);
+            idle3Action.setEffectiveWeight(0.0);
+            idle3Action.play();
+            instance.actions.idle3 = idle3Action;
+        }
+
+        if (this.clips.walk) {
+            const walkAction = mixer.clipAction(this.clips.walk);
+            walkAction.setEffectiveWeight(0.0);
+            walkAction.play();
+            instance.actions.walk = walkAction;
+        }
+
+        if (this.clips.run) {
+            const runAction = mixer.clipAction(this.clips.run);
+            runAction.setEffectiveWeight(0.0);
+            runAction.play();
+            instance.actions.run = runAction;
+        }
+
+        if (this.clips.jump) {
+            const jumpAction = mixer.clipAction(this.clips.jump);
+            jumpAction.setEffectiveWeight(0.0);
+            jumpAction.setLoop(THREE.LoopOnce);
+            jumpAction.clampWhenFinished = true;
+            jumpAction.play();
+            instance.actions.jump = jumpAction;
+            instance.actions.jumpRun = jumpAction; // Alias kompatibel
+        }
+        if (this.clips.jumpNormal) {
+            const jnAction = mixer.clipAction(this.clips.jumpNormal);
+            jnAction.setEffectiveWeight(0.0);
+            jnAction.setLoop(THREE.LoopOnce);
+            jnAction.clampWhenFinished = true;
+            jnAction.play();
+            instance.actions.jumpNormal = jnAction;
+        }
+        for (const kKey of ['kick1', 'kick2', 'kick3']) {
+            if (this.clips[kKey]) {
+                const action = mixer.clipAction(this.clips[kKey]);
+                action.setEffectiveWeight(0.0);
+                action.setLoop(THREE.LoopOnce);
+                action.clampWhenFinished = true;
+                action.play();
+                instance.actions[kKey] = action;
+            }
+        }
+        if (instance.actions.kick1) {
+            instance.actions.kick = instance.actions.kick1; // Alias backward-compatibility
+        }
+
+
+        instance.isLoaded = true;
+        if (typeof instance.onLoaded === 'function') {
+            instance.onLoaded(instance);
+        }
+    }
+};
+
+// Start preloading hero FBX assets immediately in the background
+if (typeof window !== 'undefined') {
+    window.addEventListener('DOMContentLoaded', () => {
+        window.HeroAssetManager.load();
+    });
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        window.HeroAssetManager.load();
+    }
+}
+
+/**
+ * Creates and returns the Hero 3D Character model instance.
+ * Aliased as createWolfCharacterModel for seamless backwards-compatibility.
+ */
+function createWolfCharacterModel(speciesKey = 'red') {
     const foxRoot = new THREE.Group();
-    // Skala proporsional sesuai spesies rubah
+    foxRoot.name = 'HeroCharacterRoot';
+
+    const baseScale = HERO_CHARACTER_CONFIG.baseScale;
     foxRoot.scale.set(baseScale, baseScale, baseScale);
     foxRoot.userData.speciesKey = speciesKey;
+    foxRoot.userData.isHeroCharacter = true;
 
-    const bodyTiltGroup = new THREE.Group();
-    const BASE_HIP_Y = 1.62;
-    bodyTiltGroup.position.set(0, BASE_HIP_Y, 0);
-    foxRoot.add(bodyTiltGroup);
+    // Mesh container for vertical grounding and rotation
+    const meshContainer = new THREE.Group();
+    meshContainer.name = 'HeroMeshContainer';
+    foxRoot.add(meshContainer);
 
-    // 5A. TORSO
-    const torsoRings = [
-        { x: -0.68, yTop: 0.74, yMid: 0.25, yBot: -0.22, zTop: 0.30, zMid: 0.38, zBot: 0.24 },
-        { x: -0.42, yTop: 0.66, yMid: 0.15, yBot: -0.34, zTop: 0.33, zMid: 0.44, zBot: 0.27 },
-        { x: -0.02, yTop: 0.66, yMid: 0.17, yBot: -0.30, zTop: 0.34, zMid: 0.46, zBot: 0.27 },
-        { x: 0.38, yTop: 0.69, yMid: 0.22, yBot: -0.22, zTop: 0.32, zMid: 0.44, zBot: 0.23 },
-        { x: 0.75, yTop: 0.65, yMid: 0.23, yBot: -0.16, zTop: 0.30, zMid: 0.41, zBot: 0.21 },
-        { x: 1.08, yTop: 0.56, yMid: 0.19, yBot: -0.18, zTop: 0.28, zMid: 0.39, zBot: 0.19 },
-        { x: 1.35, yTop: 0.36, yMid: 0.14, yBot: -0.06, zTop: 0.15, zMid: 0.21, zBot: 0.13 }
-    ];
+    // Compatibility dummy groups so legacy references don't crash
+    const dummyBody = new THREE.Group();
+    foxRoot.add(dummyBody);
+    const dummyJoint = () => {
+        const g = new THREE.Group();
+        dummyBody.add(g);
+        return g;
+    };
 
-    const torsoMesh = createHorizontalLoft(
-        torsoRings,
-        (seg, face) => {
-            const isBot = (face === 3 || face === 4);
-            if (seg === 0 && isBot) return C.WHITE;
-            if (seg <= 3 && isBot) return C.WHITE_SHADE;
-            if (face === 0 || face === 7) return C.ORANGE_TOP;
-            return C.ORANGE;
+    const characterInstance = {
+        root: foxRoot,
+        meshContainer: meshContainer,
+        modelMesh: null,
+        speciesKey: speciesKey,
+        baseScale: baseScale,
+        mixer: null,
+        actions: {},
+        currentWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 },
+        targetWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 },
+        isLoaded: false,
+        wasInAir: false,
+        isJumping: false,
+        jumpTimer: 0.0,
+        jumpDuration: 0.95,
+        idleTimer: 0.0,
+        activeIdleKey: null,
+        idleCycleTimer: 0.0,
+
+        /**
+         * Memicu eksekusi animasi Jump-withrun secara penuh dan lancar dari tolakan sampai mendarat tuntas.
+         */
+        
+        isKicking: false,
+        activeKickKey: null,
+        kickComboIndex: 0,
+        kickTimer: 0.0,
+        kickDuration: 0.88,
+        queuedKicks: 0,       // Jumlah tendangan lanjutan yang sudah diklik (maks 2 → kick2, kick3)
+        hasQueuedKick: false, // Alias kompatibilitas
+        lastKickEndTime: 0,
+        kick3PrevTime: 0.0,
+        wasMoving: false,
+
+        // Jump state
+        activeJumpKey: 'jump',
+        jumpImpulsePending: false,
+        jumpTakeoffTime: 0.0,
+        jumpImpulseVel: 0.0,
+
+        /**
+         * Combo tendangan berbasis jumlah klik:
+         * - 1x klik  -> kick1
+         * - 2x klik  -> kick1 -> kick2
+         * - 3x klik  -> kick1 -> kick2 -> kick3
+         * - Spam     -> kick1 -> kick2 -> kick3 (berulang), setiap tendangan SELALU selesai dulu
+         *   sebelum tendangan berikutnya dimulai. Klik berlebih tidak memotong animasi.
+         */
+        triggerKick() {
+            if (this.isKicking) {
+                // Simpan klik ke antrean (maks 2 tendangan lanjutan agar tidak menumpuk tanpa akhir)
+                this.queuedKicks = Math.min(2, this.queuedKicks + 1);
+                this.hasQueuedKick = this.queuedKicks > 0;
+                return;
+            }
+            // Klik baru dari keadaan diam / selesai menendang: selalu mulai dari kick1
+            this.kickComboIndex = 0;
+            this.queuedKicks = 0;
+            this._startKick('kick1');
         },
-        () => C.WHITE,
-        () => C.ORANGE
-    );
-    bodyTiltGroup.add(torsoMesh);
 
-    // 5B. LEHER PADAT (Lebar Z disesuaikan agar tidak lebar pipih seperti kobra)
-    const neckJoint = new THREE.Group();
-    neckJoint.position.set(-0.55, 0.42, 0);
-    bodyTiltGroup.add(neckJoint);
+        _startKick(kickKey, crossFadeFromAction = null) {
+            const comboKeys = ['kick1', 'kick2', 'kick3'];
+            const action = this.actions[kickKey];
+            if (!action) {
+                console.warn('[Combat] Action not found for kickKey:', kickKey);
+                this.isKicking = false;
+                return;
+            }
 
-    const neckRings = [
-        { x: 0.02, yTop: 0.32, yMid: -0.12, yBot: -0.58, zTop: 0.28, zMid: 0.36, zBot: 0.24 },
-        { x: -0.14, yTop: 0.56, yMid: 0.18, yBot: -0.22, zTop: 0.26, zMid: 0.34, zBot: 0.23 },
-        { x: -0.28, yTop: 0.78, yMid: 0.46, yBot: 0.14, zTop: 0.25, zMid: 0.33, zBot: 0.22 }
-    ];
-    const neckMesh = createHorizontalLoft(neckRings, (seg, face) => {
-        if (face === 4) return C.WHITE;                      // Hanya bagian bawah tenggorokan yang putih
-        if (face === 3 && seg === 1) return C.WHITE_SHADE;   // Transisi bulu putih halus di dekat dagu
-        if (face === 0 || face === 7) return C.ORANGE_TOP;  // Tengkuk leher atas selaras dengan punggung rubah
-        return C.ORANGE;                                     // Sisi kiri & kanan leher oranye hangat seragam
-    });
-    neckJoint.add(neckMesh);
+            // Tendangan membatalkan lompatan yang belum lepas landas
+            this.isJumping = false;
+            this.jumpImpulsePending = false;
 
-    const headJoint = new THREE.Group();
-    headJoint.position.set(-0.26, 0.48, 0);
-    neckJoint.add(headJoint);
+            this.isKicking = true;
+            this.activeKickKey = kickKey;
+            this.kickComboIndex = comboKeys.indexOf(kickKey);
+            this.kickTimer = 0.0;
+            this.kick3PrevTime = 0.0;
+            this.idleTimer = 0.0;
+            this.activeIdleKey = null;
+            this.idleCycleTimer = 0.0;
 
-    // 5C. KEPALA DENGAN HIDUNG SOLID TERTUTUP RAPAT (Tanpa Celah/Lubang)
-    function createDetailedHeadSolidNose() {
-        const tris = [];
-        function quad(p1, p2, p3, p4, col) {
-            tris.push({ a: p1, b: p2, c: p3, col });
-            tris.push({ a: p1, b: p3, c: p4, col });
-        }
-        function tri(p1, p2, p3, col) {
-            tris.push({ a: p1, b: p2, c: p3, col });
-        }
+            const clip = action.getClip();
+            const rate = 1.70; // Kecepatan tendangan cepat, tajam, dan responsif
+            action.timeScale = rate;
+            this.kickDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.88;
 
-        for (const s of [1, -1]) {
-            function addFace(p1, p2, p3, p4, col) {
-                const a = [p1[0], p1[1], p1[2] * s];
-                const b = [p2[0], p2[1], p2[2] * s];
-                const c = [p3[0], p3[1], p3[2] * s];
-                if (!p4) {
-                    if (s === 1) tri(a, b, c, col);
-                    else tri(a, c, b, col);
+            action.reset();
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            action.enabled = true;
+            action.play();
+
+            // Semua pose lain memudar keluar (bukan di-nol-kan paksa) agar transisi tetap halus
+            ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal'].forEach(k => {
+                this.targetWeights[k] = 0.0;
+            });
+            comboKeys.forEach(k => {
+                this.targetWeights[k] = (k === kickKey) ? 1.0 : 0.0;
+            });
+
+            if (crossFadeFromAction && crossFadeFromAction !== action) {
+                // Chain combo: serah-terima pose dari tendangan sebelumnya ke tendangan berikutnya
+                this.currentWeights[kickKey] = Math.max(this.currentWeights[kickKey] || 0, 0.35);
+            } else {
+                this.currentWeights[kickKey] = Math.max(this.currentWeights[kickKey] || 0, 0.25);
+            }
+            action.setEffectiveWeight(this.currentWeights[kickKey]);
+        },
+
+        /**
+         * Membatalkan tendangan karena pemain menekan tombol gerak SETELAH klik kanan
+         * (input terakhir = prioritas). Pose tendangan memudar halus ke Walk / Run.
+         */
+        cancelKick() {
+            if (!this.isKicking) return;
+            this.isKicking = false;
+            this.activeKickKey = null;
+            this.queuedKicks = 0;
+            this.hasQueuedKick = false;
+            this.kickTimer = 0.0;
+            this.kick3PrevTime = 0.0;
+            this.kickComboIndex = 0;
+            this.lastKickEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            ['kick1', 'kick2', 'kick3'].forEach(k => {
+                this.targetWeights[k] = 0.0;
+            });
+        },
+
+        /**
+         * Lompat:
+         * - Tidak sprint -> jump-normal.fbx (ada ancang-ancang, impuls fisik dilepas tepat di frame tolakan)
+         * - Sprint       -> Jump-withrun.fbx (impuls langsung)
+         * Mengembalikan true jika impuls fisik harus langsung diterapkan saat itu juga.
+         */
+        triggerJump(isSprinting = false) {
+            const useNormal = !isSprinting && !!this.actions.jumpNormal;
+            const key = useNormal ? 'jumpNormal' : 'jump';
+            const action = this.actions[key];
+            if (!action) return true;
+
+            this.isJumping = true;
+            this.activeJumpKey = key;
+            this.jumpTimer = 0.0;
+            this.idleTimer = 0.0;
+            this.activeIdleKey = null;
+            this.idleCycleTimer = 0.0;
+
+            const rate = useNormal ? 1.30 : 1.15;
+            action.timeScale = rate;
+            const clip = action.getClip();
+            this.jumpDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.95;
+
+            action.reset();
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            action.play();
+
+            if (useNormal) {
+                // Frame tolakan kaki di jump-normal.fbx berada di ~0.62s (waktu klip)
+                this.jumpImpulsePending = true;
+                this.jumpTakeoffTime = 0.62 / rate;
+                this.jumpImpulseVel = 5.5;
+                return false;
+            }
+            this.jumpImpulsePending = false;
+            return true;
+        },
+        // Alias backward compatibility jika ada script eksternal
+        triggerBackflip() {
+            this.triggerJump(false);
+        },
+        onLoaded: null,
+
+        // Dummy references for backward compatibility
+        bodyTiltGroup: dummyBody,
+        neckJoint: dummyJoint(),
+        headJoint: dummyJoint(),
+        earLJoint: dummyJoint(),
+        earRJoint: dummyJoint(),
+        tailBaseJoint: dummyJoint(),
+        tailMidJoint: dummyJoint(),
+        tailTipJoint: dummyJoint(),
+        legFL: dummyJoint(),
+        legFR: dummyJoint(),
+        legBL: dummyJoint(),
+        legBR: dummyJoint(),
+        BASE_HIP_Y: 0.0,
+
+        /**
+         * Smoothly updates animation playback and blends Idle, Idle2, Walk, Run, and Jump states.
+         * Rules:
+         * - Idle animations only execute after 4.0s of continuous zero movement.
+         * - Randomly picks between idle.fbx and idle2.fbx when idle triggers and after each cycle.
+         * - Jump without sprint triggers Backflip.fbx with controlled height.
+         * - Jump with sprint triggers Jump-withrun.fbx with athletic height.
+         * - Stride cadence is synchronized to displacement speed with calm walking pace.
+         * @param {number} dt Delta time in seconds
+         * @param {number} speed Signed locomotion speed
+         * @param {boolean} isSprinting Whether sprint/run is active
+         * @param {boolean} isGrounded Whether the character is on the ground
+         */
+        updateAnimation(dt, speed = 0, isSprinting = false, isGrounded = true, turnRate = 0) {
+            if (!this.mixer || !this.isLoaded) return;
+            dt = Math.min(dt, 0.1);
+
+            const absSpeed = Math.abs(speed);
+            const absTurn = Math.abs(turnRate);
+
+            // Cek apakah ada input aktif dari tombol keyboard (WASD/Space) atau mobile virtual joystick
+            const k = (typeof window !== 'undefined' && window.keys) || (typeof keys !== 'undefined' ? keys : null);
+            const isKeyActive = k ? !!(k.w || k.s || k.a || k.d || k.space) : false;
+            const isAnalogActive = (
+                (typeof mobileJoystickForward !== 'undefined' && Math.abs(mobileJoystickForward) > 0.05) ||
+                (typeof mobileJoystickTurn !== 'undefined' && Math.abs(mobileJoystickTurn) > 0.05)
+            );
+
+            // Pemain dianggap bergerak jika ada kecepatan fisik, ada putaran sudut, atau ada input aktif
+            const isMoving = absSpeed > 0.01 || absTurn > 0.01 || isKeyActive || isAnalogActive;
+
+            // Lompat normal yang masih di fase ancang-ancang tidak boleh terpotong deteksi "di udara"
+            this.targetWeights.jumpNormal = 0.0;
+
+            // 1. PRIORITAS TERTINGGI: ANIMASI KICK & JUMP BERJALAN SAMPAI SELESAI TUNTAS
+            if (this.isKicking) {
+                this.kickTimer += dt;
+                this.idleTimer = 0.0;
+                this.activeIdleKey = null;
+                this.idleCycleTimer = 0.0;
+                ['jump', 'jumpRun', 'jumpNormal', 'walk', 'run', 'idle', 'idle2', 'idle3'].forEach(key => {
+                    this.targetWeights[key] = 0.0;
+                });
+
+                const comboKeys = ['kick1', 'kick2', 'kick3'];
+                const curIndex = comboKeys.indexOf(this.activeKickKey);
+                const HM = window.HeroAssetManager;
+
+                // Geser root dunia mengikuti pijakan kaki kick3 (root motion)
+                const applyKick3RootMotion = (toTime) => {
+                    if (!HM || !HM.kick3RootMotion || !this.root) return;
+                    const prevTime = this.kick3PrevTime || 0.0;
+                    if (toTime <= prevTime) return;
+                    const deltaZ = Math.max(0, HM.sampleKick3Z(toTime) - HM.sampleKick3Z(prevTime));
+                    this.kick3PrevTime = toTime;
+                    if (deltaZ <= 0.00001) return;
+                    const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
+                    const dispWorld = deltaZ * (this.baseScale || 1.85);
+                    this.root.position.addScaledVector(fwd, dispWorld);
+                    if (typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
+                    if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, dispWorld);
+                };
+
+                if (this.activeKickKey === 'kick3' && this.actions.kick3) {
+                    applyKick3RootMotion(this.actions.kick3.time);
+                }
+
+                // Serah-terima ke tendangan berikutnya HANYA ketika tendangan aktif hampir selesai,
+                // sehingga setiap tendangan selalu tampil utuh (tidak terpotong oleh spam klik)
+                const handoffTime = Math.max(0, this.kickDuration - 0.12);
+
+                if (this.queuedKicks > 0 && this.kickTimer >= handoffTime) {
+                    if (this.activeKickKey === 'kick3' && HM && HM.kick3RootMotion) {
+                        // Pastikan seluruh langkah maju kick3 tuntas sebelum ganti tendangan
+                        applyKick3RootMotion(this.actions.kick3.getClip().duration);
+                    }
+                    const prevAction = this.actions[this.activeKickKey];
+                    const nextKey = comboKeys[(curIndex + 1) % comboKeys.length];
+                    this.queuedKicks -= 1;
+                    this.hasQueuedKick = this.queuedKicks > 0;
+                    this._startKick(nextKey, prevAction);
+                } else if (this.kickTimer >= this.kickDuration) {
+                    if (this.activeKickKey === 'kick3' && HM && HM.kick3RootMotion) {
+                        applyKick3RootMotion(this.actions.kick3.getClip().duration);
+                    }
+                    // Rangkaian tendangan selesai tuntas -> klik berikutnya kembali mulai dari kick1
+                    this.isKicking = false;
+                    this.activeKickKey = null;
+                    this.queuedKicks = 0;
+                    this.hasQueuedKick = false;
+                    this.kickTimer = 0.0;
+                    this.kick3PrevTime = 0.0;
+                    this.kickComboIndex = 0;
+                    this.lastKickEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+
+                    // Kembali ke pose berdiri dasar (idle.fbx dari awal), timer idle variasi dari 0
+                    this.wasMoving = false;
+                    this.idleTimer = 0.0;
+                    this.activeIdleKey = null;
+                    this.idleCycleTimer = 0.0;
+                    if (this.actions.idle2) { this.actions.idle2.stop(); this.currentWeights.idle2 = 0.0; }
+                    if (this.actions.idle3) { this.actions.idle3.stop(); this.currentWeights.idle3 = 0.0; }
+                    if (this.actions.idle) { this.actions.idle.reset().play(); }
+                    comboKeys.forEach(key => { this.targetWeights[key] = 0.0; });
+                    this.targetWeights.idle = 1.0;
                 } else {
-                    const d = [p4[0], p4[1], p4[2] * s];
-                    if (s === 1) quad(a, b, c, d, col);
-                    else quad(a, d, c, b, col);
+                    comboKeys.forEach(key => {
+                        this.targetWeights[key] = (key === this.activeKickKey) ? 1.0 : 0.0;
+                    });
+                }
+            } else if (this.isJumping) {
+                this.jumpTimer += dt;
+                const jKey = this.activeJumpKey || 'jump';
+                this.targetWeights.jump = (jKey === 'jump') ? 1.0 : 0.0;
+                this.targetWeights.jumpRun = (jKey === 'jump') ? 1.0 : 0.0;
+                this.targetWeights.jumpNormal = (jKey === 'jumpNormal') ? 1.0 : 0.0;
+                this.targetWeights.walk = 0.0;
+                this.targetWeights.run = 0.0;
+                this.targetWeights.idle = 0.0;
+                this.targetWeights.idle2 = 0.0;
+                this.targetWeights.idle3 = 0.0;
+                this.targetWeights.kick1 = 0.0;
+                this.targetWeights.kick2 = 0.0;
+                this.targetWeights.kick3 = 0.0;
+                this.idleTimer = 0.0;
+                this.activeIdleKey = null;
+                this.idleCycleTimer = 0.0;
+
+                // Animasi lompat berjalan lancar sampai fase landing selesai 100%
+                if (this.jumpTimer >= this.jumpDuration) {
+                    this.isJumping = false;
+                    this.jumpImpulsePending = false;
+                    this.jumpTimer = 0.0;
+                    this.targetWeights.jump = 0.0;
+                    this.targetWeights.jumpRun = 0.0;
+                    this.targetWeights.jumpNormal = 0.0;
+                }
+            } else if (!isGrounded) {
+                // Karakter berada di udara (jatuh dari tebing / drop)
+                this.idleTimer = 0.0;
+                this.activeIdleKey = null;
+                this.idleCycleTimer = 0.0;
+                this.targetWeights.jump = 1.0;
+                this.targetWeights.jumpRun = 1.0;
+                this.targetWeights.walk = 0.0;
+                this.targetWeights.run = 0.0;
+                this.targetWeights.idle = 0.0;
+                this.targetWeights.idle2 = 0.0;
+                this.targetWeights.idle3 = 0.0;
+                this.targetWeights.kick1 = 0.0;
+                this.targetWeights.kick2 = 0.0;
+                this.targetWeights.kick3 = 0.0;
+            } else {
+                // 2. GROUNDED (WALK / RUN / IDLE)
+                this.wasInAir = false;
+                this.targetWeights.jump = 0.0;
+                this.targetWeights.jumpRun = 0.0;
+
+                // DETEKSI PERALIHAN: Pemain baru saja melepaskan semua tombol / berhenti bergerak
+                if (this.wasMoving && !isMoving) {
+                    // RESET TOTAL IDLE TIMER & MATIKAN SELURUH VARIASI IDLE LANJUTAN (idle2, idle3)!
+                    this.idleTimer = 0.0;
+                    this.activeIdleKey = null;
+                    this.idleCycleTimer = 0.0;
+                    this.targetWeights.idle = 1.0;
+                    this.targetWeights.idle2 = 0.0;
+                    this.targetWeights.idle3 = 0.0;
+                    this.currentWeights.idle2 = 0.0;
+                    this.currentWeights.idle3 = 0.0;
+                    if (this.actions.idle2) { this.actions.idle2.stop(); this.actions.idle2.setEffectiveWeight(0.0); }
+                    if (this.actions.idle3) { this.actions.idle3.stop(); this.actions.idle3.setEffectiveWeight(0.0); }
+                    if (this.actions.idle) { this.actions.idle.reset().play(); }
+                }
+                this.wasMoving = isMoving;
+
+                if (isMoving) {
+                    // Active locomotion: RESET TOTAL IDLE TIMER & KUNCI SEMUA IDLE KE 0 MUTLAK!
+                    this.idleTimer = 0.0;
+                    this.activeIdleKey = null;
+                    this.idleCycleTimer = 0.0;
+                    this.targetWeights.idle = 0.0;
+                    this.targetWeights.idle2 = 0.0;
+                    this.targetWeights.idle3 = 0.0;
+                    this.targetWeights.kick1 = 0.0;
+                    this.targetWeights.kick2 = 0.0;
+                    this.targetWeights.kick3 = 0.0;
+
+                    if (isSprinting && absSpeed > 1.8) {
+                        // Running stride: smooth ramp from walk to full run
+                        const runBlend = Math.min(1.0, (absSpeed - 1.8) / 2.2);
+                        this.targetWeights.walk = Math.max(0.0, 1.0 - runBlend);
+                        this.targetWeights.run = runBlend;
+                    } else if (absSpeed <= 0.05 && (absTurn > 0.05 || (k && (k.a || k.d)))) {
+                        // Belok / rotasi di tempat: langkah kaki santai (natural stepping)
+                        // Bobot walk wajib 1.0 agar total bobot aksi selalu 100% dan hips tidak kolaps ke bind-pose (tenggelam)
+                        this.targetWeights.walk = 1.0;
+                        this.targetWeights.run = 0.0;
+                    } else {
+                        // Natural, calm walking stride
+                        this.targetWeights.walk = 1.0;
+                        this.targetWeights.run = 0.0;
+                    }
+                } else {
+                    // Stationary on ground: Karakter diam di tanah tanpa gerakan maupun input
+                    this.targetWeights.walk = 0.0;
+                    this.targetWeights.run = 0.0;
+
+                    this.idleTimer += dt;
+                    const idleThreshold = 4.5; // Ambang batas 4-5 detik sebelum variasi idle acak dieksekusi
+
+                    if (this.idleTimer < idleThreshold) {
+                        // Sebelum 4-5 detik diam:
+                        // Karakter berdiri santai dan memainkan animasi bernapas alami (idle.fbx).
+                        // Seluruh variasi idle lanjutan (idle2, idle3) DIKUNCI MATI (stop & weight 0.0)!
+                        this.targetWeights.idle = 1.0;
+                        this.targetWeights.idle2 = 0.0;
+                        this.targetWeights.idle3 = 0.0;
+                        this.targetWeights.kick1 = 0.0;
+                        this.targetWeights.kick2 = 0.0;
+                        this.targetWeights.kick3 = 0.0;
+                        this.activeIdleKey = null;
+                        this.idleCycleTimer = 0.0;
+
+                        if (this.actions.idle2) { this.actions.idle2.stop(); this.currentWeights.idle2 = 0.0; }
+                        if (this.actions.idle3) { this.actions.idle3.stop(); this.currentWeights.idle3 = 0.0; }
+                        if (this.actions.idle) this.actions.idle.timeScale = 1.0;
+                    } else {
+                        // Tepat >= 5 detik diam: Mulai eksekusi variasi idle ekspresif secara acak (idle, idle2, idle3)!
+                        const idlePool = ['idle', 'idle2', 'idle3'];
+
+                        if (!this.activeIdleKey) {
+                            // Pertama kali mencapai 5 detik diam: undi acak variasi idle
+                            this.activeIdleKey = idlePool[Math.floor(Math.random() * idlePool.length)];
+                            this.idleCycleTimer = 0.0;
+                            if (this.actions[this.activeIdleKey]) {
+                                this.actions[this.activeIdleKey].reset().play();
+                            }
+                        }
+
+                        // Pantau durasi klip aktif sebelum mengundi acak variasi idle berikutnya
+                        this.idleCycleTimer += dt;
+                        const currentAction = this.actions[this.activeIdleKey];
+                        const clipDuration = (currentAction && currentAction.getClip()) ? currentAction.getClip().duration : 3.0;
+
+                        if (this.idleCycleTimer >= clipDuration) {
+                            this.idleCycleTimer = 0.0;
+                            const nextIdle = idlePool[Math.floor(Math.random() * idlePool.length)];
+                            this.activeIdleKey = nextIdle;
+                            if (this.actions[nextIdle]) {
+                                this.actions[nextIdle].reset().play();
+                            }
+                        }
+
+                        // Pasang target weight ke variasi idle yang sedang aktif
+                        this.targetWeights.idle = (this.activeIdleKey === 'idle') ? 1.0 : 0.0;
+                        this.targetWeights.idle2 = (this.activeIdleKey === 'idle2') ? 1.0 : 0.0;
+                        this.targetWeights.idle3 = (this.activeIdleKey === 'idle3') ? 1.0 : 0.0;
+                        this.targetWeights.kick1 = 0.0;
+                this.targetWeights.kick2 = 0.0;
+                this.targetWeights.kick3 = 0.0;
+
+                        if (this.actions.idle) this.actions.idle.timeScale = 1.0;
+                        if (this.actions.idle2) this.actions.idle2.timeScale = 1.0;
+                        if (this.actions.idle3) this.actions.idle3.timeScale = 1.0;
+                    }
                 }
             }
 
-            // Titik Hidung Hitam Solid (Proporsional & manis, tidak terlalu panjang mancung)
-            const noseCenter = [-0.82, -0.10, 0.00];
-            const nTipTop = [-0.82, -0.06, 0.00];
-            const nTipSide = [-0.80, -0.10, 0.058];
-            const nTipBot = [-0.78, -0.15, 0.00];
-
-            const m1Top = [-0.74, -0.01, 0.00];
-            const m1Upper = [-0.74, -0.05, 0.082];
-            const m1Mid = [-0.72, -0.12, 0.115];
-            const m1Bot = [-0.70, -0.18, 0.00];
-
-            const m2Top = [-0.58, 0.09, 0.00];
-            const m2Upper = [-0.58, 0.03, 0.15];
-            const m2Mid = [-0.56, -0.08, 0.21];
-            const m2Low = [-0.54, -0.18, 0.15];
-            const m2Bot = [-0.53, -0.21, 0.00];
-
-            const brTop = [-0.46, 0.17, 0.00];
-            const brInner = [-0.46, 0.13, 0.15];
-            const eyeAnt = [-0.49, 0.04, 0.24];
-            const cheekAnt = [-0.42, -0.05, 0.33];
-            const jawMid = [-0.40, -0.19, 0.22];
-            const jawBot = [-0.38, -0.25, 0.00];
-
-            const fhTop = [-0.26, 0.34, 0.00];
-            const fhSide = [-0.26, 0.30, 0.23];
-            const eyePost = [-0.28, 0.15, 0.33];
-            const cheekTip = [-0.18, 0.02, 0.48];
-            const cheekUp = [-0.04, 0.12, 0.41];
-            const cheekLow = [-0.19, -0.15, 0.35];
-            const throat = [-0.18, -0.28, 0.00];
-
-            const skTop = [0.04, 0.33, 0.00];
-            const skUpper = [0.04, 0.26, 0.29];
-            const skMid = [0.06, 0.00, 0.42];
-            const skLow = [0.06, -0.20, 0.26];
-            const skBot = [0.06, -0.32, 0.00];
-
-            // Ujung Hidung Solid (Terpusat ke noseCenter tanpa bolong)
-            addFace(noseCenter, nTipTop, nTipSide, null, C.DARK);
-            addFace(noseCenter, nTipSide, nTipBot, null, C.DARK);
-
-            // Koneksi Hidung ke Moncong
-            addFace(nTipTop, m1Top, m1Upper, nTipSide, C.DARK);
-            addFace(nTipSide, m1Upper, m1Mid, nTipBot, C.DARK);
-            addFace(nTipBot, m1Mid, m1Bot, null, C.DARK);
-
-            addFace(m1Top, m2Top, m2Upper, m1Upper, C.ORANGE_TOP);
-            addFace(m1Upper, m2Upper, eyeAnt, m2Mid, C.ORANGE);
-            addFace(m1Upper, m2Mid, m1Mid, null, C.WHITE);
-            addFace(m1Mid, m2Mid, m2Low, m1Bot, C.WHITE);
-            addFace(m1Bot, m2Low, m2Bot, null, C.WHITE_SHADE);
-
-            addFace(m2Top, brTop, brInner, m2Upper, C.ORANGE_TOP);
-            addFace(m2Upper, brInner, eyeAnt, null, C.EYE_BROW);
-            addFace(brTop, fhTop, fhSide, brInner, C.ORANGE_TOP);
-            addFace(brInner, fhSide, eyePost, eyeAnt, C.EYE_BROW);
-
-            addFace(eyeAnt, eyePost, cheekTip, cheekAnt, C.ORANGE);
-            addFace(m2Upper, eyeAnt, cheekAnt, m2Mid, C.ORANGE);
-
-            addFace(m2Mid, cheekAnt, jawMid, m2Low, C.WHITE);
-            addFace(cheekAnt, cheekTip, cheekLow, jawMid, C.WHITE);
-            addFace(cheekTip, cheekUp, cheekLow, null, C.WHITE);
-            addFace(m2Low, jawMid, jawBot, m2Bot, C.WHITE_SHADE);
-            addFace(jawMid, cheekLow, throat, jawBot, C.WHITE);
-
-            addFace(fhTop, skTop, skUpper, fhSide, C.ORANGE_TOP);
-            addFace(fhSide, skUpper, cheekUp, eyePost, C.ORANGE);
-            addFace(eyePost, cheekUp, cheekTip, null, C.ORANGE);
-            addFace(cheekUp, skUpper, skMid, cheekLow, C.ORANGE);
-            addFace(cheekLow, skMid, skLow, throat, C.WHITE);
-            addFace(throat, skLow, skBot, null, C.WHITE);
-
-            // --- Penutup Solid Kepala Belakang & Dasar Telinga ---
-            const baseNeckConnect = [0.15, -0.10, 0.00];
-            addFace(skTop, baseNeckConnect, skUpper, null, C.ORANGE_TOP);
-            addFace(skUpper, baseNeckConnect, skMid, null, C.ORANGE);
-            addFace(skMid, baseNeckConnect, skLow, null, C.ORANGE); // Oranye alami di bawah telinga menyatu mulus
-            addFace(skLow, baseNeckConnect, skBot, null, C.WHITE);
-            addFace(skBot, baseNeckConnect, throat, null, C.WHITE);
-        }
-        return buildMeshFromTriangles(tris);
-    }
-    headJoint.add(createDetailedHeadSolidNose());
-
-    // 5D. TELINGA
-    function createArticulatedEar(isLeft) {
-        const s = isLeft ? -1 : 1;
-        const earPivot = new THREE.Group();
-        const px = -0.08, py = 0.25, pz = 0.22 * s;
-        earPivot.position.set(px, py, pz);
-
-        const tris = [];
-        function quad(p1, p2, p3, p4, col) {
-            tris.push({ a: p1, b: p2, c: p3, col });
-            tris.push({ a: p1, b: p3, c: p4, col });
-        }
-        function tri(p1, p2, p3, col) {
-            tris.push({ a: p1, b: p2, c: p3, col });
-        }
-        function addEarFace(p1, p2, p3, p4, col) {
-            const a = [p1[0] - px, p1[1] - py, p1[2] * s - pz];
-            const b = [p2[0] - px, p2[1] - py, p2[2] * s - pz];
-            const c = [p3[0] - px, p3[1] - py, p3[2] * s - pz];
-            if (!p4) {
-                if (s === 1) tri(a, b, c, col);
-                else tri(a, c, b, col);
-            } else {
-                const d = [p4[0] - px, p4[1] - py, p4[2] * s - pz];
-                if (s === 1) quad(a, b, c, d, col);
-                else quad(a, d, c, b, col);
+            // Interpolate action weights smoothly
+            const blendSpeed = this.isKicking ? 28.0 : (isMoving ? 18.0 : (isGrounded ? 12.0 : 16.0));
+            for (const key of ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3']) {
+                if (this.actions[key]) {
+                    this.currentWeights[key] = THREE.MathUtils.lerp(
+                        this.currentWeights[key],
+                        this.targetWeights[key],
+                        Math.min(1.0, blendSpeed * dt)
+                    );
+                    this.actions[key].setEffectiveWeight(this.currentWeights[key]);
+                }
             }
+
+            // ========================================================
+            // STRIDE CADENCE SYNCHRONIZATION (ANTI-SLIDING / ICE SKATING)
+            // Stride duration & speed calibrated to physical displacement:
+            // Walk base speed = 1.65 m/s (tenang, tidak tergesa-gesa)
+            // Run base speed = 6.5 m/s (sprint atletis teratur)
+            // ========================================================
+            if (this.actions.walk) {
+                const walkPace = (absSpeed <= 0.05) ? 0.85 : Math.max(0.55, Math.min(1.25, (absSpeed / 1.65) * 0.95));
+                this.actions.walk.timeScale = (speed < 0) ? -walkPace : walkPace;
+            }
+            if (this.actions.run) {
+                const runPace = Math.max(0.70, Math.min(1.6, absSpeed / 5.2));
+                this.actions.run.timeScale = runPace;
+            }
+            if (this.actions.jump) this.actions.jump.timeScale = 1.15;      // Jump-withrun.fbx
+            if (this.actions.jumpNormal) this.actions.jumpNormal.timeScale = 1.30; // jump-normal.fbx
+
+            // Step the Three.js AnimationMixer
+            this.mixer.update(dt);
+        },
+
+        resetAnimation() {
+            this.currentWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 };
+            this.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 };
+            this.wasInAir = false;
+            this.isJumping = false;
+            this.isKicking = false;
+            this.activeKickKey = null;
+            this.hasQueuedKick = false;
+            this.queuedKicks = 0;
+            this.kickTimer = 0.0;
+            this.kick3PrevTime = 0.0;
+            this.lastKickEndTime = 0;
+            this.jumpImpulsePending = false;
+            this.activeJumpKey = 'jump';
+            this.kickComboIndex = 0;
+            this.wasMoving = false;
+            this.idleTimer = 0.0;
+            this.activeIdleKey = null;
+            this.idleCycleTimer = 0.0;
+
+            if (this.actions.idle) { this.actions.idle.reset().play(); this.actions.idle.setEffectiveWeight(1.0); }
+            if (this.actions.idle2) { this.actions.idle2.stop(); this.actions.idle2.setEffectiveWeight(0.0); }
+            if (this.actions.idle3) { this.actions.idle3.stop(); this.actions.idle3.setEffectiveWeight(0.0); }
+            if (this.actions.walk) this.actions.walk.setEffectiveWeight(0.0);
+            if (this.actions.run) this.actions.run.setEffectiveWeight(0.0);
+            if (this.actions.jump) this.actions.jump.setEffectiveWeight(0.0);
+            if (this.actions.jumpRun) this.actions.jumpRun.setEffectiveWeight(0.0);
+            if (this.actions.jumpNormal) this.actions.jumpNormal.setEffectiveWeight(0.0);
+            ['kick1', 'kick2', 'kick3'].forEach(k => {
+                if (this.actions[k]) { this.actions[k].stop(); this.actions[k].setEffectiveWeight(0.0); }
+            });
         }
-
-        const eInF = [-0.21, 0.30, 0.13];
-        const eOutF = [-0.15, 0.17, 0.37];
-        const eOutB = [0.05, 0.23, 0.33];
-        const eInB = [0.00, 0.32, 0.11];
-
-        const eCavBot = [-0.11, 0.25, 0.25];
-        const eCavMid = [-0.09, 0.47, 0.27];
-
-        const eMidInF = [-0.17, 0.55, 0.18];
-        const eMidOutF = [-0.09, 0.49, 0.43];
-        const eMidOutB = [0.07, 0.51, 0.37];
-        const eMidInB = [0.02, 0.56, 0.17];
-
-        const eTopInF = [-0.10, 0.74, 0.25];
-        const eTopOutF = [-0.05, 0.71, 0.39];
-        const eTopBack = [0.04, 0.72, 0.33];
-        const eTip = [-0.02, 0.87, 0.32];
-
-        addEarFace(eInF, eOutF, eCavBot, null, C.EAR_IN_DEEP);
-        addEarFace(eInF, eCavBot, eCavMid, eMidInF, C.EAR_IN);
-        addEarFace(eCavBot, eOutF, eMidOutF, eCavMid, C.EAR_IN_DEEP);
-        addEarFace(eMidInF, eCavMid, eTopOutF, eTopInF, C.EAR_IN);
-        addEarFace(eCavMid, eMidOutF, eTopOutF, null, C.EAR_IN);
-
-        addEarFace(eInF, eMidInF, eMidInB, eInB, C.DARK);
-        addEarFace(eMidInF, eTopInF, eTopBack, eMidInB, C.DARK);
-        addEarFace(eOutF, eOutB, eMidOutB, eMidOutF, C.ORANGE);
-        addEarFace(eMidOutF, eMidOutB, eTopBack, eTopOutF, C.DARK);
-
-        addEarFace(eOutB, eInB, eMidInB, eMidOutB, C.ORANGE_TOP); // Oranye pekat di belakang telinga
-        addEarFace(eTopInF, eTopOutF, eTip, null, C.DARK);
-        addEarFace(eTopOutF, eTopBack, eTip, null, C.DARK);
-        addEarFace(eTopBack, eTopInF, eTip, null, C.DARK);
-
-        earPivot.add(buildMeshFromTriangles(tris));
-        headJoint.add(earPivot);
-        return earPivot;
-    }
-
-    const earRJoint = createArticulatedEar(false);
-    const earLJoint = createArticulatedEar(true);
-
-    // 5E. EKOR MULTI-SEGMEN
-    const tailBaseJoint = new THREE.Group();
-    tailBaseJoint.position.set(1.32, 0.15, 0);
-    bodyTiltGroup.add(tailBaseJoint);
-
-    const tailSeg1Mesh = createHorizontalLoft([
-        { x: 0.00, yTop: 0.19, yMid: 0.00, yBot: -0.19, zTop: 0.15, zMid: 0.22, zBot: 0.14 },
-        { x: 0.42, yTop: 0.07, yMid: -0.21, yBot: -0.48, zTop: 0.26, zMid: 0.38, zBot: 0.24 },
-        { x: 0.86, yTop: -0.15, yMid: -0.48, yBot: -0.80, zTop: 0.32, zMid: 0.45, zBot: 0.30 }
-    ], (s, f) => (f === 0 || f === 7) ? C.ORANGE_TOP : C.ORANGE, () => C.ORANGE, null);
-    tailBaseJoint.add(tailSeg1Mesh);
-
-    const tailMidJoint = new THREE.Group();
-    tailMidJoint.position.set(0.84, -0.46, 0);
-    tailBaseJoint.add(tailMidJoint);
-
-    const tailSeg2Mesh = createHorizontalLoft([
-        { x: 0.00, yTop: 0.32, yMid: 0.00, yBot: -0.32, zTop: 0.32, zMid: 0.45, zBot: 0.30 },
-        { x: 0.50, yTop: 0.04, yMid: -0.28, yBot: -0.58, zTop: 0.26, zMid: 0.37, zBot: 0.24 },
-        { x: 0.90, yTop: -0.13, yMid: -0.36, yBot: -0.58, zTop: 0.18, zMid: 0.26, zBot: 0.16 }
-    ], (s, f) => (f === 0 || f === 7) ? C.ORANGE_TOP : C.ORANGE);
-    tailMidJoint.add(tailSeg2Mesh);
-
-    const tailTipJoint = new THREE.Group();
-    tailTipJoint.position.set(0.88, -0.35, 0);
-    tailMidJoint.add(tailTipJoint);
-
-    const tailSeg3Mesh = createHorizontalLoft([
-        { x: 0.00, yTop: 0.22, yMid: 0.00, yBot: -0.21, zTop: 0.18, zMid: 0.26, zBot: 0.16 },
-        { x: 0.35, yTop: 0.13, yMid: -0.02, yBot: -0.15, zTop: 0.09, zMid: 0.13, zBot: 0.08 },
-        { x: 0.64, yTop: 0.05, yMid: 0.02, yBot: 0.00, zTop: 0.015, zMid: 0.02, zBot: 0.015 }
-    ], () => C.WHITE, null, () => C.WHITE);
-    tailTipJoint.add(tailSeg3Mesh);
-
-    // 5F. KEEMPAT KAKI DENGAN GRADASI HALUS (ANTI KAOS KAKI)
-    function createArticulatedFrontLeg(isLeft) {
-        const side = isLeft ? -1 : 1;
-        const shoulderJoint = new THREE.Group();
-        shoulderJoint.position.set(-0.42, -0.10, 0.28 * side);
-
-        const upperRings = [
-            { x: 0.00, y: 0.14, rx: 0.20, rz: 0.15 },
-            { x: 0.01, y: -0.28, rx: 0.14, rz: 0.12 },
-            { x: 0.02, y: -0.64, rx: 0.105, rz: 0.095 }
-        ];
-        const upperMesh = createVerticalLimb(upperRings, (segIdx) => {
-            if (segIdx === 0) return [C.ORANGE, C.ORANGE];
-            // Ujung paha bawah mulai melunak ke amber hangat
-            return [C.ORANGE, getFoxLegGradientColor(0.18)];
-        }, false);
-        shoulderJoint.add(upperMesh);
-
-        const kneeJoint = new THREE.Group();
-        kneeJoint.position.set(0.02, -0.62, 0);
-        shoulderJoint.add(kneeJoint);
-
-        // Betis depan: 5 ring bergradasi halus dari amber -> russet -> cokelat gelap -> hitam
-        const lowerRings = [
-            { x: 0.00, y: 0.02, rx: 0.105, rz: 0.095 },
-            { x: -0.005, y: -0.16, rx: 0.095, rz: 0.088 },
-            { x: -0.010, y: -0.34, rx: 0.085, rz: 0.080 },
-            { x: -0.015, y: -0.50, rx: 0.080, rz: 0.076 },
-            { x: -0.020, y: -0.67, rx: 0.075, rz: 0.075 }
-        ];
-        const lowerMesh = createVerticalLimb(lowerRings, (segIdx) => {
-            const t0 = 0.18 + (segIdx / (lowerRings.length - 1)) * 0.82;
-            const t1 = 0.18 + ((segIdx + 1) / (lowerRings.length - 1)) * 0.82;
-            return [getFoxLegGradientColor(t0), getFoxLegGradientColor(t1)];
-        }, false);
-        kneeJoint.add(lowerMesh);
-
-        const pawJoint = new THREE.Group();
-        pawJoint.position.set(-0.02, -0.65, 0);
-        kneeJoint.add(pawJoint);
-
-        const pawMesh = createVerticalLimb([
-            { x: 0.00, y: 0.02, rx: 0.075, rz: 0.075 },
-            { x: -0.06, y: -0.12, rx: 0.115, rz: 0.095, frontExt: 1.35 },
-            { x: -0.08, y: -0.25, rx: 0.115, rz: 0.10, frontExt: 1.40 }
-        ], () => C.DARK_PAW, true);
-        pawJoint.add(pawMesh);
-
-        bodyTiltGroup.add(shoulderJoint);
-        return { hip: shoulderJoint, knee: kneeJoint, paw: pawJoint };
-    }
-
-    function createArticulatedBackLeg(isLeft) {
-        const side = isLeft ? -1 : 1;
-        const hipJoint = new THREE.Group();
-        hipJoint.position.set(1.02, 0.00, 0.25 * side);
-
-        const thighRings = [
-            { x: 0.00, y: 0.16, rx: 0.24, rz: 0.16 },
-            { x: 0.11, y: -0.29, rx: 0.18, rz: 0.13 },
-            { x: 0.20, y: -0.70, rx: 0.115, rz: 0.10 }
-        ];
-        const thighMesh = createVerticalLimb(thighRings, (segIdx) => {
-            if (segIdx === 0) return [C.ORANGE, C.ORANGE];
-            return [C.ORANGE, getFoxLegGradientColor(0.18)];
-        }, false);
-        hipJoint.add(thighMesh);
-
-        const hockJoint = new THREE.Group();
-        hockJoint.position.set(0.20, -0.68, 0);
-        hipJoint.add(hockJoint);
-
-        // Betis belakang: 5 ring bergradasi halus dari amber -> russet -> cokelat gelap -> hitam
-        const shinRings = [
-            { x: 0.00, y: 0.02, rx: 0.115, rz: 0.10 },
-            { x: -0.02, y: -0.18, rx: 0.102, rz: 0.09 },
-            { x: -0.04, y: -0.37, rx: 0.090, rz: 0.08 },
-            { x: -0.055, y: -0.54, rx: 0.085, rz: 0.077 },
-            { x: -0.070, y: -0.70, rx: 0.080, rz: 0.075 }
-        ];
-        const shinMesh = createVerticalLimb(shinRings, (segIdx) => {
-            const t0 = 0.18 + (segIdx / (shinRings.length - 1)) * 0.82;
-            const t1 = 0.18 + ((segIdx + 1) / (shinRings.length - 1)) * 0.82;
-            return [getFoxLegGradientColor(t0), getFoxLegGradientColor(t1)];
-        }, false);
-        hockJoint.add(shinMesh);
-
-        const pawJoint = new THREE.Group();
-        pawJoint.position.set(-0.07, -0.68, 0);
-        hockJoint.add(pawJoint);
-
-        const pawMesh = createVerticalLimb([
-            { x: 0.00, y: 0.02, rx: 0.08, rz: 0.075 },
-            { x: -0.06, y: -0.12, rx: 0.115, rz: 0.095, frontExt: 1.35 },
-            { x: -0.08, y: -0.26, rx: 0.115, rz: 0.10, frontExt: 1.40 }
-        ], () => C.DARK_PAW, true);
-        pawJoint.add(pawMesh);
-
-        bodyTiltGroup.add(hipJoint);
-        return { hip: hipJoint, knee: hockJoint, paw: pawJoint };
-    }
-
-    const legFL = createArticulatedFrontLeg(true);
-    const legFR = createArticulatedFrontLeg(false);
-    const legBL = createArticulatedBackLeg(true);
-    const legBR = createArticulatedBackLeg(false);
-
-    return {
-        root: foxRoot,
-        speciesKey,
-        baseScale,
-        bodyTiltGroup,
-        neckJoint,
-        headJoint,
-        earLJoint,
-        earRJoint,
-        tailBaseJoint,
-        tailMidJoint,
-        tailTipJoint,
-        legFL,
-        legFR,
-        legBL,
-        legBR,
-        BASE_HIP_Y
     };
+
+    // If assets already loaded, setup character immediately
+    if (window.HeroAssetManager.isLoaded) {
+        window.HeroAssetManager.setupInstance(characterInstance);
+    } else {
+        // Queue to attach when loading finishes
+        window.HeroAssetManager.instancesPending.push(characterInstance);
+        window.HeroAssetManager.load();
+    }
+
+    return characterInstance;
 }
+
+// Alias for direct modern access
+window.createHeroCharacterModel = createWolfCharacterModel;
+window.createWolfCharacterModel = createWolfCharacterModel;

@@ -30,6 +30,7 @@ class PlasmaWeapon {
         this.glowSprite = null;
         this.missiles = [];
         this.shocks = [];
+        this.groundFires = [];
 
         // Uniforms for shaders
         this.U = { uTime: { value: 0 }, uFlash: { value: 0 } };
@@ -479,25 +480,32 @@ class PlasmaWeapon {
     // ==========================================
     // 5. MISSILE LAUNCH & EXPLOSION (FROM plasma.html)
     // ==========================================
-    launchMissile() {
-        if (!this.mountGroup.visible) return false;
-
-        const now = Date.now();
-        if (now - this.lastFireTime < 400) return false;
-        this.lastFireTime = now;
-
+    launchMissileFromSource(muzzleWorldPos, muzzleForward, shooter = 'player', target = null) {
         try { this.audio(); } catch (_) { }
 
-        const muzzleWorldPos = new THREE.Vector3();
-        if (this.barrelCoreLight) {
-            this.barrelCoreLight.getWorldPosition(muzzleWorldPos);
-        } else {
-            this.mountGroup.getWorldPosition(muzzleWorldPos);
+        // Validasi keamanan moncong: cegah proyektil spawn di koordinat (0, 0, 0) tengah dunia jika matrix belum siap
+        if (!muzzleWorldPos || (muzzleWorldPos.lengthSq() < 0.001 && shooter !== 'player' && shooter && shooter.root && shooter.root.position.lengthSq() > 0.1)) {
+            if (shooter && shooter.root) {
+                muzzleWorldPos = shooter.root.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+            }
         }
 
-        const muzzleForward = new THREE.Vector3(0, 0, -1);
-        muzzleForward.applyQuaternion(this.mountGroup.getWorldQuaternion(new THREE.Quaternion()));
-        muzzleForward.normalize();
+        let finalDir = muzzleForward.clone().normalize();
+
+        // Jika ada target, arahkan arah peluncuran awal LANGSUNG ke posisi target di ruang 3D
+        if (target) {
+            let tPos = null;
+            if (target === 'player' && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
+                tPos = wolfCharacter.root.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+            } else if (target && target.root) {
+                tPos = target.root.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+            } else if (target && target.position) {
+                tPos = target.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+            }
+            if (tPos) {
+                finalDir.subVectors(tPos, muzzleWorldPos).normalize();
+            }
+        }
 
         const sMat = new THREE.SpriteMaterial({
             map: this.glowTex,
@@ -506,21 +514,22 @@ class PlasmaWeapon {
             transparent: true
         });
         const spr = new THREE.Sprite(sMat);
-        // Ukuran bola api presisi sesuai moncong plasma di samping fox (~0.45 unit)
         spr.scale.setScalar(0.45);
         spr.renderOrder = 3;
         spr.position.copy(muzzleWorldPos);
         scene.add(spr);
 
         const speed = 72.0;
-        const vel = muzzleForward.clone().multiplyScalar(speed);
+        const vel = finalDir.clone().multiplyScalar(speed);
 
         const missileObj = {
             p: muzzleWorldPos.clone(),
             v: vel,
             a: 0,
             h: spr,
-            startPos: muzzleWorldPos.clone()
+            startPos: muzzleWorldPos.clone(),
+            shooter: shooter,
+            target: target
         };
         this.missiles.push(missileObj);
 
@@ -534,9 +543,9 @@ class PlasmaWeapon {
                 const [rx, ry, rz] = this.rs();
                 this.firePool.emit(
                     muzzleWorldPos.x, muzzleWorldPos.y, muzzleWorldPos.z,
-                    muzzleForward.x * 14 + rx * 2.0,
-                    muzzleForward.y * 14 + ry * 2.0,
-                    muzzleForward.z * 14 + rz * 2.0,
+                    finalDir.x * 14 + rx * 2.0,
+                    finalDir.y * 14 + ry * 2.0,
+                    finalDir.z * 14 + rz * 2.0,
                     this.rnd(0.12, 0.25), 0.36, 0.05, 2.0, 0, 0
                 );
             }
@@ -544,6 +553,60 @@ class PlasmaWeapon {
 
         this.playFireSound();
         return true;
+    }
+
+    launchMissile() {
+        if (!this.mountGroup.visible) return false;
+
+        const now = Date.now();
+        if (now - this.lastFireTime < 400) return false;
+        this.lastFireTime = now;
+
+        const muzzleWorldPos = new THREE.Vector3();
+        if (this.barrelCoreLight) {
+            this.barrelCoreLight.getWorldPosition(muzzleWorldPos);
+        } else {
+            this.mountGroup.getWorldPosition(muzzleWorldPos);
+        }
+
+        // Pastikan titik tembak moncong berada aman di atas kontur tanah
+        if (typeof getTerrainHeightFast === 'function') {
+            const gY = getTerrainHeightFast(muzzleWorldPos.x, muzzleWorldPos.z);
+            muzzleWorldPos.y = Math.max(muzzleWorldPos.y, gY + 0.85);
+        }
+
+        // Ambil target auto-lock saat ini dari FoxAIManager jika ada
+        const lockedTarget = (typeof FoxAIManager !== 'undefined' && FoxAIManager.playerLockedTarget)
+            ? FoxAIManager.playerLockedTarget
+            : null;
+
+        let shootDir = new THREE.Vector3();
+
+        if (lockedTarget) {
+            // TARGET TERKUNCI: Bidik tepat dari moncong ke pusat target!
+            let tPos = null;
+            if (lockedTarget.root) {
+                tPos = lockedTarget.root.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+            } else if (lockedTarget.position) {
+                tPos = lockedTarget.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+            }
+            if (tPos) {
+                shootDir.subVectors(tPos, muzzleWorldPos).normalize();
+            }
+        }
+
+        // Jika tidak ada target terkunci, bidik searah pandangan kamera
+        if (shootDir.lengthSq() < 0.001) {
+            if (typeof camera !== 'undefined' && camera) {
+                camera.getWorldDirection(shootDir);
+                shootDir.y = Math.max(shootDir.y, -0.05);
+                shootDir.normalize();
+            } else {
+                shootDir.set(0, 0, -1).applyQuaternion(this.mountGroup.getWorldQuaternion(new THREE.Quaternion())).normalize();
+            }
+        }
+
+        return this.launchMissileFromSource(muzzleWorldPos, shootDir, 'player', lockedTarget);
     }
 
     playFireSound() {
@@ -588,6 +651,24 @@ class PlasmaWeapon {
         } catch (_) { }
     }
 
+    spawnGroundFire(pos, normal) {
+        let fireLight = null;
+        if (typeof scene !== 'undefined' && scene) {
+            fireLight = new THREE.PointLight(0xff6a14, 3.8, 5.5, 2.0);
+            fireLight.position.copy(pos).addScaledVector(normal, 0.35);
+            scene.add(fireLight);
+        }
+
+        this.groundFires.push({
+            pos: pos.clone(),
+            normal: normal.clone(),
+            duration: 3.2, // Api menyala berkobar selama 3.2 detik lalu fade out
+            age: 0,
+            radius: 0.85,
+            light: fireLight
+        });
+    }
+
     explode(pos, normal, scale = 1.0) {
         const R = 4.8 * scale;
         this.flash = 0.9 * scale;
@@ -613,6 +694,53 @@ class PlasmaWeapon {
                 { x: camera.position.x, y: camera.position.y, duration: 0.45, ease: "elastic.out(1, 0.3)" }
             );
         }
+
+        // ==========================================
+        // REALISTIC PHYSICS KNOCKBACK EFECT ON HIT
+        // ==========================================
+        const blastRadius = 5.2 * scale;
+
+        // 1. Knockback ke Player
+        if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root && typeof isPlayMode !== 'undefined' && isPlayMode) {
+            const pPos = wolfCharacter.root.position;
+            const dist = pPos.distanceTo(pos);
+            if (dist < blastRadius) {
+                const factor = Math.max(0.15, 1.0 - (dist / blastRadius));
+                const dir = new THREE.Vector3().subVectors(pPos, pos);
+                dir.y = 0;
+                if (dir.lengthSq() < 0.001) dir.set(0, 0, 1);
+                dir.normalize();
+
+                const impulseH = factor * 9.0;
+                const verticalPop = factor * 1.8 + 0.5;
+
+                if (typeof applyPlayerKnockback === 'function') {
+                    applyPlayerKnockback(dir.multiplyScalar(impulseH), verticalPop);
+                }
+            }
+        }
+
+        // 2. Knockback ke semua AI Foxes
+        if (typeof FoxAIManager !== 'undefined' && FoxAIManager.applyExplosionKnockback) {
+            FoxAIManager.applyExplosionKnockback(pos, blastRadius);
+        }
+
+        // ==========================================
+        // EFEK HANGUS TERBAKAR PADA RUMPUT & TANAH (PERMANEN SELAMANYA)
+        // Ukuran bercak diperkecil rapi & padat (radius ~1.15m) sesuai permintaan user
+        // ==========================================
+        const burnRadius = 1.15 * scale;
+        if (typeof burnGrassInRadius === 'function') {
+            burnGrassInRadius(pos, burnRadius);
+        }
+        if (typeof burnTerrainInRadius === 'function') {
+            burnTerrainInRadius(pos, burnRadius * 0.9);
+        }
+
+        // ==========================================
+        // EFEK API SUPER REALISTIS SAAT MENDARAT (KEMUDIAN FADE OUT)
+        // ==========================================
+        this.spawnGroundFire(pos, normal);
 
         // 1. Bola api ledakan (Fireball Core & Semburan Api Mekar)
         if (this.firePool) {
@@ -697,6 +825,39 @@ class PlasmaWeapon {
         this.playExplosionSound();
     }
 
+    clearMissiles() {
+        for (let i = 0; i < this.missiles.length; i++) {
+            const m = this.missiles[i];
+            if (m && m.h) {
+                scene.remove(m.h);
+                if (m.h.material) m.h.material.dispose();
+            }
+        }
+        this.missiles = [];
+
+        for (let i = 0; i < this.shocks.length; i++) {
+            const s = this.shocks[i];
+            if (s && s.m) {
+                scene.remove(s.m);
+                if (s.m.material) s.m.material.dispose();
+                if (s.m.geometry) s.m.geometry.dispose();
+            }
+        }
+        this.shocks = [];
+
+        for (let i = 0; i < this.groundFires.length; i++) {
+            const gf = this.groundFires[i];
+            if (gf && gf.light && gf.light.parent) {
+                scene.remove(gf.light);
+                gf.light.dispose();
+            }
+        }
+        this.groundFires = [];
+
+        if (this.missL) this.missL.intensity = 0;
+        if (this.boomL) this.boomL.intensity = 0;
+    }
+
     endMissile(m) {
         if (m.h) {
             scene.remove(m.h);
@@ -719,12 +880,63 @@ class PlasmaWeapon {
         // Update active missiles
         for (let i = this.missiles.length - 1; i >= 0; i--) {
             const m = this.missiles[i];
+
+            // 1. Target homing / guided steering (Dihitung SEBELUM memajukan posisi proyektil)
+            if (m.target) {
+                let targetPos = null;
+                let targetSpeed = 0;
+
+                if (m.target === 'player' || (typeof wolfCharacter !== 'undefined' && wolfCharacter && m.target === wolfCharacter)) {
+                    targetPos = wolfCharacter.root.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+                    targetSpeed = Math.abs(window.currentFoxSpeed || 0);
+                } else if (m.target.root) {
+                    targetPos = m.target.root.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+                    targetSpeed = Math.abs(m.target.currentSpeed || 0);
+                } else if (m.target.position) {
+                    targetPos = m.target.position.clone().add(new THREE.Vector3(0, 0.75, 0));
+                    targetSpeed = Math.abs(window.currentFoxSpeed || 0);
+                }
+
+                if (targetPos) {
+                    if (m.shooter === 'player') {
+                        // AUTO LOCK USER KE AI: LANGSUNG MENUJU TARGET DI RUANG 3D
+                        // Arahkan kecepatan proyektil tepat ke sasaran secara presisi
+                        const toTarget = new THREE.Vector3().subVectors(targetPos, m.p);
+                        const curSpeed = m.v.length();
+                        const desiredDir = toTarget.normalize();
+                        m.v.copy(desiredDir.multiplyScalar(curSpeed));
+                    } else {
+                        // AI menembak player: player masih dapat menghindar jika sprint kencang atau sembunyi di balik rintangan
+                        const isEvadingSpeed = targetSpeed > 6.0;
+                        let hasLOS = true;
+                        if (typeof FoxAIManager !== 'undefined' && FoxAIManager.checkLineOfSight) {
+                            hasLOS = FoxAIManager.checkLineOfSight(m.p, targetPos);
+                        }
+
+                        const desiredDir = new THREE.Vector3().subVectors(targetPos, m.p).normalize();
+                        const curSpeed = m.v.length();
+                        const curDir = m.v.clone().normalize();
+                        const forwardDot = curDir.dot(desiredDir);
+
+                        // Lepas kuncian jika player ngebut, terhalang objek 3D/batu,
+                        // ATAU jika misil sudah melewati player (forwardDot < 0.38) agar tidak berputar balik 180° menghantam dari arah tak terduga
+                        if (isEvadingSpeed || !hasLOS || forwardDot < 0.38) {
+                            m.target = null;
+                        } else {
+                            curDir.lerp(desiredDir, Math.min(1.0, 3.8 * dt)).normalize();
+                            m.v.copy(curDir.multiplyScalar(curSpeed));
+                        }
+                    }
+                }
+            } else {
+                // Hanya proyektil tanpa target yang terpengaruh gravitasi balistik
+                m.v.y -= 1.8 * dt;
+            }
+
+            // 2. Majukan posisi proyektil
             const prev = m.p.clone();
             m.p.addScaledVector(m.v, dt);
             m.a += dt;
-
-            // Gravitasi halus proyektil
-            m.v.y -= 2.2 * dt;
 
             // 4-step sub-interpolation loop from plasma.html for continuous thick trailing smoke & roaring flames
             for (let s = 0; s < 4; s++) {
@@ -762,22 +974,167 @@ class PlasmaWeapon {
             m.h.position.copy(m.p);
             m.h.scale.setScalar(0.46 + 0.08 * Math.sin(elapsedTime * 40));
 
-            // Collision check with terrain or max lifetime
-            let hitGround = false;
-            if (typeof getTerrainHeightFast === 'function') {
-                const groundY = getTerrainHeightFast(m.p.x, m.p.z);
-                if (m.p.y <= groundY + 0.35) {
-                    hitGround = true;
+            // =========================================================
+            // DETEKSI BENTURAN OBJEK PENGHALANG (BEBATUAN, OBJEK 3D, POHON, TANAH)
+            // Sesuai aturan: "namun tetap terhalang jika di depanya ada bebatuan atau object 3d"
+            // =========================================================
+            let hitObstacle = false;
+            let hitNormal = new THREE.Vector3(0, 1, 0);
+            let hitPos = m.p.clone();
+
+            // 1. Bebatuan 3D (rocksList)
+            const rocks = (typeof rocksList !== 'undefined' && Array.isArray(rocksList)) ? rocksList : [];
+            for (let r = 0; r < rocks.length; r++) {
+                const rock = rocks[r];
+                if (!rock || !rock.visible) continue;
+                const rData = rock.userData || {};
+                const cX = rData.centerX !== undefined ? rData.centerX : rock.position.x;
+                const cZ = rData.centerZ !== undefined ? rData.centerZ : rock.position.z;
+                const rad = (rData.radiusMax || 1.8) * 1.05;
+                const topY = rData.topY !== undefined ? rData.topY : rock.position.y + 1.4;
+                const botY = rData.bottomY !== undefined ? rData.bottomY : rock.position.y - 1.0;
+
+                const dx = m.p.x - cX;
+                const dz = m.p.z - cZ;
+                if (dx * dx + dz * dz < rad * rad) {
+                    if (m.p.y >= botY && m.p.y <= topY + 0.35) {
+                        hitObstacle = true;
+                        hitNormal.set(dx, 0.45, dz).normalize();
+                        hitPos.copy(m.p);
+                        break;
+                    }
                 }
             }
 
-            const distTravelled = m.startPos ? m.p.distanceTo(m.startPos) : 0;
+            // 2. Objek 3D Impor GLB (window.importedObjectsList)
+            if (!hitObstacle && Array.isArray(window.importedObjectsList)) {
+                for (let o = 0; o < window.importedObjectsList.length; o++) {
+                    const item = window.importedObjectsList[o];
+                    if (!item || !item.root || !item.root.visible || item.hasCollision === false) continue;
+                    const oPos = item.root.position;
+                    const oRad = (item.collisionRadius || 1.4) * 1.05;
+                    const oHeight = item.collisionHeight || 2.5;
 
-            if (hitGround || m.a > 3.0 || distTravelled > 200) {
-                const hitPos = m.p.clone();
+                    const dx = m.p.x - oPos.x;
+                    const dz = m.p.z - oPos.z;
+                    if (dx * dx + dz * dz < oRad * oRad) {
+                        if (m.p.y >= oPos.y - 0.3 && m.p.y <= oPos.y + oHeight + 0.4) {
+                            hitObstacle = true;
+                            hitNormal.set(dx, 0.45, dz).normalize();
+                            hitPos.copy(m.p);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 3. Pohon (window.treesList)
+            if (!hitObstacle) {
+                const trees = (typeof treesList !== 'undefined' && Array.isArray(treesList))
+                    ? treesList
+                    : (Array.isArray(window.treesList) ? window.treesList : []);
+                for (let t = 0; t < trees.length; t++) {
+                    const tree = trees[t];
+                    if (!tree || !tree.visible) continue;
+                    const dx = m.p.x - tree.position.x;
+                    const dz = m.p.z - tree.position.z;
+                    if (dx * dx + dz * dz < 0.7 * 0.7) {
+                        if (m.p.y >= tree.position.y && m.p.y <= tree.position.y + 4.5) {
+                            hitObstacle = true;
+                            hitNormal.set(dx, 0.45, dz).normalize();
+                            hitPos.copy(m.p);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 4. Permukaan tanah (Terrain)
+            // Grace period (m.a > 0.08s) agar proyektil tidak terbentur tanah tepat saat keluar dari moncong
+            let hitGround = false;
+            if (!hitObstacle && m.a > 0.08 && typeof getTerrainHeightFast === 'function') {
+                const groundY = getTerrainHeightFast(m.p.x, m.p.z);
+                if (m.p.y <= groundY + 0.18) {
+                    hitGround = true;
+                    hitNormal.set(0, 1, 0);
+                    hitPos.set(m.p.x, groundY + 0.1, m.p.z);
+                }
+            }
+
+            // JIKA MENABRAK OBJEK PENGHALANG / TANAH:
+            // Proyektil meledak seketika pada objek tersebut dan tidak menembus ke target di baliknya!
+            if (hitObstacle || hitGround) {
                 this.endMissile(m);
-                const normal = hitGround ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1);
-                this.explode(hitPos, normal, 1.5);
+                this.explode(hitPos, hitNormal, 1.5);
+                continue;
+            }
+
+            // =========================================================
+            // DETEKSI DIRECT HIT TARGET (PASTI KENA JIKA TIDAK TERHALANG)
+            // =========================================================
+            let hitTarget = false;
+            let targetRef = null;
+
+            if (m.target) {
+                let targetPos = null;
+                if (m.target === 'player' && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
+                    targetPos = wolfCharacter.root.position.clone().add(new THREE.Vector3(0, 0.7, 0));
+                    targetRef = 'player';
+                } else if (m.target.root) {
+                    targetPos = m.target.root.position.clone().add(new THREE.Vector3(0, 0.7, 0));
+                    targetRef = m.target;
+                }
+
+                if (targetPos) {
+                    const distToTarget = m.p.distanceTo(targetPos);
+                    if (distToTarget <= 1.45) {
+                        hitTarget = true;
+                        hitPos.copy(targetPos);
+                    }
+                }
+            }
+
+            // Cek juga direct hit ke AI mana pun yang berjarak dekat (untuk tembakan manual tanpa lock)
+            if (!hitTarget && typeof FoxAIManager !== 'undefined' && Array.isArray(FoxAIManager.agents)) {
+                for (let a = 0; a < FoxAIManager.agents.length; a++) {
+                    const agent = FoxAIManager.agents[a];
+                    if (!agent || agent.isDead || !agent.root || !agent.root.visible) continue;
+                    if (m.shooter === agent) continue;
+
+                    const aPos = agent.root.position.clone().add(new THREE.Vector3(0, 0.7, 0));
+                    if (m.p.distanceTo(aPos) <= 1.4) {
+                        hitTarget = true;
+                        targetRef = agent;
+                        hitPos.copy(aPos);
+                        break;
+                    }
+                }
+            }
+
+            if (hitTarget) {
+                this.endMissile(m);
+                this.explode(hitPos, new THREE.Vector3(0, 1, 0), 1.6);
+
+                if (targetRef === 'player') {
+                    if (typeof applyPlayerKnockback === 'function') {
+                        const kDir = m.v.clone().setY(0).normalize();
+                        applyPlayerKnockback(kDir.multiplyScalar(8.0), 1.8);
+                    }
+                } else if (targetRef && typeof targetRef.takeDamage === 'function') {
+                    targetRef.takeDamage(50);
+                    const kDir = m.v.clone().setY(0).normalize();
+                    if (typeof targetRef.applyKnockback === 'function') {
+                        targetRef.applyKnockback(kDir.multiplyScalar(8.5), 1.8);
+                    }
+                }
+                continue;
+            }
+
+            const distTravelled = m.startPos ? m.p.distanceTo(m.startPos) : 0;
+            if (m.a > 3.0 || distTravelled > 200) {
+                this.endMissile(m);
+                this.explode(m.p, new THREE.Vector3(0, 1, 0), 1.5);
+                continue;
             }
         }
 
@@ -788,6 +1145,83 @@ class PlasmaWeapon {
             this.missL.intensity = 15 * (0.85 + 0.15 * Math.sin(elapsedTime * 50));
         } else if (this.missL) {
             this.missL.intensity = 0;
+        }
+
+        // ==========================================
+        // UPDATE GROUND FIRES (API MENDARAT REALISTIS & FADE OUT)
+        // ==========================================
+        for (let i = this.groundFires.length - 1; i >= 0; i--) {
+            const gf = this.groundFires[i];
+            gf.age += dt;
+            const prog = gf.age / gf.duration;
+            if (prog >= 1.0) {
+                if (gf.light && gf.light.parent) {
+                    scene.remove(gf.light);
+                    gf.light.dispose();
+                }
+                this.groundFires.splice(i, 1);
+                continue;
+            }
+
+            // Kurva intensitas fade out yang halus & dramatis
+            const intensity = Math.pow(Math.max(0, 1.0 - prog), 1.5);
+
+            // Cahaya api berkedip alami (natural warm fire flicker)
+            if (gf.light) {
+                const flicker = 1.0 + Math.sin(elapsedTime * 32.0 + i * 19.0) * 0.16 + (Math.random() - 0.5) * 0.1;
+                gf.light.intensity = intensity * 4.2 * flicker;
+            }
+
+            // Partikel lidah api menjilat naik dari rumput/tanah yang terbakar
+            if (this.firePool) {
+                const emitFlames = Math.max(1, Math.floor(intensity * 4.0));
+                for (let k = 0; k < emitFlames; k++) {
+                    const [rx, , rz] = this.rs();
+                    const rRad = Math.sqrt(Math.random()) * gf.radius * (0.35 + intensity * 0.65);
+                    const angle = Math.random() * Math.PI * 2;
+                    const px = gf.pos.x + Math.cos(angle) * rRad;
+                    const pz = gf.pos.z + Math.sin(angle) * rRad;
+                    const py = (typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(px, pz) : gf.pos.y) + 0.04;
+
+                    const flameSize0 = THREE.MathUtils.lerp(0.12, 0.42, intensity) * (0.8 + Math.random() * 0.4);
+                    const flameSize1 = flameSize0 * 0.22;
+                    const flameLife = 0.35 + intensity * 0.35 + Math.random() * 0.15;
+
+                    this.firePool.emit(
+                        px, py, pz,
+                        rx * 0.2, 0.8 + intensity * 1.2 + Math.random() * 0.4, rz * 0.2,
+                        flameLife,
+                        flameSize0, flameSize1,
+                        1.8, 2.6, 0
+                    );
+
+                    // Percikan bara api (embers) melayang naik
+                    if (Math.random() < 0.42 * intensity) {
+                        this.firePool.emit(
+                            px, py + 0.08, pz,
+                            (Math.random() - 0.5) * 1.6, 1.4 + Math.random() * 1.6, (Math.random() - 0.5) * 1.6,
+                            0.55 + Math.random() * 0.45,
+                            0.035, 0.01,
+                            0.7, -1.2, 1
+                        );
+                    }
+                }
+            }
+
+            // Asap tipis kelabu dari kobaran api tanah
+            if (this.smokePool && Math.random() < 0.32 * intensity) {
+                const [rx, , rz] = this.rs();
+                const px = gf.pos.x + rx * 0.28;
+                const pz = gf.pos.z + rz * 0.28;
+                const py = gf.pos.y + 0.18;
+                this.smokePool.emit(
+                    px, py, pz,
+                    rx * 0.35, 0.85 + Math.random() * 0.5, rz * 0.35,
+                    1.1 + Math.random() * 0.7,
+                    0.16, 0.55,
+                    0.9, 0.25, 0
+                );
+            }
         }
 
         // Update particle pools

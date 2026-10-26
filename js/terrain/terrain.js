@@ -834,3 +834,50 @@ function paintRoadOnTerrain(hitPoint, roadType, radius) {
         }
     }
 }
+
+// ==========================================
+// SCORCHED / BURNED TERRAIN GROUND EFFECT (PERMANENT)
+// ==========================================
+function burnTerrainInRadius(centerPos, radius) {
+    if (typeof groundGeo === 'undefined' || !groundGeo || !groundGeo.attributes.color || !groundGeo.attributes.position) return;
+    const posAttr = groundGeo.attributes.position;
+    const colAttr = groundGeo.attributes.color;
+    const count = posAttr.count;
+    let updated = false;
+    const radSq = radius * radius;
+
+    for (let i = 0; i < count; i++) {
+        const vx = posAttr.getX(i);
+        const vy = posAttr.getY(i);
+        const vz = posAttr.getZ(i);
+
+        const dx = vx - centerPos.x;
+        const dy = vy - centerPos.y;
+        const dz = vz - centerPos.z;
+        const distSq = dx * dx + dy * dy + dz * dz;
+
+        if (distSq <= radSq) {
+            const dist = Math.sqrt(distSq);
+            const falloff = dist / radius;
+            const factor = Math.pow(Math.max(0, 1.0 - falloff), 1.6);
+            const curR = colAttr.getX(i);
+            const curG = colAttr.getY(i);
+            const curB = colAttr.getZ(i);
+
+            // Warna gosong hitam arang tanah di pusat kawah ledakan
+            const targetChar = 0.045 + (Math.random() - 0.5) * 0.01;
+            const newR = THREE.MathUtils.lerp(curR, targetChar, factor * 0.92);
+            const newG = THREE.MathUtils.lerp(curG, targetChar, factor * 0.92);
+            const newB = THREE.MathUtils.lerp(curB, targetChar, factor * 0.92);
+
+            colAttr.setXYZ(i, newR, newG, newB);
+            updated = true;
+        }
+    }
+
+    if (updated) {
+        colAttr.needsUpdate = true;
+    }
+}
+window.burnTerrainInRadius = burnTerrainInRadius;
+

@@ -856,7 +856,7 @@ function isWaterAtWorld(worldX, worldZ) {
         const p = waterCtx.getImageData(px, py, 1, 1).data;
         return (p[0] > 15 || p[3] > 15);
     } catch (e) {
-        return hasAnyWaterDrawn;
+        return false;
     }
 }
 

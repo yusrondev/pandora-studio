@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Pandora3D - Professional Studio UI</title>
+    <link rel="icon" href="data:,">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -18,9 +19,13 @@
     <link rel="stylesheet" href="css/play-hud.css">
     <link rel="stylesheet" href="css/map-storage.css">
     <link rel="stylesheet" href="css/cinematic.css">
+    <link rel="stylesheet" href="css/items.css">
+    <link rel="stylesheet" href="css/blender-inspector.css">
 </head>
 
 <body>
+    <!-- Screen Explosion Flash from plasma.html -->
+    <div id="fl"></div>
 
     <!-- 3D DEDICATED VIEWPORT CONTAINER -->
     <div id="viewport-container" class="viewport-container"></div>
@@ -113,6 +118,16 @@
                 </svg>
             </span>
             <span id="txt-play-mode">Play Demo</span>
+        </button>
+
+        <button id="btn-player-spawn-tool" class="btn-compact" title="Tentukan Titik Area Awal Spawn Player di Map">
+            <span class="svg-icon" style="color:#10b981;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                    <line x1="4" y1="22" x2="4" y2="15"></line>
+                </svg>
+            </span>
+            <span>Spawn Area</span>
         </button>
 
         <div class="divider"></div>
@@ -301,6 +316,66 @@
         <div id="toolbar-overflow-content" class="toolbar-overflow-content"></div>
     </div>
 
+    <!-- CRASH NITRO KART STYLE ITEM SLOT HUD (Power-Up Box) -->
+    <div id="item-slot-hud" class="item-slot-hud">
+        <div class="item-slot-frame" id="item-slot-frame" title="Klik / Klik Kanan Mouse untuk Menembakkan Senjata">
+            <div class="item-slot-icon-box" id="item-slot-icon">
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#38bdf8" stroke-width="2">
+                    <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                    <polyline points="2 17 12 22 22 17"></polyline>
+                    <polyline points="2 12 12 17 22 12"></polyline>
+                </svg>
+            </div>
+        </div>
+        <div class="item-slot-meta">
+            <span class="item-slot-title" id="item-slot-title">Plasma Bazooka</span>
+            <span class="item-slot-hint" id="item-slot-hint"><kbd>R-Click</kbd> / Klik Kanan Tembak</span>
+        </div>
+    </div>
+
+    <!-- PLASMA BAZOOKA AUTO-LOCK CROSSHAIR SYSTEM -->
+    <div id="plasma-crosshair-container" class="plasma-crosshair-container" style="display:none;">
+        <!-- Center Reticle (Screen Center Reference) -->
+        <div id="plasma-center-reticle" class="plasma-center-reticle">
+            <div class="reticle-ring"></div>
+            <div class="reticle-cross"></div>
+            <div class="reticle-pip"></div>
+        </div>
+
+        <!-- Dynamic 3D Tracking Lock Box (Snaps to Target in 3D projected to 2D) -->
+        <div id="plasma-target-box" class="plasma-target-box" style="display:none;">
+            <div class="lock-bracket tl"></div>
+            <div class="lock-bracket tr"></div>
+            <div class="lock-bracket bl"></div>
+            <div class="lock-bracket br"></div>
+            <div class="lock-scan-line"></div>
+            
+            <!-- Target Meta Data Tag -->
+            <div class="lock-meta">
+                <div class="lock-header">
+                    <span class="lock-target-name" id="lock-target-name">TARGET FOX</span>
+                    <span class="lock-dist" id="lock-dist">0.0m</span>
+                </div>
+                <div class="lock-status-badge" id="lock-status-badge">SEARCHING</div>
+                <div class="lock-health-bar">
+                    <div class="lock-health-fill" id="lock-health-fill" style="width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Incoming Missile / Lock Warning Alert -->
+        <div id="player-incoming-warning" class="player-incoming-warning">
+            <div class="warning-icon-pulse">⚠️</div>
+            <div class="warning-text-group">
+                <span class="warning-title">MISSILE LOCK DETECTED!</span>
+                <span class="warning-sub">SPRINT (<kbd>Shift</kbd>) OR HIDE BEHIND ROCKS TO EVADE!</span>
+            </div>
+        </div>
+
+        <!-- Red Damage Hit Vignette (Full Screen on Blast Hit) -->
+        <div id="player-damage-vignette" class="player-damage-vignette"></div>
+    </div>
+
     <!-- MINIMALIST FLOATING SPECIES SWITCHER (Hanya tampil saat Demo Mode) -->
     <div id="fox-species-bar" class="fox-species-bar" style="display: none;">
         <span class="species-bar-hint"><kbd>1-6</kbd> Species:</span>
@@ -322,6 +397,9 @@
         <button class="btn-species-pill" data-species="darwin" title="Darwin Fox (Lycalopex fulvipes) - Tekan 6">
             <span class="species-label">Darwin</span>
         </button>
+        <button id="btn-toggle-battle-mode" class="btn-species-pill" style="border-color:#ef4444; color:#f87171;" title="Aktifkan Mode Perang AI Plasma">
+            <span class="species-label">⚔️ AI Battle</span>
+        </button>
         <button id="btn-exit-demo-mode" class="btn-species-exit" title="Keluar Mode Demo (ESC)">
             <span>Exit (ESC)</span>
         </button>
@@ -333,8 +411,8 @@
             <div class="fox-stats-profile">
                 <span class="fox-stats-badge" id="fox-stats-hud-badge"></span>
                 <div>
-                    <div class="fox-stats-name" id="fox-stats-hud-name">Red Fox</div>
-                    <div class="fox-stats-tagline" id="fox-stats-hud-tagline">Seimbang &amp; Adaptif</div>
+                    <div class="fox-stats-name" id="fox-stats-hud-name">Hero Red</div>
+                    <div class="fox-stats-tagline" id="fox-stats-hud-tagline">Skinned 3D Hero Actor</div>
                 </div>
             </div>
             <div class="fox-stats-chips">
@@ -394,6 +472,14 @@
 
         <!-- Right Action Buttons (Minimalist Translucent Circular SVG Controls) -->
         <div class="mobile-action-buttons">
+            <button type="button" id="btn-mobile-use-item" class="mobile-action-btn mobile-plasma-btn" title="Use Item (Plasma)" style="display: none;">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor">
+                    <circle cx="12" cy="12" r="5" fill="#ffffff" stroke="#ffdd55" stroke-width="2" />
+                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                    <path d="M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12" stroke="#ffe066" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                <span class="mobile-plasma-badge">FIRE</span>
+            </button>
             <button type="button" id="btn-mobile-sprint" class="mobile-action-btn mobile-sprint-btn" title="Toggle Sprint">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
@@ -2357,6 +2443,76 @@
                 </div>
             </div>
 
+            <!-- PLAYER SPAWN AREA ACCORDION -->
+            <div class="accordion collapsed" id="accordion-player-spawn">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#10b981;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                <line x1="4" y1="22" x2="4" y2="15"></line>
+                            </svg>
+                        </span>
+                        <span>Player Spawn Area</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group" style="margin-bottom:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label style="margin:0; font-weight:600; font-size:11px; color:#10b981;">Status Titik Spawn</label>
+                            <span id="badge-player-spawn-status" class="val-badge" style="background:rgba(16,185,129,0.18); border-color:#10b981; color:#34d399; font-size:10px;">X: 0.0m, Z: 0.0m (0°)</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Posisi X (Barat - Timur)</span>
+                            <span id="val-player-spawn-x" class="val-badge">0.0 m</span>
+                        </label>
+                        <input type="range" id="slider-player-spawn-x" min="-60" max="60" step="0.5" value="0">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Posisi Z (Utara - Selatan)</span>
+                            <span id="val-player-spawn-z" class="val-badge">0.0 m</span>
+                        </label>
+                        <input type="range" id="slider-player-spawn-z" min="-60" max="60" step="0.5" value="0">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Arah Hadap Player (Heading)</span>
+                            <span id="val-player-spawn-rot" class="val-badge">0°</span>
+                        </label>
+                        <input type="range" id="slider-player-spawn-rot" min="0" max="360" step="5" value="0">
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;">
+                        <button type="button" class="btn-compact" id="btn-player-spawn-camera" style="justify-content:center; padding:5px 4px; font-size:10.5px;" title="Pindahkan titik spawn tepat ke target kamera saat ini">
+                            <span>📍 Posisi Kamera</span>
+                        </button>
+                        <button type="button" class="btn-compact" id="btn-player-spawn-focus" style="justify-content:center; padding:5px 4px; font-size:10.5px;" title="Arahkan kamera 3D ke titik spawn">
+                            <span>👀 Lihat Spawn</span>
+                        </button>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:6px; margin-top:6px;">
+                        <button type="button" class="btn-compact" id="btn-player-spawn-pick" style="justify-content:center; padding:6px 4px; font-size:11px; border-color:#10b981; color:#34d399;" title="Klik di tanah map untuk menempatkan titik spawn">
+                            <span>🎯 Klik Map untuk Pindah</span>
+                        </button>
+                        <button type="button" class="btn-compact" id="btn-player-spawn-reset" style="justify-content:center; padding:6px 4px; font-size:11px;" title="Reset titik spawn ke tengah map (0, 0)">
+                            <span>🔄 Reset</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- FOX SPAWNER -->
             <div class="accordion collapsed" id="accordion-fox-spawner">
                 <div class="accordion-title">
@@ -2394,6 +2550,24 @@
                                 <span>Prone</span>
                             </button>
                         </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Perintah AI Rubah (Saat Play Mode)</label>
+                        <select id="select-spawner-fox-ai" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
+                            <option value="combat">⚔️ Aggressive Combat (Plasma War)</option>
+                            <option value="companion">🐕 Companion (Follow Player)</option>
+                            <option value="wander">🦊 Free Roam / Wander</option>
+                            <option value="passive">🧍 Passive (Pose Only)</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Radius Deteksi / Serang (Aggro)</span>
+                            <span id="val-spawner-ai-radius" class="val-badge">18 m</span>
+                        </label>
+                        <input type="range" id="slider-spawner-ai-radius" min="5" max="50" step="1" value="18">
                     </div>
 
                     <div class="control-group">
@@ -2511,6 +2685,104 @@
                         </span>
                         <span>Klik kiri tanah untuk spawn rubah. Klik kanan untuk hapus. Klik rubah untuk seleksi & ubah pose. Tekan <span class="esc-kbd">Esc</span> selesai.</span>
                     </div>
+                </div>
+            </div>
+
+            <!-- ITEM BOX SPAWNER (CRASH NITRO KART STYLE) -->
+            <div class="accordion collapsed" id="accordion-item-box-spawner">
+                <div class="accordion-title" style="color:#38bdf8;">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <line x1="12" y1="2" x2="12" y2="6"></line>
+                                <line x1="12" y1="18" x2="12" y2="22"></line>
+                                <line x1="2" y1="12" x2="6" y2="12"></line>
+                                <line x1="18" y1="12" x2="22" y2="12"></line>
+                            </svg>
+                        </span>
+                        <span>Item Box Spawner (Power-Up)</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>
+                            <span>Total Item Box di Map</span>
+                            <span id="val-item-box-count" class="val-badge">0</span>
+                        </label>
+                    </div>
+
+                    <!-- Interactive Click-to-Place Mode Toggle Button -->
+                    <button type="button" id="btn-toggle-itembox-spawner" class="btn-action" style="margin-bottom:8px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.5); color: #38bdf8; font-weight: 600;" title="Klik untuk mengaktifkan mode meletakkan item box di permukaan tanah">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="16"></line>
+                                <line x1="8" y1="12" x2="16" y2="12"></line>
+                            </svg>
+                        </span>
+                        <span id="txt-itembox-spawner-toggle">Aktifkan Mode Spawner (Klik Tanah)</span>
+                    </button>
+
+                    <div style="display:flex; gap:6px; margin-bottom:8px;">
+                        <button type="button" id="btn-spawn-item-box-center" class="btn-compact" style="flex:1;" title="Spawn Item Box di Titik Fokus Kamera">
+                            <span>+ Titik Kamera</span>
+                        </button>
+                        <button type="button" id="btn-spawn-item-box-fox" class="btn-compact" style="flex:1;" title="Spawn Item Box di Posisi Rubah Saat Ini">
+                            <span>+ Posisi Rubah</span>
+                        </button>
+                    </div>
+
+                    <div style="display:flex; gap:6px; margin-bottom:10px;">
+                        <button type="button" id="btn-reset-item-boxes" class="btn-compact" style="flex:1;" title="Respawn Semua Box yang Pernah Diambil">
+                            <span>Respawn All</span>
+                        </button>
+                        <button type="button" id="btn-clear-item-boxes" class="btn-compact btn-danger" style="flex:1;" title="Hapus Semua Item Box dari Map">
+                            <span>Hapus Semua</span>
+                        </button>
+                    </div>
+
+                    <div class="brush-helper-hint" style="margin-top:4px;">
+                        <span class="svg-icon" style="color:#38bdf8;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </span>
+                        <span><b>Cara Pakai:</b> Klik tombol "Aktifkan Mode Spawner", lalu <b>Klik Kiri</b> di mana saja pada tanah untuk meletakkan Box. <b>Klik Kanan</b> pada Box untuk menghapus. Peluru Plasma maksimal 3x tembak!</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3D MODEL IMPORTER (.GLB / .GLTF) WITH AUTO-COLLISION -->
+            <div class="accordion collapsed" id="accordion-glb-importer">
+                <div class="accordion-title" style="color:#c084fc;">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                            </svg>
+                        </span>
+                        <span>Import 3D Asset (.GLB)</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body" style="padding: 4px;">
+                    <input type="file" id="input-import-glb" accept=".glb,.gltf" style="display:none;">
+                    <div id="glb-objects-container"></div>
                 </div>
             </div>
 
@@ -2655,6 +2927,24 @@
                     </div>
 
                     <div class="control-group">
+                        <label>Perintah AI Rubah Terpilih</label>
+                        <select id="select-fox-inspector-ai" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
+                            <option value="combat">⚔️ Aggressive Combat (Plasma War)</option>
+                            <option value="companion">🐕 Companion (Follow Player)</option>
+                            <option value="wander">🦊 Free Roam / Wander</option>
+                            <option value="passive">🧍 Passive (Pose Only)</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Radius Deteksi / Serang (Aggro)</span>
+                            <span id="val-fox-ai-radius" class="val-badge">18 m</span>
+                        </label>
+                        <input type="range" id="slider-fox-ai-radius" min="5" max="50" step="1" value="18">
+                    </div>
+
+                    <div class="control-group">
                         <label>
                             <span>Arah Hadap (Heading)</span>
                             <span id="val-fox-heading" class="val-badge">0°</span>
@@ -2748,6 +3038,12 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 
     <script src="js/core/random.js"></script>
     <script src="js/core/scene.js"></script>
@@ -2778,7 +3074,13 @@
     <script src="js/character/fox-stats.js"></script>
     <script src="js/character/fox-physics.js"></script>
     <script src="js/character/fox-spawner.js"></script>
+    <script src="js/items/plasma-weapon.js"></script>
+    <script src="js/items/item-box-manager.js"></script>
+    <script src="js/items/item-system.js"></script>
+    <script src="js/character/fox-ai.js"></script>
+    <script src="js/editor/glb-importer.js"></script>
     <script src="js/character/mobile-controls.js"></script>
+    <script src="js/character/player-spawn.js"></script>
     <script src="js/character/play-mode.js"></script>
     <script src="js/core/render-loop.js"></script>
     <script src="js/editor/ui-handlers.js"></script>

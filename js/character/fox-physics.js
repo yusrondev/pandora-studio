@@ -3,6 +3,44 @@
 const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
 window.keys = keys;
 
+// ========================================================
+// FIX ROTASI KAMERA SAAT SPRINT (SHIFT + DRAG MOUSE)
+// OrbitControls bawaan Three.js mengubah LEFT CLICK menjadi PAN jika event.shiftKey == true.
+// Saat enablePan = false di Play Mode, OrbitControls membatalkan rotasi mouse.
+// ========================================================
+try {
+    const _origShiftGetter = Object.getOwnPropertyDescriptor(MouseEvent.prototype, 'shiftKey')?.get;
+    if (_origShiftGetter) {
+        Object.defineProperty(MouseEvent.prototype, 'shiftKey', {
+            get() {
+                // Di Play Mode, pointer / mouse event selalu mengabaikan shiftKey agar kamera bebas berputar saat sprint
+                if (typeof isPlayMode !== 'undefined' && isPlayMode) {
+                    return false;
+                }
+                return _origShiftGetter.call(this);
+            },
+            configurable: true
+        });
+    }
+} catch (err) {
+    console.warn('ShiftKey proxy fallback:', err);
+}
+
+function preventOrbitControlsShiftPan(e) {
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) {
+        try {
+            Object.defineProperty(e, 'shiftKey', {
+                get: () => false,
+                configurable: true
+            });
+        } catch (err) {}
+    }
+}
+window.addEventListener('pointerdown', preventOrbitControlsShiftPan, { capture: true });
+window.addEventListener('pointermove', preventOrbitControlsShiftPan, { capture: true });
+window.addEventListener('mousedown', preventOrbitControlsShiftPan, { capture: true });
+window.addEventListener('mousemove', preventOrbitControlsShiftPan, { capture: true });
+
 window.addEventListener('keydown', (e) => {
     if (!isPlayMode) return;
     const k = e.key ? e.key.toLowerCase() : '';
@@ -23,6 +61,18 @@ window.addEventListener('keydown', (e) => {
     if (keys.w || keys.s || keys.a || keys.d || keys.space) {
         manualProne = false;
         foxIdleTimer = 0;
+        if (typeof wolfCharacter !== 'undefined' && wolfCharacter) {
+            // Input terakhir = prioritas: hanya tombol gerak yang BARU ditekan (bukan auto-repeat / tombol
+            // yang sudah ditahan sebelum klik kanan) yang membatalkan tendangan.
+            const isMoveKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) ||
+                ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code);
+            if (wolfCharacter.isKicking && isMoveKey && !e.repeat) {
+                if (typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
+            }
+            wolfCharacter.idleTimer = 0.0;
+            wolfCharacter.activeIdleKey = null;
+            wolfCharacter.idleCycleTimer = 0.0;
+        }
     }
 });
 
@@ -36,17 +86,33 @@ window.addEventListener('keyup', (e) => {
     if (k === 'd' || k === 'arrowright' || code === 'KeyD') keys.d = false;
     if (k === 'shift' || code === 'ShiftLeft' || code === 'ShiftRight') keys.shift = false;
     if (k === ' ' || code === 'Space') keys.space = false;
+
+    // FIX BUG: Saat pemain melepas tombol gerak, reset idleTimer seketika ke 0.0
+    // sehingga variasi idle lanjutan TIDAK AKAN PERNAH langsung muncul
+    const anyMoveActive = keys.w || keys.s || keys.a || keys.d || keys.space;
+    if (!anyMoveActive && typeof wolfCharacter !== 'undefined' && wolfCharacter) {
+        wolfCharacter.idleTimer = 0.0;
+        wolfCharacter.activeIdleKey = null;
+        wolfCharacter.idleCycleTimer = 0.0;
+    }
 });
 
 // User preferred camera distance (bisa di zoom in/out bebas oleh user)
-let userPreferredDist = 4.8;
-let currentCamDist = 4.8;
+let userPreferredDist = 5.4;
+let currentCamDist = 5.4;
 let isCameraOccluded = false;
 
 // ========================================================
 // SISTEM VISUAL EAGLE VISION OUTLINE & SILUET (ASSASSIN'S CREED)
 // ========================================================
-let eagleVisionMaterial = null;
+let eagleVisionMaterialSkinned = null;
+let eagleVisionMaterialStatic = null;
+const eagleVisionUniforms = {
+    uColor: { value: new THREE.Color(0xff2238) },    // Assassin's Creed crimson-red base
+    uRimColor: { value: new THREE.Color(0xffaa33) }, // Intense orange-amber edge glow
+    uTime: { value: 0.0 },
+    uAlpha: { value: 0.0 }
+};
 let eagleVisionMeshList = [];
 let currentEagleVisionAlpha = 0.0;
 let lastEagleVisionRoot = null;
@@ -65,108 +131,186 @@ const _resolvedLocal = new THREE.Vector3();
 const _resolvedWorld = new THREE.Vector3();
 const _rockInvMatrix = new THREE.Matrix4();
 
-function getOrCreateEagleVisionMaterial() {
-    if (!eagleVisionMaterial) {
-        eagleVisionMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                uColor: { value: new THREE.Color(0xff2238) },    // Assassin's Creed crimson-red base
-                uRimColor: { value: new THREE.Color(0xffaa33) }, // Intense orange-amber edge glow
-                uTime: { value: 0.0 },
-                uAlpha: { value: 0.0 }
-            },
-            vertexShader: `
-                varying vec3 vNormal;
-                varying vec3 vViewPosition;
-                void main() {
-                    vNormal = normalize(normalMatrix * normal);
-                    // Ekspansi normal mikro untuk outline siluet luar yang presisi & tajam
-                    vec3 expanded = position + normal * 0.012;
-                    vec4 mvPosition = modelViewMatrix * vec4(expanded, 1.0);
-                    vViewPosition = -mvPosition.xyz;
-                    gl_Position = projectionMatrix * mvPosition;
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 uColor;
-                uniform vec3 uRimColor;
-                uniform float uTime;
-                uniform float uAlpha;
-                varying vec3 vNormal;
-                varying vec3 vViewPosition;
-                void main() {
-                    if (uAlpha <= 0.001) discard;
-                    vec3 normal = normalize(vNormal);
-                    vec3 viewDir = normalize(vViewPosition);
-                    
-                    // Fresnel rim highlight (Eagle Vision edge radiance khas Assassin's Creed)
-                    float NdotV = max(0.0, dot(normal, viewDir));
-                    float rim = 1.0 - NdotV;
-                    float rimFactor = pow(rim, 2.0);
+function getOrCreateEagleVisionMaterial(isSkinned = false) {
+    if (isSkinned) {
+        if (!eagleVisionMaterialSkinned) {
+            eagleVisionMaterialSkinned = new THREE.ShaderMaterial({
+                uniforms: eagleVisionUniforms,
+                vertexShader: `
+                    #ifdef USE_SKINNING
+                        #include <skinning_pars_vertex>
+                    #endif
+                    varying vec3 vNormal;
+                    varying vec3 vViewPosition;
+                    void main() {
+                        vec3 transformed = vec3( position );
+                        vec3 objectNormal = vec3( normal );
+                        #ifdef USE_SKINNING
+                            #include <skinbase_vertex>
+                            #include <skinnormal_vertex>
+                            #include <skinning_vertex>
+                        #endif
+                        // Ekspansi normal mikro untuk outline siluet luar yang presisi & tajam
+                        vec3 expanded = transformed + objectNormal * 0.012;
+                        vec4 mvPosition = modelViewMatrix * vec4(expanded, 1.0);
+                        vNormal = normalize(normalMatrix * objectNormal);
+                        vViewPosition = -mvPosition.xyz;
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 uColor;
+                    uniform vec3 uRimColor;
+                    uniform float uTime;
+                    uniform float uAlpha;
+                    varying vec3 vNormal;
+                    varying vec3 vViewPosition;
+                    void main() {
+                        if (uAlpha <= 0.001) discard;
+                        vec3 normal = normalize(vNormal);
+                        vec3 viewDir = normalize(vViewPosition);
+                        
+                        // Fresnel rim highlight (Eagle Vision edge radiance khas Assassin's Creed)
+                        float NdotV = max(0.0, dot(normal, viewDir));
+                        float rim = 1.0 - NdotV;
+                        float rimFactor = pow(rim, 2.0);
 
-                    // Scanline / Holographic subtle pulse
-                    float pulse = 0.88 + 0.12 * sin(uTime * 4.5);
-                    
-                    vec3 col = mix(uColor, uRimColor, rimFactor * 0.90) * pulse;
-                    // Siluet dalam transparan elegan, tepi luar berpendar terang
-                    float alpha = (0.42 + 0.58 * rimFactor) * uAlpha;
-                    
-                    gl_FragColor = vec4(col, alpha);
-                }
-            `,
-            transparent: true,
-            depthTest: false,  // Tembus rintangan 3D (X-Ray Eagle Vision)
-            depthWrite: false, // Tidak merusak z-buffer scene
-            side: THREE.DoubleSide
-        });
+                        // Scanline / Holographic subtle pulse
+                        float pulse = 0.88 + 0.12 * sin(uTime * 4.5);
+                        
+                        vec3 col = mix(uColor, uRimColor, rimFactor * 0.90) * pulse;
+                        // Siluet dalam transparan elegan, tepi luar berpendar terang
+                        float alpha = (0.42 + 0.58 * rimFactor) * uAlpha;
+                        
+                        gl_FragColor = vec4(col, alpha);
+                    }
+                `,
+                transparent: true,
+                depthTest: false,  // Tembus rintangan 3D (X-Ray Eagle Vision)
+                depthWrite: false, // Tidak merusak z-buffer scene
+                side: THREE.FrontSide,
+                skinning: true
+            });
+        }
+        return eagleVisionMaterialSkinned;
+    } else {
+        if (!eagleVisionMaterialStatic) {
+            eagleVisionMaterialStatic = new THREE.ShaderMaterial({
+                uniforms: eagleVisionUniforms,
+                vertexShader: `
+                    varying vec3 vNormal;
+                    varying vec3 vViewPosition;
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        // Ekspansi normal mikro untuk outline siluet luar yang presisi & tajam
+                        vec3 expanded = position + normal * 0.012;
+                        vec4 mvPosition = modelViewMatrix * vec4(expanded, 1.0);
+                        vViewPosition = -mvPosition.xyz;
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 uColor;
+                    uniform vec3 uRimColor;
+                    uniform float uTime;
+                    uniform float uAlpha;
+                    varying vec3 vNormal;
+                    varying vec3 vViewPosition;
+                    void main() {
+                        if (uAlpha <= 0.001) discard;
+                        vec3 normal = normalize(vNormal);
+                        vec3 viewDir = normalize(vViewPosition);
+                        
+                        float NdotV = max(0.0, dot(normal, viewDir));
+                        float rim = 1.0 - NdotV;
+                        float rimFactor = pow(rim, 2.0);
+
+                        float pulse = 0.88 + 0.12 * sin(uTime * 4.5);
+                        
+                        vec3 col = mix(uColor, uRimColor, rimFactor * 0.90) * pulse;
+                        float alpha = (0.42 + 0.58 * rimFactor) * uAlpha;
+                        
+                        gl_FragColor = vec4(col, alpha);
+                    }
+                `,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false,
+                side: THREE.FrontSide,
+                skinning: false
+            });
+        }
+        return eagleVisionMaterialStatic;
     }
-    return eagleVisionMaterial;
 }
 
 function ensureFoxEagleVisionSystem(wolfChar) {
     if (!wolfChar || !wolfChar.root) return;
     const root = wolfChar.root;
 
-    const mat = getOrCreateEagleVisionMaterial();
-
-    // Jika model rubah berganti (spesies baru atau respawn)
-    if (lastEagleVisionRoot !== root || !root.userData.hasEagleVisionTwins) {
-        eagleVisionMeshList = [];
-        const meshesToTwin = [];
-
-        root.traverse((child) => {
-            if (child.isMesh && !child.userData.isEagleVisionTwin) {
-                meshesToTwin.push(child);
-            }
-        });
-
-        for (let i = 0; i < meshesToTwin.length; i++) {
-            const origMesh = meshesToTwin[i];
-            const twin = new THREE.Mesh(origMesh.geometry, mat);
-            twin.name = 'eagleVisionTwin_' + i;
-            twin.userData.isEagleVisionTwin = true;
-            twin.renderOrder = 999999;
-            twin.position.copy(origMesh.position);
-            twin.rotation.copy(origMesh.rotation);
-            twin.scale.copy(origMesh.scale);
-            twin.visible = false;
-            origMesh.parent.add(twin);
-            eagleVisionMeshList.push(twin);
+    const meshesToTwin = [];
+    root.traverse((child) => {
+        if (child.isMesh && !child.userData.isEagleVisionTwin) {
+            meshesToTwin.push(child);
         }
+    });
 
-        root.userData.hasEagleVisionTwins = true;
-        lastEagleVisionRoot = root;
+    // Jika mesh model karakter belum siap / masih di-load oleh asset manager, tunggu
+    if (meshesToTwin.length === 0) return;
+
+    // Jika sudah memiliki twin yang valid dan jumlahnya sesuai
+    if (lastEagleVisionRoot === root && root.userData.hasEagleVisionTwins && eagleVisionMeshList.length === meshesToTwin.length) {
+        return;
     }
+
+    // Bersihkan twin lama jika ada
+    for (let i = 0; i < eagleVisionMeshList.length; i++) {
+        const oldTwin = eagleVisionMeshList[i];
+        if (oldTwin && oldTwin.parent) {
+            oldTwin.parent.remove(oldTwin);
+        }
+    }
+    eagleVisionMeshList = [];
+
+    const matSkinned = getOrCreateEagleVisionMaterial(true);
+    const matStatic = getOrCreateEagleVisionMaterial(false);
+
+    for (let i = 0; i < meshesToTwin.length; i++) {
+        const origMesh = meshesToTwin[i];
+        let twin;
+        if (origMesh.isSkinnedMesh && origMesh.skeleton) {
+            twin = new THREE.SkinnedMesh(origMesh.geometry, matSkinned);
+            twin.bind(origMesh.skeleton, origMesh.bindMatrix);
+            if (origMesh.bindMode) twin.bindMode = origMesh.bindMode;
+            if (origMesh.bindMatrixInverse) twin.bindMatrixInverse.copy(origMesh.bindMatrixInverse);
+        } else {
+            twin = new THREE.Mesh(origMesh.geometry, matStatic);
+        }
+        twin.name = 'eagleVisionTwin_' + i;
+        twin.userData.isEagleVisionTwin = true;
+        twin.renderOrder = 999999;
+        twin.castShadow = false;
+        twin.receiveShadow = false;
+        twin.frustumCulled = false;
+        twin.position.copy(origMesh.position);
+        twin.rotation.copy(origMesh.rotation);
+        twin.scale.copy(origMesh.scale);
+        twin.visible = false;
+        origMesh.parent.add(twin);
+        eagleVisionMeshList.push(twin);
+    }
+
+    root.userData.hasEagleVisionTwins = true;
+    lastEagleVisionRoot = root;
 }
 
 function updateFoxEagleVisionVisibility(isOccluded, dt, elapsed) {
-    if (!eagleVisionMaterial) return;
-
     const targetAlpha = isOccluded ? 1.0 : 0.0;
     const fadeRate = isOccluded ? 10.0 : 8.0;
     currentEagleVisionAlpha += (targetAlpha - currentEagleVisionAlpha) * Math.min(1.0, fadeRate * dt);
 
-    eagleVisionMaterial.uniforms.uAlpha.value = currentEagleVisionAlpha;
-    eagleVisionMaterial.uniforms.uTime.value = elapsed;
+    eagleVisionUniforms.uAlpha.value = currentEagleVisionAlpha;
+    eagleVisionUniforms.uTime.value = elapsed;
 
     const shouldShow = (currentEagleVisionAlpha > 0.01);
     for (let i = 0; i < eagleVisionMeshList.length; i++) {
@@ -361,69 +505,35 @@ window.foxSitBlend = foxSitBlend;
 const gravity = -26;
 const jumpPower = 9.6;
 
-function updateLegArticulation(leg, phase, intensity, isFront, crouchAmount, isPivotOnly = false) {
-    const baseHip = isFront ? 0.26 * crouchAmount : -0.28 * crouchAmount;
-    const baseKnee = isFront ? -0.48 * crouchAmount : 0.52 * crouchAmount;
-    const basePaw = isFront ? 0.22 * crouchAmount : -0.24 * crouchAmount;
+function updateLegArticulation(leg, phase, intensity, isFront, crouchAmount, isPivotOnly = false) {}
+function updateDogPaddleLegFront(leg, phase, intensity, isSprint, dt) {}
+function updateDogPaddleLegBack(leg, phase, intensity, isSprint, dt) {}
 
-    const strideAmp = isPivotOnly ? 0.25 * intensity : (0.44 + 0.24 * crouchAmount) * intensity;
-    const hipSwing = Math.sin(phase) * strideAmp;
+// Realistic Knockback Physics State
+let playerKnockbackVel = new THREE.Vector3();
+window.playerKnockbackVel = playerKnockbackVel;
 
-    const lift = Math.max(0, -Math.cos(phase));
-    const liftMultiplier = isPivotOnly ? 0.45 : (1.0 + 0.25 * crouchAmount);
+function applyPlayerKnockback(impulseVec, verticalPop = 0) {
+    if (!wolfCharacter || !wolfCharacter.root) return;
+    playerKnockbackVel.add(impulseVec);
+    velocityY = Math.max(velocityY, 0) + verticalPop;
+    isGrounded = false;
+    landingSquash = 0.12;
 
-    const kneeSwing = isFront
-        ? -lift * 0.62 * liftMultiplier * intensity
-        : lift * 0.58 * liftMultiplier * intensity;
+    // Screen hit damage flash (red vignette)
+    const dmgVignette = document.getElementById('player-damage-vignette');
+    if (dmgVignette) {
+        dmgVignette.classList.add('active');
+        setTimeout(() => {
+            if (dmgVignette) dmgVignette.classList.remove('active');
+        }, 320);
+    }
 
-    const pawSwing = isFront
-        ? lift * 0.38 * liftMultiplier * intensity - hipSwing * 0.25
-        : -lift * 0.35 * liftMultiplier * intensity - hipSwing * 0.25;
-
-    leg.hip.rotation.z = THREE.MathUtils.lerp(leg.hip.rotation.z, baseHip + hipSwing, 0.28);
-    leg.knee.rotation.z = THREE.MathUtils.lerp(leg.knee.rotation.z, baseKnee + kneeSwing, 0.28);
-    leg.paw.rotation.z = THREE.MathUtils.lerp(leg.paw.rotation.z, basePaw + pawSwing, 0.28);
+    if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) {
+        foxSoundFX.playJump();
+    }
 }
-
-// ── SISTEM DAYUNGAN RENANG BERKAKI EMPAT (QUADRUPED DOG PADDLE) ──
-function updateDogPaddleLegFront(leg, phase, intensity, isSprint, dt) {
-    const s = Math.sin(phase);
-    const c = Math.cos(phase);
-    const amp = isSprint ? 1.35 : 1.0;
-
-    // Power stroke saat s < 0 (mendorong air ke belakang), Recovery saat s >= 0 (menarik ke depan di bawah dada)
-    const isPower = s < 0;
-    const hipZ = s * 0.48 * amp * intensity;
-    const kneeZ = isPower
-        ? (-0.22 + c * 0.20 * intensity)
-        : (-0.95 - s * 0.55 * amp * intensity);
-    const pawZ = isPower ? (0.35 * intensity) : (-0.35 * intensity);
-    const hipX = 0.08 * ((wolfCharacter && leg === wolfCharacter.legFL) ? 1 : -1);
-
-    leg.hip.rotation.z = THREE.MathUtils.lerp(leg.hip.rotation.z, hipZ, 14 * dt);
-    leg.hip.rotation.x = THREE.MathUtils.lerp(leg.hip.rotation.x, hipX, 10 * dt);
-    leg.knee.rotation.z = THREE.MathUtils.lerp(leg.knee.rotation.z, kneeZ, 14 * dt);
-    leg.paw.rotation.z = THREE.MathUtils.lerp(leg.paw.rotation.z, pawZ, 14 * dt);
-}
-
-function updateDogPaddleLegBack(leg, phase, intensity, isSprint, dt) {
-    const s = Math.sin(phase);
-    const c = Math.cos(phase);
-    const amp = isSprint ? 1.35 : 1.0;
-
-    const isPower = s < 0;
-    const hipZ = s * 0.44 * amp * intensity;
-    const kneeZ = isPower
-        ? (0.35 + c * 0.28 * intensity)
-        : (1.25 + s * 0.45 * amp * intensity);
-    const pawZ = isPower ? (0.35 * intensity) : (-0.25 * intensity);
-    const hipX = 0.06 * ((wolfCharacter && leg === wolfCharacter.legBL) ? 1 : -1);
-
-    leg.hip.rotation.z = THREE.MathUtils.lerp(leg.hip.rotation.z, hipZ, 14 * dt);
-    leg.hip.rotation.x = THREE.MathUtils.lerp(leg.hip.rotation.x, hipX, 10 * dt);
-    leg.knee.rotation.z = THREE.MathUtils.lerp(leg.knee.rotation.z, kneeZ, 14 * dt);
-    leg.paw.rotation.z = THREE.MathUtils.lerp(leg.paw.rotation.z, pawZ, 14 * dt);
-}
+window.applyPlayerKnockback = applyPlayerKnockback;
 
 function updateWolfPhysics(dt, elapsed) {
     if (!wolfCharacter) return;
@@ -446,16 +556,16 @@ function updateWolfPhysics(dt, elapsed) {
         BASE_HIP_Y
     } = wolfCharacter;
 
-    const foxScale = foxRoot.scale.x || 0.58;
+    const foxScale = foxRoot.scale.x || 1.85;
 
     // Ambil konfigurasi stats spesifik spesies yang sedang aktif
     const stats = (typeof getCurrentFoxStats === 'function') ? getCurrentFoxStats() : {
-        walkSpeed: 4.6,
-        runSpeed: 9.6,
-        reverseSpeed: 3.0,
+        walkSpeed: 1.65,
+        runSpeed: 6.5,
+        reverseSpeed: 1.2,
         turnRate: 2.6,
         turnAccel: 8.5,
-        jumpPower: 9.6
+        jumpPower: 5.2
     };
 
     const analogFwd = (typeof mobileJoystickForward !== 'undefined') ? mobileJoystickForward : 0;
@@ -473,8 +583,32 @@ function updateWolfPhysics(dt, elapsed) {
 
     const walkSpeed = stats.walkSpeed;
     const huntRunSpeed = stats.runSpeed;
+    // Jika pemain menggerakkan keyboard atau joystick saat menendang, batalkan tendangan seketika!
+    const hasMoveInput = (typeof keys !== 'undefined') && (keys.w || keys.s || keys.a || keys.d);
+    const hasJoystickMove = (typeof mobileJoystickForward !== 'undefined' && Math.abs(mobileJoystickForward) > 0.05) ||
+                            (typeof mobileJoystickTurn !== 'undefined' && Math.abs(mobileJoystickTurn) > 0.05);
+
+    if (wolfCharacter) {
+        // Joystick: hanya dorongan BARU (transisi diam -> aktif) yang membatalkan tendangan
+        if (wolfCharacter.isKicking && hasJoystickMove && !wolfCharacter._joyWasActive) {
+            if (typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
+        }
+        wolfCharacter._joyWasActive = !!hasJoystickMove;
+
+        if (!wolfCharacter.isKicking && (hasMoveInput || hasJoystickMove || Math.abs(currentSpeed) > 0.02 || Math.abs(currentTurnRate) > 0.02)) {
+            wolfCharacter.idleTimer = 0.0;
+            wolfCharacter.activeIdleKey = null;
+            wolfCharacter.idleCycleTimer = 0.0;
+        }
+    }
+
+    const isPlayerKicking = !!(wolfCharacter && wolfCharacter.isKicking);
+
     let targetSpeed = 0;
-    if (Math.abs(analogFwd) > 0.05) {
+    if (isPlayerKicking) {
+        targetSpeed = 0;
+        currentSpeed = 0;
+    } else if (Math.abs(analogFwd) > 0.05) {
         targetSpeed = (analogFwd > 0)
             ? (analogFwd * (isHunting ? huntRunSpeed : walkSpeed))
             : (analogFwd * stats.reverseSpeed);
@@ -492,11 +626,15 @@ function updateWolfPhysics(dt, elapsed) {
         if (keys.d) targetTurn = -stats.turnRate;
     }
 
-    currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, targetTurn, stats.turnAccel * dt);
-    foxRoot.rotation.y += currentTurnRate * dt;
+    if (isPlayerKicking) {
+        currentTurnRate = 0;
+    } else {
+        currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, targetTurn, stats.turnAccel * dt);
+        foxRoot.rotation.y += currentTurnRate * dt;
+    }
 
-    // Hitung vektor arah maju (model fox menghadap -X secara lokal)
-    const forward = new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), foxRoot.rotation.y);
+    // Hitung vektor arah maju (Hero model menghadap +Z secara lokal)
+    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), foxRoot.rotation.y);
 
     currentSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, 8.0 * dt);
     window.currentFoxSpeed = currentSpeed;
@@ -511,7 +649,10 @@ function updateWolfPhysics(dt, elapsed) {
     if (hudSpeed) hudSpeed.innerText = (Math.abs(currentSpeed) * 2.2).toFixed(1) + ' m/s';
 
     if (hudState) {
-        if (foxInWaterState) {
+        if (isPlayerKicking) {
+            hudState.innerText = "TENDANGAN (KICK)";
+            hudState.style.color = "#f43f5e";
+        } else if (foxInWaterState) {
             hudState.innerText = isFoxSwimmingDeep ? "BERENANG (DOG PADDLE)" : "MENYEBRANG AIR (WADING)";
             hudState.style.color = "#06b6d4";
         } else if (!isGrounded) {
@@ -541,7 +682,7 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
-    if (Math.abs(currentSpeed) > 0.01) {
+    if (Math.abs(currentSpeed) > 0.01 && !isPlayerKicking) {
         const moveStep = forward.clone().multiplyScalar(currentSpeed * dt);
         foxRoot.position.add(moveStep);
         camera.position.add(moveStep);
@@ -556,6 +697,15 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
+    // Realistic Knockback horizontal displacement & friction
+    if (playerKnockbackVel.lengthSq() > 0.001 && !isPlayerKicking) {
+        foxRoot.position.x += playerKnockbackVel.x * dt;
+        foxRoot.position.z += playerKnockbackVel.z * dt;
+        camera.position.x += playerKnockbackVel.x * dt;
+        camera.position.z += playerKnockbackVel.z * dt;
+        playerKnockbackVel.multiplyScalar(Math.exp(-5.5 * dt));
+    }
+
     // ========================================================
     // 1. COLLISION ANATOMI LENGKAP RUBAH TERHADAP POHON & OBJEK 3D
     // ========================================================
@@ -563,17 +713,13 @@ function updateWolfPhysics(dt, elapsed) {
     const fwdX = forward.x;
     const fwdZ = forward.z;
 
+    // Simpul anatomis kapsul silindris bipedal humanoid hero (100% mengikuti postur tegak)
+    const heroRadius = 0.38 * (foxScale / 1.85);
     const foxCollisionNodes = [
-        { offset: 1.40 * foxScale, radius: 0.16 * foxScale }, // Moncong & hidung depan
-        { offset: 1.05 * foxScale, radius: 0.20 * foxScale }, // Batok kepala & dahi
-        { offset: 0.70 * foxScale, radius: 0.22 * foxScale }, // Leher depan & dada atas
-        { offset: 0.35 * foxScale, radius: 0.24 * foxScale }, // Bahu & dada depan
-        { offset: 0.00 * foxScale, radius: 0.24 * foxScale }, // Torso / tengah badan
-        { offset: -0.35 * foxScale, radius: 0.22 * foxScale }, // Panggul & paha belakang
-        { offset: -0.70 * foxScale, radius: 0.16 * foxScale }  // Pangkal ekor & belakang
+        { offset: 0.00, radius: heroRadius } // Silinder terpusat di badan/pinggang hero
     ];
 
-    if (Array.isArray(treesList) && treesList.length > 0) {
+    if (typeof treesList !== 'undefined' && Array.isArray(treesList) && treesList.length > 0) {
         const foxPosX = foxRoot.position.x;
         const foxPosZ = foxRoot.position.z;
         for (let iter = 0; iter < 2; iter++) {
@@ -704,14 +850,14 @@ function updateWolfPhysics(dt, elapsed) {
         const probeStepZ = curFoxZ + fwdZ * stepProbeDist * moveDirSign;
 
         // Simpul anatomis proteksi tubuh rubah 3D untuk tebing batu tinggi / boulder raksasa
+        // Simpul anatomis kapsul silindris vertikal 100% mengikuti bentuk tubuh humanoid hero:
+        // Dari pergelangan kaki, pinggul, dada/bahu, hingga kepala rubah
+        const heroScaleFactor = foxScale / 1.85;
         const rockCollisionNodes = [
-            { offset: 1.25 * foxScale, height: 0.45 * foxScale, radius: 0.16 * foxScale }, // Moncong & hidung depan
-            { offset: 0.90 * foxScale, height: 0.55 * foxScale, radius: 0.20 * foxScale }, // Kepala & dahi
-            { offset: 0.55 * foxScale, height: 0.50 * foxScale, radius: 0.22 * foxScale }, // Leher depan
-            { offset: 0.25 * foxScale, height: 0.45 * foxScale, radius: 0.24 * foxScale }, // Dada depan
-            { offset: 0.00 * foxScale, height: 0.45 * foxScale, radius: 0.24 * foxScale }, // Torso tengah
-            { offset: -0.35 * foxScale, height: 0.45 * foxScale, radius: 0.22 * foxScale }, // Panggul belakang
-            { offset: -0.65 * foxScale, height: 0.40 * foxScale, radius: 0.16 * foxScale }  // Pangkal ekor
+            { offset: 0.00, height: 0.35 * heroScaleFactor, radius: 0.32 * heroScaleFactor }, // Kaki & pergelangan
+            { offset: 0.00, height: 0.85 * heroScaleFactor, radius: 0.36 * heroScaleFactor }, // Pinggul & sabuk kimono
+            { offset: 0.00, height: 1.35 * heroScaleFactor, radius: 0.38 * heroScaleFactor }, // Dada & bahu
+            { offset: 0.04 * heroScaleFactor, height: 1.70 * heroScaleFactor, radius: 0.28 * heroScaleFactor }  // Kepala & moncong rubah
         ];
 
         for (let r = 0; r < activeRocks.length; r++) {
@@ -873,7 +1019,7 @@ function updateWolfPhysics(dt, elapsed) {
 
     // Ketinggian tenggelam setengah badan rubah (separuh badan terendam, seluruh kaki di bawah air):
     // Tinggi hip adalah 1.62 * 0.58 = 0.94m. Garis setengah torso berada di ~0.82m dari telapak kaki.
-    const halfBodySubmergeOffset = 0.82 * (foxScale / 0.58);
+    const halfBodySubmergeOffset = 0.52 * foxScale;
     const halfBodyFloatTargetY = waterSurfaceY - halfBodySubmergeOffset + Math.sin(elapsed * 2.4) * 0.025;
 
     if (isWaterDeeperThanGround && foxRoot.position.y <= waterSurfaceY + 0.35) {
@@ -948,14 +1094,15 @@ function updateWolfPhysics(dt, elapsed) {
 
             foxRoot.position.y += velocityY * dt;
 
-            // Proteksi dasar galian: jika landscape digali tapi rubah menyentuh dasar tanah
-            if (foxRoot.position.y <= effectiveGroundH) {
+            // Proteksi dasar galian: jika menyentuh atau berada di bawah dasar tanah
+            if (foxRoot.position.y <= effectiveGroundH + 0.02) {
                 foxRoot.position.y = effectiveGroundH;
                 if (velocityY < 0) velocityY = 0;
+                isGrounded = true; // Karakter berpijak kokoh di dasar tanah / sungai!
+                isFoxSwimmingDeep = false;
+            } else {
+                isGrounded = false;
             }
-            // Di air dalam, rubah berenang/mengapung setengah badan (kaki melayang dalam air)
-            // FUNGSI JUMP DINONAKTIFKAN saat scrup/air dalam dan setengah badan tenggelam
-            isGrounded = false;
         }
 
         // Tilting dinamis mengikuti lereng gelombang (Wave Tilting 100% ocean.html)
@@ -979,11 +1126,29 @@ function updateWolfPhysics(dt, elapsed) {
             foxInWaterState = false;
         }
 
-        if (keys.space && isGrounded) {
-            const currentJumpPower = (stats && stats.jumpPower) ? stats.jumpPower : jumpPower;
-            velocityY = currentJumpPower + huntBlend * 1.2;
-            isGrounded = false;
-            if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) foxSoundFX.playJump();
+        if (keys.space && isGrounded && !(wolfCharacter && (wolfCharacter.isJumping || wolfCharacter.isKicking))) {
+            // Sprint -> Jump-withrun.fbx (impuls langsung); tidak sprint -> jump-normal.fbx (impuls di frame tolakan)
+            const isSprinting = (huntBlend > 0.4 && Math.abs(currentSpeed) > 1.8);
+            let applyNow = true;
+            if (wolfCharacter && typeof wolfCharacter.triggerJump === 'function') {
+                applyNow = wolfCharacter.triggerJump(isSprinting) !== false;
+            }
+            if (applyNow) {
+                velocityY = isSprinting ? 6.8 : 5.8;
+                isGrounded = false;
+                if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) foxSoundFX.playJump();
+            }
+        }
+
+        // Lepas landas tertunda untuk jump-normal.fbx (setelah ancang-ancang jongkok selesai)
+        if (wolfCharacter && wolfCharacter.jumpImpulsePending && wolfCharacter.isJumping &&
+            wolfCharacter.jumpTimer >= wolfCharacter.jumpTakeoffTime) {
+            wolfCharacter.jumpImpulsePending = false;
+            if (isGrounded) {
+                velocityY = wolfCharacter.jumpImpulseVel || 5.5;
+                isGrounded = false;
+                if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) foxSoundFX.playJump();
+            }
         }
 
         const wasGrounded = isGrounded;
@@ -991,7 +1156,7 @@ function updateWolfPhysics(dt, elapsed) {
 
         if (foxRoot.position.y <= effectiveGroundH) {
             if (!wasGrounded && velocityY < -3) {
-                landingSquash = 0.18;
+                landingSquash = 0.10;
                 if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playLand) foxSoundFX.playLand();
             }
             foxRoot.position.y = effectiveGroundH;
@@ -1000,6 +1165,13 @@ function updateWolfPhysics(dt, elapsed) {
         } else {
             velocityY += gravity * dt;
         }
+        // Jaminan absolut: kaki hero humanoid tidak pernah tembus ke bawah lantai/grid!
+        if (foxRoot.position.y < effectiveGroundH) {
+            foxRoot.position.y = effectiveGroundH;
+            velocityY = Math.max(0, velocityY);
+            isGrounded = true;
+        }
+        landingSquash = THREE.MathUtils.lerp(landingSquash, 0, Math.min(1.0, 9.0 * dt));
     }
     const locomotionGrounded = isGrounded || (foxInWaterState && Math.abs(currentSpeed) > 0.1);
     updateWolfLocomotionAnimation(dt, elapsed, currentSpeed, currentTurnRate, huntBlend, locomotionGrounded, velocityY, isFoxSwimmingDeep);
@@ -1007,13 +1179,11 @@ function updateWolfPhysics(dt, elapsed) {
     // ========================================================
     // 3. FREE ORBIT SPRING-ARM CAMERA DENGAN SMOOTH ANTI-OBSTACLE OCCLUSION
     // ========================================================
-    // Titik fokus kamera mengikuti kepala/leher rubah agar pandangan selalu menghadap ke depan
-    const headOffsetForward = 0.48 * foxScale;
-    const proneCameraOffsetY = THREE.MathUtils.lerp(0.90, 0.45, foxProneBlend);
+    // Titik fokus kamera mengikuti dada/kepala Hero character
     const currentTargetPos = new THREE.Vector3(
-        foxRoot.position.x + forward.x * headOffsetForward,
-        foxRoot.position.y + proneCameraOffsetY,
-        foxRoot.position.z + forward.z * headOffsetForward
+        foxRoot.position.x + forward.x * (0.15 * foxScale),
+        foxRoot.position.y + 0.95 * foxScale,
+        foxRoot.position.z + forward.z * (0.15 * foxScale)
     );
 
     // Modern AAA spring-arm focus target lag:
@@ -1065,7 +1235,7 @@ function updateWolfPhysics(dt, elapsed) {
         // SAAT TIDAK DIGERAKKAN SECARA MANUAL (ATAU BEGITU KAMERA DILEPAS):
         // Sistem kamera (existing) berlaku kembali: kamera secara otomatis mengikuti di belakang rubah
         if (isCharacterMoving) {
-            const targetYaw = Math.atan2(Math.cos(foxRoot.rotation.y), -Math.sin(foxRoot.rotation.y));
+            const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
             let diff = (targetYaw - curYaw) % (Math.PI * 2);
             if (diff < -Math.PI) diff += Math.PI * 2;
             if (diff > Math.PI) diff -= Math.PI * 2;
@@ -1131,17 +1301,18 @@ function updateWolfPhysics(dt, elapsed) {
         _occlusionTimer = 0.09; // Evaluasi ~11Hz (alpha siluet tetap berinterpolasi sangat mulus via lerp)
 
         const leftVec = new THREE.Vector3(-forward.z, 0, forward.x);
-        // 9 titik sampel anatomis tubuh rubah (dari moncong depan s/d pangkal ekor)
+        const heroScaleFactor = foxScale / 1.85;
+        // 9 titik sampel anatomis tubuh pahlawan (humanoid upright dari kepala s/d telapak kaki)
         const foxOcclusionPoints = [
-            new THREE.Vector3(foxRoot.position.x + forward.x * (1.55 * foxScale), foxRoot.position.y + 0.45 * foxScale, foxRoot.position.z + forward.z * (1.55 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x + forward.x * (1.20 * foxScale), foxRoot.position.y + 0.65 * foxScale, foxRoot.position.z + forward.z * (1.20 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x + forward.x * (0.85 * foxScale), foxRoot.position.y + 0.60 * foxScale, foxRoot.position.z + forward.z * (0.85 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x + forward.x * (0.45 * foxScale), foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z + forward.z * (0.45 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z),
-            new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z + leftVec.z * (0.22 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.22 * foxScale), foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z - leftVec.z * (0.22 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x - forward.x * (0.45 * foxScale), foxRoot.position.y + 0.50 * foxScale, foxRoot.position.z - forward.z * (0.45 * foxScale)),
-            new THREE.Vector3(foxRoot.position.x - forward.x * (0.85 * foxScale), foxRoot.position.y + 0.45 * foxScale, foxRoot.position.z - forward.z * (0.85 * foxScale))
+            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 1.55 * heroScaleFactor, foxRoot.position.z), // Kepala / Helm
+            new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.25 * heroScaleFactor), foxRoot.position.y + 1.25 * heroScaleFactor, foxRoot.position.z + leftVec.z * (0.25 * heroScaleFactor)), // Pundak Kiri
+            new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.25 * heroScaleFactor), foxRoot.position.y + 1.25 * heroScaleFactor, foxRoot.position.z - leftVec.z * (0.25 * heroScaleFactor)), // Pundak Kanan
+            new THREE.Vector3(foxRoot.position.x + forward.x * (0.08 * heroScaleFactor), foxRoot.position.y + 1.10 * heroScaleFactor, foxRoot.position.z + forward.z * (0.08 * heroScaleFactor)), // Dada Depan
+            new THREE.Vector3(foxRoot.position.x, foxRoot.position.y + 0.85 * heroScaleFactor, foxRoot.position.z), // Pinggul / Inti Tubuh
+            new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.18 * heroScaleFactor), foxRoot.position.y + 0.50 * heroScaleFactor, foxRoot.position.z + leftVec.z * (0.18 * heroScaleFactor)), // Lutut Kiri
+            new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.18 * heroScaleFactor), foxRoot.position.y + 0.50 * heroScaleFactor, foxRoot.position.z - leftVec.z * (0.18 * heroScaleFactor)), // Lutut Kanan
+            new THREE.Vector3(foxRoot.position.x + leftVec.x * (0.15 * heroScaleFactor), foxRoot.position.y + 0.18 * heroScaleFactor, foxRoot.position.z + leftVec.z * (0.15 * heroScaleFactor)), // Kaki Kiri
+            new THREE.Vector3(foxRoot.position.x - leftVec.x * (0.15 * heroScaleFactor), foxRoot.position.y + 0.18 * heroScaleFactor, foxRoot.position.z - leftVec.z * (0.15 * heroScaleFactor))  // Kaki Kanan
         ];
 
         const camPos = camera.position;
@@ -1359,594 +1530,20 @@ function updateWolfPhysics(dt, elapsed) {
 function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio = 0, grounded = true, vertVel = 0, isSwimming = false) {
     if (!wolfCharacter) return;
 
-    const {
-        root: foxRoot,
-        bodyTiltGroup,
-        neckJoint,
-        headJoint,
-        earLJoint,
-        earRJoint,
-        tailBaseJoint,
-        tailMidJoint,
-        tailTipJoint,
-        legFL,
-        legFR,
-        legBL,
-        legBR,
-        BASE_HIP_Y
-    } = wolfCharacter;
-
-    const safeBankRoll = -turnRate * 0.018 * Math.min(1, Math.abs(speed) / 4.0);
-    const targetNeckYaw = turnRate * 0.14;
-    const targetHeadYaw = turnRate * 0.18;
-
-    // Kedutan telinga alami
-    if (elapsed > nextEarTwitchTime) {
-        nextEarTwitchTime = elapsed + 1.2 + Math.random() * 2.8;
-        const whichEar = Math.random();
-        if (whichEar < 0.4) {
-            earTwitchL = { x: (Math.random() - 0.5) * 0.25, y: 0.35 + Math.random() * 0.25, z: -0.18 };
-        } else if (whichEar < 0.8) {
-            earTwitchR = { x: (Math.random() - 0.5) * 0.25, y: -0.35 - Math.random() * 0.25, z: -0.18 };
-        } else {
-            earTwitchL = { x: 0.12, y: 0.22, z: 0.12 };
-            earTwitchR = { x: -0.12, y: -0.22, z: 0.12 };
-        }
-    }
-    earTwitchL.x = THREE.MathUtils.lerp(earTwitchL.x, 0, 7 * dt);
-    earTwitchL.y = THREE.MathUtils.lerp(earTwitchL.y, 0, 7 * dt);
-    earTwitchL.z = THREE.MathUtils.lerp(earTwitchL.z, 0, 7 * dt);
-    earTwitchR.x = THREE.MathUtils.lerp(earTwitchR.x, 0, 7 * dt);
-    earTwitchR.y = THREE.MathUtils.lerp(earTwitchR.y, 0, 7 * dt);
-    earTwitchR.z = THREE.MathUtils.lerp(earTwitchR.z, 0, 7 * dt);
-
-    if (elapsed > nextTailFlickTime) {
-        nextTailFlickTime = elapsed + 2.0 + Math.random() * 3.5;
-        tailFlickAmp = (Math.random() > 0.5 ? 1 : -1) * (0.28 + Math.random() * 0.22);
-    }
-    tailFlickAmp = THREE.MathUtils.lerp(tailFlickAmp, 0, 5.5 * dt);
-
-    const huntHipDrop = 0.22 * huntRatio;
-    const huntNeckPitch = 0.48 * huntRatio;
-    const huntHeadPitch = -0.42 * huntRatio;
-
-    // ========================================================
-    // 4A. LOCOMOTION MODE: RENANG ANJING / RUBAH (QUADRUPED DOG PADDLE)
-    // Berjalan saat tubuh rubah tenggelam setengah di air dalam
-    // ========================================================
-    if (isSwimming) {
-        foxIdleTimer = 0;
-        manualProne = false;
-        foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, 0, Math.min(1.0, 10 * dt));
-        foxSitBlend = THREE.MathUtils.lerp(foxSitBlend, 0, Math.min(1.0, 10 * dt));
-        foxState = 'SWIM';
-        window.foxIdleTimer = 0;
-        window.foxState = foxState;
-        window.foxProneBlend = 0;
-        window.foxSitBlend = 0;
-
-        const isMoving = Math.abs(speed) > 0.1 || Math.abs(turnRate) > 0.08;
-        const isSprint = huntRatio > 0.3 && isMoving;
-
-        // Roll miring dinamis saat berbelok di air
-        const swimBankRoll = -turnRate * 0.035 * Math.min(1.0, Math.abs(speed) / 3.0);
-        bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(bodyTiltGroup.rotation.x, swimBankRoll, 8 * dt);
-        neckJoint.rotation.y = THREE.MathUtils.lerp(neckJoint.rotation.y, targetNeckYaw, 8 * dt);
-        headJoint.rotation.y = THREE.MathUtils.lerp(headJoint.rotation.y, targetHeadYaw, 8 * dt);
-
-        // Kepala & dada mendongak di atas air (Arching neck & level head agar hidung tetap di atas air)
-        const swimPitch = -0.12 + Math.sin(elapsed * 2.2) * 0.02;
-        bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(bodyTiltGroup.rotation.z, swimPitch, 8 * dt);
-        neckJoint.rotation.z = THREE.MathUtils.lerp(neckJoint.rotation.z, -0.34, 8 * dt);
-        headJoint.rotation.z = THREE.MathUtils.lerp(headJoint.rotation.z, 0.24, 8 * dt);
-
-        // Telinga terlipat aerodinamis/hidrodinamis saat berenang
-        const earSwimFold = -0.22 - (isSprint ? 0.25 : 0.0);
-        earLJoint.rotation.set(earTwitchL.x, earTwitchL.y + turnRate * 0.05, earSwimFold + earTwitchL.z);
-        earRJoint.rotation.set(earTwitchR.x, earTwitchR.y + turnRate * 0.05, earSwimFold + earTwitchR.z);
-
-        // Frekuensi dayungan kaki: sangat cepat dan bertenaga saat sprint (Shift / Hunt)
-        const swimFreq = isMoving
-            ? (isSprint ? 13.5 : 8.2 + Math.abs(speed) * 1.1)
-            : 3.2; // Treading water saat diam mengapung
-
-        const dirSign = speed >= -0.1 ? 1 : -1;
-        gaitPhase += dt * swimFreq * dirSign;
-
-        const moveIntensity = isMoving ? Math.min(1.0, Math.max(0.45, Math.abs(speed) / 4.0)) : 0.28;
-
-        // Fase dayungan dog paddle:
-        // Kaki depan kiri & kanan bergantian berlawanan fase
-        const phaseFL = gaitPhase;
-        const phaseFR = gaitPhase + Math.PI;
-        // Kaki belakang menyusul secara diagonal bergantian
-        const phaseBL = gaitPhase + Math.PI * 0.55;
-        const phaseBR = gaitPhase + Math.PI * 1.55;
-
-        updateDogPaddleLegFront(legFL, phaseFL, moveIntensity, isSprint, dt);
-        updateDogPaddleLegFront(legFR, phaseFR, moveIntensity, isSprint, dt);
-        updateDogPaddleLegBack(legBL, phaseBL, moveIntensity, isSprint, dt);
-        updateDogPaddleLegBack(legBR, phaseBR, moveIntensity, isSprint, dt);
-
-        // Ekor mengapung di permukaan air dan bergoyang lembut sebagai kemudi (rudder)
-        const tailRudder = -turnRate * 0.22;
-        const tailFloatWave = Math.sin(elapsed * 2.2) * 0.035;
-        const tailPaddleSway = Math.sin(gaitPhase * 0.6) * (0.08 + (isSprint ? 0.12 : 0.04));
-
-        tailBaseJoint.rotation.z = THREE.MathUtils.lerp(tailBaseJoint.rotation.z, 0.06 + tailFloatWave, 7 * dt);
-        tailMidJoint.rotation.z = THREE.MathUtils.lerp(tailMidJoint.rotation.z, 0.04 + tailFloatWave * 0.8, 7 * dt);
-        tailTipJoint.rotation.z = THREE.MathUtils.lerp(tailTipJoint.rotation.z, 0.02 + tailFloatWave * 0.5, 7 * dt);
-
-        tailBaseJoint.rotation.y = THREE.MathUtils.lerp(tailBaseJoint.rotation.y, tailRudder + tailPaddleSway * 0.5, 8 * dt);
-        tailMidJoint.rotation.y = THREE.MathUtils.lerp(tailMidJoint.rotation.y, tailRudder * 0.85 + tailPaddleSway * 0.8, 8 * dt);
-        tailTipJoint.rotation.y = THREE.MathUtils.lerp(tailTipJoint.rotation.y, tailRudder * 0.70 + tailPaddleSway, 8 * dt);
-
-        return;
+    // Lean / bank character slightly into turns for dynamic feel
+    if (wolfCharacter.meshContainer) {
+        const targetRoll = -turnRate * 0.025 * Math.min(1.0, Math.abs(speed) / 4.0);
+        wolfCharacter.meshContainer.rotation.z = THREE.MathUtils.lerp(
+            wolfCharacter.meshContainer.rotation.z,
+            targetRoll,
+            Math.min(1.0, 10.0 * dt)
+        );
     }
 
-    if (!grounded) {
-        foxIdleTimer = 0;
-        manualProne = false;
-        foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, 0, Math.min(1.0, 12 * dt));
-        foxSitBlend = THREE.MathUtils.lerp(foxSitBlend, 0, Math.min(1.0, 12 * dt));
-        foxState = 'AIR';
-        window.foxIdleTimer = 0;
-        window.foxState = foxState;
-        window.foxProneBlend = foxProneBlend;
-        window.foxSitBlend = foxSitBlend;
-
-        bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(bodyTiltGroup.rotation.x, safeBankRoll, 8 * dt);
-        neckJoint.rotation.y = THREE.MathUtils.lerp(neckJoint.rotation.y, targetNeckYaw, 8 * dt);
-        headJoint.rotation.y = THREE.MathUtils.lerp(headJoint.rotation.y, targetHeadYaw, 8 * dt);
-
-        earLJoint.rotation.set(earTwitchL.x, earTwitchL.y, earTwitchL.z);
-        earRJoint.rotation.set(earTwitchR.x, earTwitchR.y, earTwitchR.z);
-
-        legFL.hip.rotation.x = THREE.MathUtils.lerp(legFL.hip.rotation.x, 0, 10 * dt);
-        legFR.hip.rotation.x = THREE.MathUtils.lerp(legFR.hip.rotation.x, 0, 10 * dt);
-        legBL.hip.rotation.x = THREE.MathUtils.lerp(legBL.hip.rotation.x, 0, 10 * dt);
-        legBR.hip.rotation.x = THREE.MathUtils.lerp(legBR.hip.rotation.x, 0, 10 * dt);
-
-        const airPitch = THREE.MathUtils.clamp(-vertVel * 0.04, -0.35, 0.35);
-        bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(bodyTiltGroup.rotation.z, airPitch, 10 * dt);
-        bodyTiltGroup.position.y = THREE.MathUtils.lerp(bodyTiltGroup.position.y, BASE_HIP_Y, 10 * dt);
-
-        neckJoint.rotation.z = THREE.MathUtils.lerp(neckJoint.rotation.z, huntNeckPitch * 0.5 - airPitch * 0.4, 8 * dt);
-        headJoint.rotation.z = THREE.MathUtils.lerp(headJoint.rotation.z, huntHeadPitch * 0.5 - airPitch * 0.3, 8 * dt);
-
-        if (vertVel > 0) {
-            legFL.hip.rotation.z = THREE.MathUtils.lerp(legFL.hip.rotation.z, -0.55, 10 * dt);
-            legFL.knee.rotation.z = THREE.MathUtils.lerp(legFL.knee.rotation.z, -0.75, 10 * dt);
-            legFR.hip.rotation.z = THREE.MathUtils.lerp(legFR.hip.rotation.z, -0.45, 10 * dt);
-            legFR.knee.rotation.z = THREE.MathUtils.lerp(legFR.knee.rotation.z, -0.65, 10 * dt);
-
-            legBL.hip.rotation.z = THREE.MathUtils.lerp(legBL.hip.rotation.z, 0.65, 10 * dt);
-            legBL.knee.rotation.z = THREE.MathUtils.lerp(legBL.knee.rotation.z, -0.25, 10 * dt);
-            legBR.hip.rotation.z = THREE.MathUtils.lerp(legBR.hip.rotation.z, 0.55, 10 * dt);
-            legBR.knee.rotation.z = THREE.MathUtils.lerp(legBR.knee.rotation.z, -0.20, 10 * dt);
-        } else {
-            legFL.hip.rotation.z = THREE.MathUtils.lerp(legFL.hip.rotation.z, -0.45, 10 * dt);
-            legFL.knee.rotation.z = THREE.MathUtils.lerp(legFL.knee.rotation.z, -0.08, 10 * dt);
-            legFR.hip.rotation.z = THREE.MathUtils.lerp(legFR.hip.rotation.z, -0.35, 10 * dt);
-            legFR.knee.rotation.z = THREE.MathUtils.lerp(legFR.knee.rotation.z, -0.08, 10 * dt);
-
-            legBL.hip.rotation.z = THREE.MathUtils.lerp(legBL.hip.rotation.z, -0.18, 10 * dt);
-            legBL.knee.rotation.z = THREE.MathUtils.lerp(legBL.knee.rotation.z, 0.48, 10 * dt);
-            legBR.hip.rotation.z = THREE.MathUtils.lerp(legBR.hip.rotation.z, -0.12, 10 * dt);
-            legBR.knee.rotation.z = THREE.MathUtils.lerp(legBR.knee.rotation.z, 0.42, 10 * dt);
-        }
-
-        tailBaseJoint.rotation.z = THREE.MathUtils.lerp(tailBaseJoint.rotation.z, 0.38 - airPitch * 0.5, 8 * dt);
-        tailMidJoint.rotation.z = THREE.MathUtils.lerp(tailMidJoint.rotation.z, 0.22, 8 * dt);
-        tailTipJoint.rotation.z = THREE.MathUtils.lerp(tailTipJoint.rotation.z, 0.15, 8 * dt);
-
-    } else if (Math.abs(speed) > 0.05 || Math.abs(turnRate) > 0.05) {
-        foxIdleTimer = 0;
-        manualProne = false;
-        foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, 0, Math.min(1.0, 10 * dt));
-        foxSitBlend = THREE.MathUtils.lerp(foxSitBlend, 0, Math.min(1.0, 10 * dt));
-        foxState = (Math.abs(speed) > 5.0) ? 'RUN' : 'WALK';
-        window.foxIdleTimer = 0;
-        window.foxState = foxState;
-        window.foxProneBlend = foxProneBlend;
-        window.foxSitBlend = foxSitBlend;
-
-        bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(bodyTiltGroup.rotation.x, safeBankRoll, 8 * dt);
-        neckJoint.rotation.y = THREE.MathUtils.lerp(neckJoint.rotation.y, targetNeckYaw, 8 * dt);
-        headJoint.rotation.y = THREE.MathUtils.lerp(headJoint.rotation.y, targetHeadYaw, 8 * dt);
-
-        const huntEarFold = -0.50 * huntRatio;
-        earLJoint.rotation.set(
-            earTwitchL.x + huntRatio * 0.15,
-            earTwitchL.y + turnRate * 0.08,
-            huntEarFold + earTwitchL.z
-        );
-        earRJoint.rotation.set(
-            earTwitchR.x - huntRatio * 0.15,
-            earTwitchR.y + turnRate * 0.08,
-            huntEarFold + earTwitchR.z
-        );
-
-        legFL.hip.rotation.x = THREE.MathUtils.lerp(legFL.hip.rotation.x, 0, 10 * dt);
-        legFR.hip.rotation.x = THREE.MathUtils.lerp(legFR.hip.rotation.x, 0, 10 * dt);
-        legBL.hip.rotation.x = THREE.MathUtils.lerp(legBL.hip.rotation.x, 0, 10 * dt);
-        legBR.hip.rotation.x = THREE.MathUtils.lerp(legBR.hip.rotation.x, 0, 10 * dt);
-
-        const isPivotOnly = Math.abs(speed) < 0.5 && Math.abs(turnRate) > 0.05;
-
-        const dirSign = isPivotOnly
-            ? (turnRate >= 0 ? 1 : -1)
-            : (speed >= -0.1 ? 1 : -1);
-
-        const freq = isPivotOnly ? 4.5 : 9.2 + Math.abs(speed) * 0.95;
-        gaitPhase += dt * freq * dirSign;
-
-        const moveActivity = Math.min(1.0, Math.max(Math.abs(speed) / 4.6, Math.abs(turnRate) / 2.5));
-
-        const bob = isPivotOnly ? Math.abs(Math.sin(gaitPhase)) * 0.015 : Math.abs(Math.sin(gaitPhase)) * (0.055 + 0.045 * huntRatio) * moveActivity;
-        const huntForwardLean = 0.07 * huntRatio;
-        const stridePitch = isPivotOnly ? huntForwardLean : huntForwardLean + Math.cos(gaitPhase * (1 + huntRatio)) * 0.04 * moveActivity;
-
-        bodyTiltGroup.position.y = THREE.MathUtils.lerp(
-            bodyTiltGroup.position.y,
-            BASE_HIP_Y - huntHipDrop + bob - landingSquash,
-            14 * dt
-        );
-        bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(bodyTiltGroup.rotation.z, stridePitch, 12 * dt);
-
-        const headBob = isPivotOnly ? 0 : Math.sin(gaitPhase * 2 - 0.5) * 0.04 * moveActivity;
-        neckJoint.rotation.z = THREE.MathUtils.lerp(neckJoint.rotation.z, huntNeckPitch + headBob, 10 * dt);
-        headJoint.rotation.z = THREE.MathUtils.lerp(headJoint.rotation.z, huntHeadPitch - headBob * 0.85, 10 * dt);
-
-        const phaseFL = gaitPhase;
-        const phaseFR = gaitPhase + THREE.MathUtils.lerp(Math.PI, 0.55, huntRatio);
-        const phaseBR = gaitPhase + THREE.MathUtils.lerp(0.35, Math.PI, huntRatio);
-        const phaseBL = gaitPhase + THREE.MathUtils.lerp(Math.PI + 0.35, Math.PI + 0.55, huntRatio);
-
-        updateLegArticulation(legFL, phaseFL, moveActivity, true, huntRatio, isPivotOnly);
-        updateLegArticulation(legFR, phaseFR, moveActivity, true, huntRatio, isPivotOnly);
-        updateLegArticulation(legBR, phaseBR, moveActivity, false, huntRatio, isPivotOnly);
-        updateLegArticulation(legBL, phaseBL, moveActivity, false, huntRatio, isPivotOnly);
-
-        const tailBaseLift = 0.14 + 0.36 * huntRatio;
-        const tailMidLift = 0.10 + 0.22 * huntRatio;
-        tailBaseJoint.rotation.z = THREE.MathUtils.lerp(tailBaseJoint.rotation.z, tailBaseLift + Math.sin(gaitPhase) * 0.06, 8 * dt);
-        tailMidJoint.rotation.z = THREE.MathUtils.lerp(tailMidJoint.rotation.z, tailMidLift + Math.sin(gaitPhase - 0.7) * 0.08, 8 * dt);
-        tailTipJoint.rotation.z = THREE.MathUtils.lerp(tailTipJoint.rotation.z, 0.10 + Math.sin(gaitPhase - 1.4) * 0.08, 8 * dt);
-
-        const tailSteer = -turnRate * 0.16;
-        tailBaseJoint.rotation.y = THREE.MathUtils.lerp(tailBaseJoint.rotation.y, tailSteer + Math.cos(gaitPhase) * 0.10 * moveActivity + tailFlickAmp * 0.4, 10 * dt);
-        tailMidJoint.rotation.y = THREE.MathUtils.lerp(tailMidJoint.rotation.y, tailSteer * 0.9 + Math.cos(gaitPhase - 0.7) * 0.14 * moveActivity + tailFlickAmp * 0.7, 10 * dt);
-        tailTipJoint.rotation.y = THREE.MathUtils.lerp(tailTipJoint.rotation.y, tailSteer * 0.7 + Math.cos(gaitPhase - 1.4) * 0.16 * moveActivity + tailFlickAmp, 10 * dt);
-
-    } else {
-        // --- LOGIKA IDLE PROGRESIF: IDLE (STAND) -> SIT -> PRONE ---
-        if (foxInWaterState) {
-            foxIdleTimer = 0;
-            foxState = 'IDLE';
-            manualProne = false;
-        } else {
-            foxIdleTimer += dt;
-            if (manualProne || foxIdleTimer >= FOX_IDLE_PRONE_THRESHOLD) {
-                foxState = 'PRONE';
-            } else if (foxIdleTimer >= FOX_IDLE_SIT_THRESHOLD) {
-                foxState = 'SIT';
-            } else {
-                foxState = 'IDLE';
-            }
-        }
-
-        foxProneBlend = THREE.MathUtils.lerp(foxProneBlend, (foxState === 'PRONE') ? 1.0 : 0.0, Math.min(1.0, 4.0 * dt));
-        foxSitBlend = THREE.MathUtils.lerp(foxSitBlend, (foxState === 'SIT') ? 1.0 : 0.0, Math.min(1.0, 4.0 * dt));
-        window.foxIdleTimer = foxIdleTimer;
-        window.foxState = foxState;
-        window.foxProneBlend = foxProneBlend;
-        window.foxSitBlend = foxSitBlend;
-
-        // A. KEPALA MENOLEH WASPADA KE KIRI / KANAN & MENGAMATI ALAM (IDLE & SIT)
-        idleLookTimer -= dt;
-        if (idleLookTimer <= 0) {
-            idleLookTimer = 2.0 + Math.random() * 2.8;
-            const rLook = Math.random();
-            if (rLook < 0.35) {
-                idleLookTargetYaw = 0.40 + Math.random() * 0.30;
-                idleLookTargetPitch = (Math.random() - 0.45) * 0.16;
-                idleLookTargetRoll = 0.08 + Math.random() * 0.08;
-            } else if (rLook < 0.70) {
-                idleLookTargetYaw = -0.40 - Math.random() * 0.30;
-                idleLookTargetPitch = (Math.random() - 0.45) * 0.16;
-                idleLookTargetRoll = -0.08 - Math.random() * 0.08;
-            } else if (rLook < 0.88) {
-                idleLookTargetYaw = 0;
-                idleLookTargetPitch = 0;
-                idleLookTargetRoll = 0;
-            } else {
-                idleLookTargetYaw = (Math.random() - 0.5) * 0.14;
-                idleLookTargetPitch = -0.22;
-                idleLookTargetRoll = 0;
-            }
-        }
-
-        const lookSpeed = (Math.abs(idleLookTargetYaw) > 0.05) ? 6.5 : 4.5;
-        idleLookCurrentYaw = THREE.MathUtils.lerp(idleLookCurrentYaw, idleLookTargetYaw * (1 - huntRatio), lookSpeed * dt);
-        idleLookCurrentPitch = THREE.MathUtils.lerp(idleLookCurrentPitch, idleLookTargetPitch * (1 - huntRatio), lookSpeed * dt);
-        idleLookCurrentRoll = THREE.MathUtils.lerp(idleLookCurrentRoll, idleLookTargetRoll * (1 - huntRatio), lookSpeed * dt);
-
-        let targetBodyY = BASE_HIP_Y;
-        let targetBodyPitch = 0;
-        let targetBodyRoll = 0;
-
-        let targetNeckPitch = 0;
-        let targetNeckYaw = 0;
-        let targetHeadPitch = 0;
-        let targetHeadYaw = 0;
-        let targetHeadRoll = 0;
-
-        let flHipZ = 0, flKneeZ = 0, flPawZ = 0, flHipX = 0;
-        let frHipZ = 0, frKneeZ = 0, frPawZ = 0, frHipX = 0;
-        let blHipZ = 0, blKneeZ = 0, blPawZ = 0, blHipX = 0;
-        let brHipZ = 0, brKneeZ = 0, brPawZ = 0, brHipX = 0;
-
-        let targetTailBaseZ = 0.05, targetTailBaseY = 0;
-        let targetTailMidZ = 0.08, targetTailMidY = 0;
-        let targetTailTipZ = 0.05, targetTailTipY = 0;
-
-        let earLZ = 0, earRZ = 0;
-
-        // -------------------------------------------------------------
-        // POSE 1: PRONE / MENGENDAP (STALKING PREDATOR)
-        // -------------------------------------------------------------
-        if (foxState === 'PRONE') {
-            // Tubuh turun mendekati tanah, torso agak menunduk ke depan
-            targetBodyY = 0.52 + Math.sin(elapsed * 3.0) * 0.008; // Napas tegang predator
-            targetBodyPitch = 0.14;  // Condong ke depan
-            targetBodyRoll = 0.00;
-
-            // Leher & Kepala menempel rendah ke tanah, mata mengunci target
-            targetNeckPitch = -0.18;
-            targetNeckYaw = Math.sin(elapsed * 1.5) * 0.05;
-            targetHeadPitch = 0.08;
-            targetHeadYaw = targetNeckYaw * 0.8;
-            targetHeadRoll = 0.00;
-
-            // Kaki depan dilipat merayap rendah ke depan
-            flHipZ = 0.95;
-            flKneeZ = -2.58;
-            flPawZ = 0.56;
-            flHipX = 0.10;
-
-            frHipZ = 0.98;
-            frKneeZ = -2.62;
-            frPawZ = 0.54;
-            frHipX = -0.10;
-
-            // Kaki belakang menekuk tajam siap melompat menerkam (ready to pounce)
-            blHipZ = -0.95;
-            blHipX = 0.22;
-            blKneeZ = 2.65;
-            blPawZ = 0.30;
-
-            brHipZ = -0.95;
-            brHipX = -0.22;
-            brKneeZ = 2.65;
-            brPawZ = 0.30;
-
-            // Ekor lurus lurus mendatar di lantai, sesekali mengibaskan ujungnya secara waspada
-            const tailTwitch = Math.sin(elapsed * 4.0) * 0.12;
-            targetTailBaseZ = 0.05;
-            targetTailBaseY = tailTwitch * 0.4;
-            targetTailMidZ = -0.05;
-            targetTailMidY = tailTwitch * 0.7;
-            targetTailTipZ = 0.02;
-            targetTailTipY = tailTwitch * 1.0;
-
-            // Telinga terlipat datar ke belakang (fokus & kamuflase mengendap)
-            earLZ = -0.55;
-            earRZ = -0.55;
-
-            idlePawActiveLeg = null;
-
-        // -------------------------------------------------------------
-        // POSE 2: SIT (DUDUK ALAMI - PERSIS FOTO REAL)
-        // -------------------------------------------------------------
-        } else if (foxState === 'SIT') {
-            const breath = Math.sin(elapsed * 2.3) * 0.014;
-            targetBodyY = 1.08 + breath * 0.25;
-            targetBodyPitch = -0.82; // Panggul jatuh ke lantai, dada tegak
-            targetBodyRoll = 0.00;
-
-            // Leher & Kepala tegak, menoleh santai ke sekeliling
-            targetNeckPitch = 0.60 + idleLookCurrentPitch * 0.3;
-            targetNeckYaw = idleLookCurrentYaw * 0.35;
-            targetHeadPitch = 0.22 + idleLookCurrentPitch * 0.45;
-            targetHeadYaw = idleLookCurrentYaw * 0.55;
-            targetHeadRoll = idleLookCurrentRoll * 0.6;
-
-            // Kaki depan tegak menopang tepat di Y = 0
-            flHipZ = 1.35;
-            flKneeZ = -0.92;
-            flPawZ = -0.42;
-            flHipX = 0.00;
-
-            frHipZ = 1.35;
-            frKneeZ = -0.92;
-            frPawZ = -0.42;
-            frHipX = 0.00;
-
-            // Kaki belakang terlipat rapi menempel tanah
-            blHipZ = -1.50;
-            blHipX = 0.22;
-            blKneeZ = 1.85;
-            blPawZ = -0.35;
-
-            brHipZ = -1.50;
-            brHipX = -0.22;
-            brKneeZ = 1.85;
-            brPawZ = -0.35;
-
-            // Ekor melengkung rapat tanpa rongga bolong
-            targetTailBaseZ = 1.55; 
-            targetTailBaseY = 0.38 + tailFlickAmp * 0.2;
-            targetTailMidZ  = 0.25; 
-            targetTailMidY  = 0.45 + tailFlickAmp * 0.3;
-            targetTailTipZ  = 0.15;
-            targetTailTipY  = 0.45 + tailFlickAmp * 0.4;
-
-            earLZ = -0.15 + earTwitchL.z * 0.5;
-            earRZ = -0.15 + earTwitchR.z * 0.5;
-
-            idlePawActiveLeg = null;
-
-        // -------------------------------------------------------------
-        // POSE 3: IDLE / STAND - Berdiri tegap, menoleh waspada, telinga berkedut, ekor & paw fidget
-        // -------------------------------------------------------------
-        } else {
-            const standBreath = Math.sin(elapsed * 2.3) * 0.014;
-            targetBodyY = BASE_HIP_Y - huntHipDrop + standBreath - landingSquash;
-            targetBodyPitch = 0.06 * huntRatio + landingSquash * 0.18;
-
-            // B. Paw fidgeting santai (hanya saat berdiri)
-            if (!idlePawActiveLeg) {
-                idlePawTimer -= dt;
-                if (idlePawTimer <= 0) {
-                    const rLeg = Math.random();
-                    if (rLeg < 0.45) idlePawActiveLeg = 'FL';
-                    else if (rLeg < 0.82) idlePawActiveLeg = 'FR';
-                    else if (rLeg < 0.92) idlePawActiveLeg = 'BL';
-                    else idlePawActiveLeg = 'BR';
-
-                    idlePawDuration = 1.8 + Math.random() * 1.0;
-                    idlePawElapsed = 0;
-                }
-            }
-
-            let pawLiftFL = 0, pawLiftFR = 0, pawLiftBL = 0, pawLiftBR = 0;
-            let weightShiftRoll = 0;
-
-            if (idlePawActiveLeg) {
-                idlePawElapsed += dt;
-                const progress = idlePawElapsed / idlePawDuration;
-                if (progress >= 1.0) {
-                    idlePawActiveLeg = null;
-                    idlePawTimer = 3.2 + Math.random() * 4.5;
-                } else {
-                    const liftAmt = Math.pow(Math.sin(progress * Math.PI), 0.75);
-                    if (idlePawActiveLeg === 'FL') {
-                        pawLiftFL = liftAmt;
-                        weightShiftRoll = -0.022 * liftAmt;
-                    } else if (idlePawActiveLeg === 'FR') {
-                        pawLiftFR = liftAmt;
-                        weightShiftRoll = 0.022 * liftAmt;
-                    } else if (idlePawActiveLeg === 'BL') {
-                        pawLiftBL = liftAmt;
-                        weightShiftRoll = -0.018 * liftAmt;
-                    } else if (idlePawActiveLeg === 'BR') {
-                        pawLiftBR = liftAmt;
-                        weightShiftRoll = 0.018 * liftAmt;
-                    }
-                }
-            }
-
-            targetBodyRoll = safeBankRoll + weightShiftRoll;
-
-            // Leher & Kepala menoleh waspada mengamati alam sekitar
-            targetNeckPitch = huntNeckPitch + idleLookCurrentPitch * 0.4 + Math.sin(elapsed * 2.3 - 0.5) * 0.02;
-            targetNeckYaw = targetNeckYaw + idleLookCurrentYaw * 0.42;
-            targetHeadPitch = huntHeadPitch + idleLookCurrentPitch * 0.65 - Math.sin(elapsed * 2.3 - 0.5) * 0.015;
-            targetHeadYaw = targetHeadYaw + idleLookCurrentYaw * 0.65;
-            targetHeadRoll = idleLookCurrentRoll;
-
-            // Kaki depan berdiri
-            flHipZ = 0.26 * huntRatio - pawLiftFL * 0.16;
-            flKneeZ = -0.48 * huntRatio - pawLiftFL * 0.72;
-            flPawZ = 0.22 * huntRatio + pawLiftFL * 0.55;
-            flHipX = 0.00;
-
-            frHipZ = 0.26 * huntRatio - pawLiftFR * 0.16;
-            frKneeZ = -0.48 * huntRatio - pawLiftFR * 0.72;
-            frPawZ = 0.22 * huntRatio + pawLiftFR * 0.55;
-            frHipX = 0.00;
-
-            // Kaki belakang berdiri
-            blHipZ = -0.28 * huntRatio + pawLiftBL * 0.28;
-            blKneeZ = 0.52 * huntRatio + pawLiftBL * 0.38;
-            blPawZ = -0.24 * huntRatio - pawLiftBL * 0.35;
-            blHipX = 0.00;
-
-            brHipZ = -0.28 * huntRatio + pawLiftBR * 0.28;
-            brKneeZ = 0.52 * huntRatio + pawLiftBR * 0.38;
-            brPawZ = -0.24 * huntRatio - pawLiftBR * 0.35;
-            brHipX = 0.00;
-
-            // Ekor mengayun anggun
-            const idleTailLift = 0.34 * huntRatio;
-            targetTailBaseZ = idleTailLift + Math.sin(elapsed * 1.8) * 0.03;
-            targetTailMidZ = idleTailLift * 0.6 + Math.sin(elapsed * 1.8 - 0.6) * 0.04;
-            targetTailTipZ = 0.08 * huntRatio;
-
-            const baseWave = Math.sin(elapsed * 1.6) * 0.055;
-            targetTailBaseY = baseWave + tailFlickAmp * 0.45;
-            targetTailMidY = Math.sin(elapsed * 1.6 - 0.7) * 0.085 + tailFlickAmp * 0.85;
-            targetTailTipY = Math.sin(elapsed * 1.6 - 1.4) * 0.11 + tailFlickAmp * 1.2;
-
-            earLZ = earTwitchL.z;
-            earRZ = earTwitchR.z;
-        }
-
-        // Interpolasi Halus & Natural (Lerp) untuk Semua Sendi
-        const lerpRate = Math.min(1.0, 7.5 * dt);
-
-        bodyTiltGroup.position.y = THREE.MathUtils.lerp(bodyTiltGroup.position.y, targetBodyY, lerpRate);
-        bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(bodyTiltGroup.rotation.z, targetBodyPitch, lerpRate);
-        bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(bodyTiltGroup.rotation.x, targetBodyRoll, lerpRate);
-
-        neckJoint.rotation.z = THREE.MathUtils.lerp(neckJoint.rotation.z, targetNeckPitch, lerpRate);
-        neckJoint.rotation.y = THREE.MathUtils.lerp(neckJoint.rotation.y, targetNeckYaw, lerpRate);
-
-        headJoint.rotation.z = THREE.MathUtils.lerp(headJoint.rotation.z, targetHeadPitch, lerpRate);
-        headJoint.rotation.y = THREE.MathUtils.lerp(headJoint.rotation.y, targetHeadYaw, lerpRate);
-        headJoint.rotation.x = THREE.MathUtils.lerp(headJoint.rotation.x, targetHeadRoll, lerpRate);
-
-        earLJoint.rotation.z = THREE.MathUtils.lerp(earLJoint.rotation.z, earLZ, lerpRate);
-        earRJoint.rotation.z = THREE.MathUtils.lerp(earRJoint.rotation.z, earRZ, lerpRate);
-        if (foxState === 'PRONE') {
-            earLJoint.rotation.x = THREE.MathUtils.lerp(earLJoint.rotation.x, 0, lerpRate);
-            earLJoint.rotation.y = THREE.MathUtils.lerp(earLJoint.rotation.y, 0, lerpRate);
-            earRJoint.rotation.x = THREE.MathUtils.lerp(earRJoint.rotation.x, 0, lerpRate);
-            earRJoint.rotation.y = THREE.MathUtils.lerp(earRJoint.rotation.y, 0, lerpRate);
-        } else {
-            earLJoint.rotation.x = THREE.MathUtils.lerp(earLJoint.rotation.x, earTwitchL.x, lerpRate);
-            earLJoint.rotation.y = THREE.MathUtils.lerp(earLJoint.rotation.y, earTwitchL.y, lerpRate);
-            earRJoint.rotation.x = THREE.MathUtils.lerp(earRJoint.rotation.x, earTwitchR.x, lerpRate);
-            earRJoint.rotation.y = THREE.MathUtils.lerp(earRJoint.rotation.y, earTwitchR.y, lerpRate);
-        }
-
-        legFL.hip.rotation.z = THREE.MathUtils.lerp(legFL.hip.rotation.z, flHipZ, lerpRate);
-        legFL.hip.rotation.x = THREE.MathUtils.lerp(legFL.hip.rotation.x, flHipX, lerpRate);
-        legFL.knee.rotation.z = THREE.MathUtils.lerp(legFL.knee.rotation.z, flKneeZ, lerpRate);
-        legFL.paw.rotation.z = THREE.MathUtils.lerp(legFL.paw.rotation.z, flPawZ, lerpRate);
-
-        legFR.hip.rotation.z = THREE.MathUtils.lerp(legFR.hip.rotation.z, frHipZ, lerpRate);
-        legFR.hip.rotation.x = THREE.MathUtils.lerp(legFR.hip.rotation.x, frHipX, lerpRate);
-        legFR.knee.rotation.z = THREE.MathUtils.lerp(legFR.knee.rotation.z, frKneeZ, lerpRate);
-        legFR.paw.rotation.z = THREE.MathUtils.lerp(legFR.paw.rotation.z, frPawZ, lerpRate);
-
-        legBL.hip.rotation.z = THREE.MathUtils.lerp(legBL.hip.rotation.z, blHipZ, lerpRate);
-        legBL.hip.rotation.x = THREE.MathUtils.lerp(legBL.hip.rotation.x, blHipX, lerpRate);
-        legBL.knee.rotation.z = THREE.MathUtils.lerp(legBL.knee.rotation.z, blKneeZ, lerpRate);
-        legBL.paw.rotation.z = THREE.MathUtils.lerp(legBL.paw.rotation.z, blPawZ, lerpRate);
-
-        legBR.hip.rotation.z = THREE.MathUtils.lerp(legBR.hip.rotation.z, brHipZ, lerpRate);
-        legBR.hip.rotation.x = THREE.MathUtils.lerp(legBR.hip.rotation.x, brHipX, lerpRate);
-        legBR.knee.rotation.z = THREE.MathUtils.lerp(legBR.knee.rotation.z, brKneeZ, lerpRate);
-        legBR.paw.rotation.z = THREE.MathUtils.lerp(legBR.paw.rotation.z, brPawZ, lerpRate);
-
-        tailBaseJoint.rotation.z = THREE.MathUtils.lerp(tailBaseJoint.rotation.z, targetTailBaseZ, lerpRate);
-        tailBaseJoint.rotation.y = THREE.MathUtils.lerp(tailBaseJoint.rotation.y, targetTailBaseY, lerpRate);
-        tailMidJoint.rotation.z = THREE.MathUtils.lerp(tailMidJoint.rotation.z, targetTailMidZ, lerpRate);
-        tailMidJoint.rotation.y = THREE.MathUtils.lerp(tailMidJoint.rotation.y, targetTailMidY, lerpRate);
-        tailTipJoint.rotation.z = THREE.MathUtils.lerp(tailTipJoint.rotation.z, targetTailTipZ, lerpRate);
-        tailTipJoint.rotation.y = THREE.MathUtils.lerp(tailTipJoint.rotation.y, targetTailTipY, lerpRate);
+    // Update Hero 3D Character animation states (Idle, Walk, Run)
+    if (typeof wolfCharacter.updateAnimation === 'function') {
+        const isSprinting = (huntRatio > 0.4);
+        wolfCharacter.updateAnimation(dt, speed, isSprinting, grounded, turnRate);
     }
 }
 window.updateWolfLocomotionAnimation = updateWolfLocomotionAnimation;

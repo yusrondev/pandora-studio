@@ -74,8 +74,18 @@ function animate() {
     if (typeof ItemSystem !== 'undefined' && ItemSystem) {
         ItemSystem.update(delta, elapsedTime);
     }
+    if (typeof FoxAIManager !== 'undefined' && FoxAIManager) {
+        if (isPlayMode) {
+            FoxAIManager.update(delta, elapsedTime);
+        } else if (typeof FoxAIManager.updateInEditor === 'function') {
+            FoxAIManager.updateInEditor(delta, elapsedTime);
+        }
+    }
     if (typeof glbImporterInstance !== 'undefined' && glbImporterInstance) {
         glbImporterInstance.update(delta, elapsedTime);
+    }
+    if (typeof PlayerSpawnManager !== 'undefined' && !isPlayMode) {
+        PlayerSpawnManager.update(delta, elapsedTime);
     }
 
     if (isPlayMode && wolfCharacter) {

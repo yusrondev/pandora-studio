@@ -627,6 +627,14 @@ function handleCanvasPointerDown(e) {
         if (intersects.length > 0) {
             const hitPoint = intersects[0].point;
 
+            // Mode Player Spawn: Klik kiri = letakkan / pindahkan titik spawn player
+            if (window.isPlayerSpawnModeActive && window.PlayerSpawnManager) {
+                window.PlayerSpawnManager.setSpawnPosition(hitPoint.x, hitPoint.z);
+                window.PlayerSpawnManager.togglePlacementMode(false);
+                if (e.stopPropagation) e.stopPropagation();
+                return;
+            }
+
             // Mode Item Box Spawner: Klik kiri = letakkan item box di permukaan tanah
             if (window.isItemBoxSpawnerActive) {
                 if (window.itemBoxManagerInstance) {

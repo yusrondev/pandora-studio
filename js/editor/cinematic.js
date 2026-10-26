@@ -1632,8 +1632,8 @@ const CinematicManager = {
                 updateWolfLocomotionAnimation(dt, t, 0, 0, 0, true, 0);
             } else {
                 // Animasi idle waspada alami
-                const breath = Math.sin(t * 2.3) * 0.014;
-                const baseHipY = character.BASE_HIP_Y || 1.62;
+                const breath = Math.max(0, Math.sin(t * 2.3) * 0.012);
+                const baseHipY = character.BASE_HIP_Y || 1.66;
                 character.bodyTiltGroup.position.y = THREE.MathUtils.lerp(character.bodyTiltGroup.position.y, baseHipY + breath, 8 * dt);
                 character.bodyTiltGroup.rotation.z = THREE.MathUtils.lerp(character.bodyTiltGroup.rotation.z, 0, 8 * dt);
                 character.bodyTiltGroup.rotation.x = THREE.MathUtils.lerp(character.bodyTiltGroup.rotation.x, 0, 8 * dt);

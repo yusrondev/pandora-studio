@@ -73,6 +73,10 @@ function initMobileControls() {
         // Reset idle timer & prone saat joystick digerakkan
         if (Math.abs(normX) > 0.08 || Math.abs(normY) > 0.08) {
             if (typeof foxIdleTimer !== 'undefined') foxIdleTimer = 0;
+            if (typeof wolfCharacter !== 'undefined' && wolfCharacter) {
+                wolfCharacter.idleTimer = 0.0;
+                wolfCharacter.activeIdleKey = null;
+            }
             if (typeof manualProne !== 'undefined') manualProne = false;
         }
 

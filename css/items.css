@@ -225,3 +225,366 @@ body.play-mode-active .item-slot-hud.visible {
     box-shadow: 0 0 15px rgba(56, 189, 248, 0.6) !important;
 }
 
+/* ===================================================================
+   5. PLASMA BAZOOKA AUTO-LOCK CROSSHAIR & SCI-FI TARGETING HUD
+   =================================================================== */
+.plasma-crosshair-container {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9980;
+    user-select: none;
+}
+
+/* Screen Center Reticle */
+.plasma-center-reticle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+    opacity: 0.65;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.reticle-ring {
+    position: absolute;
+    inset: 0;
+    border: 1.5px dashed rgba(56, 189, 248, 0.65);
+    border-radius: 50%;
+    animation: reticleSpin 12s linear infinite;
+}
+
+@keyframes reticleSpin {
+    100% { transform: rotate(360deg); }
+}
+
+.reticle-cross {
+    position: absolute;
+    inset: 6px;
+}
+
+.reticle-cross::before,
+.reticle-cross::after {
+    content: '';
+    position: absolute;
+    background: rgba(56, 189, 248, 0.7);
+}
+
+.reticle-cross::before {
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1.5px;
+    transform: translateY(-50%);
+}
+
+.reticle-cross::after {
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1.5px;
+    transform: translateX(-50%);
+}
+
+.reticle-pip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: #38bdf8;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px #38bdf8;
+}
+
+/* Dynamic 3D Projected Target Lock Box */
+.plasma-target-box {
+    position: absolute;
+    width: 84px;
+    height: 84px;
+    transform: translate(-50%, -50%);
+    transition: width 0.15s ease, height 0.15s ease;
+}
+
+/* Corner Brackets */
+.lock-bracket {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-color: #38bdf8;
+    border-style: solid;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.lock-bracket.tl {
+    top: 0;
+    left: 0;
+    border-width: 2.5px 0 0 2.5px;
+}
+
+.lock-bracket.tr {
+    top: 0;
+    right: 0;
+    border-width: 2.5px 2.5px 0 0;
+}
+
+.lock-bracket.bl {
+    bottom: 0;
+    left: 0;
+    border-width: 0 0 2.5px 2.5px;
+}
+
+.lock-bracket.br {
+    bottom: 0;
+    right: 0;
+    border-width: 0 2.5px 2.5px 0;
+}
+
+/* Scanning Line Animation */
+.lock-scan-line {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    opacity: 0.6;
+    animation: lockScan 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes lockScan {
+    0% { top: 6px; }
+    100% { top: 76px; }
+}
+
+/* Target Meta Data Tag */
+.lock-meta {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.5);
+    border-radius: 6px;
+    padding: 4px 8px;
+    min-width: 115px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), 0 0 10px rgba(56, 189, 248, 0.25);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.lock-header {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 10px;
+    font-weight: 700;
+    color: #e2e8f0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.lock-dist {
+    color: #38bdf8;
+    font-family: monospace;
+}
+
+.lock-status-badge {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+}
+
+.lock-health-bar {
+    width: 100%;
+    height: 3.5px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 2px;
+}
+
+.lock-health-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    transition: width 0.2s ease;
+}
+
+/* --- STATE 1: ACQUIRING LOCK --- */
+.plasma-target-box.state-acquiring {
+    width: 78px;
+    height: 78px;
+}
+.plasma-target-box.state-acquiring .lock-bracket {
+    border-color: #f59e0b;
+}
+.plasma-target-box.state-acquiring .lock-scan-line {
+    background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+}
+.plasma-target-box.state-acquiring .lock-meta {
+    border-color: rgba(245, 158, 11, 0.5);
+}
+.plasma-target-box.state-acquiring .lock-status-badge {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+}
+
+/* --- STATE 2: LOCKED ON TARGET --- */
+.plasma-target-box.state-locked {
+    width: 70px;
+    height: 70px;
+    animation: lockPulse 0.5s ease infinite alternate;
+}
+@keyframes lockPulse {
+    0% { transform: translate(-50%, -50%) scale(1.0); }
+    100% { transform: translate(-50%, -50%) scale(1.06); }
+}
+.plasma-target-box.state-locked .lock-bracket {
+    border-color: #ef4444;
+    box-shadow: 0 0 10px #ef4444;
+}
+.plasma-target-box.state-locked .lock-scan-line {
+    background: linear-gradient(90deg, transparent, #ef4444, transparent);
+    opacity: 0.9;
+}
+.plasma-target-box.state-locked .lock-meta {
+    border-color: #ef4444;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6), 0 0 14px rgba(239, 68, 68, 0.45);
+}
+.plasma-target-box.state-locked .lock-status-badge {
+    background: rgba(239, 68, 68, 0.25);
+    color: #f87171;
+    font-weight: 900;
+}
+
+/* --- STATE 3: EVADED (TARGET SPRINTING FAST) --- */
+.plasma-target-box.state-evaded {
+    width: 90px;
+    height: 90px;
+    animation: evadeJitter 0.15s infinite;
+}
+@keyframes evadeJitter {
+    0% { transform: translate(-50%, -50%) translate(-1px, 1px); }
+    50% { transform: translate(-50%, -50%) translate(1px, -1px); }
+    100% { transform: translate(-50%, -50%) translate(0, 0); }
+}
+.plasma-target-box.state-evaded .lock-bracket {
+    border-color: #eab308;
+    border-style: dashed;
+}
+.plasma-target-box.state-evaded .lock-meta {
+    border-color: rgba(234, 179, 8, 0.6);
+}
+.plasma-target-box.state-evaded .lock-status-badge {
+    background: rgba(234, 179, 8, 0.2);
+    color: #facc15;
+}
+
+/* --- STATE 4: OBSTRUCTED (BEHIND ROCK) --- */
+.plasma-target-box.state-obstructed {
+    width: 92px;
+    height: 92px;
+    opacity: 0.65;
+}
+.plasma-target-box.state-obstructed .lock-bracket {
+    border-color: #94a3b8;
+    border-style: dotted;
+}
+.plasma-target-box.state-obstructed .lock-meta {
+    border-color: rgba(148, 163, 184, 0.4);
+}
+.plasma-target-box.state-obstructed .lock-status-badge {
+    background: rgba(148, 163, 184, 0.2);
+    color: #cbd5e1;
+}
+
+/* 6. Player Incoming Missile / Lock Warning Alert */
+.player-incoming-warning {
+    position: fixed;
+    top: 90px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    background: rgba(220, 38, 38, 0.25);
+    border: 1.5px solid #ef4444;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 25px rgba(239, 68, 68, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 9992;
+    pointer-events: none;
+    animation: warningPulse 0.4s ease infinite alternate;
+}
+
+.player-incoming-warning.visible {
+    display: flex;
+    transform: translateX(-50%) translateY(0);
+}
+
+@keyframes warningPulse {
+    0% { transform: translateX(-50%) scale(1.0); box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+    100% { transform: translateX(-50%) scale(1.04); box-shadow: 0 0 30px rgba(239, 68, 68, 0.8); }
+}
+
+.warning-icon-pulse {
+    font-size: 24px;
+}
+
+.warning-text-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.warning-title {
+    font-size: 13px;
+    font-weight: 900;
+    color: #ffffff;
+    letter-spacing: 1px;
+    text-shadow: 0 0 8px #ef4444;
+}
+
+.warning-sub {
+    font-size: 10px;
+    font-weight: 600;
+    color: #fca5a5;
+    margin-top: 1px;
+}
+
+.warning-sub kbd {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1px 4px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* 7. Player Damage Hit Vignette (Red Screen Edge Flash on Blast Hit) */
+.player-damage-vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(circle at 50% 50%, transparent 45%, rgba(220, 38, 38, 0.65) 90%, rgba(185, 28, 28, 0.85) 100%);
+    mix-blend-mode: multiply;
+    z-index: 9998;
+    transition: opacity 0.08s ease-out;
+}
+
+.player-damage-vignette.active {
+    opacity: 0.85;
+}
+
+

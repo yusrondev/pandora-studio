@@ -1,3 +1,48 @@
+
+let lastKickTriggerTime = 0;
+function triggerWolfKick() {
+    // Satu klik fisik bisa memicu pointerdown + mousedown + contextmenu sekaligus:
+    // hanya event pertama dalam 40ms yang dihitung agar jumlah klik untuk combo akurat.
+    const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    if (now - lastKickTriggerTime < 40) return;
+    lastKickTriggerTime = now;
+
+    const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
+    if (char && typeof char.triggerKick === 'function') {
+        char.triggerKick();
+    }
+}
+window.triggerWolfKick = triggerWolfKick;
+
+// Menangkap klik kanan di fase capture sebelum ditelan canvas / OrbitControls
+let lastRightButtonDownTime = -10000;
+window.addEventListener('pointerdown', (e) => {
+    if (typeof isPlayMode !== 'undefined' && isPlayMode && e.button === 2) {
+        e.preventDefault();
+        lastRightButtonDownTime = performance.now();
+        triggerWolfKick();
+    }
+}, { capture: true });
+
+window.addEventListener('mousedown', (e) => {
+    if (typeof isPlayMode !== 'undefined' && isPlayMode && e.button === 2) {
+        e.preventDefault();
+        lastRightButtonDownTime = performance.now();
+        triggerWolfKick();
+    }
+}, { capture: true });
+
+// Di Windows contextmenu muncul saat tombol DILEPAS -> hanya dipakai sebagai cadangan
+// jika pointerdown/mousedown tidak tertangkap, agar 1 klik tidak terhitung 2 kali.
+window.addEventListener('contextmenu', (e) => {
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) {
+        e.preventDefault();
+        if (performance.now() - lastRightButtonDownTime > 1500) {
+            triggerWolfKick();
+        }
+    }
+}, { capture: true });
+
 /* Play mode actions & start/stop */
 
 function triggerWolfJump() {
@@ -32,6 +77,7 @@ function startPlayMode() {
     savedEditorCamera.maxDistance = (typeof controls.maxDistance === 'number') ? controls.maxDistance : 160.0;
     savedEditorCamera.enablePan = (typeof controls.enablePan === 'boolean') ? controls.enablePan : true;
     savedEditorCamera.enableDamping = (typeof controls.enableDamping === 'boolean') ? controls.enableDamping : true;
+    savedEditorCamera.mouseButtons = controls.mouseButtons ? { ...controls.mouseButtons } : null;
 
     // Simpan status sidebar dan collapse agar tampilan full-screen imersif
     const sidebarLeft = document.getElementById('sidebar-left');
@@ -82,12 +128,23 @@ function startPlayMode() {
         scene.add(wolfCharacter.root);
     }
 
-    // Spawn rubah di titik target kamera atau tengah map
-    const spawnX = controls.target.x || 0;
-    const spawnZ = controls.target.z || 0;
+    // Spawn rubah di titik area spawn Player (atau target kamera sebagai fallback)
+    let spawnX = controls.target.x || 0;
+    let spawnZ = controls.target.z || 0;
+    let spawnRotY = 0;
+
+    if (typeof PlayerSpawnManager !== 'undefined' && PlayerSpawnManager.hasSpawnPoint) {
+        const sp = PlayerSpawnManager.getSpawnPosition();
+        spawnX = sp.x;
+        spawnZ = sp.z;
+        spawnRotY = sp.rotY || 0;
+        PlayerSpawnManager.updateVisibility(true);
+    }
+
     const spawnY = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(spawnX, spawnZ) : 0;
 
     wolfCharacter.root.position.set(spawnX, spawnY, spawnZ);
+    wolfCharacter.root.rotation.y = spawnRotY;
     wolfCharacter.root.visible = true;
 
     // Reset physics state
@@ -98,7 +155,13 @@ function startPlayMode() {
     isGrounded = true;
     gaitPhase = 0;
     landingSquash = 0;
+    if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.clearMissiles === 'function') {
+        window.plasmaWeaponInstance.clearMissiles();
+    }
     if (typeof foxIdleTimer !== 'undefined') foxIdleTimer = 0;
+    if (wolfCharacter && typeof wolfCharacter.resetAnimation === 'function') {
+        wolfCharacter.resetAnimation();
+    }
     if (typeof foxProneBlend !== 'undefined') foxProneBlend = 0;
     if (typeof foxSitBlend !== 'undefined') foxSitBlend = 0;
     if (typeof foxState !== 'undefined') foxState = 'IDLE';
@@ -121,13 +184,22 @@ function startPlayMode() {
     controls.maxDistance = 25.0;
     controls.minPolarAngle = Math.PI * 0.28; // ~50.4 deg dari vertikal (Kamera TIDAK BISA menukik top-down 90 deg)
     controls.maxPolarAngle = Math.PI / 2 - 0.04;
+    controls.mouseButtons = {
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: null
+    };
 
     userPreferredDist = 4.8;
     currentCamDist = 4.8;
     isCameraOccluded = false;
 
-    controls.target.set(spawnX, spawnY + 0.85, spawnZ);
-    camera.position.set(spawnX - 3.2, spawnY + 2.7, spawnZ + 3.2);
+    controls.target.set(spawnX, spawnY + 1.15, spawnZ);
+    // Posisikan kamera tepat di belakang arah hadap Hero saat spawn (Hero menghadap +Z)
+    const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), spawnRotY);
+    const bwd = fwd.clone().negate();
+    const camDist = 4.8;
+    camera.position.set(spawnX + bwd.x * camDist, spawnY + 2.0, spawnZ + bwd.z * camDist);
     controls.update();
 
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
@@ -176,6 +248,11 @@ function startPlayMode() {
     if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.prewarm === 'function') {
         window.plasmaWeaponInstance.prewarm(renderer, scene, camera);
     }
+
+    if (typeof FoxAIManager !== 'undefined' && FoxAIManager) {
+        if (typeof FoxAIManager.syncSpawnedFoxes === 'function') FoxAIManager.syncSpawnedFoxes();
+        if (typeof FoxAIManager.resetAll === 'function') FoxAIManager.resetAll();
+    }
 }
 
 function stopPlayMode() {
@@ -199,6 +276,17 @@ function stopPlayMode() {
         ItemSystem.reset();
     }
 
+    if (typeof PlayerSpawnManager !== 'undefined') {
+        PlayerSpawnManager.updateVisibility(false);
+    }
+
+    if (typeof FoxAIManager !== 'undefined') {
+        if (typeof FoxAIManager.resetAll === 'function') FoxAIManager.resetAll();
+        if (FoxAIManager.crosshairContainer) FoxAIManager.crosshairContainer.style.display = 'none';
+        if (FoxAIManager.targetBox) FoxAIManager.targetBox.style.display = 'none';
+        if (FoxAIManager.playerWarningBanner) FoxAIManager.playerWarningBanner.classList.remove('visible');
+    }
+
     const speciesBar = document.getElementById('fox-species-bar');
     if (speciesBar) speciesBar.style.display = 'none';
 
@@ -220,6 +308,15 @@ function stopPlayMode() {
     controls.maxPolarAngle = (typeof savedEditorCamera.maxPolarAngle === 'number') ? savedEditorCamera.maxPolarAngle : (Math.PI / 2 - 0.04);
     controls.minDistance = (typeof savedEditorCamera.minDistance === 'number') ? savedEditorCamera.minDistance : 1.0;
     controls.maxDistance = (typeof savedEditorCamera.maxDistance === 'number') ? savedEditorCamera.maxDistance : 160.0;
+    if (savedEditorCamera.mouseButtons) {
+        controls.mouseButtons = { ...savedEditorCamera.mouseButtons };
+    } else {
+        controls.mouseButtons = {
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN
+        };
+    }
 
     camera.position.copy(savedEditorCamera.position);
     controls.target.copy(savedEditorCamera.target);
@@ -251,6 +348,9 @@ function stopPlayMode() {
     }
 
     controls.enabled = true;
+    if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.clearMissiles === 'function') {
+        window.plasmaWeaponInstance.clearMissiles();
+    }
     document.body.classList.remove('play-mode-active');
     if (typeof window.glbImporterInstance !== 'undefined' && window.glbImporterInstance.selectedIndex >= 0) {
         window.glbImporterInstance.selectObject(window.glbImporterInstance.selectedIndex);
@@ -320,6 +420,22 @@ if (btnPlayMode) {
 const btnExitDemo = document.getElementById('btn-exit-demo-mode');
 if (btnExitDemo) {
     btnExitDemo.addEventListener('click', stopPlayMode);
+}
+
+const btnToggleBattle = document.getElementById('btn-toggle-battle-mode');
+if (btnToggleBattle) {
+    btnToggleBattle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (typeof FoxAIManager !== 'undefined') {
+            FoxAIManager.isBattleModeActive = !FoxAIManager.isBattleModeActive;
+            btnToggleBattle.classList.toggle('active', FoxAIManager.isBattleModeActive);
+            btnToggleBattle.style.background = FoxAIManager.isBattleModeActive ? 'rgba(239, 68, 68, 0.4)' : '';
+            btnToggleBattle.style.borderColor = FoxAIManager.isBattleModeActive ? '#ef4444' : '';
+            if (typeof PandoraToast !== 'undefined') {
+                PandoraToast.show(FoxAIManager.isBattleModeActive ? '⚔️ AI Plasma Battle Mode: AKTIF!' : '🕊️ AI Plasma Battle Mode: NONAKTIF', 'info');
+            }
+        }
+    });
 }
 
 // Event Delegation untuk Tombol Switch Spesies Rubah

@@ -10,7 +10,7 @@ class ItemBoxManager {
     constructor() {
         this.boxes = [];
         this.pickupRadius = 1.8;
-        this.respawnTime = 25.0; // Durasi respawn diperpanjang (25 detik) agar tidak langsung muncul kembali
+        this.respawnTime = 4.5; // Durasi respawn cepat (4.5 detik) agar aksi tempur mengalir cepat tanpa menunggu lama
         this.audioCtx = null;
         this.shards = [];
         this.containerGroup = new THREE.Group();
@@ -409,7 +409,7 @@ class ItemBoxManager {
     // ==========================================
     // COLLECTION LOGIC
     // ==========================================
-    collectBox(box) {
+    collectBox(box, collector = null) {
         if (!box.isActive) return;
 
         box.isActive = false;
@@ -420,9 +420,15 @@ class ItemBoxManager {
         this.createShatterFX(box.group.position);
         this.playCollectSound();
 
-        // Award Plasma Weapon via ItemSystem
-        if (typeof ItemSystem !== 'undefined' && ItemSystem.onItemCollected) {
-            ItemSystem.onItemCollected('plasma');
+        // Award weapon to AI Fox if collected by AI, otherwise to Player
+        if (collector && collector.isAIFox) {
+            if (typeof collector.onCollectItemBox === 'function') {
+                collector.onCollectItemBox('plasma');
+            }
+        } else {
+            if (typeof ItemSystem !== 'undefined' && ItemSystem.onItemCollected) {
+                ItemSystem.onItemCollected('plasma');
+            }
         }
     }
 
@@ -521,6 +527,11 @@ class ItemBoxManager {
                     this.collectBox(box);
                 }
             }
+        }
+
+        // 4. Check AI Foxes collision with Item Boxes
+        if (typeof FoxAIManager !== 'undefined' && FoxAIManager.checkItemBoxCollisions) {
+            FoxAIManager.checkItemBoxCollisions(this);
         }
     }
 }

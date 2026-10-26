@@ -452,12 +452,66 @@ function updateTreesAndGrassPositions() {
     if (typeof rebuildFlowerTransforms === 'function') {
         rebuildFlowerTransforms();
     }
-    if (typeof fernsList !== 'undefined') {
-        fernsList.forEach(f => {
-            f.position.y = getTerrainHeightFast(f.position.x, f.position.z);
-        });
+}
+
+// ==========================================
+// SCORCHED / BURNED GRASS EFFECT (PERMANENT)
+// ==========================================
+function burnGrassInRadius(centerPos, radius) {
+    if (!instancedGrassMesh || !instancedGrassMesh.geometry) return;
+    const colorAttr = instancedGrassMesh.geometry.attributes.instanceColor;
+    if (!colorAttr) return;
+
+    let updated = false;
+    const currentCount = instancedGrassMesh.count || 0;
+    const radSq = radius * radius;
+
+    for (let i = 0; i < currentCount; i++) {
+        if (grassActiveStates[i] === 1) {
+            const gx = grassCoordsX[i];
+            const gz = grassCoordsZ[i];
+            const gy = getTerrainHeightFast(gx, gz);
+
+            const dx = gx - centerPos.x;
+            const dy = gy - centerPos.y;
+            const dz = gz - centerPos.z;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq <= radSq) {
+                const dist = Math.sqrt(distSq);
+                const falloff = dist / radius; // 0 di pusat ledakan, 1 di pinggir
+                
+                // Ambil warna rumput saat ini
+                const curR = colorAttr.getX(i);
+                const curG = colorAttr.getY(i);
+                const curB = colorAttr.getZ(i);
+
+                // Warna arang hitam pekat di pusat kawah ledakan
+                const burnR = 0.030;
+                const burnG = 0.026;
+                const burnB = 0.022;
+
+                // Bobot gosong pekat di tengah, memudar halus ke warna rumput asli di pinggir (compact & organic)
+                const burnWeight = Math.pow(Math.max(0, 1.0 - falloff), 1.6);
+                const newR = THREE.MathUtils.lerp(curR, burnR, burnWeight);
+                const newG = THREE.MathUtils.lerp(curG, burnG, burnWeight);
+                const newB = THREE.MathUtils.lerp(curB, burnB, burnWeight);
+
+                colorAttr.setXYZ(i, newR, newG, newB);
+
+                // Rumput yang terbakar hangus sedikit menyusut
+                grassScalesArray[i] *= THREE.MathUtils.lerp(1.0, 0.78, burnWeight);
+                updated = true;
+            }
+        }
+    }
+
+    if (updated) {
+        colorAttr.needsUpdate = true;
+        rebuildGrassTransforms();
     }
 }
+window.burnGrassInRadius = burnGrassInRadius;
 
 // ==========================================
 // REALISTIC GRASS TRAMPLING & CAPSULE TRAIL SIMULATION

@@ -128,3 +128,11 @@
     background: var(--danger-hover) !important;
     border-color: #a03030 !important;
 }
+
+#btn-player-spawn-tool.active,
+#btn-player-spawn-pick.active {
+    background: #059669 !important;
+    border-color: #10b981 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.45);
+}

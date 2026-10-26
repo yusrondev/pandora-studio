@@ -362,6 +362,7 @@ function serializeMapData(name, existingId = null) {
             x: Math.round(b.baseX * 100) / 100,
             z: Math.round(b.baseZ * 100) / 100
         })) : [],
+        playerSpawn: (typeof PlayerSpawnManager !== 'undefined') ? PlayerSpawnManager.serialize() : null,
         importedObjects: (typeof window.importedObjectsList !== 'undefined') ? window.importedObjectsList.map(o => ({
             name: o.name,
             posX: Math.round(o.root.position.x * 100) / 100,
@@ -637,6 +638,11 @@ function applyMapDataToScene(mapData) {
             itemBoxManagerInstance.createItemBox(b.x, b.z);
         });
         itemBoxManagerInstance.updateCountUI();
+    }
+
+    // 7d. Terapkan Titik Awal Spawn Player
+    if (mapData.playerSpawn && typeof PlayerSpawnManager !== 'undefined') {
+        PlayerSpawnManager.deserialize(mapData.playerSpawn);
     }
 
     // 7d. Terapkan GLB Imported Objects Transform & Collision

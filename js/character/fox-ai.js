@@ -42,15 +42,15 @@ class FoxAIAgent {
         this.strafeDir = Math.random() > 0.5 ? 1 : -1;
         this.strafeTimer = 1.5;
 
-        // Kecepatan & Kemudi (Diselaraskan persis dengan stats spesies player)
-        const speciesKey = (foxRecord && foxRecord.species) ? foxRecord.species : 'red';
+        // Kecepatan & Kemudi (Diselaraskan persis dengan stats spesies player red fox)
+        const speciesKey = (foxRecord && foxRecord.species) ? foxRecord.species : 'foxtree';
         const speciesCfg = (typeof FOX_STATS_CONFIG !== 'undefined' && FOX_STATS_CONFIG[speciesKey])
             ? FOX_STATS_CONFIG[speciesKey]
-            : null;
+            : (typeof FOX_STATS_CONFIG !== 'undefined' ? FOX_STATS_CONFIG.red : null);
 
-        this.walkSpeed = speciesCfg ? speciesCfg.walkSpeed : 4.6;
-        this.sprintSpeed = speciesCfg ? speciesCfg.runSpeed : 9.6;
-        this.turnRate = speciesCfg ? speciesCfg.turnRate : 2.6;
+        this.walkSpeed = (speciesCfg && speciesCfg.walkSpeed) ? speciesCfg.walkSpeed : 1.65;
+        this.sprintSpeed = (speciesCfg && speciesCfg.runSpeed) ? speciesCfg.runSpeed : 4.8;
+        this.turnRate = (speciesCfg && speciesCfg.turnRate) ? speciesCfg.turnRate : 2.8;
         this.currentSpeed = 0;
         this.targetSpeed = 0;
         this.currentTurnRate = 0;
@@ -74,6 +74,7 @@ class FoxAIAgent {
     // ==========================================
     buildMountedWeapon() {
         if (this.weaponMeshGroup) return;
+        if (this.model && (this.model.mixer || this.model.isEnemy)) return; // FoxTree enemy adalah Melee Combat, tidak memakai bazooka
 
         this.weaponMeshGroup = new THREE.Group();
         this.weaponMeshGroup.name = 'AI_MountedBazooka_' + this.id;
@@ -244,9 +245,10 @@ class FoxAIAgent {
     // ==========================================
     // HEALTH, DAMAGE, & KNOCKBACK
     // ==========================================
-    takeDamage(amount) {
+    takeDamage(amount, attackerPos = null) {
         if (this.isDead) return;
         this.health = Math.max(0, this.health - amount);
+        this.takeHit(attackerPos);
 
         if (this.health <= 0) {
             this.isDead = true;
@@ -260,6 +262,18 @@ class FoxAIAgent {
         }
     }
 
+    takeHit(attackerPos = null) {
+        if (this.isDead) return;
+        if (!attackerPos && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
+            attackerPos = wolfCharacter.root.position;
+        }
+        if (this.model && typeof this.model.takeHit === 'function') {
+            this.model.takeHit(attackerPos);
+        }
+        this.state = 'HIT_STUN';
+        this.hitStunTimer = (this.model && this.model.hitDuration) ? this.model.hitDuration : 0.55;
+    }
+
     applyKnockback(impulseVec, verticalPop = 0) {
         this.knockbackVel.add(impulseVec);
         this.velocityY = Math.max(this.velocityY, 0) + verticalPop;
@@ -270,6 +284,10 @@ class FoxAIAgent {
     }
 
     getForwardVector() {
+        if (this.model && (this.model.mixer || this.model.isEnemy)) {
+            // Model FBX Mixamo menghadap +Z
+            return new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
+        }
         return new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
     }
 
@@ -439,7 +457,9 @@ class FoxAIAgent {
 
         desiredDir.setY(0).normalize();
 
-        const targetRotY = Math.atan2(desiredDir.z, -desiredDir.x);
+        const targetRotY = (this.model && (this.model.mixer || this.model.isEnemy))
+            ? Math.atan2(desiredDir.x, desiredDir.z)
+            : Math.atan2(desiredDir.z, -desiredDir.x);
         let diff = (targetRotY - this.root.rotation.y) % (Math.PI * 2);
         if (diff < -Math.PI) diff += Math.PI * 2;
         if (diff > Math.PI) diff -= Math.PI * 2;
@@ -500,6 +520,72 @@ class FoxAIAgent {
         // Radius AI Enemy dinamis mengikuti posisi terkini AI (misal dari titik A bergerak ke titik B,
         // radius otomatis berpusat di titik B). AI tidak kembali ke titik awal spawn.
         const isPlayerInAggro = Boolean(playerPos && distToPlayer <= this.detectionRadius);
+
+        // ==============================================================
+        // KHUSUS ENEMY FOXTREE: PERILAKU MELEE COMBAT PUNCH (TIDAK PAKAI BAZOOKA)
+        // ==============================================================
+        if (this.model && (this.model.mixer || this.model.isEnemy)) {
+            if (this.equippedItem) this.dropWeapon();
+
+            // Sedang menerima pukulan/tendangan: diam di tempat (hit stun) sampai animasi hit selesai
+            if (this.model.isTakingHit) {
+                this.targetSpeed = 0;
+                this.currentSpeed = 0;
+                this.state = 'HIT_STUN';
+                return;
+            }
+
+            if (!playerPos || !isPlayerInAggro) {
+                this.targetSpeed = 0;
+                this.isPunching = false;
+                if (this.model && typeof this.model.cancelPunch === 'function') {
+                    this.model.cancelPunch();
+                }
+                this.state = 'IDLE';
+                return;
+            }
+
+            // Jarak Dekat Presisi untuk Pukulan Melee (Close Combat Fist Impact Range)
+            const PUNCH_RANGE = 1.10;
+
+            if (distToPlayer <= PUNCH_RANGE) {
+                // Berhenti melangkah agar pukulan stabil di tempat
+                this.targetSpeed = 0;
+                this.currentSpeed = 0;
+
+                // Hadapkan badan tepat ke arah Player
+                const toPlayer = new THREE.Vector3().subVectors(playerPos, this.root.position).setY(0);
+                if (toPlayer.lengthSq() > 0.001) {
+                    toPlayer.normalize();
+                    const aimAngle = Math.atan2(toPlayer.x, toPlayer.z);
+                    this.turnTowardAngle(aimAngle, dt);
+                }
+
+                // Eksekusi animasi pukulan
+                if (typeof this.model.triggerPunch === 'function') {
+                    this.model.triggerPunch();
+                    this.isPunching = this.model.isPunching;
+                }
+                this.state = 'COMBAT_PUNCH';
+            } else {
+                // Player berada di luar jarak pukul (> 1.10m) tetapi masih di dalam radius deteksi (Aggro):
+                // Jika sedang mengeksekusi pukulan dan player hanya mundur sedikit (< 1.45m), selesaikan pukulan
+                if (this.model && this.model.isPunching && distToPlayer < 1.45) {
+                    this.targetSpeed = 0;
+                    this.isPunching = true;
+                } else {
+                    // Bergerak mengejar Player
+                    if (this.model && typeof this.model.cancelPunch === 'function') {
+                        this.model.cancelPunch();
+                    }
+                    this.isPunching = false;
+                    const chaseSpeed = (distToPlayer > 5.0) ? this.sprintSpeed : this.walkSpeed;
+                    this.steerToward(playerPos, chaseSpeed, dt, distToPlayer > 5.0);
+                    this.state = 'CHASE_PLAYER';
+                }
+            }
+            return;
+        }
 
         // Hanya AI ber-mode 'combat' yang aktif mencari senjata dan menyerang Player sebagai Enemy!
         const effectiveAIMode = this.aiMode || (this.fox && this.fox.aiMode) || 'combat';
@@ -834,6 +920,46 @@ class FoxAIAgent {
             }
         }
 
+        // Tabrakan fisik antar sesama AI Enemy (Anti-Tembus & Anti-Tumpuk)
+        if (Array.isArray(window.spawnedFoxesList) && window.spawnedFoxesList.length > 1) {
+            const minEnemyDist = 0.95;
+            const myPos = this.root.position;
+            for (let i = 0; i < window.spawnedFoxesList.length; i++) {
+                const other = window.spawnedFoxesList[i];
+                if (!other || !other.root || other.root === this.root || !other.root.visible) continue;
+                const oPos = other.root.position;
+                const dx = myPos.x - oPos.x;
+                const dz = myPos.z - oPos.z;
+                const distSq = dx * dx + dz * dz;
+                if (distSq < minEnemyDist * minEnemyDist && distSq > 0.0001) {
+                    const d = Math.sqrt(distSq);
+                    const push = (minEnemyDist - d) * 0.5;
+                    myPos.x += (dx / d) * push;
+                    myPos.z += (dz / d) * push;
+                    oPos.x -= (dx / d) * push;
+                    oPos.z -= (dz / d) * push;
+                }
+            }
+        }
+
+        // Tabrakan fisik AI Enemy terhadap Player (Anti-Tembus saat mendekat/memukul)
+        if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
+            const pPos = wolfCharacter.root.position;
+            const myPos = this.root.position;
+            const minPlayerDist = 0.85;
+            const dx = myPos.x - pPos.x;
+            const dz = myPos.z - pPos.z;
+            const distSq = dx * dx + dz * dz;
+            if (distSq < minPlayerDist * minPlayerDist && distSq > 0.0001) {
+                const d = Math.sqrt(distSq);
+                const push = (minPlayerDist - d);
+                myPos.x += (dx / d) * (push * 0.5);
+                myPos.z += (dz / d) * (push * 0.5);
+                pPos.x -= (dx / d) * (push * 0.5);
+                pPos.z -= (dz / d) * (push * 0.5);
+            }
+        }
+
         const effectiveH = groundH;
         this.root.position.y += this.velocityY * dt;
 
@@ -858,8 +984,12 @@ class FoxAIAgent {
         const distToPlayer = playerPos ? this.root.position.distanceTo(playerPos) : 999;
         this.updateDetectionRing(elapsed, distToPlayer <= this.detectionRadius, effectiveH);
 
-        // Prosedural Bone Animasi (Kaki & Ekor)
-        this.animateBones(dt, elapsed);
+        // Animasi Model: Gunakan AnimationMixer jika FBX Enemy, atau Procedural Bone jika legacy
+        if (this.model && typeof this.model.updateAnimation === 'function') {
+            this.model.updateAnimation(dt, this.currentSpeed);
+        } else {
+            this.animateBones(dt, elapsed);
+        }
     }
 
     animateBones(dt, elapsed) {

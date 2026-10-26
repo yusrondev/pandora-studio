@@ -147,6 +147,34 @@ const FOX_STATS_CONFIG = {
         staminaRecoveryWalk: 7.5,
         staminaRecoveryIdle: 15.0,
         exhaustionThreshold: 25,
+    },
+
+    // 6. ENEMY FOXTREE - Melee Combat Enemy (Langkah Rasional & Teratur)
+    foxtree: {
+        id: 'foxtree',
+        name: 'FoxTree Enemy',
+        species: 'Enemy FoxTree',
+        badge: '⚔️',
+        tagline: 'Langkah Tegap Rasional & Melee Punch Combat',
+
+        // --- SPEED & MOBILITY (SINKRON DENGAN LANGKAH KAKI PLAYER RED FOX) ---
+        walkSpeed: 1.65,            // Kecepatan jalan santai dan rasional (m/s)
+        runSpeed: 4.8,              // Kecepatan lari sprint teratur mengejar pemain (m/s)
+        reverseSpeed: 1.2,
+
+        // --- TURNING AGILITY ---
+        turnRate: 2.8,
+        turnAccel: 8.5,
+
+        // --- JUMP ---
+        jumpPower: 5.2,
+
+        // --- STAMINA SYSTEM ---
+        maxStamina: 100,
+        staminaDrain: 18.0,
+        staminaRecoveryWalk: 7.0,
+        staminaRecoveryIdle: 16.0,
+        exhaustionThreshold: 20
     }
 };
 

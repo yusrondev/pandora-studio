@@ -28,6 +28,109 @@ function getHeroBasePath() {
     return 'hero/red/';
 }
 
+function getGeneralTakingBasePath() {
+    if (typeof document !== 'undefined') {
+        const scripts = document.getElementsByTagName('script');
+        for (let i = 0; i < scripts.length; i++) {
+            const src = scripts[i].src;
+            if (src && src.includes('fox-model.js')) {
+                return src.replace(/js\/character\/fox-model\.js(\?.*)?$/, 'hero/general/taking/');
+            }
+        }
+    }
+    return 'hero/general/taking/';
+}
+
+// Global Asset Manager for Taking Damage Reactions (hero/general/taking/hit1.fbx, hit2.fbx)
+window.GeneralTakingAssetManager = {
+    isLoaded: false,
+    isLoading: false,
+    loadPromise: null,
+    clips: {
+        hit1: null,
+        hit2: null
+    },
+    instancesPending: [],
+
+    load() {
+        if (this.loadPromise) return this.loadPromise;
+        this.isLoading = true;
+
+        this.loadPromise = new Promise(async (resolve, reject) => {
+            try {
+                if (typeof THREE.FBXLoader === 'undefined') {
+                    throw new Error('THREE.FBXLoader is not available.');
+                }
+                const loader = new THREE.FBXLoader();
+                const loadFBX = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+                const basePath = getGeneralTakingBasePath();
+
+                console.log('[GeneralTakingAssetManager] Loading taking hit FBX assets from', basePath);
+
+                // 1. Load hit1.fbx
+                try {
+                    const h1Obj = await loadFBX(basePath + 'hit1.fbx');
+                    if (h1Obj.animations && h1Obj.animations.length > 0) {
+                        const h1Clip = h1Obj.animations[0].clone();
+                        h1Clip.name = 'hit1';
+                        this.clips.hit1 = h1Clip;
+                    }
+                } catch (e1) {
+                    console.warn('[GeneralTakingAssetManager] Could not load hit1.fbx:', e1);
+                }
+
+                // 2. Load hit2.fbx
+                try {
+                    const h2Obj = await loadFBX(basePath + 'hit2.fbx');
+                    if (h2Obj.animations && h2Obj.animations.length > 0) {
+                        const h2Clip = h2Obj.animations[0].clone();
+                        h2Clip.name = 'hit2';
+                        this.clips.hit2 = h2Clip;
+                    }
+                } catch (e2) {
+                    console.warn('[GeneralTakingAssetManager] Could not load hit2.fbx:', e2);
+                }
+
+                this.isLoaded = true;
+                this.isLoading = false;
+                console.log('[GeneralTakingAssetManager] Hit assets loaded successfully!', Object.keys(this.clips));
+
+                // Bind to any pending instances
+                this.instancesPending.forEach(inst => this.setupInstance(inst));
+                this.instancesPending = [];
+
+                resolve(this);
+            } catch (err) {
+                console.error('[GeneralTakingAssetManager] Failed to load taking FBX assets:', err);
+                this.isLoading = false;
+                reject(err);
+            }
+        });
+
+        return this.loadPromise;
+    },
+
+    setupInstance(instance) {
+        if (!instance || !instance.mixer) return;
+        ['hit1', 'hit2'].forEach(hitKey => {
+            const clip = this.clips[hitKey];
+            if (clip && (!instance.actions || !instance.actions[hitKey])) {
+                const act = instance.mixer.clipAction(clip);
+                act.setLoop(THREE.LoopOnce, 1);
+                act.clampWhenFinished = true;
+                act.setEffectiveWeight(0.0);
+                instance.actions[hitKey] = act;
+                if (instance.currentWeights && instance.currentWeights[hitKey] === undefined) {
+                    instance.currentWeights[hitKey] = 0.0;
+                }
+                if (instance.targetWeights && instance.targetWeights[hitKey] === undefined) {
+                    instance.targetWeights[hitKey] = 0.0;
+                }
+            }
+        });
+    }
+};
+
 const HERO_CHARACTER_CONFIG = {
     getPath() {
         return getHeroBasePath();
@@ -313,8 +416,8 @@ window.HeroAssetManager = {
 
         // Bind animation actions
         instance.actions = {};
-        instance.currentWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 };
-        instance.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 };
+        instance.currentWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
+        instance.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
         instance.idleTimer = 0.0;
         instance.activeIdleKey = null;
         instance.idleCycleTimer = 0.0;
@@ -398,6 +501,15 @@ window.HeroAssetManager = {
             instance.actions.punch = instance.actions.punch1;
         }
 
+        // Attach taking damage hit animations
+        if (window.GeneralTakingAssetManager) {
+            if (window.GeneralTakingAssetManager.isLoaded) {
+                window.GeneralTakingAssetManager.setupInstance(instance);
+            } else {
+                window.GeneralTakingAssetManager.instancesPending.push(instance);
+                window.GeneralTakingAssetManager.load();
+            }
+        }
 
         instance.isLoaded = true;
         if (typeof instance.onLoaded === 'function') {
@@ -417,10 +529,48 @@ if (typeof window !== 'undefined') {
 }
 
 /**
+ * Auto-Lock Attack System:
+ * Saat pemain menekan tombol serang (Punch / Kick), karakter secara otomatis
+ * mengunci dan berputar menghadap musuh terdekat dalam radius efektif.
+ */
+function autoLockToNearestEnemy(playerRoot, maxRange = 7.0) {
+    if (!playerRoot) return;
+    const list = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) ? spawnedFoxesList : [];
+    if (list.length === 0) return;
+
+    let nearestPos = null;
+    let minDistSq = maxRange * maxRange;
+    const pPos = playerRoot.position;
+
+    for (let i = 0; i < list.length; i++) {
+        const item = list[i];
+        if (!item || !item.root || !item.root.visible) continue;
+        const ePos = item.root.position;
+        const dx = ePos.x - pPos.x;
+        const dz = ePos.z - pPos.z;
+        const distSq = dx * dx + dz * dz;
+        if (distSq < minDistSq && distSq > 0.04) {
+            minDistSq = distSq;
+            nearestPos = ePos;
+        }
+    }
+
+    if (nearestPos) {
+        const dx = nearestPos.x - pPos.x;
+        const dz = nearestPos.z - pPos.z;
+        playerRoot.rotation.y = Math.atan2(dx, dz); // +Z forward untuk Mixamo Hero
+    }
+}
+window.autoLockToNearestEnemy = autoLockToNearestEnemy;
+
+/**
  * Creates and returns the Hero 3D Character model instance.
  * Aliased as createWolfCharacterModel for seamless backwards-compatibility.
  */
 function createWolfCharacterModel(speciesKey = 'red') {
+    if (speciesKey === 'foxtree' || speciesKey === 'enemy-foxtree') {
+        return createEnemyFoxTreeModel();
+    }
     const foxRoot = new THREE.Group();
     foxRoot.name = 'HeroCharacterRoot';
 
@@ -451,8 +601,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
         baseScale: baseScale,
         mixer: null,
         actions: {},
-        currentWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 },
-        targetWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 },
+        currentWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 },
+        targetWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 },
         isLoaded: false,
         wasInAir: false,
         isJumping: false,
@@ -461,6 +611,13 @@ function createWolfCharacterModel(speciesKey = 'red') {
         idleTimer: 0.0,
         activeIdleKey: null,
         idleCycleTimer: 0.0,
+
+        // Taking damage / Hit reaction state (hero/general/taking/hit*.fbx)
+        isTakingHit: false,
+        activeHitKey: null,
+        hitTimer: 0.0,
+        hitDuration: 0.55,
+        strikeProcessed: false,
 
         /**
          * Memicu eksekusi animasi Jump-withrun secara penuh dan lancar dari tolakan sampai mendarat tuntas.
@@ -493,6 +650,65 @@ function createWolfCharacterModel(speciesKey = 'red') {
         jumpImpulseVel: 0.0,
 
         /**
+         * Reaksi menerima pukulan / tendangan (Damage Reaction):
+         * Memilih secara acak antara hit1.fbx dan hit2.fbx dari hero/general/taking/
+         * Menghentikan aksi serangan yang sedang berlangsung (hit stun) dan memberi micro-knockback.
+         */
+        takeHit(attackerPos) {
+            const hitChoices = ['hit1', 'hit2'];
+            const hitKey = hitChoices[Math.floor(Math.random() * hitChoices.length)];
+
+            if (this.isPunching) this.cancelPunch();
+            if (this.isKicking) this.cancelKick();
+            this.isJumping = false;
+            this.jumpImpulsePending = false;
+
+            this.isTakingHit = true;
+            this.activeHitKey = hitKey;
+            this.hitTimer = 0.0;
+            this.idleTimer = 0.0;
+            this.activeIdleKey = null;
+            this.idleCycleTimer = 0.0;
+
+            const action = this.actions[hitKey];
+            if (action) {
+                const clip = action.getClip();
+                const rate = 1.35;
+                action.timeScale = rate;
+                this.hitDuration = (clip && clip.duration) ? Math.min(0.65, clip.duration / rate) : 0.55;
+
+                action.reset();
+                action.setLoop(THREE.LoopOnce, 1);
+                action.clampWhenFinished = true;
+                action.play();
+                this.currentWeights[hitKey] = Math.max(this.currentWeights[hitKey] || 0, 0.75);
+                action.setEffectiveWeight(this.currentWeights[hitKey]);
+            } else {
+                this.hitDuration = 0.5;
+            }
+
+            ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3'].forEach(k => {
+                this.targetWeights[k] = 0.0;
+            });
+            hitChoices.forEach(k => {
+                this.targetWeights[k] = (k === hitKey) ? 1.0 : 0.0;
+            });
+
+            // Micro knockback menjauh dari penyerang
+            if (attackerPos && this.root) {
+                const kbDir = new THREE.Vector3().subVectors(this.root.position, attackerPos).setY(0);
+                if (kbDir.lengthSq() > 0.001) {
+                    kbDir.normalize();
+                    this.root.position.addScaledVector(kbDir, 0.22);
+                }
+            }
+        },
+
+        takeDamage(amount, attackerPos) {
+            this.takeHit(attackerPos);
+        },
+
+        /**
          * Combo tendangan berbasis jumlah klik:
          * - 1x klik  -> kick1
          * - 2x klik  -> kick1 -> kick2
@@ -501,6 +717,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
          *   sebelum tendangan berikutnya dimulai. Klik berlebih tidak memotong animasi.
          */
         triggerKick() {
+            if (this.isTakingHit) return;
+            autoLockToNearestEnemy(this.root);
             if (this.isPunching) {
                 this.cancelPunch();
             }
@@ -530,6 +748,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.jumpImpulsePending = false;
 
             this.isKicking = true;
+            this.strikeProcessed = false;
             this.activeKickKey = kickKey;
             this.kickComboIndex = comboKeys.indexOf(kickKey);
             this.kickTimer = 0.0;
@@ -594,6 +813,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
          *   sebelum pukulan berikutnya dimulai. Klik berlebih tidak memotong animasi.
          */
         triggerPunch() {
+            if (this.isTakingHit) return;
+            autoLockToNearestEnemy(this.root);
             if (this.isKicking) {
                 this.cancelKick();
             }
@@ -623,6 +844,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.jumpImpulsePending = false;
 
             this.isPunching = true;
+            this.strikeProcessed = false;
             this.activePunchKey = punchKey;
             this.punchComboIndex = comboKeys.indexOf(punchKey);
             this.punchTimer = 0.0;
@@ -745,6 +967,69 @@ function createWolfCharacterModel(speciesKey = 'red') {
          * @param {boolean} isSprinting Whether sprint/run is active
          * @param {boolean} isGrounded Whether the character is on the ground
          */
+        /**
+         * Kalibrasi waktu mendarat pukulan / tendangan (Impact Frame):
+         * Memastikan animasi hit pada target HANYA terpicu tepat saat kepalan tangan
+         * atau kaki mencapai ekstensi penuh (mendarat di tubuh target), BUKAN di awal ancang-ancang.
+         */
+        _checkMeleeStrike() {
+            if (this.strikeProcessed) return;
+
+            const attackKey = this.isPunching ? this.activePunchKey : (this.isKicking ? this.activeKickKey : null);
+            if (!attackKey) return;
+
+            const STRIKE_CONFIGS = {
+                // Pukulan: tangan lurus/mendarat di tengah siklus animasi
+                punch1: { minTime: 0.35, maxTime: 0.50, reach: 1.20, minDot: 0.50 },
+                punch2: { minTime: 0.28, maxTime: 0.42, reach: 1.20, minDot: 0.45 },
+                punch3: { minTime: 0.45, maxTime: 0.62, reach: 1.25, minDot: 0.40 },
+                // Tendangan: kaki terangkat dan melurus mendarat di sasaran
+                kick1:  { minTime: 0.38, maxTime: 0.52, reach: 1.28, minDot: 0.50 },
+                kick2:  { minTime: 0.42, maxTime: 0.58, reach: 1.30, minDot: 0.35 },
+                kick3:  { minTime: 0.40, maxTime: 0.56, reach: 1.32, minDot: 0.35 }
+            };
+
+            const cfg = STRIKE_CONFIGS[attackKey] || { minTime: 0.35, maxTime: 0.50, reach: 1.22, minDot: 0.45 };
+            const currentAttackTime = this.isPunching ? this.punchTimer : this.kickTimer;
+
+            // Sebelum kepalan tangan atau kaki mendarat di sasaran, JANGAN memicu animasi hit!
+            if (currentAttackTime < cfg.minTime || currentAttackTime > cfg.maxTime) return;
+
+            const pPos = this.root.position;
+            const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
+            const list = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) ? spawnedFoxesList : [];
+            let hitAny = false;
+
+            for (let i = 0; i < list.length; i++) {
+                const item = list[i];
+                if (!item || !item.root || !item.root.visible) continue;
+                const ePos = item.root.position;
+                const dist = pPos.distanceTo(ePos);
+                if (dist <= cfg.reach) {
+                    const toEnemy = new THREE.Vector3().subVectors(ePos, pPos).setY(0);
+                    if (toEnemy.lengthSq() > 0.001) {
+                        toEnemy.normalize();
+                        if (fwd.dot(toEnemy) >= cfg.minDot) {
+                            hitAny = true;
+                            if (item.model && typeof item.model.takeHit === 'function') {
+                                item.model.takeHit(pPos);
+                            }
+                            if (typeof FoxAIManager !== 'undefined' && FoxAIManager.getAgent) {
+                                const ag = FoxAIManager.getAgent(item);
+                                if (ag) {
+                                    ag.state = 'HIT_STUN';
+                                    ag.hitStunTimer = (item.model && item.model.hitDuration) ? item.model.hitDuration : 0.55;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (hitAny) {
+                this.strikeProcessed = true;
+            }
+        },
+
         updateAnimation(dt, speed = 0, isSprinting = false, isGrounded = true, turnRate = 0) {
             if (!this.mixer || !this.isLoaded) return;
             dt = Math.min(dt, 0.1);
@@ -766,9 +1051,33 @@ function createWolfCharacterModel(speciesKey = 'red') {
             // Lompat normal yang masih di fase ancang-ancang tidak boleh terpotong deteksi "di udara"
             this.targetWeights.jumpNormal = 0.0;
 
-            // 1. PRIORITAS TERTINGGI: ANIMASI PUNCH / KICK / JUMP BERJALAN SAMPAI SELESAI TUNTAS
-            if (this.isPunching) {
+            // 0. PRIORITAS UTAMA: REAKSI TERKENA HIT / DAMAGE (TAKING HIT)
+            if (this.isTakingHit) {
+                this.hitTimer += dt;
+                this.idleTimer = 0.0;
+                this.activeIdleKey = null;
+                this.idleCycleTimer = 0.0;
+                ['jump', 'jumpRun', 'jumpNormal', 'walk', 'run', 'idle', 'idle2', 'idle3', 'kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3'].forEach(key => {
+                    this.targetWeights[key] = 0.0;
+                });
+                ['hit1', 'hit2'].forEach(key => {
+                    this.targetWeights[key] = (key === this.activeHitKey) ? 1.0 : 0.0;
+                });
+
+                if (this.hitTimer >= this.hitDuration) {
+                    this.isTakingHit = false;
+                    this.activeHitKey = null;
+                    this.hitTimer = 0.0;
+                    ['hit1', 'hit2'].forEach(key => {
+                        this.targetWeights[key] = 0.0;
+                        if (this.actions[key]) this.actions[key].setEffectiveWeight(0.0);
+                    });
+                    this.targetWeights.idle = 1.0;
+                    if (this.actions.idle) this.actions.idle.reset().play();
+                }
+            } else if (this.isPunching) {
                 this.punchTimer += dt;
+                this._checkMeleeStrike();
                 this.idleTimer = 0.0;
                 this.activeIdleKey = null;
                 this.idleCycleTimer = 0.0;
@@ -816,6 +1125,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 }
             } else if (this.isKicking) {
                 this.kickTimer += dt;
+                this._checkMeleeStrike();
                 this.idleTimer = 0.0;
                 this.activeIdleKey = null;
                 this.idleCycleTimer = 0.0;
@@ -970,10 +1280,16 @@ function createWolfCharacterModel(speciesKey = 'red') {
                     this.targetWeights.punch3 = 0.0;
 
                     if (isSprinting && absSpeed > 1.8) {
-                        // Running stride: smooth ramp from walk to full run
-                        const runBlend = Math.min(1.0, (absSpeed - 1.8) / 2.2);
-                        this.targetWeights.walk = Math.max(0.0, 1.0 - runBlend);
-                        this.targetWeights.run = runBlend;
+                        if (speed < 0) {
+                            // Saat mundur cepat (Shift + S), gunakan animasi langkah mundur cepat (walk terbalik dengan cadence tinggi)
+                            this.targetWeights.walk = 1.0;
+                            this.targetWeights.run = 0.0;
+                        } else {
+                            // Running stride: smooth ramp from walk to full run
+                            const runBlend = Math.min(1.0, (absSpeed - 1.8) / 2.2);
+                            this.targetWeights.walk = Math.max(0.0, 1.0 - runBlend);
+                            this.targetWeights.run = runBlend;
+                        }
                     } else if (absSpeed <= 0.05 && (absTurn > 0.05 || (k && (k.a || k.d)))) {
                         // Belok / rotasi di tempat: langkah kaki santai (natural stepping)
                         // Bobot walk wajib 1.0 agar total bobot aksi selalu 100% dan hips tidak kolaps ke bind-pose (tenggelam)
@@ -1051,8 +1367,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
             }
 
             // Interpolate action weights smoothly
-            const blendSpeed = (this.isKicking || this.isPunching) ? 28.0 : (isMoving ? 18.0 : (isGrounded ? 12.0 : 16.0));
-            for (const key of ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3']) {
+            const blendSpeed = this.isTakingHit ? 35.0 : ((this.isKicking || this.isPunching) ? 28.0 : (isMoving ? 18.0 : (isGrounded ? 12.0 : 16.0)));
+            for (const key of ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3', 'hit1', 'hit2']) {
                 if (this.actions[key]) {
                     this.currentWeights[key] = THREE.MathUtils.lerp(
                         this.currentWeights[key],
@@ -1070,7 +1386,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             // Run base speed = 6.5 m/s (sprint atletis teratur)
             // ========================================================
             if (this.actions.walk) {
-                const walkPace = (absSpeed <= 0.05) ? 0.85 : Math.max(0.55, Math.min(1.25, (absSpeed / 1.65) * 0.95));
+                const walkPace = (absSpeed <= 0.05) ? 0.85 : Math.max(0.55, Math.min(1.85, (absSpeed / 1.65) * 0.95));
                 this.actions.walk.timeScale = (speed < 0) ? -walkPace : walkPace;
             }
             if (this.actions.run) {
@@ -1142,3 +1458,593 @@ function createWolfCharacterModel(speciesKey = 'red') {
 // Alias for direct modern access
 window.createHeroCharacterModel = createWolfCharacterModel;
 window.createWolfCharacterModel = createWolfCharacterModel;
+
+/* ===================================================================
+   ENEMY FOXTREE 3D CHARACTER MODEL & ANIMATION MANAGER (hero/enemy-foxtree/*)
+   Features:
+   - Mixamo-rigged FBX Skinned Mesh (hero/enemy-foxtree/Idle.fbx)
+   - Three.js SkeletonUtils cloning for multi-instance enemy spawning
+   - AnimationMixer integration for:
+     * idle: Stand / Idle breathing (hero/enemy-foxtree/Idle.fbx)
+     * walk: Walking locomotion stride (hero/red/walk.fbx fallback)
+     * punch1: Primary melee punch strike (hero/enemy-foxtree/combat/punch/punch1.fbx)
+     * punch2: Secondary melee punch strike (hero/enemy-foxtree/combat/punch/punch2.fbx)
+     * punch3: Heavy finishing punch strike (hero/enemy-foxtree/combat/punch/punch3.fbx)
+   - Proportional scale (~1.85m) matching player & Pandora world
+   =================================================================== */
+
+function getEnemyFoxTreeBasePath() {
+    if (typeof document !== 'undefined') {
+        const scripts = document.getElementsByTagName('script');
+        for (let i = 0; i < scripts.length; i++) {
+            const src = scripts[i].src;
+            if (src && src.includes('fox-model.js')) {
+                return src.replace(/js\/character\/fox-model\.js(\?.*)?$/, 'hero/enemy-foxtree/');
+            }
+        }
+    }
+    return 'hero/enemy-foxtree/';
+}
+
+const ENEMY_FOXTREE_CONFIG = {
+    getPath() {
+        return getEnemyFoxTreeBasePath();
+    },
+    files: {
+        idle: 'Idle.fbx',
+        punch1: 'combat/punch/punch1.fbx',
+        punch2: 'combat/punch/punch2.fbx',
+        punch3: 'combat/punch/punch3.fbx'
+    },
+    baseScale: 1.85,
+    yOffset: 0.0,
+    facingDirection: new THREE.Vector3(0, 0, 1)
+};
+
+window.EnemyFoxTreeAssetManager = {
+    isLoaded: false,
+    isLoading: false,
+    loadPromise: null,
+    baseModel: null,
+    clips: {
+        idle: null,
+        walk: null,
+        run: null,
+        punch1: null,
+        punch2: null,
+        punch3: null
+    },
+    instancesPending: [],
+
+    load() {
+        if (this.loadPromise) return this.loadPromise;
+        this.isLoading = true;
+
+        this.loadPromise = new Promise(async (resolve, reject) => {
+            try {
+                if (typeof THREE.FBXLoader === 'undefined') {
+                    throw new Error('THREE.FBXLoader is not available. Please include FBXLoader.js and fflate.min.js.');
+                }
+
+                const loader = new THREE.FBXLoader();
+                const loadFBX = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+
+                const basePath = ENEMY_FOXTREE_CONFIG.getPath();
+                const files = ENEMY_FOXTREE_CONFIG.files;
+
+                console.log('[EnemyFoxTreeAssetManager] Loading Enemy FoxTree FBX assets from', basePath);
+
+                // 1. Load Idle (Base Model + Rig + Primary Idle Animation)
+                const idleObj = await loadFBX(basePath + files.idle);
+                idleObj.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            const makeMatte = (m) => {
+                                const newMat = new THREE.MeshLambertMaterial({
+                                    map: m.map || null,
+                                    color: m.color ? m.color : new THREE.Color(0xffffff),
+                                    emissive: new THREE.Color(0x222222),
+                                    skinning: true
+                                });
+                                if (newMat.map) newMat.map.encoding = THREE.LinearEncoding;
+                                return newMat;
+                            };
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(makeMatte);
+                            } else {
+                                child.material = makeMatte(child.material);
+                            }
+                        }
+                    }
+                });
+
+                this.baseModel = idleObj;
+                if (idleObj.animations && idleObj.animations.length > 0) {
+                    const idleClip = idleObj.animations[0].clone();
+                    idleClip.name = 'idle';
+                    this.clips.idle = idleClip;
+                }
+
+                // 2. Walk Animation (Gunakan clip walk pahlawan atau load hero/red/walk.fbx)
+                try {
+                    const heroWalk = window.HeroAssetManager && window.HeroAssetManager.clips && window.HeroAssetManager.clips.walk;
+                    if (heroWalk) {
+                        this.clips.walk = heroWalk.clone();
+                        this.clips.walk.name = 'walk';
+                    } else {
+                        const redWalkUrl = getHeroBasePath() + 'walk.fbx';
+                        const walkObj = await loadFBX(redWalkUrl);
+                        if (walkObj.animations && walkObj.animations.length > 0) {
+                            const walkClip = walkObj.animations[0].clone();
+                            walkClip.name = 'walk';
+                            this.clips.walk = walkClip;
+                        }
+                    }
+                } catch (wErr) {
+                    console.warn('[EnemyFoxTreeAssetManager] Walk clip fallback note:', wErr);
+                }
+
+                // 2b. Run Animation (Animasi lari cepat red run.fbx)
+                try {
+                    const heroRun = window.HeroAssetManager && window.HeroAssetManager.clips && window.HeroAssetManager.clips.run;
+                    if (heroRun) {
+                        this.clips.run = heroRun.clone();
+                        this.clips.run.name = 'run';
+                    } else {
+                        const redRunUrl = getHeroBasePath() + 'run.fbx';
+                        const runObj = await loadFBX(redRunUrl);
+                        if (runObj.animations && runObj.animations.length > 0) {
+                            const runClip = runObj.animations[0].clone();
+                            runClip.name = 'run';
+                            this.clips.run = runClip;
+                        }
+                    }
+                } catch (rErr) {
+                    console.warn('[EnemyFoxTreeAssetManager] Run clip fallback note:', rErr);
+                }
+
+                // 3. Load Punch 1 (combat/punch/punch1.fbx)
+                try {
+                    const p1Obj = await loadFBX(basePath + files.punch1);
+                    if (p1Obj.animations && p1Obj.animations.length > 0) {
+                        const p1Clip = p1Obj.animations[0].clone();
+                        p1Clip.name = 'punch1';
+                        this.clips.punch1 = p1Clip;
+                    }
+                } catch (p1Err) {
+                    console.warn('[EnemyFoxTreeAssetManager] Could not load punch1.fbx:', p1Err);
+                }
+
+                // 4. Load Punch 2 (combat/punch/punch2.fbx)
+                try {
+                    const p2Obj = await loadFBX(basePath + files.punch2);
+                    if (p2Obj.animations && p2Obj.animations.length > 0) {
+                        const p2Clip = p2Obj.animations[0].clone();
+                        p2Clip.name = 'punch2';
+                        this.clips.punch2 = p2Clip;
+                    }
+                } catch (p2Err) {
+                    console.warn('[EnemyFoxTreeAssetManager] Could not load punch2.fbx:', p2Err);
+                }
+
+                // 5. Load Punch 3 (combat/punch/punch3.fbx)
+                try {
+                    const p3Obj = await loadFBX(basePath + files.punch3);
+                    if (p3Obj.animations && p3Obj.animations.length > 0) {
+                        const p3Clip = p3Obj.animations[0].clone();
+                        p3Clip.name = 'punch3';
+                        this.clips.punch3 = p3Clip;
+                    }
+                } catch (p3Err) {
+                    console.warn('[EnemyFoxTreeAssetManager] Could not load punch3.fbx:', p3Err);
+                }
+
+                this.isLoaded = true;
+                this.isLoading = false;
+                console.log('[EnemyFoxTreeAssetManager] Enemy FoxTree assets successfully loaded!');
+
+                // Resolve all pending instances waiting for asset load
+                this.instancesPending.forEach(inst => this.setupInstance(inst));
+                this.instancesPending = [];
+
+                resolve(this);
+            } catch (err) {
+                console.error('[EnemyFoxTreeAssetManager] Failed to load enemy FBX assets:', err);
+                this.isLoading = false;
+                reject(err);
+            }
+        });
+
+        return this.loadPromise;
+    },
+
+    setupInstance(instance) {
+        if (!this.baseModel) return;
+
+        let modelClone;
+        if (typeof THREE.SkeletonUtils !== 'undefined') {
+            modelClone = THREE.SkeletonUtils.clone(this.baseModel);
+        } else {
+            console.warn('[EnemyFoxTreeAssetManager] THREE.SkeletonUtils missing, falling back to direct clone');
+            modelClone = this.baseModel.clone(true);
+        }
+
+        modelClone.position.set(0, ENEMY_FOXTREE_CONFIG.yOffset, 0);
+
+        modelClone.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(m => {
+                        m.roughness = 1.0;
+                        m.metalness = 0.0;
+                        if (m.emissive) m.emissive.set(0x222222);
+                    });
+                }
+            }
+        });
+
+        instance.meshContainer.add(modelClone);
+        instance.modelMesh = modelClone;
+
+        // Initialize AnimationMixer
+        const mixer = new THREE.AnimationMixer(modelClone);
+        instance.mixer = mixer;
+        instance.actions = {};
+        instance.currentWeights = { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
+        instance.targetWeights = { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
+
+        if (this.clips.idle) {
+            const idleAction = mixer.clipAction(this.clips.idle);
+            idleAction.setEffectiveWeight(1.0);
+            idleAction.play();
+            instance.actions.idle = idleAction;
+        }
+
+        if (this.clips.walk) {
+            const walkAction = mixer.clipAction(this.clips.walk);
+            walkAction.setEffectiveWeight(0.0);
+            walkAction.play();
+            instance.actions.walk = walkAction;
+        }
+
+        if (this.clips.run) {
+            const runAction = mixer.clipAction(this.clips.run);
+            runAction.setEffectiveWeight(0.0);
+            runAction.play();
+            instance.actions.run = runAction;
+        }
+
+        ['punch1', 'punch2', 'punch3'].forEach(k => {
+            if (this.clips[k]) {
+                const punchAction = mixer.clipAction(this.clips[k]);
+                punchAction.setLoop(THREE.LoopOnce, 1);
+                punchAction.clampWhenFinished = true;
+                punchAction.setEffectiveWeight(0.0);
+                punchAction.play();
+                instance.actions[k] = punchAction;
+            }
+        });
+
+        // Attach taking damage hit animations
+        if (window.GeneralTakingAssetManager) {
+            if (window.GeneralTakingAssetManager.isLoaded) {
+                window.GeneralTakingAssetManager.setupInstance(instance);
+            } else {
+                window.GeneralTakingAssetManager.instancesPending.push(instance);
+                window.GeneralTakingAssetManager.load();
+            }
+        }
+    }
+};
+
+/**
+ * Factory function: creates a new Enemy FoxTree instance
+ */
+function createEnemyFoxTreeModel() {
+    const enemyRoot = new THREE.Group();
+    enemyRoot.name = 'EnemyFoxTreeRoot_' + Math.random().toString(36).substr(2, 7);
+
+    const baseScale = ENEMY_FOXTREE_CONFIG.baseScale;
+    enemyRoot.scale.set(baseScale, baseScale, baseScale);
+    enemyRoot.userData.speciesKey = 'foxtree';
+    enemyRoot.userData.isEnemyCharacter = true;
+    enemyRoot.userData.isFoxTree = true;
+
+    const meshContainer = new THREE.Group();
+    meshContainer.name = 'EnemyFoxTreeMeshContainer';
+    enemyRoot.add(meshContainer);
+
+    // Dummy compatibility groups
+    const dummyBody = new THREE.Group();
+    enemyRoot.add(dummyBody);
+    const dummyJoint = () => ({ rotation: { set: () => {}, x: 0, y: 0, z: 0 }, position: { set: () => {}, x: 0, y: 0, z: 0 } });
+    const dummyLeg = () => ({ hip: dummyJoint(), knee: dummyJoint(), paw: dummyJoint() });
+
+    const enemyInstance = {
+        root: enemyRoot,
+        meshContainer: meshContainer,
+        bodyTiltGroup: dummyBody,
+        neckJoint: dummyJoint(),
+        headJoint: dummyJoint(),
+        earLJoint: dummyJoint(),
+        earRJoint: dummyJoint(),
+        tailBaseJoint: dummyJoint(),
+        tailMidJoint: dummyJoint(),
+        tailTipJoint: dummyJoint(),
+        legFL: dummyLeg(),
+        legFR: dummyLeg(),
+        legBL: dummyLeg(),
+        legBR: dummyLeg(),
+        BASE_HIP_Y: 0.0,
+        modelMesh: null,
+        mixer: null,
+        actions: {},
+        currentWeights: { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 },
+        targetWeights: { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 },
+        baseScale: baseScale,
+        isEnemy: true,
+
+        // Taking damage / Hit reaction state (hero/general/taking/hit*.fbx)
+        isTakingHit: false,
+        activeHitKey: null,
+        hitTimer: 0.0,
+        hitDuration: 0.55,
+        strikeProcessed: false,
+
+        // Punch Combat State
+        isPunching: false,
+        activePunchKey: null,
+        punchComboIndex: 0,
+        punchTimer: 0.0,
+        punchDuration: 0.85,
+        lastPunchEndTime: 0,
+
+        /**
+         * Reaksi menerima pukulan / tendangan (Damage Reaction):
+         * Memilih secara acak antara hit1.fbx dan hit2.fbx dari hero/general/taking/
+         * Menghentikan aksi pukulan yang sedang berlangsung (hit stun) dan memberi micro-knockback.
+         */
+        takeHit(attackerPos) {
+            const hitChoices = ['hit1', 'hit2'];
+            const hitKey = hitChoices[Math.floor(Math.random() * hitChoices.length)];
+
+            if (this.isPunching) this.cancelPunch();
+
+            this.isTakingHit = true;
+            this.activeHitKey = hitKey;
+            this.hitTimer = 0.0;
+
+            const action = this.actions[hitKey];
+            if (action) {
+                const clip = action.getClip();
+                const rate = 1.35;
+                action.timeScale = rate;
+                this.hitDuration = (clip && clip.duration) ? Math.min(0.65, clip.duration / rate) : 0.55;
+
+                action.reset();
+                action.setLoop(THREE.LoopOnce, 1);
+                action.clampWhenFinished = true;
+                action.play();
+                this.currentWeights[hitKey] = Math.max(this.currentWeights[hitKey] || 0, 0.75);
+                action.setEffectiveWeight(this.currentWeights[hitKey]);
+            } else {
+                this.hitDuration = 0.5;
+            }
+
+            ['idle', 'walk', 'run', 'punch1', 'punch2', 'punch3'].forEach(k => {
+                this.targetWeights[k] = 0.0;
+            });
+            hitChoices.forEach(k => {
+                this.targetWeights[k] = (k === hitKey) ? 1.0 : 0.0;
+            });
+
+            // Micro knockback mundur dari penyerang
+            if (attackerPos && this.root) {
+                const kbDir = new THREE.Vector3().subVectors(this.root.position, attackerPos).setY(0);
+                if (kbDir.lengthSq() > 0.001) {
+                    kbDir.normalize();
+                    this.root.position.addScaledVector(kbDir, 0.22);
+                }
+            }
+        },
+
+        takeDamage(amount, attackerPos) {
+            this.takeHit(attackerPos);
+        },
+
+        triggerPunch() {
+            if (this.isTakingHit) return;
+            if (this.isPunching) return;
+            const comboKeys = ['punch1', 'punch2', 'punch3'];
+            const nextKey = comboKeys[this.punchComboIndex % comboKeys.length];
+            this.punchComboIndex++;
+            this._startPunch(nextKey);
+        },
+
+        _startPunch(punchKey) {
+            this.isPunching = true;
+            this.strikeProcessed = false;
+            this.activePunchKey = punchKey;
+            this.punchTimer = 0.0;
+
+            const action = this.actions[punchKey];
+            if (action) {
+                action.reset();
+                action.timeScale = punchKey === 'punch1' ? 1.8 : (punchKey === 'punch2' ? 1.5 : 1.25);
+                this.punchDuration = Math.max(0.45, (action.getClip().duration / action.timeScale) * 0.9);
+                action.setEffectiveWeight(1.0);
+                action.play();
+            } else {
+                this.punchDuration = 0.8;
+            }
+
+            this.targetWeights.punch1 = (punchKey === 'punch1') ? 1.0 : 0.0;
+            this.targetWeights.punch2 = (punchKey === 'punch2') ? 1.0 : 0.0;
+            this.targetWeights.punch3 = (punchKey === 'punch3') ? 1.0 : 0.0;
+            this.targetWeights.idle = 0.0;
+            this.targetWeights.walk = 0.0;
+            this.targetWeights.hit1 = 0.0;
+            this.targetWeights.hit2 = 0.0;
+        },
+
+        cancelPunch() {
+            if (!this.isPunching) return;
+            this.isPunching = false;
+            this.activePunchKey = null;
+            this.punchTimer = 0.0;
+            this.targetWeights.punch1 = 0.0;
+            this.targetWeights.punch2 = 0.0;
+            this.targetWeights.punch3 = 0.0;
+            ['punch1', 'punch2', 'punch3'].forEach(k => {
+                if (this.actions[k]) this.actions[k].setEffectiveWeight(0.0);
+            });
+        },
+
+        updateAnimation(dt, currentSpeed = 0) {
+            if (!this.mixer) return;
+
+            // 0. PRIORITAS UTAMA: REAKSI TERKENA HIT / DAMAGE
+            if (this.isTakingHit) {
+                this.hitTimer += dt;
+                ['idle', 'walk', 'run', 'punch1', 'punch2', 'punch3'].forEach(k => {
+                    this.targetWeights[k] = 0.0;
+                });
+                ['hit1', 'hit2'].forEach(k => {
+                    this.targetWeights[k] = (k === this.activeHitKey) ? 1.0 : 0.0;
+                });
+
+                if (this.hitTimer >= this.hitDuration) {
+                    this.isTakingHit = false;
+                    this.activeHitKey = null;
+                    this.hitTimer = 0.0;
+                    ['hit1', 'hit2'].forEach(k => {
+                        this.targetWeights[k] = 0.0;
+                        if (this.actions[k]) this.actions[k].setEffectiveWeight(0.0);
+                    });
+                    this.targetWeights.idle = 1.0;
+                    if (this.actions.idle) this.actions.idle.reset().play();
+                }
+            } else if (this.isPunching) {
+                this.punchTimer += dt;
+
+                // Melee strike impact window: cek apakah pukulan enemy mengenai player tepat saat kepalan mendarat
+                if (!this.strikeProcessed) {
+                    const pKey = this.activePunchKey || 'punch1';
+                    const ENEMY_PUNCH_CONFIGS = {
+                        punch1: { minTime: 0.28, maxTime: 0.42, reach: 1.15, minDot: 0.45 },
+                        punch2: { minTime: 0.30, maxTime: 0.45, reach: 1.15, minDot: 0.45 },
+                        punch3: { minTime: 0.46, maxTime: 0.62, reach: 1.20, minDot: 0.40 }
+                    };
+                    const cfg = ENEMY_PUNCH_CONFIGS[pKey] || { minTime: 0.30, maxTime: 0.45, reach: 1.15, minDot: 0.45 };
+
+                    if (this.punchTimer >= cfg.minTime && this.punchTimer <= cfg.maxTime) {
+                        if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
+                            const pPos = wolfCharacter.root.position;
+                            const distToPlayer = this.root.position.distanceTo(pPos);
+                            if (distToPlayer <= cfg.reach) {
+                                const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
+                                const toP = new THREE.Vector3().subVectors(pPos, this.root.position).setY(0);
+                                if (toP.lengthSq() > 0.001) {
+                                    toP.normalize();
+                                    if (fwd.dot(toP) >= cfg.minDot) {
+                                        this.strikeProcessed = true;
+                                        if (typeof wolfCharacter.takeHit === 'function') {
+                                            wolfCharacter.takeHit(this.root.position);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (this.punchTimer >= this.punchDuration) {
+                    this.isPunching = false;
+                    this.activePunchKey = null;
+                    this.targetWeights.punch1 = 0.0;
+                    this.targetWeights.punch2 = 0.0;
+                    this.targetWeights.punch3 = 0.0;
+                    this.lastPunchEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+                }
+            }
+
+            if (!this.isTakingHit && !this.isPunching) {
+                const moveSpeed = Math.abs(currentSpeed);
+                if (moveSpeed > 2.8) {
+                    // BERJALAN CEPAT / SPRINT MENGEJAR PEMAIN: GUNAKAN RED RUN.FBX!
+                    this.targetWeights.run = 1.0;
+                    this.targetWeights.walk = 0.0;
+                    this.targetWeights.idle = 0.0;
+                    if (this.actions.run) {
+                        this.actions.run.timeScale = THREE.MathUtils.clamp(moveSpeed / 4.8, 0.85, 1.35);
+                    }
+                } else if (moveSpeed > 0.25) {
+                    // BERJALAN SANTAI: GUNAKAN WALK
+                    this.targetWeights.walk = 1.0;
+                    this.targetWeights.run = 0.0;
+                    this.targetWeights.idle = 0.0;
+                    if (this.actions.walk) {
+                        // Korelasi langkah kaki rasional dengan kecepatan gerak (basis 1.65 m/s)
+                        this.actions.walk.timeScale = THREE.MathUtils.clamp(moveSpeed / 1.65, 0.85, 1.35);
+                    }
+                } else {
+                    this.targetWeights.walk = 0.0;
+                    this.targetWeights.run = 0.0;
+                    this.targetWeights.idle = 1.0;
+                }
+                this.targetWeights.punch1 = 0.0;
+                this.targetWeights.punch2 = 0.0;
+                this.targetWeights.punch3 = 0.0;
+                this.targetWeights.hit1 = 0.0;
+                this.targetWeights.hit2 = 0.0;
+            }
+
+            const blendSpeed = this.isTakingHit ? 35.0 : 10.0;
+            const keys = ['idle', 'walk', 'run', 'punch1', 'punch2', 'punch3', 'hit1', 'hit2'];
+            for (let i = 0; i < keys.length; i++) {
+                const k = keys[i];
+                const targetW = this.targetWeights[k] || 0.0;
+                this.currentWeights[k] = THREE.MathUtils.lerp(this.currentWeights[k] || 0.0, targetW, blendSpeed * dt);
+                if (this.actions[k]) {
+                    this.actions[k].setEffectiveWeight(this.currentWeights[k]);
+                }
+            }
+
+            this.mixer.update(dt);
+        },
+
+        resetAnimation() {
+            this.isTakingHit = false;
+            this.activeHitKey = null;
+            this.hitTimer = 0.0;
+            this.isPunching = false;
+            this.activePunchKey = null;
+            this.punchTimer = 0.0;
+            this.punchComboIndex = 0;
+            this.currentWeights = { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
+            this.targetWeights = { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
+            if (this.actions.idle) { this.actions.idle.reset().play(); this.actions.idle.setEffectiveWeight(1.0); }
+            if (this.actions.walk) { this.actions.walk.setEffectiveWeight(0.0); }
+            if (this.actions.run) { this.actions.run.setEffectiveWeight(0.0); }
+            ['punch1', 'punch2', 'punch3', 'hit1', 'hit2'].forEach(k => {
+                if (this.actions[k]) { this.actions[k].stop(); this.actions[k].setEffectiveWeight(0.0); }
+            });
+        }
+    };
+
+    if (window.EnemyFoxTreeAssetManager.isLoaded) {
+        window.EnemyFoxTreeAssetManager.setupInstance(enemyInstance);
+    } else {
+        window.EnemyFoxTreeAssetManager.instancesPending.push(enemyInstance);
+        window.EnemyFoxTreeAssetManager.load();
+    }
+
+    return enemyInstance;
+}
+
+window.createEnemyFoxTreeModel = createEnemyFoxTreeModel;

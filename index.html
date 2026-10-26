@@ -2553,35 +2553,36 @@
                     </div>
 
                     <div class="control-group">
-                        <label>Perintah AI Rubah (Saat Play Mode)</label>
+                        <label>Perintah AI Enemy (Saat Play Mode)</label>
                         <select id="select-spawner-fox-ai" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
-                            <option value="combat">⚔️ Aggressive Combat (Plasma War)</option>
-                            <option value="companion">🐕 Companion (Follow Player)</option>
-                            <option value="wander">🦊 Free Roam / Wander</option>
-                            <option value="passive">🧍 Passive (Pose Only)</option>
+                            <option value="combat">⚔️ Aggressive Melee (Kejar & Pukul Player)</option>
+                            <option value="wander">🦊 Free Roam / Patroli</option>
+                            <option value="passive">🧍 Standby (Idle Saja)</option>
                         </select>
                     </div>
 
                     <div class="control-group">
                         <label>
-                            <span>Radius Deteksi / Serang (Aggro)</span>
+                            <span>Radius Deteksi / Aggro Enemy</span>
                             <span id="val-spawner-ai-radius" class="val-badge">18 m</span>
                         </label>
                         <input type="range" id="slider-spawner-ai-radius" min="5" max="50" step="1" value="18">
                     </div>
 
+                    <div class="control-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <label style="margin:0;">Pilih Enemy (Klik Tanah untuk Spawn)</label>
+                        <button type="button" id="btn-reset-all-enemies" onclick="if(window.clearAllSpawnedFoxes) window.clearAllSpawnedFoxes();" style="padding:4px 8px; font-size:11px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#fca5a5; border-radius:4px; cursor:pointer;" title="Hapus total semua enemy yang terspawn di map">
+                            🗑️ Reset Enemy
+                        </button>
+                    </div>
+
                     <div class="control-group">
-                        <label>Pilih Spesies Rubah (Klik untuk Spawn)</label>
                         <select id="select-fox-mode" style="display:none;">
                             <option value="none">Off</option>
-                            <option value="red">Red Fox</option>
-                            <option value="arctic">Arctic Fox</option>
-                            <option value="corsac">Corsac Fox</option>
-                            <option value="golden">Golden Fox</option>
-                            <option value="silver">Silver Fox</option>
+                            <option value="foxtree">FoxTree Enemy</option>
                         </select>
                         <div class="spawner-card-grid fox-grid" id="fox-picker-grid">
-                            <button type="button" class="spawner-card active" data-value="none" title="Matikan Mode Spawner Rubah">
+                            <button type="button" class="spawner-card active" data-value="none" title="Matikan Mode Spawner Enemy">
                                 <div class="card-preview">
                                     <svg viewBox="0 0 40 40" class="card-svg">
                                         <circle cx="20" cy="20" r="13" fill="none" stroke="#64748b" stroke-width="2.5" stroke-dasharray="4 2" />
@@ -2591,86 +2592,16 @@
                                 <span class="card-name">Off</span>
                             </button>
 
-                            <button type="button" class="spawner-card" data-value="red" title="Red Fox (Rubah Merah Klasik)">
-                                <div class="card-preview fox-red-bg">
+                            <button type="button" class="spawner-card" data-value="foxtree" title="FoxTree Enemy (hero/enemy-foxtree/* - Melee Punch Combat)">
+                                <div class="card-preview" style="background: radial-gradient(circle, #065f46 0%, #022c22 100%);">
                                     <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="10" ry="2" fill="rgba(0,0,0,0.35)" />
-                                        <polygon points="12 18, 14 6, 18 12" fill="#272428" />
-                                        <polygon points="28 18, 26 6, 22 12" fill="#272428" />
-                                        <polygon points="13 18, 15 9, 17 13" fill="#a3989c" />
-                                        <polygon points="27 18, 25 9, 23 13" fill="#a3989c" />
-                                        <polygon points="14 16, 26 16, 28 24, 20 32, 12 24" fill="#fb6d1b" />
-                                        <polygon points="16 24, 24 24, 20 32" fill="#fffcf7" />
-                                        <circle cx="19" cy="22" r="1.3" fill="#1d1a1e" />
-                                        <circle cx="21" cy="22" r="1.3" fill="#1d1a1e" />
-                                        <circle cx="20" cy="30" r="1.2" fill="#1d1a1e" />
+                                        <circle cx="20" cy="14" r="5" fill="#34d399" />
+                                        <path d="M12 36 L15 22 L20 25 L25 22 L28 36 Z" fill="#059669" />
+                                        <circle cx="10" cy="20" r="3.2" fill="#f59e0b" />
+                                        <circle cx="30" cy="20" r="3.2" fill="#f59e0b" />
                                     </svg>
                                 </div>
-                                <span class="card-name">Red Fox</span>
-                            </button>
-
-                            <button type="button" class="spawner-card" data-value="arctic" title="Arctic Fox (Rubah Putih Salju)">
-                                <div class="card-preview fox-arctic-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="10" ry="2" fill="rgba(0,0,0,0.35)" />
-                                        <polygon points="12 18, 14 6, 18 12" fill="#282c34" />
-                                        <polygon points="28 18, 26 6, 22 12" fill="#282c34" />
-                                        <polygon points="14 16, 26 16, 28 24, 20 32, 12 24" fill="#f6f8fc" />
-                                        <polygon points="16 24, 24 24, 20 32" fill="#ffffff" />
-                                        <circle cx="19" cy="22" r="1.3" fill="#1c1e22" />
-                                        <circle cx="21" cy="22" r="1.3" fill="#1c1e22" />
-                                        <circle cx="20" cy="30" r="1.2" fill="#1c1e22" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Arctic Fox</span>
-                            </button>
-
-                            <button type="button" class="spawner-card" data-value="corsac" title="Corsac Fox (Rubah Stepa Gurun)">
-                                <div class="card-preview fox-corsac-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="10" ry="2" fill="rgba(0,0,0,0.35)" />
-                                        <polygon points="12 18, 14 6, 18 12" fill="#2d2925" />
-                                        <polygon points="28 18, 26 6, 22 12" fill="#2d2925" />
-                                        <polygon points="14 16, 26 16, 28 24, 20 32, 12 24" fill="#d4ab7c" />
-                                        <polygon points="16 24, 24 24, 20 32" fill="#fcf9f2" />
-                                        <circle cx="19" cy="22" r="1.3" fill="#2d2925" />
-                                        <circle cx="21" cy="22" r="1.3" fill="#2d2925" />
-                                        <circle cx="20" cy="30" r="1.2" fill="#2d2925" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Corsac</span>
-                            </button>
-
-                            <button type="button" class="spawner-card" data-value="golden" title="Golden Fox (Rubah Emas Berkilau)">
-                                <div class="card-preview fox-golden-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="10" ry="2" fill="rgba(0,0,0,0.35)" />
-                                        <polygon points="12 18, 14 6, 18 12" fill="#3a2512" />
-                                        <polygon points="28 18, 26 6, 22 12" fill="#3a2512" />
-                                        <polygon points="14 16, 26 16, 28 24, 20 32, 12 24" fill="#eab308" />
-                                        <polygon points="16 24, 24 24, 20 32" fill="#fef08a" />
-                                        <circle cx="19" cy="22" r="1.3" fill="#1f140a" />
-                                        <circle cx="21" cy="22" r="1.3" fill="#1f140a" />
-                                        <circle cx="20" cy="30" r="1.2" fill="#1f140a" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Golden</span>
-                            </button>
-
-                            <button type="button" class="spawner-card" data-value="silver" title="Silver Fox (Rubah Perak Gelap)">
-                                <div class="card-preview fox-silver-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="10" ry="2" fill="rgba(0,0,0,0.35)" />
-                                        <polygon points="12 18, 14 6, 18 12" fill="#111827" />
-                                        <polygon points="28 18, 26 6, 22 12" fill="#111827" />
-                                        <polygon points="14 16, 26 16, 28 24, 20 32, 12 24" fill="#64748b" />
-                                        <polygon points="16 24, 24 24, 20 32" fill="#cbd5e1" />
-                                        <circle cx="19" cy="22" r="1.3" fill="#0f172a" />
-                                        <circle cx="21" cy="22" r="1.3" fill="#0f172a" />
-                                        <circle cx="20" cy="30" r="1.2" fill="#0f172a" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Silver</span>
+                                <span class="card-name">FoxTree</span>
                             </button>
                         </div>
                     </div>

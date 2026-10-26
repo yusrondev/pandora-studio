@@ -627,7 +627,7 @@ function applyMapDataToScene(mapData) {
     }
     if (Array.isArray(mapData.foxes) && typeof spawnFoxAtLocation === 'function') {
         mapData.foxes.forEach(fData => {
-            spawnFoxAtLocation(fData.species || 'red', fData.pose || 'idle', fData.posX, fData.posZ, fData.rotY, fData.scale || 1.0);
+            spawnFoxAtLocation(fData.species || 'foxtree', fData.pose || 'idle', fData.posX, fData.posZ, fData.rotY, fData.scale || 1.0);
         });
     }
 

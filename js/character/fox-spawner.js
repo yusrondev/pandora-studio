@@ -17,18 +17,21 @@ window.currentSpawnerPose = currentSpawnerPose;
 let selectFoxMode = document.getElementById('select-fox-mode');
 window.selectFoxMode = selectFoxMode;
 
-// Helper: Tambahkan invisible raycast hitbox pada model rubah agar mudah diklik & diseleksi di viewport
+// Helper: Tambahkan invisible raycast hitbox pada model rubah/enemy agar mudah diklik & diseleksi di viewport
 function attachFoxSelectionHitbox(model) {
     if (!model || !model.root) return;
     if (model.hitbox) return; // sudah ada
 
-    const hitboxGeo = new THREE.BoxGeometry(2.4, 2.0, 1.4);
+    const isHumanoid = !!(model && (model.mixer || model.isEnemy));
+    const hitboxGeo = isHumanoid
+        ? new THREE.BoxGeometry(1.4, 2.2, 1.4)
+        : new THREE.BoxGeometry(2.4, 2.0, 1.4);
     const hitboxMat = new THREE.MeshBasicMaterial({
         visible: false,
         wireframe: false
     });
     const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
-    hitbox.position.set(0.1, 0.95, 0); // Di tengah tubuh rubah
+    hitbox.position.set(0, isHumanoid ? 1.1 : 0.95, 0); // Di tengah tubuh karakter
     hitbox.userData = {
         isSpawnedFoxHitbox: true,
         isSpawnedFoxChild: true,
@@ -232,16 +235,45 @@ function applyFoxPose(foxModel, poseName, animTime = 0) {
 window.applyFoxPose = applyFoxPose;
 
 // ==========================================
-// 2. SPAWN & MANAGEMENT RUBAH
+// 2. SPAWN & MANAGEMENT RUBAH / ENEMY
 // ==========================================
-function spawnFoxAtLocation(species = 'red', pose = 'idle', posX, posZ, rotY = null, customScale = 1.0) {
+function clearAllSpawnedFoxes(quiet = false) {
+    if (typeof saveState === 'function') saveState();
+    while (spawnedFoxesList.length > 0) {
+        const fox = spawnedFoxesList.pop();
+        if (fox && fox.root) {
+            if (typeof SelectionOutlineManager !== 'undefined' && SelectionOutlineManager.targetObject === fox.root) {
+                SelectionOutlineManager.clearSelection();
+            }
+            if (fox.root.parent) {
+                fox.root.parent.remove(fox.root);
+            } else if (typeof scene !== 'undefined' && scene) {
+                scene.remove(fox.root);
+            }
+        }
+    }
+    selectedFoxIndex = -1;
+    window.selectedFoxIndex = -1;
+    if (typeof FoxAIManager !== 'undefined' && FoxAIManager.syncSpawnedFoxes) {
+        FoxAIManager.syncSpawnedFoxes();
+    }
+    if (typeof refreshLayerUI === 'function') refreshLayerUI();
+    updateFoxInspectorUI();
+    if (!quiet && typeof PandoraToast !== 'undefined' && typeof PandoraToast.show === 'function') {
+        PandoraToast.show('Semua Enemy berhasil di-reset!', 'info');
+    }
+}
+window.clearAllSpawnedFoxes = clearAllSpawnedFoxes;
+
+function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY = null, customScale = 1.0) {
     if (typeof createWolfCharacterModel !== 'function') {
         console.error('createWolfCharacterModel is not available');
         return null;
     }
     if (typeof saveState === 'function') saveState();
 
-    const model = createWolfCharacterModel(species);
+    const effectiveSpecies = (species && species !== 'none') ? species : 'foxtree';
+    const model = createWolfCharacterModel(effectiveSpecies);
     if (!model || !model.root) return null;
 
     const y = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(posX, posZ) : 0;
@@ -250,20 +282,21 @@ function spawnFoxAtLocation(species = 'red', pose = 'idle', posX, posZ, rotY = n
     const initialRot = (typeof rotY === 'number') ? rotY : Math.random() * Math.PI * 2;
     model.root.rotation.y = initialRot;
 
-    const baseScale = model.baseScale || 0.58;
+    const baseScale = model.baseScale || 1.85;
     const effectiveScale = baseScale * customScale;
     model.root.scale.set(effectiveScale, effectiveScale, effectiveScale);
 
     // Tandai root mesh untuk raycasting seleksi
     model.root.userData = {
         isSpawnedFox: true,
-        speciesKey: species,
+        speciesKey: effectiveSpecies,
         poseName: pose,
         customScale: customScale,
-        baseScale: baseScale
+        baseScale: baseScale,
+        isEnemy: !!model.isEnemy
     };
 
-    // Pasang invisible hitbox agar rubah sangat mudah dan responsif diklik/diseleksi di 3D viewport
+    // Pasang invisible hitbox agar rubah/enemy sangat mudah dan responsif diklik/diseleksi di 3D viewport
     attachFoxSelectionHitbox(model);
 
     // Tandai juga semua child mesh agar raycast bisa melacak parent root
@@ -274,7 +307,10 @@ function spawnFoxAtLocation(species = 'red', pose = 'idle', posX, posZ, rotY = n
         }
     });
 
-    applyFoxPose(model, pose, 0);
+    // Jika model bukan FBX skinned mesh dengan AnimationMixer, aplikasikan procedural pose
+    if (!model.mixer) {
+        applyFoxPose(model, pose, 0);
+    }
 
     scene.add(model.root);
 
@@ -287,10 +323,10 @@ function spawnFoxAtLocation(species = 'red', pose = 'idle', posX, posZ, rotY = n
         : 18.0;
 
     const foxRecord = {
-        id: 'fox_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        id: 'enemy_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
         model: model,
         root: model.root,
-        species: species,
+        species: effectiveSpecies,
         pose: pose,
         aiMode: defaultSpawnerAI || 'combat',
         detectionRadius: defaultSpawnerRadius || 18.0,
@@ -318,10 +354,9 @@ function spawnFoxAtLocation(species = 'red', pose = 'idle', posX, posZ, rotY = n
         SelectionOutlineManager.selectObject(model.root, false);
     }
 
-    const speciesName = (typeof FOX_SPECIES !== 'undefined' && FOX_SPECIES[species]) ? FOX_SPECIES[species].name : species;
-    const poseNameLabel = pose === 'sit' ? 'Duduk' : (pose === 'prone' ? 'Prone' : 'Idle');
+    const speciesLabel = (effectiveSpecies === 'foxtree' || effectiveSpecies === 'enemy-foxtree') ? 'FoxTree Enemy' : effectiveSpecies;
     if (typeof PandoraToast !== 'undefined' && typeof PandoraToast.show === 'function') {
-        PandoraToast.show(`🦊 ${speciesName} (${poseNameLabel}) berhasil diletakkan`, 'success');
+        PandoraToast.show(`⚔️ ${speciesLabel} berhasil diletakkan`, 'success');
     }
 
     return foxRecord;
@@ -770,10 +805,13 @@ function initFoxSpawnerUI() {
         });
     }
 
-    // 6. Setup Spawner Card Grid untuk Fox
+    // 6. Setup Spawner Card Grid untuk Fox / Enemy
     if (typeof setupSpawnerCardGrid === 'function') {
         setupSpawnerCardGrid('fox-picker-grid', 'select-fox-mode');
     }
+
+    // Reset total semua enemy lama sesuai arahan user
+    clearAllSpawnedFoxes(true);
 }
 
 // Inisialisasi listener

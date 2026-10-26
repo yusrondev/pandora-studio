@@ -62,6 +62,7 @@ window.addEventListener('keydown', (e) => {
         manualProne = false;
         foxIdleTimer = 0;
         if (typeof wolfCharacter !== 'undefined' && wolfCharacter) {
+            if (wolfCharacter.isTakingHit) return; // Hit stun: tidak bisa membatalkan animasi hit dengan tombol gerak
             // Input terakhir = prioritas: hanya tombol gerak yang BARU ditekan (bukan auto-repeat / tombol
             // yang sudah ditahan sebelum klik kanan) yang membatalkan tendangan.
             const isMoveKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) ||
@@ -573,10 +574,10 @@ function updateWolfPhysics(dt, elapsed) {
     const analogTurn = (typeof mobileJoystickTurn !== 'undefined') ? mobileJoystickTurn : 0;
 
     // Update Sistem Stamina:
-    // Berkurang saat dipaksa lari (Shift + W / Joystick), bertambah saat jalan pelan atau diam
-    const isMovingForward = keys.w || (analogFwd > 0.15);
+    // Berkurang saat dipaksa lari (Shift + W / Shift + S / Joystick), bertambah saat jalan pelan atau diam
+    const isMovingActively = keys.w || keys.s || (Math.abs(analogFwd) > 0.15);
     const isSprintingAllowed = (typeof FoxStaminaState !== 'undefined')
-        ? FoxStaminaState.update(dt, keys.shift, isMovingForward)
+        ? FoxStaminaState.update(dt, keys.shift, isMovingActively)
         : keys.shift;
 
     const isHunting = isSprintingAllowed;
@@ -606,20 +607,28 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
-    const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching));
+    const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit));
 
     let targetSpeed = 0;
+    const reverseSpeed = stats.reverseSpeed || 1.35;
+    // Kecepatan mundur cepat saat menahan Shift (sprint mundur atletis ~3.1 m/s)
+    const fastReverseSpeed = stats.fastReverseSpeed || (reverseSpeed * 2.3);
+
     if (isPlayerInCombat) {
         targetSpeed = 0;
         currentSpeed = 0;
-    } else if (Math.abs(analogFwd) > 0.05) {
-        targetSpeed = (analogFwd > 0)
-            ? (analogFwd * (isHunting ? huntRunSpeed : walkSpeed))
-            : (analogFwd * stats.reverseSpeed);
     } else if (keys.w) {
         targetSpeed = isHunting ? huntRunSpeed : walkSpeed;
     } else if (keys.s) {
-        targetSpeed = -stats.reverseSpeed;
+        // Arah bawah / tombol S: bergerak mundur tanpa membalik badan
+        // Dengan Shift: bergerak mundur lebih cepat!
+        const rSpeed = isHunting ? fastReverseSpeed : reverseSpeed;
+        targetSpeed = -rSpeed;
+    } else if (Math.abs(analogFwd) > 0.05) {
+        const rSpeed = isHunting ? fastReverseSpeed : reverseSpeed;
+        targetSpeed = (analogFwd > 0)
+            ? analogFwd * (isHunting ? huntRunSpeed : walkSpeed)
+            : analogFwd * rSpeed;
     }
 
     let targetTurn = 0;
@@ -825,6 +834,35 @@ function updateWolfPhysics(dt, elapsed) {
                             camera.position.x += minAllowedDist;
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // ========================================================
+    // 1D. COLLISION PRESISI PLAYER VS AI ENEMY (ANTI-TEMBUS)
+    // Karakter pemain dan AI enemy saling menolak secara presisi (solid)
+    // ========================================================
+    if (Array.isArray(window.spawnedFoxesList) && window.spawnedFoxesList.length > 0) {
+        const minPlayerEnemyDist = 0.85; // Jarak radius silinder tabrakan tubuh (memungkinkan pukulan rapat mengenai lawan)
+        const pPos = foxRoot.position;
+        for (let i = 0; i < window.spawnedFoxesList.length; i++) {
+            const enemy = window.spawnedFoxesList[i];
+            if (!enemy || !enemy.root || !enemy.root.visible) continue;
+            const ePos = enemy.root.position;
+            const dx = pPos.x - ePos.x;
+            const dz = pPos.z - ePos.z;
+            const distSq = dx * dx + dz * dz;
+            if (distSq < minPlayerEnemyDist * minPlayerEnemyDist && distSq > 0.0001) {
+                const dist = Math.sqrt(distSq);
+                const push = minPlayerEnemyDist - dist;
+                pPos.x += (dx / dist) * (push * 0.55);
+                pPos.z += (dz / dist) * (push * 0.55);
+                ePos.x -= (dx / dist) * (push * 0.45);
+                ePos.z -= (dz / dist) * (push * 0.45);
+                if (typeof camera !== 'undefined' && camera && camera.position) {
+                    camera.position.x += (dx / dist) * (push * 0.55);
+                    camera.position.z += (dz / dist) * (push * 0.55);
                 }
             }
         }

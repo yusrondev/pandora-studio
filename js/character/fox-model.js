@@ -43,7 +43,10 @@ const HERO_CHARACTER_CONFIG = {
         jumpNormal: 'jump-normal.fbx',
         kick1: 'combat/kick/kick1.fbx',
         kick2: 'combat/kick/kick2.fbx',
-        kick3: 'combat/kick/kick3.fbx'
+        kick3: 'combat/kick/kick3.fbx',
+        punch1: 'combat/punch/punch1.fbx',
+        punch2: 'combat/punch/punch2.fbx',
+        punch3: 'combat/punch/punch3.fbx'
     },
     baseScale: 1.85, // Ukuran proporsional pahlawan (~1.81m), gagah dan seimbang dengan dunia Pandora
     yOffset: 0.0,    // Kaki menapak tanah secara natural di y = 0
@@ -67,7 +70,10 @@ window.HeroAssetManager = {
         jumpNormal: null,
         kick1: null,
         kick2: null,
-        kick3: null
+        kick3: null,
+        punch1: null,
+        punch2: null,
+        punch3: null
     },
     instancesPending: [],
     kick3RootMotion: null,
@@ -232,6 +238,19 @@ window.HeroAssetManager = {
                         console.warn(`[HeroAssetManager] Could not load ${files[kKey]}:`, kErr);
                     }
                 }
+                // 7. Load Combat Punch Combo Animation Clips (punch1.fbx, punch2.fbx, punch3.fbx)
+                for (const pKey of ['punch1', 'punch2', 'punch3']) {
+                    try {
+                        const punchObj = await loadFBX(basePath + files[pKey]);
+                        if (punchObj.animations && punchObj.animations.length > 0) {
+                            const punchClip = punchObj.animations[0].clone();
+                            punchClip.name = pKey;
+                            this.clips[pKey] = punchClip;
+                        }
+                    } catch (pErr) {
+                        console.warn(`[HeroAssetManager] Could not load ${files[pKey]}:`, pErr);
+                    }
+                }
 
 
                 this.isLoaded = true;
@@ -294,8 +313,8 @@ window.HeroAssetManager = {
 
         // Bind animation actions
         instance.actions = {};
-        instance.currentWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 };
-        instance.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 };
+        instance.currentWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 };
+        instance.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 };
         instance.idleTimer = 0.0;
         instance.activeIdleKey = null;
         instance.idleCycleTimer = 0.0;
@@ -365,6 +384,19 @@ window.HeroAssetManager = {
         if (instance.actions.kick1) {
             instance.actions.kick = instance.actions.kick1; // Alias backward-compatibility
         }
+        for (const pKey of ['punch1', 'punch2', 'punch3']) {
+            if (this.clips[pKey]) {
+                const action = mixer.clipAction(this.clips[pKey]);
+                action.setEffectiveWeight(0.0);
+                action.setLoop(THREE.LoopOnce);
+                action.clampWhenFinished = true;
+                action.play();
+                instance.actions[pKey] = action;
+            }
+        }
+        if (instance.actions.punch1) {
+            instance.actions.punch = instance.actions.punch1;
+        }
 
 
         instance.isLoaded = true;
@@ -419,8 +451,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
         baseScale: baseScale,
         mixer: null,
         actions: {},
-        currentWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 },
-        targetWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 },
+        currentWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 },
+        targetWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 },
         isLoaded: false,
         wasInAir: false,
         isJumping: false,
@@ -443,6 +475,15 @@ function createWolfCharacterModel(speciesKey = 'red') {
         hasQueuedKick: false, // Alias kompatibilitas
         lastKickEndTime: 0,
         kick3PrevTime: 0.0,
+
+        isPunching: false,
+        activePunchKey: null,
+        punchComboIndex: 0,
+        punchTimer: 0.0,
+        punchDuration: 0.88,
+        queuedPunches: 0,     // Jumlah pukulan lanjutan yang sudah diklik (maks 2 → punch2, punch3)
+        hasQueuedPunch: false,
+        lastPunchEndTime: 0,
         wasMoving: false,
 
         // Jump state
@@ -460,6 +501,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
          *   sebelum tendangan berikutnya dimulai. Klik berlebih tidak memotong animasi.
          */
         triggerKick() {
+            if (this.isPunching) {
+                this.cancelPunch();
+            }
             if (this.isKicking) {
                 // Simpan klik ke antrean (maks 2 tendangan lanjutan agar tidak menumpuk tanpa akhir)
                 this.queuedKicks = Math.min(2, this.queuedKicks + 1);
@@ -506,7 +550,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             action.play();
 
             // Semua pose lain memudar keluar (bukan di-nol-kan paksa) agar transisi tetap halus
-            ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal'].forEach(k => {
+            ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'punch1', 'punch2', 'punch3'].forEach(k => {
                 this.targetWeights[k] = 0.0;
             });
             comboKeys.forEach(k => {
@@ -537,6 +581,93 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.kickComboIndex = 0;
             this.lastKickEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
             ['kick1', 'kick2', 'kick3'].forEach(k => {
+                this.targetWeights[k] = 0.0;
+            });
+        },
+
+        /**
+         * Combo pukulan berbasis jumlah klik (100% identik mekanisme dengan tendangan):
+         * - 1x klik  -> punch1
+         * - 2x klik  -> punch1 -> punch2
+         * - 3x klik  -> punch1 -> punch2 -> punch3
+         * - Spam     -> punch1 -> punch2 -> punch3 (berulang), setiap pukulan SELALU selesai dulu
+         *   sebelum pukulan berikutnya dimulai. Klik berlebih tidak memotong animasi.
+         */
+        triggerPunch() {
+            if (this.isKicking) {
+                this.cancelKick();
+            }
+            if (this.isPunching) {
+                // Simpan klik ke antrean (maks 2 pukulan lanjutan agar tidak menumpuk tanpa akhir)
+                this.queuedPunches = Math.min(2, this.queuedPunches + 1);
+                this.hasQueuedPunch = this.queuedPunches > 0;
+                return;
+            }
+            // Klik baru dari keadaan diam / selesai memukul: selalu mulai dari punch1
+            this.punchComboIndex = 0;
+            this.queuedPunches = 0;
+            this._startPunch('punch1');
+        },
+
+        _startPunch(punchKey, crossFadeFromAction = null) {
+            const comboKeys = ['punch1', 'punch2', 'punch3'];
+            const action = this.actions[punchKey];
+            if (!action) {
+                console.warn('[Combat] Action not found for punchKey:', punchKey);
+                this.isPunching = false;
+                return;
+            }
+
+            // Pukulan membatalkan lompatan yang belum lepas landas
+            this.isJumping = false;
+            this.jumpImpulsePending = false;
+
+            this.isPunching = true;
+            this.activePunchKey = punchKey;
+            this.punchComboIndex = comboKeys.indexOf(punchKey);
+            this.punchTimer = 0.0;
+            this.idleTimer = 0.0;
+            this.activeIdleKey = null;
+            this.idleCycleTimer = 0.0;
+
+            const clip = action.getClip();
+            const rates = { punch1: 2.0, punch2: 1.5, punch3: 1.25 };
+            const rate = rates[punchKey] || 1.6;
+            action.timeScale = rate;
+            this.punchDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.88;
+
+            action.reset();
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            action.enabled = true;
+            action.play();
+
+            // Semua pose lain memudar keluar
+            ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3'].forEach(k => {
+                this.targetWeights[k] = 0.0;
+            });
+            comboKeys.forEach(k => {
+                this.targetWeights[k] = (k === punchKey) ? 1.0 : 0.0;
+            });
+
+            if (crossFadeFromAction && crossFadeFromAction !== action) {
+                this.currentWeights[punchKey] = Math.max(this.currentWeights[punchKey] || 0, 0.35);
+            } else {
+                this.currentWeights[punchKey] = Math.max(this.currentWeights[punchKey] || 0, 0.25);
+            }
+            action.setEffectiveWeight(this.currentWeights[punchKey]);
+        },
+
+        cancelPunch() {
+            if (!this.isPunching) return;
+            this.isPunching = false;
+            this.activePunchKey = null;
+            this.queuedPunches = 0;
+            this.hasQueuedPunch = false;
+            this.punchTimer = 0.0;
+            this.punchComboIndex = 0;
+            this.lastPunchEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            ['punch1', 'punch2', 'punch3'].forEach(k => {
                 this.targetWeights[k] = 0.0;
             });
         },
@@ -635,13 +766,60 @@ function createWolfCharacterModel(speciesKey = 'red') {
             // Lompat normal yang masih di fase ancang-ancang tidak boleh terpotong deteksi "di udara"
             this.targetWeights.jumpNormal = 0.0;
 
-            // 1. PRIORITAS TERTINGGI: ANIMASI KICK & JUMP BERJALAN SAMPAI SELESAI TUNTAS
-            if (this.isKicking) {
+            // 1. PRIORITAS TERTINGGI: ANIMASI PUNCH / KICK / JUMP BERJALAN SAMPAI SELESAI TUNTAS
+            if (this.isPunching) {
+                this.punchTimer += dt;
+                this.idleTimer = 0.0;
+                this.activeIdleKey = null;
+                this.idleCycleTimer = 0.0;
+                ['jump', 'jumpRun', 'jumpNormal', 'walk', 'run', 'idle', 'idle2', 'idle3', 'kick1', 'kick2', 'kick3'].forEach(key => {
+                    this.targetWeights[key] = 0.0;
+                });
+
+                const comboKeys = ['punch1', 'punch2', 'punch3'];
+                const curIndex = comboKeys.indexOf(this.activePunchKey);
+
+                // Serah-terima ke pukulan berikutnya HANYA ketika pukulan aktif hampir selesai,
+                // sehingga setiap pukulan selalu tampil utuh (tidak terpotong oleh spam klik)
+                const handoffTime = Math.max(0, this.punchDuration - 0.12);
+
+                if (this.queuedPunches > 0 && this.punchTimer >= handoffTime) {
+                    const prevAction = this.actions[this.activePunchKey];
+                    const nextKey = comboKeys[(curIndex + 1) % comboKeys.length];
+                    this.queuedPunches -= 1;
+                    this.hasQueuedPunch = this.queuedPunches > 0;
+                    this._startPunch(nextKey, prevAction);
+                } else if (this.punchTimer >= this.punchDuration) {
+                    // Rangkaian pukulan selesai tuntas -> klik berikutnya kembali mulai dari punch1
+                    this.isPunching = false;
+                    this.activePunchKey = null;
+                    this.queuedPunches = 0;
+                    this.hasQueuedPunch = false;
+                    this.punchTimer = 0.0;
+                    this.punchComboIndex = 0;
+                    this.lastPunchEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+
+                    // Kembali ke pose berdiri dasar (idle.fbx dari awal), timer idle variasi dari 0
+                    this.wasMoving = false;
+                    this.idleTimer = 0.0;
+                    this.activeIdleKey = null;
+                    this.idleCycleTimer = 0.0;
+                    if (this.actions.idle2) { this.actions.idle2.stop(); this.currentWeights.idle2 = 0.0; }
+                    if (this.actions.idle3) { this.actions.idle3.stop(); this.currentWeights.idle3 = 0.0; }
+                    if (this.actions.idle) { this.actions.idle.reset().play(); }
+                    comboKeys.forEach(key => { this.targetWeights[key] = 0.0; });
+                    this.targetWeights.idle = 1.0;
+                } else {
+                    comboKeys.forEach(key => {
+                        this.targetWeights[key] = (key === this.activePunchKey) ? 1.0 : 0.0;
+                    });
+                }
+            } else if (this.isKicking) {
                 this.kickTimer += dt;
                 this.idleTimer = 0.0;
                 this.activeIdleKey = null;
                 this.idleCycleTimer = 0.0;
-                ['jump', 'jumpRun', 'jumpNormal', 'walk', 'run', 'idle', 'idle2', 'idle3'].forEach(key => {
+                ['jump', 'jumpRun', 'jumpNormal', 'walk', 'run', 'idle', 'idle2', 'idle3', 'punch1', 'punch2', 'punch3'].forEach(key => {
                     this.targetWeights[key] = 0.0;
                 });
 
@@ -787,6 +965,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
                     this.targetWeights.kick1 = 0.0;
                     this.targetWeights.kick2 = 0.0;
                     this.targetWeights.kick3 = 0.0;
+                    this.targetWeights.punch1 = 0.0;
+                    this.targetWeights.punch2 = 0.0;
+                    this.targetWeights.punch3 = 0.0;
 
                     if (isSprinting && absSpeed > 1.8) {
                         // Running stride: smooth ramp from walk to full run
@@ -870,8 +1051,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
             }
 
             // Interpolate action weights smoothly
-            const blendSpeed = this.isKicking ? 28.0 : (isMoving ? 18.0 : (isGrounded ? 12.0 : 16.0));
-            for (const key of ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3']) {
+            const blendSpeed = (this.isKicking || this.isPunching) ? 28.0 : (isMoving ? 18.0 : (isGrounded ? 12.0 : 16.0));
+            for (const key of ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3']) {
                 if (this.actions[key]) {
                     this.currentWeights[key] = THREE.MathUtils.lerp(
                         this.currentWeights[key],
@@ -904,8 +1085,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
         },
 
         resetAnimation() {
-            this.currentWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 };
-            this.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0 };
+            this.currentWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 };
+            this.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 };
             this.wasInAir = false;
             this.isJumping = false;
             this.isKicking = false;
@@ -915,6 +1096,15 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.kickTimer = 0.0;
             this.kick3PrevTime = 0.0;
             this.lastKickEndTime = 0;
+
+            this.isPunching = false;
+            this.activePunchKey = null;
+            this.hasQueuedPunch = false;
+            this.queuedPunches = 0;
+            this.punchTimer = 0.0;
+            this.lastPunchEndTime = 0;
+            this.punchComboIndex = 0;
+
             this.jumpImpulsePending = false;
             this.activeJumpKey = 'jump';
             this.kickComboIndex = 0;
@@ -931,7 +1121,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             if (this.actions.jump) this.actions.jump.setEffectiveWeight(0.0);
             if (this.actions.jumpRun) this.actions.jumpRun.setEffectiveWeight(0.0);
             if (this.actions.jumpNormal) this.actions.jumpNormal.setEffectiveWeight(0.0);
-            ['kick1', 'kick2', 'kick3'].forEach(k => {
+            ['kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3'].forEach(k => {
                 if (this.actions[k]) { this.actions[k].stop(); this.actions[k].setEffectiveWeight(0.0); }
             });
         }

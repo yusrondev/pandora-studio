@@ -66,8 +66,9 @@ window.addEventListener('keydown', (e) => {
             // yang sudah ditahan sebelum klik kanan) yang membatalkan tendangan.
             const isMoveKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) ||
                 ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code);
-            if (wolfCharacter.isKicking && isMoveKey && !e.repeat) {
-                if (typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
+            if (isMoveKey && !e.repeat) {
+                if (wolfCharacter.isKicking && typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
+                if (wolfCharacter.isPunching && typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
             }
             wolfCharacter.idleTimer = 0.0;
             wolfCharacter.activeIdleKey = null;
@@ -589,23 +590,26 @@ function updateWolfPhysics(dt, elapsed) {
                             (typeof mobileJoystickTurn !== 'undefined' && Math.abs(mobileJoystickTurn) > 0.05);
 
     if (wolfCharacter) {
-        // Joystick: hanya dorongan BARU (transisi diam -> aktif) yang membatalkan tendangan
+        // Joystick: hanya dorongan BARU (transisi diam -> aktif) yang membatalkan tendangan / pukulan
         if (wolfCharacter.isKicking && hasJoystickMove && !wolfCharacter._joyWasActive) {
             if (typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
         }
+        if (wolfCharacter.isPunching && hasJoystickMove && !wolfCharacter._joyWasActive) {
+            if (typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
+        }
         wolfCharacter._joyWasActive = !!hasJoystickMove;
 
-        if (!wolfCharacter.isKicking && (hasMoveInput || hasJoystickMove || Math.abs(currentSpeed) > 0.02 || Math.abs(currentTurnRate) > 0.02)) {
+        if (!wolfCharacter.isKicking && !wolfCharacter.isPunching && (hasMoveInput || hasJoystickMove || Math.abs(currentSpeed) > 0.02 || Math.abs(currentTurnRate) > 0.02)) {
             wolfCharacter.idleTimer = 0.0;
             wolfCharacter.activeIdleKey = null;
             wolfCharacter.idleCycleTimer = 0.0;
         }
     }
 
-    const isPlayerKicking = !!(wolfCharacter && wolfCharacter.isKicking);
+    const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching));
 
     let targetSpeed = 0;
-    if (isPlayerKicking) {
+    if (isPlayerInCombat) {
         targetSpeed = 0;
         currentSpeed = 0;
     } else if (Math.abs(analogFwd) > 0.05) {
@@ -626,7 +630,7 @@ function updateWolfPhysics(dt, elapsed) {
         if (keys.d) targetTurn = -stats.turnRate;
     }
 
-    if (isPlayerKicking) {
+    if (isPlayerInCombat) {
         currentTurnRate = 0;
     } else {
         currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, targetTurn, stats.turnAccel * dt);
@@ -649,7 +653,10 @@ function updateWolfPhysics(dt, elapsed) {
     if (hudSpeed) hudSpeed.innerText = (Math.abs(currentSpeed) * 2.2).toFixed(1) + ' m/s';
 
     if (hudState) {
-        if (isPlayerKicking) {
+        if (wolfCharacter && wolfCharacter.isPunching) {
+            hudState.innerText = "PUKULAN (PUNCH)";
+            hudState.style.color = "#f59e0b";
+        } else if (wolfCharacter && wolfCharacter.isKicking) {
             hudState.innerText = "TENDANGAN (KICK)";
             hudState.style.color = "#f43f5e";
         } else if (foxInWaterState) {
@@ -682,7 +689,7 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
-    if (Math.abs(currentSpeed) > 0.01 && !isPlayerKicking) {
+    if (Math.abs(currentSpeed) > 0.01 && !isPlayerInCombat) {
         const moveStep = forward.clone().multiplyScalar(currentSpeed * dt);
         foxRoot.position.add(moveStep);
         camera.position.add(moveStep);
@@ -698,7 +705,7 @@ function updateWolfPhysics(dt, elapsed) {
     }
 
     // Realistic Knockback horizontal displacement & friction
-    if (playerKnockbackVel.lengthSq() > 0.001 && !isPlayerKicking) {
+    if (playerKnockbackVel.lengthSq() > 0.001 && !isPlayerInCombat) {
         foxRoot.position.x += playerKnockbackVel.x * dt;
         foxRoot.position.z += playerKnockbackVel.z * dt;
         camera.position.x += playerKnockbackVel.x * dt;
@@ -1126,7 +1133,7 @@ function updateWolfPhysics(dt, elapsed) {
             foxInWaterState = false;
         }
 
-        if (keys.space && isGrounded && !(wolfCharacter && (wolfCharacter.isJumping || wolfCharacter.isKicking))) {
+        if (keys.space && isGrounded && !(wolfCharacter && (wolfCharacter.isJumping || wolfCharacter.isKicking || wolfCharacter.isPunching))) {
             // Sprint -> Jump-withrun.fbx (impuls langsung); tidak sprint -> jump-normal.fbx (impuls di frame tolakan)
             const isSprinting = (huntBlend > 0.4 && Math.abs(currentSpeed) > 1.8);
             let applyNow = true;

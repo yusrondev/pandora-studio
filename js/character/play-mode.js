@@ -14,21 +14,129 @@ function triggerWolfKick() {
 }
 window.triggerWolfKick = triggerWolfKick;
 
-// Menangkap klik kanan di fase capture sebelum ditelan canvas / OrbitControls
+let lastPunchTriggerTime = 0;
+function triggerWolfPunch() {
+    // Debounce 40ms agar pointerdown + mousedown fisik dihitung tepat 1x klik per input
+    const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    if (now - lastPunchTriggerTime < 40) return;
+    lastPunchTriggerTime = now;
+
+    const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
+    if (char && typeof char.triggerPunch === 'function') {
+        char.triggerPunch();
+    }
+}
+window.triggerWolfPunch = triggerWolfPunch;
+
+// Menangkap klik kanan (Kick) & klik kiri (Punch)
 let lastRightButtonDownTime = -10000;
+
+// Tracking klik kiri: membedakan Click biasa (Punch) vs Hold / Drag untuk Menggerakkan Kamera
+let leftButtonDownTime = 0;
+let leftButtonDownX = 0;
+let leftButtonDownY = 0;
+let isLeftButtonHeld = false;
+let leftButtonIsDrag = false;
+const LEFT_CLICK_MAX_HOLD_MS = 250; // Lebih dari 250ms dianggap hold kamera
+const LEFT_CLICK_MAX_MOVE_PX = 6;   // Lebih dari 6px perpindahan dianggap drag kamera
+
+function handleLeftPointerDown(e) {
+    if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
+    if (e.button !== 0) return;
+    // Hindari trigger saat user mengklik tombol UI / HUD (seperti tombol exit, mobile button, dll)
+    if (e.target && e.target.closest && (e.target.closest('button') || e.target.closest('.play-hud') || e.target.closest('#play-hud') || e.target.closest('.mobile-joystick') || e.target.closest('#mobile-play-controls'))) {
+        isLeftButtonHeld = false;
+        return;
+    }
+    isLeftButtonHeld = true;
+    leftButtonIsDrag = false;
+    leftButtonDownTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    leftButtonDownX = e.clientX || 0;
+    leftButtonDownY = e.clientY || 0;
+}
+
+function handleLeftPointerMove(e) {
+    if (!isLeftButtonHeld) return;
+    const dx = (e.clientX || 0) - leftButtonDownX;
+    const dy = (e.clientY || 0) - leftButtonDownY;
+    if (Math.hypot(dx, dy) > LEFT_CLICK_MAX_MOVE_PX) {
+        leftButtonIsDrag = true;
+    }
+}
+
+function handleLeftPointerUp(e) {
+    if (typeof isPlayMode === 'undefined' || !isPlayMode) {
+        isLeftButtonHeld = false;
+        return;
+    }
+    if (e.button !== 0) return;
+    if (!isLeftButtonHeld) return;
+
+    const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    const duration = now - leftButtonDownTime;
+    const wasDrag = leftButtonIsDrag;
+
+    // Reset state
+    isLeftButtonHeld = false;
+    leftButtonIsDrag = false;
+
+    // Jika bukan drag kamera dan durasi hold singkat (klik / tap murni), eksekusi punch
+    if (!wasDrag && duration <= LEFT_CLICK_MAX_HOLD_MS) {
+        triggerWolfPunch();
+    }
+    // Jika wasDrag atau duration > LEFT_CLICK_MAX_HOLD_MS, itu adalah hold/drag kamera -> JANGAN punch!
+}
+
 window.addEventListener('pointerdown', (e) => {
-    if (typeof isPlayMode !== 'undefined' && isPlayMode && e.button === 2) {
-        e.preventDefault();
-        lastRightButtonDownTime = performance.now();
-        triggerWolfKick();
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) {
+        if (e.button === 2) {
+            e.preventDefault();
+            lastRightButtonDownTime = performance.now();
+            triggerWolfKick();
+        } else if (e.button === 0) {
+            handleLeftPointerDown(e);
+        }
     }
 }, { capture: true });
 
+window.addEventListener('pointermove', (e) => {
+    handleLeftPointerMove(e);
+}, { capture: true });
+
+window.addEventListener('pointerup', (e) => {
+    handleLeftPointerUp(e);
+}, { capture: true });
+
+window.addEventListener('pointercancel', () => {
+    isLeftButtonHeld = false;
+    leftButtonIsDrag = false;
+});
+
+window.addEventListener('blur', () => {
+    isLeftButtonHeld = false;
+    leftButtonIsDrag = false;
+});
+
+// Fallback mousedown / mouseup jika pointer events tidak memicu di beberapa environment browser
 window.addEventListener('mousedown', (e) => {
-    if (typeof isPlayMode !== 'undefined' && isPlayMode && e.button === 2) {
-        e.preventDefault();
-        lastRightButtonDownTime = performance.now();
-        triggerWolfKick();
+    if (typeof isPlayMode !== 'undefined' && isPlayMode) {
+        if (e.button === 2) {
+            e.preventDefault();
+            lastRightButtonDownTime = performance.now();
+            triggerWolfKick();
+        } else if (e.button === 0 && !isLeftButtonHeld) {
+            handleLeftPointerDown(e);
+        }
+    }
+}, { capture: true });
+
+window.addEventListener('mousemove', (e) => {
+    handleLeftPointerMove(e);
+}, { capture: true });
+
+window.addEventListener('mouseup', (e) => {
+    if (isLeftButtonHeld) {
+        handleLeftPointerUp(e);
     }
 }, { capture: true });
 

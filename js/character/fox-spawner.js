@@ -300,10 +300,23 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
     attachFoxSelectionHitbox(model);
 
     // Tandai juga semua child mesh agar raycast bisa melacak parent root
+    // Dan pastikan material di-clone secara independen agar modifikasi opacity/transparent saat eliminasi tidak memengaruhi enemy lain
     model.root.traverse(child => {
         if (child.isMesh) {
             child.userData.isSpawnedFoxChild = true;
             child.userData.foxRoot = model.root;
+            if (child.material) {
+                if (Array.isArray(child.material)) {
+                    child.material = child.material.map(m => m.clone());
+                } else {
+                    child.material = child.material.clone();
+                }
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach(m => {
+                    m.transparent = false;
+                    m.opacity = 1.0;
+                });
+            }
         }
     });
 
@@ -340,6 +353,13 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
         ? parseFloat(hpInput.value)
         : (isBossCheck ? defaultBossHp : defaultNonBossHp);
 
+    const dmgInput = document.getElementById('input-spawner-fox-damage');
+    const defaultBossDmg = (typeof window.ENEMY_COMBAT_CONFIG !== 'undefined') ? window.ENEMY_COMBAT_CONFIG.boss.damagePerHit : 25;
+    const defaultNonBossDmg = (typeof window.ENEMY_COMBAT_CONFIG !== 'undefined') ? window.ENEMY_COMBAT_CONFIG.nonBoss.damagePerHit : 15;
+    const customDmg = (dmgInput && parseFloat(dmgInput.value))
+        ? parseFloat(dmgInput.value)
+        : (isBossCheck ? defaultBossDmg : defaultNonBossDmg);
+
     const foxRecord = {
         id: 'enemy_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
         model: model,
@@ -350,12 +370,14 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
         name: customName,
         maxHealth: customHp,
         health: customHp,
+        damagePerHit: customDmg,
         aiMode: defaultSpawnerAI || 'combat',
         detectionRadius: defaultSpawnerRadius || 18.0,
         animOffset: Math.random() * 50,
         scaleMultiplier: customScale,
         visible: true
     };
+    if (model) model.damagePerHit = customDmg;
     spawnedFoxesList.push(foxRecord);
 
     if (typeof FoxAIManager !== 'undefined' && FoxAIManager.syncSpawnedFoxes) {
@@ -654,6 +676,9 @@ function updateFoxInspectorUI() {
     if (inputName) inputName.value = fox.name || (fox.isBoss ? 'Lingxuzi' : 'FoxTree Enemy');
     if (inputHp) inputHp.value = fox.maxHealth || (fox.isBoss ? 500 : 100);
 
+    const inputDamage = document.getElementById('input-fox-inspector-damage');
+    if (inputDamage) inputDamage.value = (typeof fox.damagePerHit === 'number') ? fox.damagePerHit : (fox.isBoss ? 25 : 15);
+
     if (selectAI) selectAI.value = fox.aiMode || 'combat';
 
     const sliderAIRadius = document.getElementById('slider-fox-ai-radius');
@@ -701,10 +726,11 @@ function initFoxSpawnerUI() {
     selectFoxMode = document.getElementById('select-fox-mode');
     window.selectFoxMode = selectFoxMode;
 
-    // Spawner Boss Toggle Helper (auto update suggested name & HP)
+    // Spawner Boss Toggle Helper (auto update suggested name, HP, & Damage)
     const chkSpawnerBoss = document.getElementById('chk-spawner-fox-boss');
     const inputSpawnerName = document.getElementById('input-spawner-fox-name');
     const inputSpawnerHp = document.getElementById('input-spawner-fox-hp');
+    const inputSpawnerDamage = document.getElementById('input-spawner-fox-damage');
     if (chkSpawnerBoss) {
         chkSpawnerBoss.addEventListener('change', () => {
             if (chkSpawnerBoss.checked) {
@@ -714,12 +740,18 @@ function initFoxSpawnerUI() {
                 if (inputSpawnerHp && inputSpawnerHp.value === '100') {
                     inputSpawnerHp.value = '500';
                 }
+                if (inputSpawnerDamage && inputSpawnerDamage.value === '15') {
+                    inputSpawnerDamage.value = '25';
+                }
             } else {
                 if (inputSpawnerName && inputSpawnerName.value === 'Lingxuzi') {
                     inputSpawnerName.value = 'FoxTree';
                 }
                 if (inputSpawnerHp && inputSpawnerHp.value === '500') {
                     inputSpawnerHp.value = '100';
+                }
+                if (inputSpawnerDamage && inputSpawnerDamage.value === '25') {
+                    inputSpawnerDamage.value = '15';
                 }
             }
         });
@@ -736,6 +768,7 @@ function initFoxSpawnerUI() {
 
                 const inspectorName = document.getElementById('input-fox-inspector-name');
                 const inspectorHp = document.getElementById('input-fox-inspector-hp');
+                const inspectorDmg = document.getElementById('input-fox-inspector-damage');
                 if (chkInspectorBoss.checked) {
                     if (inspectorName && (inspectorName.value === 'FoxTree' || !inspectorName.value)) {
                         inspectorName.value = 'Lingxuzi';
@@ -747,6 +780,19 @@ function initFoxSpawnerUI() {
                         fox.maxHealth = 500;
                         fox.health = 500;
                         if (fox.ai) { fox.ai.maxHealth = 500; fox.ai.health = 500; }
+                    }
+                    if (inspectorDmg && inspectorDmg.value === '15') {
+                        inspectorDmg.value = '25';
+                        fox.damagePerHit = 25;
+                        if (fox.model) fox.model.damagePerHit = 25;
+                        if (fox.ai) fox.ai.damagePerHit = 25;
+                    }
+                } else {
+                    if (inspectorDmg && inspectorDmg.value === '25') {
+                        inspectorDmg.value = '15';
+                        fox.damagePerHit = 15;
+                        if (fox.model) fox.model.damagePerHit = 15;
+                        if (fox.ai) fox.ai.damagePerHit = 15;
                     }
                 }
                 updateFoxInspectorUI();
@@ -785,6 +831,20 @@ function initFoxSpawnerUI() {
                     fox.ai.maxHealth = val;
                     fox.ai.health = val;
                 }
+            }
+        });
+    }
+
+    // Inspector Damage Input
+    const inputInspectorDamage = document.getElementById('input-fox-inspector-damage');
+    if (inputInspectorDamage) {
+        inputInspectorDamage.addEventListener('input', () => {
+            if (selectedFoxIndex >= 0 && spawnedFoxesList[selectedFoxIndex]) {
+                const fox = spawnedFoxesList[selectedFoxIndex];
+                const val = Math.max(1, parseFloat(inputInspectorDamage.value) || 15);
+                fox.damagePerHit = val;
+                if (fox.model) fox.model.damagePerHit = val;
+                if (fox.ai) fox.ai.damagePerHit = val;
             }
         });
     }

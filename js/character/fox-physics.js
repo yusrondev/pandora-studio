@@ -331,6 +331,10 @@ let cameraReleaseTimer = 0.0;
 let activeCameraTouches = new Map();
 let lastPinchDistance = null;
 
+// Persistent camera orbit angles (memastikan kamera tidak pernah terpental/jitter oleh ground clamp atau OrbitControls)
+let camOrbitYaw = null;
+let camOrbitPitch = THREE.MathUtils.degToRad(18.0);
+
 // Delta akumulasi rotasi kamera dari sentuhan layar mobile (Multitouch look)
 let pendingCameraYawDelta = 0.0;
 let pendingCameraPitchDelta = 0.0;
@@ -340,17 +344,24 @@ window.addEventListener('touchstart', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
     for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
+
+        // 1. Abaikan touch joystick (baik via touchId maupun area kiri layar untuk analog)
+        if (typeof window.activeJoystickTouchId !== 'undefined' && window.activeJoystickTouchId !== null && touch.identifier === window.activeJoystickTouchId) {
+            continue;
+        }
+
         const el = document.elementFromPoint(touch.clientX, touch.clientY);
         const inJoystick = el && el.closest && el.closest('#mobile-joystick-zone');
-        const inActionBtn = el && el.closest && el.closest('.mobile-action-buttons');
-        const inExitBtn = el && el.closest && el.closest('#btn-mobile-exit-demo');
+        // Dedikasi area kiri bawah layar (45% lebar layar) untuk kontrol joystick gerak, BUKAN kamera
+        const inLeftMovementZone = (touch.clientX < window.innerWidth * 0.45 && touch.clientY > window.innerHeight * 0.30);
+        const inActionBtn = el && el.closest && (el.closest('.mobile-action-btn') || el.closest('#btn-mobile-exit-demo'));
         const inToolbar = el && el.closest && el.closest('#top-toolbar');
         const inSpecies = el && el.closest && el.closest('#fox-species-bar');
 
-        if (!inJoystick && !inActionBtn && !inExitBtn && !inToolbar && !inSpecies) {
+        if (!inJoystick && !inLeftMovementZone && !inActionBtn && !inToolbar && !inSpecies) {
             activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
             isInteractingWithCamera = true;
-            cameraReleaseTimer = 0.0;
+            cameraReleaseTimer = 2.0;
         }
     }
 
@@ -366,40 +377,43 @@ window.addEventListener('touchmove', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
     let cameraTouchMoved = false;
 
-    // Geser kamera dengan 1 jari kamera (bahkan saat jempol lain sedang menahan joystick lari/jalan)
-    if (activeCameraTouches.size === 1) {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-            const touch = e.changedTouches[i];
-            if (activeCameraTouches.has(touch.identifier)) {
-                const prev = activeCameraTouches.get(touch.identifier);
-                const dx = touch.clientX - prev.x;
-                const dy = touch.clientY - prev.y;
+    // Geser kamera dengan jari kamera (bahkan saat jempol lain sedang menekan joystick atau action button)
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
 
-                // Sensitivitas usapan jempol kamera mobile (natural, halus, dan presisi)
-                const SENSITIVITY_YAW = 0.0055;
-                const SENSITIVITY_PITCH = 0.0045;
-                pendingCameraYawDelta -= dx * SENSITIVITY_YAW;
-                pendingCameraPitchDelta -= dy * SENSITIVITY_PITCH;
-
-                activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
-                cameraTouchMoved = true;
-            }
-        }
-    } else if (activeCameraTouches.size >= 2) {
-        // Multi-touch 2 jari khusus area kamera: Pinch-to-zoom
-        for (let i = 0; i < e.changedTouches.length; i++) {
-            const touch = e.changedTouches[i];
-            if (activeCameraTouches.has(touch.identifier)) {
-                activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
-                cameraTouchMoved = true;
-            }
+        // Pastikan bukan touch joystick
+        if (typeof window.activeJoystickTouchId !== 'undefined' && window.activeJoystickTouchId !== null && touch.identifier === window.activeJoystickTouchId) {
+            activeCameraTouches.delete(touch.identifier);
+            continue;
         }
 
+        if (activeCameraTouches.has(touch.identifier)) {
+            const prev = activeCameraTouches.get(touch.identifier);
+            let dx = touch.clientX - prev.x;
+            let dy = touch.clientY - prev.y;
+
+            // Clamp lonjakan delta per-frame untuk mencegah kamera terpental akibat teleport touch
+            dx = THREE.MathUtils.clamp(dx, -60, 60);
+            dy = THREE.MathUtils.clamp(dy, -60, 60);
+
+            // Sensitivitas usapan jempol kamera mobile (natural, halus, dan presisi)
+            const SENSITIVITY_YAW = 0.0050;
+            const SENSITIVITY_PITCH = 0.0040;
+            pendingCameraYawDelta -= dx * SENSITIVITY_YAW;
+            pendingCameraPitchDelta -= dy * SENSITIVITY_PITCH;
+
+            activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+            cameraTouchMoved = true;
+        }
+    }
+
+    if (activeCameraTouches.size >= 2) {
         const touches = Array.from(activeCameraTouches.values());
         const currentPinch = Math.hypot(touches[0].x - touches[1].x, touches[0].y - touches[1].y);
-        if (lastPinchDistance !== null && lastPinchDistance > 5 && currentPinch > 5) {
+        if (lastPinchDistance !== null && lastPinchDistance > 10 && currentPinch > 10) {
             const pinchRatio = currentPinch / lastPinchDistance;
-            const zoomDelta = (1.0 - pinchRatio) * userPreferredDist * 1.5;
+            // Batasi perubahan zoom per-frame agar kamera tidak terpental
+            const zoomDelta = THREE.MathUtils.clamp((1.0 - pinchRatio) * userPreferredDist * 1.2, -0.6, 0.6);
             userPreferredDist = THREE.MathUtils.clamp(userPreferredDist + zoomDelta, 3.0, 18.0);
         }
         lastPinchDistance = currentPinch;
@@ -407,7 +421,7 @@ window.addEventListener('touchmove', (e) => {
 
     if (cameraTouchMoved) {
         isInteractingWithCamera = true;
-        cameraReleaseTimer = 1.0;
+        cameraReleaseTimer = 2.0;
     }
 }, { passive: true });
 
@@ -421,7 +435,7 @@ function removeCameraTouches(e) {
     }
     if (activeCameraTouches.size === 0) {
         isInteractingWithCamera = false;
-        cameraReleaseTimer = 0.8;
+        cameraReleaseTimer = 1.8;
     }
 }
 
@@ -726,11 +740,12 @@ function updateWolfPhysics(dt, elapsed) {
     // Deteksi interupsi aksi oleh pergerakan pemain
     const hasMoveInput = inputMag > 0.05;
     if (wolfCharacter) {
-        // Joystick / Input baru: transisi diam -> aktif membatalkan tendangan / pukulan
-        if (wolfCharacter.isKicking && hasMoveInput && !wolfCharacter._joyWasActive) {
+        // Joystick / Input baru: HANYA batalkan jika serangan sudah melewati fase benturan mendarat
+        // Mencegah animasi terpotong seketika di awal yang membuat stamina terkuras tanpa animasi terlaksana!
+        if (wolfCharacter.isKicking && hasMoveInput && !wolfCharacter._joyWasActive && (wolfCharacter.kickTimer > 0.35)) {
             if (typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
         }
-        if (wolfCharacter.isPunching && hasMoveInput && !wolfCharacter._joyWasActive) {
+        if (wolfCharacter.isPunching && hasMoveInput && !wolfCharacter._joyWasActive && (wolfCharacter.punchTimer > 0.30)) {
             if (typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
         }
         wolfCharacter._joyWasActive = !!hasMoveInput;
@@ -748,12 +763,17 @@ function updateWolfPhysics(dt, elapsed) {
     const isMovementLocked = isPlayerInCombat || isStationaryJumping;
 
     // Vektor arah pandangan kamera pada bidang horizontal (XZ ground plane)
-    const camFwd = new THREE.Vector3().subVectors(controls.target, camera.position);
-    camFwd.y = 0;
-    if (camFwd.lengthSq() > 0.0001) {
-        camFwd.normalize();
+    let camFwd;
+    if (camOrbitYaw !== null && typeof camOrbitYaw === 'number') {
+        camFwd = new THREE.Vector3(-Math.sin(camOrbitYaw), 0, -Math.cos(camOrbitYaw));
     } else {
-        camFwd.set(0, 0, 1);
+        camFwd = new THREE.Vector3().subVectors(controls.target, camera.position);
+        camFwd.y = 0;
+        if (camFwd.lengthSq() > 0.0001) {
+            camFwd.normalize();
+        } else {
+            camFwd.set(0, 0, 1);
+        }
     }
     // Vektor sisi kanan kamera (camFwd x UP): [-camFwd.z, 0, camFwd.x]
     const camRight = new THREE.Vector3(-camFwd.z, 0, camFwd.x);
@@ -1412,8 +1432,8 @@ function updateWolfPhysics(dt, elapsed) {
             enemyHeadY,
             activeCombatTarget.root.position.z
         );
-        // Lerp 32% ke arah musuh agar hero & musuh selalu berada seimbang di tengah frame layar
-        currentTargetPos = playerTargetPos.clone().lerp(enemyTargetPos, 0.32);
+        // Lerp 25% ke arah musuh agar framing kedua karakter pas di layar dan tidak terlalu condong ke tengah
+        currentTargetPos = playerTargetPos.clone().lerp(enemyTargetPos, 0.25);
     }
 
     // Modern AAA spring-arm focus target lag:
@@ -1424,18 +1444,12 @@ function updateWolfPhysics(dt, elapsed) {
     controls.target.z = THREE.MathUtils.lerp(controls.target.z, currentTargetPos.z, posAlpha);
     controls.target.y = THREE.MathUtils.lerp(controls.target.y, currentTargetPos.y, 1.0 - Math.exp(-12.0 * dt));
 
-    controls.update();
-
-    // Vektor garis pandang dari fokus rubah ke kamera
-    const camRay = camera.position.clone().sub(controls.target);
-    let measuredDist = camRay.length();
-    if (measuredDist < 0.001) {
-        camRay.set(-3.2, 1.8, 3.8);
-        measuredDist = camRay.length();
-    }
-
     // Update status penahanan manual kamera (Multi-touch / Mouse drag)
-    if (isInteractingWithCamera || isUserMouseDown || activeCameraTouches.size > 0) {
+    const isCameraSwipeActive = (Math.abs(pendingCameraYawDelta) > 0.00001 || Math.abs(pendingCameraPitchDelta) > 0.00001);
+    if (isCameraSwipeActive) {
+        cameraReleaseTimer = 2.0;
+    }
+    if (isInteractingWithCamera || isUserMouseDown || activeCameraTouches.size > 0 || isCameraSwipeActive) {
         isUserHoldingCamera = true;
     } else if (cameraReleaseTimer > 0) {
         cameraReleaseTimer -= dt;
@@ -1444,9 +1458,28 @@ function updateWolfPhysics(dt, elapsed) {
         isUserHoldingCamera = false;
     }
 
-    let hDist = Math.hypot(camRay.x, camRay.z);
-    let curYaw = (hDist > 0.02) ? Math.atan2(camRay.x, camRay.z) : (foxRoot.rotation.y + Math.PI);
-    let curPitch = Math.atan2(camRay.y, Math.max(0.05, hDist));
+    // Inisialisasi camOrbitYaw & camOrbitPitch jika belum ada
+    if (camOrbitYaw === null || typeof camOrbitYaw === 'undefined') {
+        if (typeof window.camOrbitYaw !== 'undefined' && window.camOrbitYaw !== null) {
+            camOrbitYaw = window.camOrbitYaw;
+        } else {
+            const camRay = camera.position.clone().sub(controls.target);
+            const hDist = Math.hypot(camRay.x, camRay.z);
+            camOrbitYaw = (hDist > 0.02) ? Math.atan2(camRay.x, camRay.z) : (foxRoot.rotation.y + Math.PI);
+        }
+    }
+    if (typeof window.camOrbitPitch !== 'undefined' && window.camOrbitPitch !== null && camOrbitPitch === null) {
+        camOrbitPitch = window.camOrbitPitch;
+    }
+
+    // Hanya panggil controls.update() saat mouse desktop sedang aktif di-drag
+    if (isUserMouseDown && typeof controls !== 'undefined' && controls.update) {
+        controls.update();
+        const camRay = camera.position.clone().sub(controls.target);
+        const hDist = Math.hypot(camRay.x, camRay.z);
+        if (hDist > 0.02) camOrbitYaw = Math.atan2(camRay.x, camRay.z);
+        camOrbitPitch = Math.atan2(camRay.y, Math.max(0.05, hDist));
+    }
 
     // PENTING: Batasi sudut pitch maksimal ke 30 derajat dari horizontal
     // (Kamera TIDAK BISA menukik ke atas kepala / up-to-down top-down under ANY circumstance)
@@ -1455,13 +1488,13 @@ function updateWolfPhysics(dt, elapsed) {
 
     // Terapkan delta usapan kamera touch mobile (Multitouch kamera saat berjalan/berlari)
     if (pendingCameraYawDelta !== 0.0 || pendingCameraPitchDelta !== 0.0) {
-        curYaw += pendingCameraYawDelta;
-        curPitch += pendingCameraPitchDelta;
+        camOrbitYaw += pendingCameraYawDelta;
+        camOrbitPitch += pendingCameraPitchDelta;
         pendingCameraYawDelta = 0.0;
         pendingCameraPitchDelta = 0.0;
     }
 
-    curPitch = THREE.MathUtils.clamp(curPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
+    camOrbitPitch = THREE.MathUtils.clamp(camOrbitPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
 
     const isCharacterMoving = (Math.abs(currentSpeed) > 0.15 || Math.abs(currentTurnRate) > 0.15 || (window.currentFoxInputMag || 0) > 0.1 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.15 || Math.abs(analogTurn) > 0.15);
 
@@ -1471,46 +1504,56 @@ function updateWolfPhysics(dt, elapsed) {
         // sudut kamera dipertahankan dan rubah tidak dipaksa memutar arah.
     } else if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
         // AUTO LOCK KAMERA KE MUSUH TERDEKAT:
-        // Kamera secara otomatis mengarah dari belakang Hero menuju Musuh
+        // Kamera secara otomatis mengarah dari belakang Hero menuju Musuh dengan laju teratur
         const toEnemyX = activeCombatTarget.root.position.x - foxRoot.position.x;
         const toEnemyZ = activeCombatTarget.root.position.z - foxRoot.position.z;
         const targetYaw = Math.atan2(-toEnemyX, -toEnemyZ);
 
-        let diff = (targetYaw - curYaw) % (Math.PI * 2);
+        let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
         if (diff < -Math.PI) diff += Math.PI * 2;
         if (diff > Math.PI) diff -= Math.PI * 2;
 
-        const lockChaseSpeed = 6.8;
+        const lockChaseSpeed = 6.0;
         const smoothT = 1.0 - Math.exp(-lockChaseSpeed * dt);
-        curYaw += diff * smoothT;
+        // Batasi laju rotasi maksimal per frame agar kamera tidak pernah terpental
+        const maxLockStep = 3.8 * dt;
+        camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxLockStep, maxLockStep);
 
         const targetPitch = THREE.MathUtils.degToRad(18.0);
-        curPitch = THREE.MathUtils.clamp(
-            THREE.MathUtils.lerp(curPitch, targetPitch, 1.0 - Math.exp(-3.0 * dt)),
+        camOrbitPitch = THREE.MathUtils.clamp(
+            THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-3.0 * dt)),
             MIN_ALLOWED_PITCH,
             MAX_ALLOWED_PITCH
         );
     } else {
         // SAAT TIDAK DIGERAKKAN SECARA MANUAL & TIDAK SEDANG COMBAT LOCK:
-        // Sistem kamera normal mengikuti di belakang rubah saat bergerak
+        // Sistem kamera normal mengikuti di belakang rubah saat bergerak maju
         if (isCharacterMoving) {
             const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
-            let diff = (targetYaw - curYaw) % (Math.PI * 2);
+            let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
             if (diff < -Math.PI) diff += Math.PI * 2;
             if (diff > Math.PI) diff -= Math.PI * 2;
 
-            const chaseSpeed = (huntBlend > 0.4) ? 5.5 : 4.2;
-            const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
-            curYaw += diff * smoothT;
+            // Mencegah glitch kamera berputar 180 derajat saat karakter bergerak mundur / ke arah kamera
+            const isMovingBackward = (analogFwd < -0.25 || keys.s);
+            if (!isMovingBackward) {
+                const chaseSpeed = (huntBlend > 0.4) ? 4.8 : 3.6;
+                const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
+                const maxChaseStep = 3.0 * dt;
+                camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxChaseStep, maxChaseStep);
 
-            const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
-            curPitch = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)), MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
+                const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
+                camOrbitPitch = THREE.MathUtils.clamp(THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)), MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
+            }
         }
     }
 
-    const cosP = Math.cos(curPitch);
-    const sinP = Math.sin(curPitch);
-    const rayDir = new THREE.Vector3(Math.sin(curYaw) * cosP, sinP, Math.cos(curYaw) * cosP).normalize();
+    window.camOrbitYaw = camOrbitYaw;
+    window.camOrbitPitch = camOrbitPitch;
+
+    const cosP = Math.cos(camOrbitPitch);
+    const sinP = Math.sin(camOrbitPitch);
+    const rayDir = new THREE.Vector3(Math.sin(camOrbitYaw) * cosP, sinP, Math.cos(camOrbitYaw) * cosP).normalize();
     const rayStart = controls.target;
 
     // ========================================================
@@ -1531,7 +1574,16 @@ function updateWolfPhysics(dt, elapsed) {
     const userTargetDist = THREE.MathUtils.clamp(userPreferredDist, 2.4, 18.0);
     // Jarak zoom mendekat saat di ujung map
     const edgeZoomDist = Math.max(2.1, Math.min(userTargetDist * 0.45, 2.5));
-    const effectiveTargetDist = THREE.MathUtils.lerp(userTargetDist, edgeZoomDist, smoothEdge);
+    let effectiveTargetDist = THREE.MathUtils.lerp(userTargetDist, edgeZoomDist, smoothEdge);
+
+    // KETIKA COMBAT LOCK-ON AKTIF:
+    // Mundurkan kamera agar ruang pertarungan lega (framing hero & enemy tampak utuh dan luas)
+    if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
+        const distToEnemy = foxRoot.position.distanceTo(activeCombatTarget.root.position);
+        // Base distance minimal 6.5m, bertambah dinamis seiring jarak musuh (hingga 8.8m)
+        const combatFramingDist = THREE.MathUtils.clamp(distToEnemy * 0.65 + 5.8, 6.5, 8.8);
+        effectiveTargetDist = Math.max(effectiveTargetDist, combatFramingDist);
+    }
 
     const zoomLerpRate = 4.5;
     currentCamDist += (effectiveTargetDist - currentCamDist) * Math.min(1.0, zoomLerpRate * dt);

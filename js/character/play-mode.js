@@ -293,11 +293,15 @@ function startPlayMode() {
         keys.space = false;
     }
 
-    // Atur OrbitControls agar persis seperti new-character.html
+    // Atur OrbitControls: Matikan touch handling OrbitControls di Play Mode agar tidak bentrok dengan analog & kamera mobile
     controls.enabled = true;
     controls.enablePan = false;
     controls.enableZoom = true;
-    controls.enableDamping = false; // Matikan damping bawaan OrbitControls agar rotasi kamera chase halus tanpa jitter
+    controls.enableDamping = false;
+    if (controls.touches) {
+        controls.touches.ONE = null;
+        controls.touches.TWO = null;
+    }
     controls.minDistance = 2.4;
     controls.maxDistance = 25.0;
     controls.minPolarAngle = Math.PI * 0.28; // ~50.4 deg dari vertikal (Kamera TIDAK BISA menukik top-down 90 deg)
@@ -318,6 +322,8 @@ function startPlayMode() {
     const bwd = fwd.clone().negate();
     const camDist = 4.8;
     camera.position.set(spawnX + bwd.x * camDist, spawnY + 2.0, spawnZ + bwd.z * camDist);
+    window.camOrbitYaw = spawnRotY + Math.PI;
+    window.camOrbitPitch = THREE.MathUtils.degToRad(18.0);
     controls.update();
 
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
@@ -489,6 +495,10 @@ function stopPlayMode() {
     }
 
     controls.enabled = true;
+    if (controls.touches) {
+        controls.touches.ONE = THREE.TOUCH.ROTATE;
+        controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+    }
     if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.clearMissiles === 'function') {
         window.plasmaWeaponInstance.clearMissiles();
     }

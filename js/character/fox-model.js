@@ -566,6 +566,11 @@ window.HeroAssetManager = {
                 child.receiveShadow = true;
                 child.frustumCulled = false;
                 if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material = child.material.map(m => m.clone());
+                    } else {
+                        child.material = child.material.clone();
+                    }
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach(m => {
                         m.roughness = 1.0;
@@ -573,6 +578,8 @@ window.HeroAssetManager = {
                         if (m.shininess !== undefined) m.shininess = 0;
                         if (m.specular) m.specular.set(0x000000);
                         if (m.emissive) m.emissive.set(0x222222);
+                        m.transparent = false;
+                        m.opacity = 1.0;
                     });
                 }
             }
@@ -2095,11 +2102,18 @@ window.EnemyFoxTreeAssetManager = {
                 child.receiveShadow = true;
                 child.frustumCulled = false;
                 if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material = child.material.map(m => m.clone());
+                    } else {
+                        child.material = child.material.clone();
+                    }
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach(m => {
                         m.roughness = 1.0;
                         m.metalness = 0.0;
                         if (m.emissive) m.emissive.set(0x222222);
+                        m.transparent = false;
+                        m.opacity = 1.0;
                     });
                 }
             }
@@ -2468,12 +2482,14 @@ function createEnemyFoxTreeModel() {
                 // Melee strike impact window: cek apakah pukulan enemy mengenai player tepat saat kepalan mendarat
                 if (!this.strikeProcessed) {
                     const pKey = this.activePunchKey || 'punch1';
+                    // Konfigurasi pukulan presisi fisik: kepalan tangan 3D harus benar-benar menyentuh tubuh lawan
+                    // (reach: 1.25m - 1.30m setara dengan Hero Red agar tidak ada phantom hit / kena angin)
                     const ENEMY_PUNCH_CONFIGS = {
-                        punch1: { minTime: 0.28, maxTime: 0.42, reach: 1.15, minDot: 0.45 },
-                        punch2: { minTime: 0.30, maxTime: 0.45, reach: 1.15, minDot: 0.45 },
-                        punch3: { minTime: 0.46, maxTime: 0.62, reach: 1.20, minDot: 0.40 }
+                        punch1: { minTime: 0.28, maxTime: 0.44, reach: 1.25, minDot: 0.40 },
+                        punch2: { minTime: 0.28, maxTime: 0.44, reach: 1.25, minDot: 0.40 },
+                        punch3: { minTime: 0.40, maxTime: 0.58, reach: 1.30, minDot: 0.35 }
                     };
-                    const cfg = ENEMY_PUNCH_CONFIGS[pKey] || { minTime: 0.30, maxTime: 0.45, reach: 1.15, minDot: 0.45 };
+                    const cfg = ENEMY_PUNCH_CONFIGS[pKey] || { minTime: 0.28, maxTime: 0.44, reach: 1.25, minDot: 0.40 };
 
                     if (this.punchTimer >= cfg.minTime && this.punchTimer <= cfg.maxTime) {
                         const isPlayerDead = Boolean(
@@ -2489,7 +2505,8 @@ function createEnemyFoxTreeModel() {
 
                         if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
                             const pPos = wolfCharacter.root.position;
-                            const distToPlayer = this.root.position.distanceTo(pPos);
+                            // Jarak horizontal murni (mengabaikan fluktuasi elevasi tanah kecil)
+                            const distToPlayer = Math.hypot(this.root.position.x - pPos.x, this.root.position.z - pPos.z);
                             if (distToPlayer <= cfg.reach) {
                                 const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
                                 const toP = new THREE.Vector3().subVectors(pPos, this.root.position).setY(0);

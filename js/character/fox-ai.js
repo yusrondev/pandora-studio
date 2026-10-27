@@ -74,6 +74,10 @@ class FoxAIAgent {
         this.betweenPunchDelay = 0.0;   // Jeda mikro natural antar pukulan
         this._wasPunching = false;
 
+        // Variasi Acak Gait Locomotion (Walk & Run Pacing independen dari player)
+        this.locomotionDecisionTimer = 0.0;
+        this.isPacingRun = Math.random() > 0.45;
+
         // Kecepatan & Kemudi (Diselaraskan persis dengan stats spesies player red fox)
         const speciesKey = (foxRecord && foxRecord.species) ? foxRecord.species : 'foxtree';
         const speciesCfg = (typeof FOX_STATS_CONFIG !== 'undefined' && FOX_STATS_CONFIG[speciesKey])
@@ -313,6 +317,15 @@ class FoxAIAgent {
         if (this.root) {
             this.root.traverse(child => {
                 if (child.isMesh && child.material) {
+                    // Pastikan material di-clone secara eksklusif agar fadeout tidak pernah bocor ke enemy lain
+                    if (!child.userData.hasUniqueFadeMat) {
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(m => m.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
+                        child.userData.hasUniqueFadeMat = true;
+                    }
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach(m => {
                         m.transparent = true;
@@ -684,14 +697,51 @@ class FoxAIAgent {
                 return;
             }
 
-            // Jarak Dekat Presisi untuk Pukulan Melee (Close Combat Fist Impact Range)
-            const PUNCH_RANGE = 1.15;
+            // Jarak Presisi Kontak Pukulan Melee (Fist Contact Physical Range)
+            // AI hanya boleh mulai memukul jika sudah benar-benar dekat (<= 1.25m) agar tangan menyentuh badan visual
+            const PUNCH_RANGE = 1.25;
 
+            // 1. JIKA SEDANG MELANCARKAN PUKULAN (ACTIVE PUNCH STATE):
+            if (isCurrentlyPunching) {
+                this.isPunching = true;
+                this.state = 'COMBAT_PUNCH';
+
+                // Hadapkan badan tepat ke arah Player secara presisi
+                const toPlayer = new THREE.Vector3().subVectors(playerPos, this.root.position).setY(0);
+                if (toPlayer.lengthSq() > 0.001) {
+                    toPlayer.normalize();
+                    const aimAngle = Math.atan2(toPlayer.x, toPlayer.z);
+                    this.turnTowardAngle(aimAngle, dt);
+                }
+
+                // STEP-IN TRACKING RAPAT:
+                // Selama pukulan belum mendarat (wind-up), AI terus melangkah rapat mendekati tubuh Player
+                // agar kepalan tangan 3D benar-benar MENYENTUH tubuh Player (bukan memukul angin di kejauhan).
+                const strikeProcessed = Boolean(this.model && this.model.strikeProcessed);
+                if (!strikeProcessed) {
+                    if (distToPlayer > 0.95) {
+                        // Jika player melangkah santai menjauh, susul dengan lunge maju rapat (~2.2 m/s)
+                        this.targetSpeed = Math.min(this.walkSpeed * 1.35, 2.3);
+                    } else {
+                        // Jarak sudah sangat rapat menempel tubuh (~0.85m-0.95m), tahan agar tidak tembus
+                        this.targetSpeed = 0;
+                    }
+                } else {
+                    // Setelah kepalan mendarat di tubuh target, redam langkah saat menarik kembali tangan
+                    this.targetSpeed = 0;
+                }
+
+                // Batalkan pukulan jika player kabur sangat jauh (> 4.5m)
+                if (distToPlayer > 4.5 && typeof this.model.cancelPunch === 'function') {
+                    this.model.cancelPunch();
+                    this.isPunching = false;
+                    this._wasPunching = false;
+                }
+                return;
+            }
+
+            // 2. JIKA SUDAH MENDEKATI BADAN PLAYER DALAM JARAK SENTUH FISIK (TRIGGER PUNCH):
             if (distToPlayer <= PUNCH_RANGE) {
-                // Berhenti melangkah agar pukulan stabil di tempat
-                this.targetSpeed = 0;
-                this.currentSpeed = 0;
-
                 // Hadapkan badan tepat ke arah Player
                 const toPlayer = new THREE.Vector3().subVectors(playerPos, this.root.position).setY(0);
                 if (toPlayer.lengthSq() > 0.001) {
@@ -700,30 +750,40 @@ class FoxAIAgent {
                     this.turnTowardAngle(aimAngle, dt);
                 }
 
-                // Eksekusi animasi pukulan jika belum sedang memukul
-                if (!isCurrentlyPunching && typeof this.model.triggerPunch === 'function') {
+                // Eksekusi animasi pukulan baru
+                if (typeof this.model.triggerPunch === 'function') {
                     this.model.triggerPunch();
                     this._wasPunching = true;
                     this.isPunching = true;
+                    // Lunge maju jika masih ada celah jarak
+                    this.targetSpeed = (distToPlayer > 0.95) ? Math.min(this.walkSpeed * 1.35, 2.3) : 0;
                 }
                 this.state = 'COMBAT_PUNCH';
-            } else {
-                // Player berada di luar jarak pukul (> 1.15m) tetapi masih di dalam radius deteksi (Aggro):
-                if (isCurrentlyPunching && distToPlayer < 1.45) {
-                    this.targetSpeed = 0;
-                    this.isPunching = true;
-                } else {
-                    // Bergerak mengejar Player
-                    if (this.model && typeof this.model.cancelPunch === 'function') {
-                        this.model.cancelPunch();
-                    }
-                    this.isPunching = false;
-                    this._wasPunching = false;
-                    const chaseSpeed = (distToPlayer > 5.0) ? this.sprintSpeed : this.walkSpeed;
-                    this.steerToward(playerPos, chaseSpeed, dt, distToPlayer > 5.0);
-                    this.state = 'CHASE_PLAYER';
-                }
+                return;
             }
+
+            // 3. JIKA BERADA DI LUAR JARAK PUKUL: BERGERAK MENGEJAR PLAYER
+            this.isPunching = false;
+            this._wasPunching = false;
+
+            // Update timer keputusan gaya pergerakan secara acak (walk & run)
+            this.locomotionDecisionTimer -= dt;
+            if (this.locomotionDecisionTimer <= 0) {
+                // Ganti gaya pergerakan setiap 1.4 - 3.2 detik secara acak
+                this.locomotionDecisionTimer = 1.4 + Math.random() * 1.8;
+                // Jika sangat jauh (> 8m), condong lari; jika dekat/menengah (1.5 - 7m), acak 50:50 lari atau jalan santai
+                const runChance = (distToPlayer > 8.0) ? 0.90 : 0.52;
+                this.isPacingRun = Math.random() < runChance;
+            }
+
+            let chaseSpeed = this.isPacingRun ? this.sprintSpeed : this.walkSpeed;
+            // Saat mendekat ke player (< 3.0m), pastikan kecepatan cukup untuk menyusul jalan santai player
+            if (distToPlayer < 3.0 && chaseSpeed < 2.0) {
+                chaseSpeed = Math.min(this.walkSpeed * 1.25, 2.1);
+            }
+            const isSprint = (chaseSpeed > 2.8) || (distToPlayer > 10.0);
+            this.steerToward(playerPos, chaseSpeed, dt, isSprint);
+            this.state = 'CHASE_PLAYER';
             return;
         }
 
@@ -1325,11 +1385,13 @@ class FoxAIAgent {
             this.root.rotation.y = this.spawnRotationY;
             this.root.visible = true; // Spawn kembali saat demo mode dimulai lagi
 
-            // Kembalikan opacity material ke 100%
+            // Kembalikan opacity material ke 100% dan matikan status transparansi
             this.root.traverse(child => {
                 if (child.isMesh && child.material) {
+                    child.userData.hasUniqueFadeMat = false;
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach(m => {
+                        m.transparent = false;
                         m.opacity = 1.0;
                     });
                 }

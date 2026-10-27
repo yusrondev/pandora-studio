@@ -81,9 +81,6 @@ function animate() {
             FoxAIManager.updateInEditor(delta, elapsedTime);
         }
     }
-    if (typeof CombatHUD !== 'undefined' && CombatHUD.update) {
-        CombatHUD.update(delta, elapsedTime);
-    }
     if (typeof glbImporterInstance !== 'undefined' && glbImporterInstance) {
         glbImporterInstance.update(delta, elapsedTime);
     }
@@ -104,6 +101,12 @@ function animate() {
         if (typeof CinematicManager !== 'undefined' && CinematicManager.isFoxEnabled && wolfCharacter && wolfCharacter.root && wolfCharacter.root.visible) {
             CinematicManager.updateIdleFox(delta, elapsedTime);
         }
+    }
+
+    // UPDATE COMBAT HUD (Floating HP & Boss Bar) tepat setelah posisi kamera dan karakter sudah final
+    // Meniadakan jeda 1-frame latency yang membuat HP bar dan nametag bergetar saat kamera digerakkan
+    if (typeof CombatHUD !== 'undefined' && CombatHUD.update) {
+        CombatHUD.update(delta, elapsedTime);
     }
 
     // Render scene depth pass untuk perpotongan fisika air 100% presisi mengikuti bentuk 3D mesh (batu, pohon, rumput)

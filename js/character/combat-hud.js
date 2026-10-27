@@ -287,8 +287,13 @@ const CombatHUD = {
             }
 
             barEl.style.display = 'flex';
-            barEl.style.left = pxX + 'px';
-            barEl.style.top = pxY + 'px';
+            // GPU-accelerated transform: translate3d untuk pergerakan 100% mulus tanpa getar
+            barEl.style.transform = `translate3d(${pxX.toFixed(1)}px, ${pxY.toFixed(1)}px, 0) translate(-50%, -100%)`;
+
+            const nameEl = barEl.querySelector('.enemy-overhead-name');
+            if (nameEl && nameEl.innerText !== (fox.name || 'FoxTree')) {
+                nameEl.innerText = fox.name || 'FoxTree';
+            }
 
             const fillEl = barEl.querySelector('.enemy-overhead-fill');
             if (fillEl) {

@@ -48,6 +48,8 @@ function initMobileControls() {
         keys.s = false;
         keys.a = false;
         keys.d = false;
+        activeTouchId = null;
+        window.activeJoystickTouchId = null;
         joystickStick.style.transform = 'translate(-50%, -50%)';
         joystickBase.classList.remove('active');
     }
@@ -97,6 +99,7 @@ function initMobileControls() {
 
         const touch = e.changedTouches[0];
         activeTouchId = touch.identifier;
+        window.activeJoystickTouchId = touch.identifier;
         updateBaseCenter();
         joystickBase.classList.add('active');
         processJoystickMove(touch.clientX, touch.clientY);
@@ -119,6 +122,7 @@ function initMobileControls() {
         if (activeTouchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
             if (e.changedTouches[i].identifier === activeTouchId) {
+                window.activeJoystickTouchId = null;
                 resetJoystick();
                 break;
             }
@@ -129,6 +133,7 @@ function initMobileControls() {
         if (activeTouchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
             if (e.changedTouches[i].identifier === activeTouchId) {
+                window.activeJoystickTouchId = null;
                 resetJoystick();
                 break;
             }
@@ -185,9 +190,10 @@ function initMobileControls() {
 
     // 2. JUMP BUTTON
     if (btnJump) {
+        let lastJumpTouchTime = 0;
         btnJump.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            e.stopPropagation();
+            lastJumpTouchTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
             btnJump.classList.add('active');
             if (typeof triggerWolfJump === 'function') {
                 triggerWolfJump();
@@ -204,15 +210,18 @@ function initMobileControls() {
 
         btnJump.addEventListener('click', (e) => {
             e.preventDefault();
+            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            if (now - lastJumpTouchTime < 450) return; // Sudah diproses oleh touchstart
             if (typeof triggerWolfJump === 'function') triggerWolfJump();
         });
     }
 
     // 3. SPRINT BUTTON (TOGGLE OR HOLD)
     if (btnSprint) {
+        let lastSprintTouchTime = 0;
         btnSprint.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            e.stopPropagation();
+            lastSprintTouchTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
             isMobileSprintActive = !isMobileSprintActive;
             keys.shift = isMobileSprintActive;
             btnSprint.classList.toggle('active', isMobileSprintActive);
@@ -221,6 +230,8 @@ function initMobileControls() {
 
         btnSprint.addEventListener('click', (e) => {
             e.preventDefault();
+            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            if (now - lastSprintTouchTime < 450) return; // Sudah diproses oleh touchstart
             isMobileSprintActive = !isMobileSprintActive;
             keys.shift = isMobileSprintActive;
             btnSprint.classList.toggle('active', isMobileSprintActive);
@@ -230,13 +241,13 @@ function initMobileControls() {
     // 4. PUNCH BUTTON (COMBO ATTACK)
     if (btnPunch) {
         let lastPunchTap = 0;
-        const doPunch = (e) => {
-            if (e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+        let lastPunchTouchTime = 0;
+        const doPunch = (e, isTouch = false) => {
+            if (e) e.preventDefault();
             const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            if (now - lastPunchTap < 50) return;
+            if (!isTouch && (now - lastPunchTouchTime < 450)) return; // Abaikan click sintetis touch
+            if (isTouch) lastPunchTouchTime = now;
+            if (now - lastPunchTap < 70) return;
             lastPunchTap = now;
 
             btnPunch.classList.add('active');
@@ -247,20 +258,20 @@ function initMobileControls() {
             if (navigator.vibrate) navigator.vibrate(22);
         };
 
-        btnPunch.addEventListener('touchstart', doPunch, { passive: false });
-        btnPunch.addEventListener('click', doPunch);
+        btnPunch.addEventListener('touchstart', (e) => doPunch(e, true), { passive: false });
+        btnPunch.addEventListener('click', (e) => doPunch(e, false));
     }
 
     // 5. KICK BUTTON (SWEEP ATTACK)
     if (btnKick) {
         let lastKickTap = 0;
-        const doKick = (e) => {
-            if (e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+        let lastKickTouchTime = 0;
+        const doKick = (e, isTouch = false) => {
+            if (e) e.preventDefault();
             const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            if (now - lastKickTap < 50) return;
+            if (!isTouch && (now - lastKickTouchTime < 450)) return; // Abaikan click sintetis touch
+            if (isTouch) lastKickTouchTime = now;
+            if (now - lastKickTap < 70) return;
             lastKickTap = now;
 
             btnKick.classList.add('active');
@@ -271,8 +282,8 @@ function initMobileControls() {
             if (navigator.vibrate) navigator.vibrate(25);
         };
 
-        btnKick.addEventListener('touchstart', doKick, { passive: false });
-        btnKick.addEventListener('click', doKick);
+        btnKick.addEventListener('touchstart', (e) => doKick(e, true), { passive: false });
+        btnKick.addEventListener('click', (e) => doKick(e, false));
     }
 
     // 6. EXIT DEMO BUTTON

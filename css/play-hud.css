@@ -436,11 +436,12 @@ body.play-mode-active canvas {
     right: 20px;
     width: 180px;
     height: 180px;
-    pointer-events: auto;
+    pointer-events: none; /* Celah di antara tombol tidak memblokir sentuhan geser kamera */
     touch-action: none;
 }
 
 .mobile-action-btn {
+    pointer-events: auto; /* Tombol fisik aksi tetap menerima sentuhan */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -926,35 +927,41 @@ body.play-mode-active #btn-mobile-exit-demo {
 
 .enemy-overhead-bar {
     position: absolute;
+    top: 0;
+    left: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
-    width: 72px;
-    transform: translate(-50%, -100%);
-    transition: opacity 0.2s ease;
+    gap: 1.5px;
+    width: 44px; /* Ukuran lebih pendek & proporsional untuk enemy non-boss */
+    transform-origin: center bottom;
+    will-change: transform;
     user-select: none;
     pointer-events: none;
+    background: transparent;
+    box-shadow: none;
 }
 
 .enemy-overhead-name {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 600;
     color: #e2e8f0;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
-    letter-spacing: 0.3px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    letter-spacing: 0.2px;
     white-space: nowrap;
+    background: transparent;
+    box-shadow: none;
 }
 
 .enemy-overhead-track {
     position: relative;
     width: 100%;
-    height: 5px;
-    background: rgba(10, 12, 16, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.25);
+    height: 3.5px; /* Lebih tipis dan rapi */
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 2px;
     overflow: hidden;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    box-shadow: none; /* Hilangkan shadow box */
 }
 
 .enemy-overhead-fill {
@@ -964,26 +971,28 @@ body.play-mode-active #btn-mobile-exit-demo {
 }
 
 .enemy-overhead-bar.target-locked {
-    transform: translate(-50%, -115%) scale(1.08);
+    filter: none;
+    box-shadow: none;
 }
 
 .enemy-overhead-bar.target-locked .enemy-overhead-track {
-    border-color: #ff3b30;
-    box-shadow: 0 0 10px rgba(255, 59, 48, 0.8), 0 0 4px rgba(255, 255, 255, 0.9);
+    border-color: #ef4444;
+    box-shadow: none; /* Hilangkan shadow box */
 }
 
 .enemy-overhead-bar.target-locked .enemy-overhead-name {
-    color: #ff4d4f;
+    color: #f87171;
     font-weight: 700;
+    box-shadow: none;
 }
 
 .enemy-overhead-bar.target-locked::after {
     content: '▼';
     position: absolute;
-    top: -14px;
-    font-size: 11px;
-    color: #ff3b30;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.95));
+    top: -11px;
+    font-size: 8.5px;
+    color: #ef4444;
+    filter: none;
     animation: pulseTargetLock 0.8s ease-in-out infinite alternate;
 }
 

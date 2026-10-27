@@ -334,6 +334,7 @@ let lastPinchDistance = null;
 // Persistent camera orbit angles (memastikan kamera tidak pernah terpental/jitter oleh ground clamp atau OrbitControls)
 let camOrbitYaw = null;
 let camOrbitPitch = THREE.MathUtils.degToRad(18.0);
+let _lastFollowSign = 1;
 
 // Delta akumulasi rotasi kamera dari sentuhan layar mobile (Multitouch look)
 let pendingCameraYawDelta = 0.0;
@@ -397,10 +398,11 @@ window.addEventListener('touchmove', (e) => {
             dy = THREE.MathUtils.clamp(dy, -60, 60);
 
             // Sensitivitas usapan jempol kamera mobile (natural, halus, dan presisi)
+            // Arah vertikal (Pitch) di-reverse (inverted Y-axis) sesuai preferensi kontrol
             const SENSITIVITY_YAW = 0.0050;
             const SENSITIVITY_PITCH = 0.0040;
             pendingCameraYawDelta -= dx * SENSITIVITY_YAW;
-            pendingCameraPitchDelta -= dy * SENSITIVITY_PITCH;
+            pendingCameraPitchDelta += dy * SENSITIVITY_PITCH;
 
             activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
             cameraTouchMoved = true;
@@ -1445,12 +1447,18 @@ function updateWolfPhysics(dt, elapsed) {
     controls.target.y = THREE.MathUtils.lerp(controls.target.y, currentTargetPos.y, 1.0 - Math.exp(-12.0 * dt));
 
     // Update status penahanan manual kamera (Multi-touch / Mouse drag)
+    const isTouchingCamera = (activeCameraTouches.size > 0 || isUserMouseDown);
     const isCameraSwipeActive = (Math.abs(pendingCameraYawDelta) > 0.00001 || Math.abs(pendingCameraPitchDelta) > 0.00001);
-    if (isCameraSwipeActive) {
-        cameraReleaseTimer = 2.0;
-    }
-    if (isInteractingWithCamera || isUserMouseDown || activeCameraTouches.size > 0 || isCameraSwipeActive) {
+
+    const isCharacterMoving = (Math.abs(currentSpeed) > 0.10 || Math.abs(currentTurnRate) > 0.10 || (window.currentFoxInputMag || 0) > 0.08 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.10 || Math.abs(analogTurn) > 0.10);
+
+    if (isTouchingCamera || isCameraSwipeActive) {
+        cameraReleaseTimer = 0.5;
         isUserHoldingCamera = true;
+    } else if (isCharacterMoving) {
+        // Player melepas gesture kamera dan menyetir analog: segera ikuti hadapan rubah tanpa jeda
+        cameraReleaseTimer = 0.0;
+        isUserHoldingCamera = false;
     } else if (cameraReleaseTimer > 0) {
         cameraReleaseTimer -= dt;
         isUserHoldingCamera = true;
@@ -1496,15 +1504,38 @@ function updateWolfPhysics(dt, elapsed) {
 
     camOrbitPitch = THREE.MathUtils.clamp(camOrbitPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
 
-    const isCharacterMoving = (Math.abs(currentSpeed) > 0.15 || Math.abs(currentTurnRate) > 0.15 || (window.currentFoxInputMag || 0) > 0.1 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.15 || Math.abs(analogTurn) > 0.15);
-
     if (isUserHoldingCamera) {
-        // SAAT USER MENGGESER KAMERA (BAIK SEDANG DIAM MAUPUN BERJALAN):
-        // Kamera bebas dirotasi oleh user sesuai arah drag mouse/touch,
-        // sudut kamera dipertahankan dan rubah tidak dipaksa memutar arah.
+        // 1. SAAT USER MEMEGANG / MENGGESER KAMERA:
+        // Kamera bebas dirotasi oleh user sesuai usapan jari/mouse, sudut dipertahankan
+    } else if (isCharacterMoving) {
+        // 2. SAAT MELEPAS GESTURE KAMERA DAN MENYETIR ANALOG:
+        // Kamera secara otomatis dan responsif mengikuti hadapan (belakang) rubah
+        const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
+        let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
+        if (diff < -Math.PI) diff += Math.PI * 2;
+        if (diff > Math.PI) diff -= Math.PI * 2;
+
+        // Cegah osilasi tanda bolak-balik saat rotasi ~180 derajat
+        if (Math.abs(diff) > Math.PI - 0.06) {
+            diff = (_lastFollowSign || 1) * (Math.PI - 0.06);
+        } else {
+            _lastFollowSign = Math.sign(diff) || 1;
+        }
+
+        const chaseSpeed = (huntBlend > 0.4) ? 5.2 : 3.8;
+        const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
+        const maxChaseStep = 4.2 * dt;
+        camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxChaseStep, maxChaseStep);
+
+        const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
+        camOrbitPitch = THREE.MathUtils.clamp(
+            THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)),
+            MIN_ALLOWED_PITCH,
+            MAX_ALLOWED_PITCH
+        );
     } else if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
-        // AUTO LOCK KAMERA KE MUSUH TERDEKAT:
-        // Kamera secara otomatis mengarah dari belakang Hero menuju Musuh dengan laju teratur
+        // 3. SAAT KARAKTER DIAM DI AREA MUSUH:
+        // Kamera otomatis mengarah dari belakang Hero menuju Musuh untuk framing pertarungan
         const toEnemyX = activeCombatTarget.root.position.x - foxRoot.position.x;
         const toEnemyZ = activeCombatTarget.root.position.z - foxRoot.position.z;
         const targetYaw = Math.atan2(-toEnemyX, -toEnemyZ);
@@ -1513,10 +1544,9 @@ function updateWolfPhysics(dt, elapsed) {
         if (diff < -Math.PI) diff += Math.PI * 2;
         if (diff > Math.PI) diff -= Math.PI * 2;
 
-        const lockChaseSpeed = 6.0;
+        const lockChaseSpeed = 5.0;
         const smoothT = 1.0 - Math.exp(-lockChaseSpeed * dt);
-        // Batasi laju rotasi maksimal per frame agar kamera tidak pernah terpental
-        const maxLockStep = 3.8 * dt;
+        const maxLockStep = 3.5 * dt;
         camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxLockStep, maxLockStep);
 
         const targetPitch = THREE.MathUtils.degToRad(18.0);
@@ -1525,27 +1555,6 @@ function updateWolfPhysics(dt, elapsed) {
             MIN_ALLOWED_PITCH,
             MAX_ALLOWED_PITCH
         );
-    } else {
-        // SAAT TIDAK DIGERAKKAN SECARA MANUAL & TIDAK SEDANG COMBAT LOCK:
-        // Sistem kamera normal mengikuti di belakang rubah saat bergerak maju
-        if (isCharacterMoving) {
-            const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
-            let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
-            if (diff < -Math.PI) diff += Math.PI * 2;
-            if (diff > Math.PI) diff -= Math.PI * 2;
-
-            // Mencegah glitch kamera berputar 180 derajat saat karakter bergerak mundur / ke arah kamera
-            const isMovingBackward = (analogFwd < -0.25 || keys.s);
-            if (!isMovingBackward) {
-                const chaseSpeed = (huntBlend > 0.4) ? 4.8 : 3.6;
-                const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
-                const maxChaseStep = 3.0 * dt;
-                camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxChaseStep, maxChaseStep);
-
-                const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
-                camOrbitPitch = THREE.MathUtils.clamp(THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)), MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
-            }
-        }
     }
 
     window.camOrbitYaw = camOrbitYaw;

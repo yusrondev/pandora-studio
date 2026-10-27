@@ -784,26 +784,17 @@ function updateWolfPhysics(dt, elapsed) {
         // Karakter bebas bergerak dan menghadap ke segala arah mengikuti kemudi joystick di layar,
         // posisinya tidak terpaku / tidak terpatri titik hadapnya ke musuh.
         if (inputMag > 0.05) {
-            // Mundur tanpa membalik badan jika menahan tombol S / menarik analog lurus ke bawah
-            if (inputY < -0.28 && Math.abs(inputX) < 0.35) {
-                isMovingBackward = true;
-                const rSpeed = isHunting ? fastReverseSpeed : reverseSpeed;
-                targetSpeed = -inputMag * rSpeed;
-                const fwdFacing = new THREE.Vector3(Math.sin(foxRoot.rotation.y), 0, Math.cos(foxRoot.rotation.y));
-                moveDisplacement.copy(fwdFacing).multiplyScalar(-1);
-            } else {
-                isMovingBackward = false;
-                targetSpeed = inputMag * (isHunting ? huntRunSpeed : walkSpeed);
-                targetFacingYaw = Math.atan2(moveWorldDir.x, moveWorldDir.z);
+            isMovingBackward = false;
+            targetSpeed = inputMag * (isHunting ? huntRunSpeed : walkSpeed);
+            targetFacingYaw = Math.atan2(moveWorldDir.x, moveWorldDir.z);
 
-                let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
-                if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
-                if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-                foxRoot.rotation.y += yawDiff * Math.min(1.0, stats.turnAccel * dt);
-                currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 6.0, stats.turnAccel * dt);
+            let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
+            if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+            if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+            foxRoot.rotation.y += yawDiff * Math.min(1.0, stats.turnAccel * dt);
+            currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 6.0, stats.turnAccel * dt);
 
-                moveDisplacement.copy(moveWorldDir);
-            }
+            moveDisplacement.copy(moveWorldDir);
         } else {
             targetSpeed = 0;
             currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, 0, stats.turnAccel * dt);

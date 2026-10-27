@@ -32,8 +32,8 @@ const FOX_STATS_CONFIG = {
         // --- STAMINA SYSTEM ---
         maxStamina: 100,            // Total kapasitas stamina
         staminaDrain: 18.0,         // Pengurangan stamina per detik saat lari (sprint)
-        staminaRecoveryWalk: 7.0,   // Penambahan stamina per detik saat jalan pelan
-        staminaRecoveryIdle: 16.0,  // Penambahan stamina per detik saat diam (idle)
+        staminaRecoveryWalk: 3.0,   // Penambahan stamina per detik saat jalan pelan (diperlambat)
+        staminaRecoveryIdle: 7.5,   // Penambahan stamina per detik saat diam (idle, diperlambat)
         exhaustionThreshold: 25,    // Stamina minimum untuk bisa lari kembali setelah lelah
     },
 
@@ -60,8 +60,8 @@ const FOX_STATS_CONFIG = {
         // --- STAMINA SYSTEM ---
         maxStamina: 145,            // Stamina paling melimpah (tahan lari jauh di salju)
         staminaDrain: 13.0,         // Konsumsi stamina hemat (~11 detik sprint penuh)
-        staminaRecoveryWalk: 9.0,   // Pemulihan cepat saat jalan
-        staminaRecoveryIdle: 19.0,  // Pemulihan sangat cepat saat diam
+        staminaRecoveryWalk: 3.8,   // Pemulihan santai saat jalan
+        staminaRecoveryIdle: 8.5,   // Pemulihan bertahap saat diam
         exhaustionThreshold: 30,
     },
 
@@ -88,8 +88,8 @@ const FOX_STATS_CONFIG = {
         // --- STAMINA SYSTEM ---
         maxStamina: 90,             // Kapasitas sedang
         staminaDrain: 20.0,         // Pengurangan saat lari
-        staminaRecoveryWalk: 8.0,
-        staminaRecoveryIdle: 16.0,
+        staminaRecoveryWalk: 3.2,
+        staminaRecoveryIdle: 7.5,
         exhaustionThreshold: 22,
     },
 
@@ -116,8 +116,8 @@ const FOX_STATS_CONFIG = {
         // --- STAMINA SYSTEM ---
         maxStamina: 80,             // Stamina paling cepat habis karena lari kilat
         staminaDrain: 26.0,         // Menguras energi tinggi (~3 detik sprint kilat)
-        staminaRecoveryWalk: 9.0,
-        staminaRecoveryIdle: 18.0,
+        staminaRecoveryWalk: 3.5,
+        staminaRecoveryIdle: 8.0,
         exhaustionThreshold: 20,
     },
 
@@ -144,8 +144,8 @@ const FOX_STATS_CONFIG = {
         // --- STAMINA SYSTEM ---
         maxStamina: 120,            // Kapasitas stamina besar dan stabil
         staminaDrain: 15.0,         // Pengurangan seimbang (~8 detik sprint stabil)
-        staminaRecoveryWalk: 7.5,
-        staminaRecoveryIdle: 15.0,
+        staminaRecoveryWalk: 3.0,
+        staminaRecoveryIdle: 7.0,
         exhaustionThreshold: 25,
     },
 
@@ -199,11 +199,18 @@ const FoxStaminaState = {
     },
 
     /**
+     * Cek apakah stamina mencukupi untuk melakukan aksi (harus > 15% kapasitas maksimal)
+     */
+    canPerformAction() {
+        return (this.current / this.max) > 0.15;
+    },
+
+    /**
      * Hitung perubahan stamina setiap frame
      * @param {number} dt Delta time dalam detik
      * @param {boolean} isSprintRequested Apakah tombol Shift sedang ditekan
      * @param {boolean} isMovingForward Apakah karakter sedang bergerak maju
-     * @returns {boolean} Apakah karakter benar-benar boleh lari (tidak lelah)
+     * @returns {boolean} Apakah karakter benar-benar boleh lari (tidak lelah dan > 15%)
      */
     update(dt, isSprintRequested, isMovingForward) {
         const cfg = FOX_STATS_CONFIG[this.activeSpeciesKey] || FOX_STATS_CONFIG.red;
@@ -219,10 +226,18 @@ const FoxStaminaState = {
             }
         }
 
-        if (isSprintRequested && isMovingForward && !this.isExhausted && this.current > 0) {
+        // Syarat sprint: stamina harus lebih dari 15% kapasitas maksimal
+        const hasEnoughSprintStamina = (this.current / this.max) > 0.15;
+
+        if (isSprintRequested && isMovingForward && !this.isExhausted && hasEnoughSprintStamina && this.current > 0) {
             // SEDANG LARI (SPRINT / HUNTING) -> STAMINA BERKURANG
             canSprint = true;
             this.current = Math.max(0, this.current - cfg.staminaDrain * dt);
+
+            // Jika stamina turun menyentuh atau di bawah 15%, hentikan sprint seketika
+            if ((this.current / this.max) <= 0.15) {
+                canSprint = false;
+            }
 
             if (this.current <= 0) {
                 this.current = 0;
@@ -248,6 +263,20 @@ const FoxStaminaState = {
     },
 
     /**
+     * Kurangi stamina saat aksi tempur seperti punch, kick, dll
+     * @param {number} amount Jumlah stamina yang dikonsumsi
+     */
+    consume(amount = 10) {
+        if (amount <= 0) return;
+        this.current = Math.max(0, this.current - amount);
+        if (this.current <= 0) {
+            this.current = 0;
+            this.isExhausted = true;
+        }
+        this.updateHUD();
+    },
+
+    /**
      * Update visual indikator stamina di HUD
      */
     updateHUD() {
@@ -261,14 +290,17 @@ const FoxStaminaState = {
         const pct = Math.max(0, Math.min(100, (this.current / this.max) * 100));
         barFill.style.width = pct.toFixed(1) + '%';
 
+        const isCritical = (this.current / this.max) <= 0.15;
+        barFill.classList.toggle('critical', isCritical);
+
         if (valText) {
             valText.innerText = Math.round(this.current) + ' / ' + this.max;
         }
 
-        if (this.isExhausted) {
+        if (this.isExhausted || isCritical) {
             barFill.classList.add('exhausted');
             if (stateBadge) {
-                stateBadge.innerText = 'LELAH (PULIHKAN)';
+                stateBadge.innerText = isCritical ? 'KRITIS (<=15%)' : 'LELAH (PULIHKAN)';
                 stateBadge.className = 'fox-stamina-state exhausted';
             }
         } else {

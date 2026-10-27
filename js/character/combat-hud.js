@@ -44,6 +44,23 @@ const PlayerHealthState = {
                 wolfCharacter.triggerDeath();
             }
             // Karakter stop di animasi dead (frame terakhir) dan tidak bangun lagi
+            // Hentikan semua musuh dari menyerang / mengejar
+            if (typeof FoxAIManager !== 'undefined' && FoxAIManager && Array.isArray(FoxAIManager.agents)) {
+                FoxAIManager.agents.forEach(agent => {
+                    if (agent) {
+                        agent.targetSpeed = 0;
+                        agent.currentSpeed = 0;
+                        agent.isPunching = false;
+                        if (agent.model && typeof agent.model.cancelPunch === 'function') {
+                            agent.model.cancelPunch();
+                        }
+                        agent.state = 'IDLE';
+                    }
+                });
+            }
+            if (typeof FoxAIManager !== 'undefined' && FoxAIManager && FoxAIManager.playerWarningBanner) {
+                FoxAIManager.playerWarningBanner.classList.remove('visible');
+            }
         }
     },
 
@@ -127,12 +144,14 @@ const CombatHUD = {
             ? wolfCharacter.root.position
             : null;
 
-        // 1. UPDATE PLAYER STAMINA BAR (KUNING)
+        // 1. UPDATE PLAYER STAMINA BAR (KUNING / MERAH KRITIS <= 15%)
         if (typeof FoxStaminaState !== 'undefined') {
             const staminaFill = document.getElementById('player-stamina-bar-fill');
             if (staminaFill) {
                 const sPct = Math.max(0, Math.min(100, (FoxStaminaState.current / FoxStaminaState.max) * 100));
                 staminaFill.style.width = sPct.toFixed(1) + '%';
+                const isCritical = (FoxStaminaState.current / FoxStaminaState.max) <= 0.15;
+                staminaFill.classList.toggle('critical', isCritical);
             }
         }
 
@@ -276,6 +295,14 @@ const CombatHUD = {
                 const pct = Math.max(0, Math.min(100, (curHp / maxHp) * 100));
                 fillEl.style.width = pct.toFixed(1) + '%';
             }
+
+            // Visual feedback lock-on reticle untuk musuh yang sedang terkunci
+            const isTargetLocked = !!(
+                typeof window.currentCombatLockTarget !== 'undefined' &&
+                window.currentCombatLockTarget &&
+                (window.currentCombatLockTarget.root === fox.root || window.currentCombatLockTarget === fox)
+            );
+            barEl.classList.toggle('target-locked', isTargetLocked);
         }
 
         // Hapus elemen yang sudah tidak ada

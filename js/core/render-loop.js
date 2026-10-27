@@ -131,7 +131,21 @@ function updateViewportSize() {
 }
 window.updateViewportSize = updateViewportSize;
 
-window.addEventListener('resize', updateViewportSize);
+window.addEventListener('resize', () => {
+    updateViewportSize();
+    setTimeout(updateViewportSize, 50);
+});
+
+// Listener khusus fullscreen change (Android Chrome / Safari iOS)
+const onFullscreenChange = () => {
+    updateViewportSize();
+    requestAnimationFrame(updateViewportSize);
+    setTimeout(updateViewportSize, 60);
+    setTimeout(updateViewportSize, 200);
+    setTimeout(updateViewportSize, 500);
+};
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
 if (typeof ResizeObserver !== 'undefined') {
     const container = document.getElementById('viewport-container');

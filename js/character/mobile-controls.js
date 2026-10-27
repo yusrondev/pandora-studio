@@ -22,6 +22,8 @@ function initMobileControls() {
     const btnSprint = document.getElementById('btn-mobile-sprint');
     const btnExit = document.getElementById('btn-mobile-exit-demo');
     const btnUseItem = document.getElementById('btn-mobile-use-item');
+    const btnPunch = document.getElementById('btn-mobile-punch');
+    const btnKick = document.getElementById('btn-mobile-kick');
 
     if (!controlsContainer || !joystickZone || !joystickBase || !joystickStick) {
         return;
@@ -225,7 +227,55 @@ function initMobileControls() {
         });
     }
 
-    // 4. EXIT DEMO BUTTON
+    // 4. PUNCH BUTTON (COMBO ATTACK)
+    if (btnPunch) {
+        let lastPunchTap = 0;
+        const doPunch = (e) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            if (now - lastPunchTap < 50) return;
+            lastPunchTap = now;
+
+            btnPunch.classList.add('active');
+            setTimeout(() => { btnPunch.classList.remove('active'); }, 140);
+            if (typeof triggerWolfPunch === 'function') {
+                triggerWolfPunch();
+            }
+            if (navigator.vibrate) navigator.vibrate(22);
+        };
+
+        btnPunch.addEventListener('touchstart', doPunch, { passive: false });
+        btnPunch.addEventListener('click', doPunch);
+    }
+
+    // 5. KICK BUTTON (SWEEP ATTACK)
+    if (btnKick) {
+        let lastKickTap = 0;
+        const doKick = (e) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            if (now - lastKickTap < 50) return;
+            lastKickTap = now;
+
+            btnKick.classList.add('active');
+            setTimeout(() => { btnKick.classList.remove('active'); }, 140);
+            if (typeof triggerWolfKick === 'function') {
+                triggerWolfKick();
+            }
+            if (navigator.vibrate) navigator.vibrate(25);
+        };
+
+        btnKick.addEventListener('touchstart', doKick, { passive: false });
+        btnKick.addEventListener('click', doKick);
+    }
+
+    // 6. EXIT DEMO BUTTON
     if (btnExit) {
         btnExit.addEventListener('touchstart', (e) => {
             e.preventDefault();

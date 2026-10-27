@@ -3,7 +3,9 @@
    Authentic Blender 4.x Desktop HUD Style
    ========================================================= */
 
-/* Play Mode Full-Screen Isolation: Sembunyikan semua panel editor, footer, sidebar, resizer, dsb */
+/* Play Mode Full-Screen Isolation: Sembunyikan semua toolbar editor, panel, footer, sidebar, resizer, dsb */
+body.play-mode-active #top-toolbar,
+body.play-mode-active #toolbar-overflow-dropdown,
 body.play-mode-active #sidebar-left,
 body.play-mode-active #sidebar-right,
 body.play-mode-active .sidebar,
@@ -23,10 +25,17 @@ body.play-mode-active .mode-banner {
 }
 
 body.play-mode-active #viewport-container {
-    top: var(--header-height, 36px) !important;
+    top: 0 !important;
     bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
+    touch-action: none !important;
+}
+
+body.play-mode-active,
+body.play-mode-active canvas {
+    touch-action: none !important;
+    -webkit-touch-callout: none !important;
 }
 
 .btn-play-mode {
@@ -61,24 +70,9 @@ body.play-mode-active #viewport-container {
     box-shadow: none !important;
 }
 
-/* Floating Fox Species Switcher (Compact Desktop Bar) */
+/* Floating Fox Species Switcher (Hidden in Demo Mode per user request) */
 .fox-species-bar {
-    position: fixed;
-    top: 44px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    background: rgba(18, 20, 26, 0.55);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 20px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-    pointer-events: auto;
+    display: none !important;
 }
 
 .species-bar-hint {
@@ -326,8 +320,10 @@ body.play-mode-active #viewport-container {
     transition: width 0.08s linear;
 }
 
-.fox-stamina-fill.exhausted {
-    background: #ef4444;
+.fox-stamina-fill.exhausted,
+.fox-stamina-fill.critical {
+    background: #ef4444 !important;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
 }
 
 /* Bottom Hint Row */
@@ -433,21 +429,20 @@ body.play-mode-active #viewport-container {
     transform: translate(-50%, -50%);
 }
 
-/* 2. Action Buttons (Bottom-Right) - ARCADE GAMING STYLE */
+/* 2. Action Buttons (Bottom-Right) - ARCADE CLUSTER GAMING STYLE */
 .mobile-action-buttons {
     position: absolute;
-    bottom: 24px;
+    bottom: 20px;
     right: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
+    width: 180px;
+    height: 180px;
     pointer-events: auto;
     touch-action: none;
 }
 
 .mobile-action-btn {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
@@ -456,57 +451,170 @@ body.play-mode-active #viewport-container {
     -webkit-user-select: none;
     transition: transform 0.08s ease, filter 0.12s ease, box-shadow 0.12s ease;
     color: #ffffff;
+    box-sizing: border-box;
 }
 
-.mobile-action-btn:active {
+.mobile-action-btn:active,
+.mobile-action-btn.active {
     transform: scale(0.92);
 }
 
-/* Jump Button - Arcade Electric Blue */
+.mobile-btn-label {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-top: 1px;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+}
+
+/* Punch Button - Primary Attack (Center-Bottom of thumb arc) */
+.mobile-punch-btn {
+    position: absolute;
+    bottom: 0px;
+    right: 0px;
+    width: 70px;
+    height: 70px;
+    background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+    border: 2.5px solid rgba(254, 202, 202, 0.9);
+    box-shadow: 0 6px 22px rgba(220, 38, 38, 0.65), 0 0 18px rgba(239, 68, 68, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.5);
+    z-index: 5;
+}
+
+.mobile-punch-btn:active,
+.mobile-punch-btn.active {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    box-shadow: 0 2px 12px rgba(220, 38, 38, 0.9), inset 0 0 6px rgba(255, 255, 255, 0.4);
+}
+
+.mobile-punch-label {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    margin-top: 1px;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+    pointer-events: none;
+}
+
+/* Kick Button - Secondary Martial Attack (Upper-Left of Punch) */
+.mobile-kick-btn {
+    position: absolute;
+    bottom: 70px;
+    right: 74px;
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
+    border: 2px solid rgba(254, 215, 170, 0.9);
+    box-shadow: 0 5px 18px rgba(234, 88, 12, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.5);
+    z-index: 4;
+}
+
+.mobile-kick-btn:active,
+.mobile-kick-btn.active {
+    background: linear-gradient(135deg, #ea580c 0%, #9a3412 100%);
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.85);
+}
+
+/* Jump Button - Arcade Electric Blue (Directly Above Punch) */
 .mobile-jump-btn {
-    width: 64px;
-    height: 64px;
+    position: absolute;
+    bottom: 80px;
+    right: 8px;
+    width: 52px;
+    height: 52px;
     background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
-    border: 2.5px solid rgba(191, 219, 254, 0.9);
-    box-shadow: 0 6px 20px rgba(29, 78, 216, 0.6), 0 0 16px rgba(2, 132, 199, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.5);
+    border: 2px solid rgba(191, 219, 254, 0.9);
+    box-shadow: 0 5px 18px rgba(29, 78, 216, 0.6), 0 0 14px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.5);
+    z-index: 4;
 }
 
 .mobile-jump-btn:active,
 .mobile-jump-btn.active {
     background: linear-gradient(135deg, #1e40af 0%, #0369a1 100%);
-    box-shadow: 0 2px 10px rgba(29, 78, 216, 0.8), 0 0 22px rgba(56, 189, 248, 0.8), inset 0 0 6px rgba(255, 255, 255, 0.4);
+    box-shadow: 0 2px 10px rgba(29, 78, 216, 0.8), 0 0 18px rgba(56, 189, 248, 0.8), inset 0 0 6px rgba(255, 255, 255, 0.4);
 }
 
-/* Sprint Button - Arcade Fiery Amber/Orange */
+/* Sprint Button - Arcade Fiery Amber (Left of Punch) */
 .mobile-sprint-btn {
-    width: 54px;
-    height: 54px;
+    position: absolute;
+    bottom: 8px;
+    right: 80px;
+    width: 46px;
+    height: 46px;
     background: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
-    border: 2.5px solid rgba(254, 215, 170, 0.9);
-    box-shadow: 0 6px 20px rgba(234, 88, 12, 0.6), 0 0 16px rgba(217, 119, 6, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.5);
-    color: #ffffff;
+    border: 2px solid rgba(254, 215, 170, 0.9);
+    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.5);
+    z-index: 3;
 }
 
 .mobile-sprint-btn:active,
 .mobile-sprint-btn.active {
     background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
-    box-shadow: 0 0 24px rgba(249, 115, 22, 0.95), inset 0 0 8px rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.95), inset 0 0 6px rgba(255, 255, 255, 0.7);
     border-color: #ffffff;
 }
 
-/* Exit Demo Button - Arcade Crimson */
+/* Use Item Button - Plasma Bazooka (Apex of Cluster) */
+.mobile-plasma-btn {
+    position: absolute;
+    bottom: 130px;
+    right: 40px;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+    border: 2px solid rgba(221, 214, 254, 0.9);
+    box-shadow: 0 5px 18px rgba(139, 92, 246, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.5);
+    z-index: 5;
+}
+
+/* Exit Demo Button - Selalu tampil di pojok kanan atas saat demo mode di desktop maupun mobile */
+#btn-mobile-exit-demo {
+    display: none;
+}
+
+body.play-mode-active #btn-mobile-exit-demo {
+    display: flex !important;
+}
+
 .mobile-exit-btn {
-    width: 44px;
-    height: 44px;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    border: 2px solid rgba(254, 202, 202, 0.85);
-    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: auto;
+    height: 32px;
+    padding: 0 14px;
+    gap: 6px;
+    border-radius: 16px;
+    background: rgba(185, 28, 28, 0.88);
+    border: 1px solid rgba(254, 202, 202, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
     color: #ffffff;
+    pointer-events: auto;
+    z-index: 9999;
+    flex-direction: row;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.mobile-exit-btn:hover {
+    background: rgba(220, 38, 38, 0.95);
+    transform: translateY(-1px);
 }
 
 .mobile-exit-btn:active {
-    background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%);
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.8);
+    background: rgba(153, 27, 27, 0.95);
+    transform: scale(0.94);
+}
+
+.mobile-exit-text {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
 }
 
 /* =========================================================
@@ -514,8 +622,9 @@ body.play-mode-active #viewport-container {
    Compact HUD, Non-blocking, Proportional Layout
    ========================================================= */
 @media (max-width: 768px) {
-    /* Fox Stats HUD: Completely hidden per user request */
-    .fox-stats-hud {
+    /* Fox Stats HUD & Species Bar: completely hidden per user request */
+    .fox-stats-hud,
+    .fox-species-bar {
         display: none !important;
     }
 
@@ -523,77 +632,119 @@ body.play-mode-active #viewport-container {
         display: block !important;
     }
 
-    /* Species switcher bar: Slim transparent pill capsule di tengah atas */
-    .fox-species-bar {
-        top: 42px !important;
-        left: 50% !important;
-        right: auto !important;
+    /* Player HUD di Mobile: Diletakkan di atas Virtual Joystick (175px) agar TIDAK BERTABRAKAN */
+    .player-combat-hud {
+        bottom: 175px !important;
+        left: 20px !important;
+    }
+
+    .player-bar-wrapper.hp-wrapper {
+        width: 145px !important;
+        height: 10px !important;
+    }
+
+    .player-bar-wrapper.stamina-wrapper {
+        width: 115px !important;
+        height: 7px !important;
+    }
+
+    /* Boss Health Bar di Mobile: bar diperpendek ringkas & proporsional */
+    .boss-health-bar-container {
+        top: 16px !important;
         bottom: auto !important;
-        transform: translateX(-50%) !important;
-        max-width: calc(100vw - 32px) !important;
-        height: 28px !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        scrollbar-width: none !important;
-        padding: 2px 6px !important;
-        background: rgba(18, 20, 26, 0.45) !important;
-        backdrop-filter: blur(10px) !important;
-        -webkit-backdrop-filter: blur(10px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.16) !important;
-        border-radius: 14px !important;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
-        white-space: nowrap !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 3px !important;
+        width: min(180px, 50vw) !important;
     }
 
-    .fox-species-bar::-webkit-scrollbar {
-        display: none !important;
+    .boss-name-text {
+        font-size: 11px !important;
+        letter-spacing: 1.8px !important;
     }
 
-    .species-bar-hint,
-    .btn-species-exit {
-        display: none !important;
+    .boss-bar-track {
+        height: 6px !important;
     }
 
-    .btn-species-pill {
-        padding: 1px 7px !important;
-        font-size: 10px !important;
-        height: 22px !important;
-        border-radius: 11px !important;
-        background: rgba(255, 255, 255, 0.08) !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        color: #cbd5e1 !important;
+    /* Virtual Joystick Responsif */
+    .mobile-joystick-zone {
+        bottom: 18px !important;
+        left: 18px !important;
+        width: 140px !important;
+        height: 140px !important;
     }
 
-    .btn-species-pill.active {
-        background: var(--accent) !important;
-        border-color: rgba(255, 255, 255, 0.3) !important;
-        color: #ffffff !important;
+    .mobile-joystick-base {
+        width: 120px !important;
+        height: 120px !important;
+    }
+
+    .mobile-joystick-stick {
+        width: 50px !important;
+        height: 50px !important;
+    }
+
+    /* Action Buttons Cluster Responsif */
+    .mobile-action-buttons {
+        bottom: 18px !important;
+        right: 18px !important;
+        width: 170px !important;
+        height: 170px !important;
+    }
+
+    .mobile-punch-btn {
+        width: 65px !important;
+        height: 65px !important;
+    }
+
+    .mobile-kick-btn {
+        width: 48px !important;
+        height: 48px !important;
+        bottom: 66px !important;
+        right: 70px !important;
+    }
+
+    .mobile-jump-btn {
+        width: 48px !important;
+        height: 48px !important;
+        bottom: 74px !important;
+        right: 6px !important;
+    }
+
+    .mobile-sprint-btn {
+        width: 42px !important;
+        height: 42px !important;
+        bottom: 6px !important;
+        right: 74px !important;
+    }
+
+    .mobile-plasma-btn {
+        width: 44px !important;
+        height: 44px !important;
+        bottom: 122px !important;
+        right: 34px !important;
     }
 }
 
 /* =========================================================
-   BOSS HEALTH BAR (CENTER BOTTOM - MYTHIC ORIENTAL AAA STYLE)
+   BOSS HEALTH BAR (CENTER TOP - MYTHIC ORIENTAL AAA STYLE)
    Muncul hanya saat berada di dalam radius area boss.
-   Terletak di area bawah tengah (tidak sejajar dengan bar player di kiri bawah)
+   Terletak di area atas tengah layar (toolbar disembunyikan).
+   Bersih fokus pada bar, tanpa ornamen emblem lingkaran / ekor.
    ========================================================= */
 .boss-health-bar-container {
     position: fixed;
-    bottom: 64px;
+    top: 22px;
     left: 50%;
-    transform: translateX(-50%) translateY(14px);
+    transform: translateX(-50%) translateY(-10px);
     z-index: 9998;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    width: min(560px, 76vw);
+    width: min(260px, 35vw);
     pointer-events: none;
     user-select: none;
     opacity: 0;
-    transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .boss-health-bar-container.visible {
@@ -604,33 +755,19 @@ body.play-mode-active #viewport-container {
 .boss-bar-meta {
     display: flex;
     align-items: center;
-    gap: 10px;
-    align-self: flex-start;
-    margin-left: 14px;
-    margin-bottom: 1px;
-}
-
-.boss-emblem-circle {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
     justify-content: center;
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.7));
-}
-
-.boss-emblem-svg {
     width: 100%;
-    height: 100%;
+    margin-bottom: 2px;
 }
 
 .boss-name-text {
     font-family: 'Cinzel', 'Times New Roman', serif, system-ui;
-    font-size: 14px;
-    letter-spacing: 2px;
-    font-weight: 600;
-    color: #e2e8f0;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 255, 255, 0.2);
+    font-size: 13px;
+    letter-spacing: 2.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #f8fafc;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9), 0 0 12px rgba(255, 255, 255, 0.3);
 }
 
 .boss-bar-frame {
@@ -641,42 +778,80 @@ body.play-mode-active #viewport-container {
     filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.85));
 }
 
-.boss-bar-ornament {
-    width: 28px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.boss-bar-ornament.left {
-    margin-right: -4px;
-    z-index: 2;
-}
-
-.boss-bar-ornament.right {
-    margin-left: -4px;
-    z-index: 2;
-}
-
-.boss-ornament-svg {
-    width: 100%;
-    height: 100%;
-}
-
 .boss-bar-track {
     position: relative;
-    flex: 1;
-    height: 8px;
-    background: rgba(12, 14, 18, 0.88);
-    border-top: 1px solid rgba(255, 255, 255, 0.25);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    width: 100%;
+    height: 7px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 3px;
     overflow: hidden;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
 .boss-bar-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #dc2626;
+    opacity: 0.85;
+    transition: width 0.4s ease-out;
+}
+
+.boss-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #f1f5f9 0%, #ffffff 80%, #fed7aa 100%);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.75);
+    transition: width 0.12s ease-out;
+}
+
+/* =========================================================
+   PLAYER COMBAT HUD (CLEAN BARS - TANPA ORNAMEN)
+   Desktop: Pojok Kiri Bawah (24px, 24px)
+   Mobile: Di atas joystick (175px, 20px)
+   ========================================================= */
+.player-combat-hud {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+    user-select: none;
+}
+
+.player-bars-column {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    filter: none !important;
+}
+
+/* HP Bar (Hijau Trapesium Bersih, Tanpa Shadow) */
+.player-bar-wrapper.hp-wrapper {
+    position: relative;
+    width: 200px;
+    height: 12px;
+}
+
+.player-bar-track.hp-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 17, 23, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    transform: skewX(-12deg);
+    overflow: hidden;
+    box-shadow: none !important;
+}
+
+.player-bar-ghost.hp-ghost {
     position: absolute;
     top: 0;
     left: 0;
@@ -686,117 +861,26 @@ body.play-mode-active #viewport-container {
     transition: width 0.4s ease-out;
 }
 
-.boss-bar-fill {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    background: linear-gradient(90deg, #e2e8f0 0%, #ffffff 80%, #f1f5f9 100%);
-    box-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
-    transition: width 0.12s ease-out;
-}
-
-/* =========================================================
-   PLAYER COMBAT HUD (BOTTOM LEFT - ORIENTAL AAA DESIGN)
-   Avatar Medallion + HP (Hijau) & Stamina (Kuning)
-   ========================================================= */
-.player-combat-hud {
-    position: fixed;
-    bottom: 24px;
-    left: 24px;
-    z-index: 9998;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    pointer-events: none;
-    user-select: none;
-}
-
-.player-avatar-medallion {
-    width: 58px;
-    height: 58px;
-    flex-shrink: 0;
-    position: relative;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.85));
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.player-avatar-ornament {
-    width: 100%;
-    height: 100%;
-}
-
-.player-bars-column {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75));
-}
-
-/* HP Bar (Hijau Trapesium) */
-.player-bar-wrapper.hp-wrapper {
-    position: relative;
-    width: 220px;
-    height: 14px;
-}
-
-.player-bar-track.hp-track {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background: rgba(15, 17, 23, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    transform: skewX(-14deg);
-    overflow: hidden;
-    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.8);
-}
-
-.player-bar-ghost.hp-ghost {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    background: #dc2626;
-    opacity: 0.75;
-    transition: width 0.4s ease-out;
-}
-
 .player-bar-fill.hp-fill {
     position: absolute;
     top: 0;
     left: 0;
     height: 100%;
-    background: linear-gradient(90deg, #15803d 0%, #22c55e 60%, #4ade80 100%);
-    box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+    background: linear-gradient(90deg, #16a34a 0%, #22c55e 60%, #4ade80 100%);
+    box-shadow: none !important;
     transition: width 0.12s ease-out;
 }
 
+/* Segmen strip hitam dihilangkan total sesuai permintaan */
 .player-bar-segments {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: space-evenly;
-    pointer-events: none;
+    display: none !important;
 }
 
-.player-bar-segments span {
-    width: 1px;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.45);
-}
-
-/* Stamina Bar (Kuning Trapesium) */
+/* Stamina Bar (Kuning Trapesium Bersih, Merah saat Kritis <= 15%, Tanpa Shadow) */
 .player-bar-wrapper.stamina-wrapper {
     position: relative;
-    width: 175px;
-    height: 9px;
+    width: 160px;
+    height: 8px;
 }
 
 .player-bar-track.stamina-track {
@@ -804,10 +888,11 @@ body.play-mode-active #viewport-container {
     width: 100%;
     height: 100%;
     background: rgba(15, 17, 23, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    transform: skewX(-14deg);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    transform: skewX(-12deg);
     overflow: hidden;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+    box-shadow: none !important;
 }
 
 .player-bar-fill.stamina-fill {
@@ -815,9 +900,14 @@ body.play-mode-active #viewport-container {
     top: 0;
     left: 0;
     height: 100%;
-    background: linear-gradient(90deg, #b45309 0%, #eab308 60%, #fde047 100%);
-    box-shadow: 0 0 8px rgba(234, 179, 8, 0.45);
-    transition: width 0.08s ease-out;
+    background: linear-gradient(90deg, #ca8a04 0%, #eab308 60%, #fef08a 100%);
+    box-shadow: none !important;
+    transition: width 0.08s ease-out, background 0.2s ease;
+}
+
+.player-bar-fill.stamina-fill.critical {
+    background: linear-gradient(90deg, #b91c1c 0%, #ef4444 60%, #f87171 100%) !important;
+    box-shadow: none !important;
 }
 
 /* =========================================================
@@ -871,5 +961,132 @@ body.play-mode-active #viewport-container {
     height: 100%;
     background: linear-gradient(90deg, #ef4444 0%, #f97316 100%);
     transition: width 0.15s ease-out;
+}
+
+.enemy-overhead-bar.target-locked {
+    transform: translate(-50%, -115%) scale(1.08);
+}
+
+.enemy-overhead-bar.target-locked .enemy-overhead-track {
+    border-color: #ff3b30;
+    box-shadow: 0 0 10px rgba(255, 59, 48, 0.8), 0 0 4px rgba(255, 255, 255, 0.9);
+}
+
+.enemy-overhead-bar.target-locked .enemy-overhead-name {
+    color: #ff4d4f;
+    font-weight: 700;
+}
+
+.enemy-overhead-bar.target-locked::after {
+    content: '▼';
+    position: absolute;
+    top: -14px;
+    font-size: 11px;
+    color: #ff3b30;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.95));
+    animation: pulseTargetLock 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes pulseTargetLock {
+    from { transform: translateY(0) scale(1); opacity: 0.9; }
+    to { transform: translateY(-2px) scale(1.15); opacity: 1; }
+}
+
+/* =========================================================
+   PANDORA STARTUP ASSET PRELOADER SCREEN (AAA MODERN DESIGN)
+   ========================================================= */
+.pandora-asset-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(circle at center, #181b24 0%, #090b10 100%);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.5s ease;
+    user-select: none;
+    pointer-events: all;
+}
+
+.pandora-asset-loader.fade-out {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loader-content {
+    width: min(390px, 86vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+}
+
+.loader-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.loader-logo {
+    font-size: 42px;
+    margin-bottom: 2px;
+    filter: drop-shadow(0 0 18px rgba(234, 88, 12, 0.5));
+    animation: loaderPulse 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes loaderPulse {
+    from { transform: scale(0.95); opacity: 0.88; }
+    to { transform: scale(1.05); opacity: 1.0; }
+}
+
+.loader-title {
+    font-family: 'Cinzel', 'Inter', serif, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #ffffff;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+
+.loader-subtitle {
+    font-size: 10.5px;
+    letter-spacing: 1.6px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.loader-track {
+    width: 100%;
+    height: 7px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.loader-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #ea580c 0%, #f97316 50%, #facc15 100%);
+    box-shadow: 0 0 14px rgba(249, 115, 22, 0.75);
+    border-radius: 4px;
+    transition: width 0.16s ease-out;
+}
+
+.loader-status-row {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #cbd5e1;
+    font-family: 'JetBrains Mono', monospace;
 }
 

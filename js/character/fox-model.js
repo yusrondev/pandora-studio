@@ -41,6 +41,19 @@ function getGeneralTakingBasePath() {
     return 'hero/general/taking/';
 }
 
+function getGeneralHeroBasePath() {
+    if (typeof document !== 'undefined') {
+        const scripts = document.getElementsByTagName('script');
+        for (let i = 0; i < scripts.length; i++) {
+            const src = scripts[i].src;
+            if (src && src.includes('fox-model.js')) {
+                return src.replace(/js\/character\/fox-model\.js(\?.*)?$/, 'hero/general/');
+            }
+        }
+    }
+    return 'hero/general/';
+}
+
 // Global Asset Manager for Taking Damage Reactions (hero/general/taking/hit1.fbx, hit2.fbx)
 window.GeneralTakingAssetManager = {
     isLoaded: false,
@@ -62,7 +75,7 @@ window.GeneralTakingAssetManager = {
                     throw new Error('THREE.FBXLoader is not available.');
                 }
                 const loader = new THREE.FBXLoader();
-                const loadFBX = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+                const loadFBX = (url) => (window.PandoraAssetCache ? window.PandoraAssetCache.loadFBX(url, loader) : new Promise((res, rej) => loader.load(url, res, undefined, rej)));
                 const basePath = getGeneralTakingBasePath();
 
                 console.log('[GeneralTakingAssetManager] Loading taking hit FBX assets from', basePath);
@@ -165,7 +178,7 @@ window.GeneralDeadAssetManager = {
                     throw new Error('THREE.FBXLoader is not available.');
                 }
                 const loader = new THREE.FBXLoader();
-                const loadFBX = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+                const loadFBX = (url) => (window.PandoraAssetCache ? window.PandoraAssetCache.loadFBX(url, loader) : new Promise((res, rej) => loader.load(url, res, undefined, rej)));
                 const basePath = getGeneralDeadBasePath();
 
                 console.log('[GeneralDeadAssetManager] Loading dead FBX assets from', basePath);
@@ -294,7 +307,7 @@ window.HeroAssetManager = {
         return z[i] + alpha * (z[i + 1] - z[i]);
     },
 
-    load() {
+    load(onProgress = null) {
         if (this.loadPromise) return this.loadPromise;
         this.isLoading = true;
 
@@ -305,11 +318,23 @@ window.HeroAssetManager = {
                 }
 
                 const loader = new THREE.FBXLoader();
-                const loadFBX = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+                const loadFBX = (url) => (window.PandoraAssetCache ? window.PandoraAssetCache.loadFBX(url, loader) : new Promise((res, rej) => loader.load(url, res, undefined, rej)));
 
                 const basePath = HERO_CHARACTER_CONFIG.getPath();
+                const generalPath = getGeneralHeroBasePath();
                 const files = HERO_CHARACTER_CONFIG.files;
 
+                const reportProgress = (status, pct) => {
+                    if (typeof onProgress === 'function') onProgress(status, pct);
+                    const fill = document.getElementById('asset-loader-fill');
+                    const st = document.getElementById('asset-loader-status');
+                    const pc = document.getElementById('asset-loader-pct');
+                    if (fill) fill.style.width = pct + '%';
+                    if (st) st.innerText = status;
+                    if (pc) pc.innerText = Math.round(pct) + '%';
+                };
+
+                reportProgress('Memuat Model Karakter Red Fox (idle.fbx)...', 15);
                 console.log('[HeroAssetManager] Loading hero FBX assets from', basePath);
 
                 // 1. Load Idle (Base Model + Rig + Primary Idle Animation)
@@ -320,6 +345,7 @@ window.HeroAssetManager = {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
+                        child.frustumCulled = false;
                         if (child.material) {
                             const makeMatte = (m) => {
                                 const newMat = new THREE.MeshLambertMaterial({
@@ -349,6 +375,8 @@ window.HeroAssetManager = {
                     this.clips.idle = idleClip;
                 }
 
+                reportProgress('Memuat Variasi Animasi Idle...', 30);
+
                 // 2. Load Secondary Idle Animation Clip (idle2.fbx)
                 try {
                     const idle2Obj = await loadFBX(basePath + files.idle2);
@@ -373,21 +401,45 @@ window.HeroAssetManager = {
                     console.warn('[HeroAssetManager] Could not load idle3.fbx:', i3Err);
                 }
 
-                // 3. Load Walk Animation Clip
-                const walkObj = await loadFBX(basePath + files.walk);
-                if (walkObj.animations && walkObj.animations.length > 0) {
-                    const walkClip = walkObj.animations[0].clone();
-                    walkClip.name = 'walk';
-                    this.clips.walk = walkClip;
+                reportProgress('Memuat Animasi Berjalan (walk.fbx)...', 45);
+
+                // 3. Load Walk Animation Clip (Coba hero/red/walk.fbx, jika tidak ada fallback ke hero/general/walk.fbx)
+                try {
+                    let walkObj = null;
+                    try {
+                        walkObj = await loadFBX(basePath + files.walk);
+                    } catch (eWalk) {
+                        walkObj = await loadFBX(generalPath + 'walk.fbx');
+                    }
+                    if (walkObj && walkObj.animations && walkObj.animations.length > 0) {
+                        const walkClip = walkObj.animations[0].clone();
+                        walkClip.name = 'walk';
+                        this.clips.walk = walkClip;
+                    }
+                } catch (wErr) {
+                    console.warn('[HeroAssetManager] Could not load walk.fbx:', wErr);
                 }
 
-                // 4. Load Run Animation Clip
-                const runObj = await loadFBX(basePath + files.run);
-                if (runObj.animations && runObj.animations.length > 0) {
-                    const runClip = runObj.animations[0].clone();
-                    runClip.name = 'run';
-                    this.clips.run = runClip;
+                reportProgress('Memuat Animasi Berlari (run.fbx)...', 60);
+
+                // 4. Load Run Animation Clip (Coba hero/red/run.fbx, jika tidak ada fallback ke hero/general/run.fbx)
+                try {
+                    let runObj = null;
+                    try {
+                        runObj = await loadFBX(basePath + files.run);
+                    } catch (eRun) {
+                        runObj = await loadFBX(generalPath + 'run.fbx');
+                    }
+                    if (runObj && runObj.animations && runObj.animations.length > 0) {
+                        const runClip = runObj.animations[0].clone();
+                        runClip.name = 'run';
+                        this.clips.run = runClip;
+                    }
+                } catch (rErr) {
+                    console.warn('[HeroAssetManager] Could not load run.fbx:', rErr);
                 }
+
+                reportProgress('Memuat Animasi Lompatan Atletis...', 75);
 
                 // 5. Load Jump Animation Clip (Jump-withrun.fbx untuk semua aksi lompat)
                 try {
@@ -407,11 +459,24 @@ window.HeroAssetManager = {
                     if (jnObj.animations && jnObj.animations.length > 0) {
                         const jnClip = jnObj.animations[0].clone();
                         jnClip.name = 'jumpNormal';
+
+                        // Pastikan lompat normal 100% murni di tempat tanpa drift horizontal pada Hips
+                        const hipsTrack = jnClip.tracks.find(t => t.name.toLowerCase().includes('hips.position'));
+                        if (hipsTrack) {
+                            for (let i = 0; i < hipsTrack.values.length; i += 3) {
+                                hipsTrack.values[i] = 0;     // X = 0 (kiri-kanan)
+                                hipsTrack.values[i + 2] = 0; // Z = 0 (maju-mundur)
+                            }
+                        }
+
                         this.clips.jumpNormal = jnClip;
                     }
                 } catch (jnErr) {
                     console.warn('[HeroAssetManager] Could not load jump-normal.fbx:', jnErr);
                 }
+
+                reportProgress('Memuat Combo Tendangan Melee...', 88);
+
                 // 6. Load Combat Kick Combo Animation Clips (kick1.fbx, kick2.fbx, kick3.fbx)
                 for (const kKey of ['kick1', 'kick2', 'kick3']) {
                     try {
@@ -429,11 +494,9 @@ window.HeroAssetManager = {
                                     const z = new Float32Array(hipsTrack.times.length);
                                     for (let i = 0; i < hipsTrack.times.length; i++) {
                                         z[i] = hipsTrack.values[i * 3 + 2] - origZ;
-                                        // Flatten Z di track agar skeleton stabil di origin lokal
                                         hipsTrack.values[i * 3 + 2] = origZ;
                                     }
                                     this.kick3RootMotion = { times, z, totalZ: z[z.length - 1] };
-                                    console.log('[HeroAssetManager] Extracted kick3 root motion! Total Z displacement:', z[z.length - 1].toFixed(3), 'm');
                                 }
                             }
 
@@ -443,6 +506,9 @@ window.HeroAssetManager = {
                         console.warn(`[HeroAssetManager] Could not load ${files[kKey]}:`, kErr);
                     }
                 }
+
+                reportProgress('Memuat Combo Pukulan Melee...', 96);
+
                 // 7. Load Combat Punch Combo Animation Clips (punch1.fbx, punch2.fbx, punch3.fbx)
                 for (const pKey of ['punch1', 'punch2', 'punch3']) {
                     try {
@@ -456,6 +522,8 @@ window.HeroAssetManager = {
                         console.warn(`[HeroAssetManager] Could not load ${files[pKey]}:`, pErr);
                     }
                 }
+
+                reportProgress('Asset Hero Red Fox Siap!', 100);
 
 
                 this.isLoaded = true;
@@ -496,6 +564,7 @@ window.HeroAssetManager = {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
+                child.frustumCulled = false;
                 if (child.material) {
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach(m => {
@@ -646,35 +715,81 @@ if (typeof window !== 'undefined') {
 
 /**
  * Auto-Lock Attack System:
- * Saat pemain menekan tombol serang (Punch / Kick), karakter secara otomatis
- * mengunci dan berputar menghadap musuh terdekat dalam radius efektif.
+ * Saat pemain menekan tombol serang (Punch / Kick), karakter mengunci hadapan
+ * ke karakter terdekat. Jika ada banyak karakter, pilih yang paling dekat dan
+ * HP bar-nya paling kecil. Target dipertahankan selama combo agar tidak glitch/flicker.
  */
-function autoLockToNearestEnemy(playerRoot, maxRange = 7.0) {
+function autoLockToNearestEnemy(playerRoot, maxRange = 3.5) {
     if (!playerRoot) return;
     const list = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) ? spawnedFoxesList : [];
     if (list.length === 0) return;
 
-    let nearestPos = null;
-    let minDistSq = maxRange * maxRange;
     const pPos = playerRoot.position;
+
+    // Vektor hadap depan pemain saat ini (+Z lokal)
+    const forwardX = Math.sin(playerRoot.rotation.y);
+    const forwardZ = Math.cos(playerRoot.rotation.y);
+
+    // TARGET STICKINESS: Jika pemain sebelumnya sudah mengunci target dan target itu masih hidup
+    // serta dalam jangkauan melee dekat (< 2.8m), pertahankan target tersebut agar combo pukulan
+    // tidak glitch / flicker melompat ke target lain di tengah jalan
+    const curTarget = playerRoot._lockedAttackTarget;
+    if (curTarget && curTarget.root && curTarget.root.visible) {
+        const isDead = (curTarget.ai && curTarget.ai.isDead) || (curTarget.model && curTarget.model.isDead) || ((curTarget.health || 0) <= 0);
+        if (!isDead) {
+            const dist = playerRoot.position.distanceTo(curTarget.root.position);
+            if (dist <= 2.8) {
+                const dx = curTarget.root.position.x - pPos.x;
+                const dz = curTarget.root.position.z - pPos.z;
+                playerRoot.rotation.y = Math.atan2(dx, dz);
+                return;
+            }
+        }
+    }
+
+    let bestTarget = null;
+    let bestScore = Infinity;
 
     for (let i = 0; i < list.length; i++) {
         const item = list[i];
         if (!item || !item.root || !item.root.visible) continue;
+        const isDead = (item.ai && item.ai.isDead) || (item.model && item.model.isDead) || ((item.health || 0) <= 0);
+        if (isDead) continue;
+
         const ePos = item.root.position;
         const dx = ePos.x - pPos.x;
         const dz = ePos.z - pPos.z;
         const distSq = dx * dx + dz * dz;
-        if (distSq < minDistSq && distSq > 0.04) {
-            minDistSq = distSq;
-            nearestPos = ePos;
+
+        // Dalam radius serang (> 0.04m dan < maxRange)
+        if (distSq > maxRange * maxRange || distSq < 0.04) continue;
+
+        const dist = Math.sqrt(distSq);
+        const dot = (dx / dist) * forwardX + (dz / dist) * forwardZ;
+        // Prioritaskan musuh di depan / sekeliling hadapan pemain
+        if (dot < -0.35) continue;
+
+        const curHp = (item.ai && typeof item.ai.health === 'number') ? item.ai.health : (item.health || 100);
+        const maxHp = (item.ai && typeof item.ai.maxHealth === 'number') ? item.ai.maxHealth : (item.maxHealth || 100);
+        const hpRatio = THREE.MathUtils.clamp(curHp / Math.max(1, maxHp), 0, 1);
+
+        // FORMULA SKOR: Jarak terdekat + HP bar paling kecil
+        // Nilai score terendah adalah target terbaik untuk diserang dan dihabisi
+        const score = (dist * 1.0) + (hpRatio * 1.6) - (dot * 0.4);
+
+        if (score < bestScore) {
+            bestScore = score;
+            bestTarget = item;
         }
     }
 
-    if (nearestPos) {
-        const dx = nearestPos.x - pPos.x;
-        const dz = nearestPos.z - pPos.z;
-        playerRoot.rotation.y = Math.atan2(dx, dz); // +Z forward untuk Mixamo Hero
+    if (bestTarget && bestTarget.root) {
+        playerRoot._lockedAttackTarget = bestTarget;
+        playerRoot._combatLockTarget = bestTarget;
+        window.currentCombatLockTarget = bestTarget;
+        const dx = bestTarget.root.position.x - pPos.x;
+        const dz = bestTarget.root.position.z - pPos.z;
+        playerRoot.rotation.y = Math.atan2(dx, dz); // Kunci hadapan karakter ke target
     }
 }
 window.autoLockToNearestEnemy = autoLockToNearestEnemy;
@@ -722,8 +837,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
         isLoaded: false,
         wasInAir: false,
         isJumping: false,
+        isStationaryJump: false,
         jumpTimer: 0.0,
-        jumpDuration: 0.95,
+        jumpDuration: 0.72,
         idleTimer: 0.0,
         activeIdleKey: null,
         idleCycleTimer: 0.0,
@@ -757,6 +873,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
         queuedPunches: 0,     // Jumlah pukulan lanjutan yang sudah diklik (maks 2 → punch2, punch3)
         hasQueuedPunch: false,
         lastPunchEndTime: 0,
+        queuedNextAction: null, // Antrean transisi silang ('punch' atau 'kick') saat spam bergantian
         wasMoving: false,
 
         // Jump state
@@ -872,17 +989,34 @@ function createWolfCharacterModel(speciesKey = 'red') {
          */
         triggerKick() {
             if (this.isDead || this.isTakingHit) return;
-            autoLockToNearestEnemy(this.root);
-            if (this.isPunching) {
-                this.cancelPunch();
+
+            // Cek Stamina: Jika stamina sisa <= 10%, dilarang kick
+            if (typeof FoxStaminaState !== 'undefined' && typeof FoxStaminaState.canPerformAction === 'function') {
+                if (!FoxStaminaState.canPerformAction()) return;
             }
+
+            autoLockToNearestEnemy(this.root);
+
+            // JIKA SEDANG MEMUKUL (PUNCH):
+            // Pastikan animasi pukulan yang sedang berjalan selesai tuntas dulu (entah punch1, 2, atau 3),
+            // baru kemudian transisi mengeksekusi tendangan.
+            if (this.isPunching) {
+                this.queuedPunches = 0;
+                this.hasQueuedPunch = false;
+                this.queuedNextAction = 'kick';
+                return;
+            }
+
             if (this.isKicking) {
+                this.queuedNextAction = null; // User tetap konsisten memilih kick
                 // Simpan klik ke antrean (maks 2 tendangan lanjutan agar tidak menumpuk tanpa akhir)
                 this.queuedKicks = Math.min(2, this.queuedKicks + 1);
                 this.hasQueuedKick = this.queuedKicks > 0;
                 return;
             }
+
             // Klik baru dari keadaan diam / selesai menendang: selalu mulai dari kick1
+            this.queuedNextAction = null;
             this.kickComboIndex = 0;
             this.queuedKicks = 0;
             this._startKick('kick1');
@@ -910,6 +1044,11 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.idleTimer = 0.0;
             this.activeIdleKey = null;
             this.idleCycleTimer = 0.0;
+
+            // Tendangan mengonsumsi stamina
+            if (typeof FoxStaminaState !== 'undefined' && typeof FoxStaminaState.consume === 'function') {
+                FoxStaminaState.consume(12);
+            }
 
             const clip = action.getClip();
             const rate = 1.70; // Kecepatan tendangan cepat, tajam, dan responsif
@@ -949,6 +1088,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.activeKickKey = null;
             this.queuedKicks = 0;
             this.hasQueuedKick = false;
+            this.queuedNextAction = null;
             this.kickTimer = 0.0;
             this.kick3PrevTime = 0.0;
             this.kickComboIndex = 0;
@@ -968,17 +1108,34 @@ function createWolfCharacterModel(speciesKey = 'red') {
          */
         triggerPunch() {
             if (this.isDead || this.isTakingHit) return;
-            autoLockToNearestEnemy(this.root);
-            if (this.isKicking) {
-                this.cancelKick();
+
+            // Cek Stamina: Jika stamina sisa <= 10%, dilarang punch
+            if (typeof FoxStaminaState !== 'undefined' && typeof FoxStaminaState.canPerformAction === 'function') {
+                if (!FoxStaminaState.canPerformAction()) return;
             }
+
+            autoLockToNearestEnemy(this.root);
+
+            // JIKA SEDANG MENENDANG (KICK):
+            // Pastikan animasi tendangan yang sedang berjalan selesai tuntas dulu (entah kick1, 2, atau 3),
+            // baru kemudian transisi mengeksekusi pukulan.
+            if (this.isKicking) {
+                this.queuedKicks = 0;
+                this.hasQueuedKick = false;
+                this.queuedNextAction = 'punch';
+                return;
+            }
+
             if (this.isPunching) {
+                this.queuedNextAction = null; // User tetap konsisten memilih punch
                 // Simpan klik ke antrean (maks 2 pukulan lanjutan agar tidak menumpuk tanpa akhir)
                 this.queuedPunches = Math.min(2, this.queuedPunches + 1);
                 this.hasQueuedPunch = this.queuedPunches > 0;
                 return;
             }
+
             // Klik baru dari keadaan diam / selesai memukul: selalu mulai dari punch1
+            this.queuedNextAction = null;
             this.punchComboIndex = 0;
             this.queuedPunches = 0;
             this._startPunch('punch1');
@@ -1005,6 +1162,11 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.idleTimer = 0.0;
             this.activeIdleKey = null;
             this.idleCycleTimer = 0.0;
+
+            // Pukulan mengonsumsi stamina
+            if (typeof FoxStaminaState !== 'undefined' && typeof FoxStaminaState.consume === 'function') {
+                FoxStaminaState.consume(8);
+            }
 
             const clip = action.getClip();
             const rates = { punch1: 2.0, punch2: 1.5, punch3: 1.25 };
@@ -1040,6 +1202,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.activePunchKey = null;
             this.queuedPunches = 0;
             this.hasQueuedPunch = false;
+            this.queuedNextAction = null;
             this.punchTimer = 0.0;
             this.punchComboIndex = 0;
             this.lastPunchEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
@@ -1050,42 +1213,89 @@ function createWolfCharacterModel(speciesKey = 'red') {
 
         /**
          * Lompat:
-         * - Tidak sprint -> jump-normal.fbx (ada ancang-ancang, impuls fisik dilepas tepat di frame tolakan)
-         * - Sprint       -> Jump-withrun.fbx (impuls langsung)
+         * - Tidak sprint (atau diam) -> jump-normal.fbx (lompat di tempat, input gerak terkunci sampai selesai, durasi lebih cepat & responsif)
+         * - Sprint -> Jump-withrun.fbx (impuls langsung dengan momentum gerak atletis)
          * Mengembalikan true jika impuls fisik harus langsung diterapkan saat itu juga.
          */
-        triggerJump(isSprinting = false) {
+        triggerJump(isSprinting = false, isStationary = false) {
+            // Jump SELALU meng-cancel semua animasi yang sedang berjalan, baik punch maupun kick
+            if (this.isPunching) {
+                this.cancelPunch();
+            }
+            if (this.isKicking) {
+                this.cancelKick();
+            }
+            this.queuedNextAction = null;
+            this.queuedPunches = 0;
+            this.queuedKicks = 0;
+            this.hasQueuedPunch = false;
+            this.hasQueuedKick = false;
+
             const useNormal = !isSprinting && !!this.actions.jumpNormal;
             const key = useNormal ? 'jumpNormal' : 'jump';
             const action = this.actions[key];
             if (!action) return true;
 
-            this.isJumping = true;
-            this.activeJumpKey = key;
-            this.jumpTimer = 0.0;
+            // 1. Matikan dan hentikan seluruh variasi idle lanjutan (idle2, idle3) seketika
+            if (this.actions.idle2) { this.actions.idle2.stop(); this.currentWeights.idle2 = 0.0; }
+            if (this.actions.idle3) { this.actions.idle3.stop(); this.currentWeights.idle3 = 0.0; }
             this.idleTimer = 0.0;
             this.activeIdleKey = null;
             this.idleCycleTimer = 0.0;
 
-            const rate = useNormal ? 1.30 : 1.15;
+            // 2. Nol-kan target bobot animasi lain seketika agar tidak terintervensi pose sebelumnya
+            ['idle', 'idle2', 'idle3', 'walk', 'run', 'kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3'].forEach(k => {
+                this.targetWeights[k] = 0.0;
+            });
+            this.targetWeights.jump = (key === 'jump') ? 1.0 : 0.0;
+            this.targetWeights.jumpRun = (key === 'jump') ? 1.0 : 0.0;
+            this.targetWeights.jumpNormal = (key === 'jumpNormal') ? 1.0 : 0.0;
+
+            this.isJumping = true;
+            this.isStationaryJump = isStationary || useNormal;
+            this.activeJumpKey = key;
+            this.jumpTimer = 0.0;
+
+            // Durasi dipercepat agar responsif dan lincah (2.0x untuk lompat di tempat)
+            const rate = useNormal ? 2.0 : 1.30;
             action.timeScale = rate;
             const clip = action.getClip();
-            this.jumpDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.95;
+            this.jumpDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.62;
 
             action.reset();
             action.setLoop(THREE.LoopOnce, 1);
             action.clampWhenFinished = true;
+            action.enabled = true;
             action.play();
 
-            if (useNormal) {
-                // Frame tolakan kaki di jump-normal.fbx berada di ~0.62s (waktu klip)
-                this.jumpImpulsePending = true;
-                this.jumpTakeoffTime = 0.62 / rate;
-                this.jumpImpulseVel = 5.5;
-                return false;
-            }
             this.jumpImpulsePending = false;
+            // LANGSUNG eksekusi impuls fisik melompat tanpa delay, responsif seketika
             return true;
+        },
+
+        /**
+         * Dipanggil seketika saat karakter menyentuh tanah (landing).
+         * Mengembalikan kontrol dan me-reset status jump agar pemain bisa langsung jump lagi tanpa jeda tersedat.
+         */
+        onLanded() {
+            this.isJumping = false;
+            this.isStationaryJump = false;
+            this.jumpImpulsePending = false;
+            this.jumpTimer = 0.0;
+            this.targetWeights.jump = 0.0;
+            this.targetWeights.jumpRun = 0.0;
+            this.targetWeights.jumpNormal = 0.0;
+
+            // Reset total cooldown timer idle sama seperti kick dan punch:
+            // Variasi idle2 dan idle3 DIKUNCI MATI (stop & weight 0.0),
+            // idleTimer di-reset ke 0.0 (cooldown penuh 4.5 detik sebelum variasi idle bisa muncul)
+            this.idleTimer = 0.0;
+            this.activeIdleKey = null;
+            this.idleCycleTimer = 0.0;
+            if (this.actions.idle2) { this.actions.idle2.stop(); this.currentWeights.idle2 = 0.0; }
+            if (this.actions.idle3) { this.actions.idle3.stop(); this.currentWeights.idle3 = 0.0; }
+            if (this.actions.idle) { this.actions.idle.reset().play(); }
+            this.targetWeights.idle = 1.0;
         },
         // Alias backward compatibility jika ada script eksternal
         triggerBackflip() {
@@ -1274,6 +1484,22 @@ function createWolfCharacterModel(speciesKey = 'red') {
                     this.hasQueuedPunch = this.queuedPunches > 0;
                     this._startPunch(nextKey, prevAction);
                 } else if (this.punchTimer >= this.punchDuration) {
+                    // Cek jika user spam kick saat memukul: pastikan punch selesai tuntas lalu eksekusi kick
+                    if (this.queuedNextAction === 'kick') {
+                        this.isPunching = false;
+                        this.activePunchKey = null;
+                        this.queuedPunches = 0;
+                        this.hasQueuedPunch = false;
+                        this.punchTimer = 0.0;
+                        this.punchComboIndex = 0;
+                        this.lastPunchEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+                        this.queuedNextAction = null;
+                        this.kickComboIndex = 0;
+                        this.queuedKicks = 0;
+                        this._startKick('kick1');
+                        return;
+                    }
+
                     // Rangkaian pukulan selesai tuntas -> klik berikutnya kembali mulai dari punch1
                     this.isPunching = false;
                     this.activePunchKey = null;
@@ -1349,6 +1575,24 @@ function createWolfCharacterModel(speciesKey = 'red') {
                     if (this.activeKickKey === 'kick3' && HM && HM.kick3RootMotion) {
                         applyKick3RootMotion(this.actions.kick3.getClip().duration);
                     }
+
+                    // Cek jika user spam punch saat menendang: pastikan kick selesai tuntas lalu eksekusi punch
+                    if (this.queuedNextAction === 'punch') {
+                        this.isKicking = false;
+                        this.activeKickKey = null;
+                        this.queuedKicks = 0;
+                        this.hasQueuedKick = false;
+                        this.kickTimer = 0.0;
+                        this.kick3PrevTime = 0.0;
+                        this.kickComboIndex = 0;
+                        this.lastKickEndTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+                        this.queuedNextAction = null;
+                        this.punchComboIndex = 0;
+                        this.queuedPunches = 0;
+                        this._startPunch('punch1');
+                        return;
+                    }
+
                     // Rangkaian tendangan selesai tuntas -> klik berikutnya kembali mulai dari kick1
                     this.isKicking = false;
                     this.activeKickKey = null;
@@ -1392,14 +1636,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 this.activeIdleKey = null;
                 this.idleCycleTimer = 0.0;
 
-                // Animasi lompat berjalan lancar sampai fase landing selesai 100%
+                // Animasi lompat selesai -> panggil onLanded untuk reset cooldown idle & status jump
                 if (this.jumpTimer >= this.jumpDuration) {
-                    this.isJumping = false;
-                    this.jumpImpulsePending = false;
-                    this.jumpTimer = 0.0;
-                    this.targetWeights.jump = 0.0;
-                    this.targetWeights.jumpRun = 0.0;
-                    this.targetWeights.jumpNormal = 0.0;
+                    this.onLanded();
                 }
             } else if (!isGrounded) {
                 // Karakter berada di udara (jatuh dari tebing / drop)
@@ -1568,8 +1807,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 const runPace = Math.max(0.70, Math.min(1.6, absSpeed / 5.2));
                 this.actions.run.timeScale = runPace;
             }
-            if (this.actions.jump) this.actions.jump.timeScale = 1.15;      // Jump-withrun.fbx
-            if (this.actions.jumpNormal) this.actions.jumpNormal.timeScale = 1.30; // jump-normal.fbx
+            if (this.actions.jump) this.actions.jump.timeScale = 1.25;      // Jump-withrun.fbx
+            if (this.actions.jumpNormal) this.actions.jumpNormal.timeScale = 1.75; // jump-normal.fbx
 
             // Step the Three.js AnimationMixer
             this.mixer.update(dt);
@@ -1580,6 +1819,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.targetWeights = { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, jump: 0.0, jumpRun: 0.0, jumpNormal: 0.0, kick1: 0.0, kick2: 0.0, kick3: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0 };
             this.wasInAir = false;
             this.isJumping = false;
+            this.isStationaryJump = false;
             this.isKicking = false;
             this.activeKickKey = null;
             this.hasQueuedKick = false;
@@ -1704,7 +1944,7 @@ window.EnemyFoxTreeAssetManager = {
                 }
 
                 const loader = new THREE.FBXLoader();
-                const loadFBX = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+                const loadFBX = (url) => (window.PandoraAssetCache ? window.PandoraAssetCache.loadFBX(url, loader) : new Promise((res, rej) => loader.load(url, res, undefined, rej)));
 
                 const basePath = ENEMY_FOXTREE_CONFIG.getPath();
                 const files = ENEMY_FOXTREE_CONFIG.files;
@@ -1717,6 +1957,7 @@ window.EnemyFoxTreeAssetManager = {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
+                        child.frustumCulled = false;
                         if (child.material) {
                             const makeMatte = (m) => {
                                 const newMat = new THREE.MeshLambertMaterial({
@@ -1744,42 +1985,40 @@ window.EnemyFoxTreeAssetManager = {
                     this.clips.idle = idleClip;
                 }
 
-                // 2. Walk Animation (Gunakan clip walk pahlawan atau load hero/red/walk.fbx)
+                // 2. Walk Animation (Ambil dari hero/general/walk.fbx atau HeroAssetManager.clips.walk)
                 try {
                     const heroWalk = window.HeroAssetManager && window.HeroAssetManager.clips && window.HeroAssetManager.clips.walk;
                     if (heroWalk) {
                         this.clips.walk = heroWalk.clone();
                         this.clips.walk.name = 'walk';
                     } else {
-                        const redWalkUrl = getHeroBasePath() + 'walk.fbx';
-                        const walkObj = await loadFBX(redWalkUrl);
-                        if (walkObj.animations && walkObj.animations.length > 0) {
+                        const walkObj = await loadFBX(getGeneralHeroBasePath() + 'walk.fbx');
+                        if (walkObj && walkObj.animations && walkObj.animations.length > 0) {
                             const walkClip = walkObj.animations[0].clone();
                             walkClip.name = 'walk';
                             this.clips.walk = walkClip;
                         }
                     }
                 } catch (wErr) {
-                    console.warn('[EnemyFoxTreeAssetManager] Walk clip fallback note:', wErr);
+                    console.warn('[EnemyFoxTreeAssetManager] Walk clip load note:', wErr);
                 }
 
-                // 2b. Run Animation (Animasi lari cepat red run.fbx)
+                // 2b. Run Animation (Ambil dari hero/general/run.fbx atau HeroAssetManager.clips.run)
                 try {
                     const heroRun = window.HeroAssetManager && window.HeroAssetManager.clips && window.HeroAssetManager.clips.run;
                     if (heroRun) {
                         this.clips.run = heroRun.clone();
                         this.clips.run.name = 'run';
                     } else {
-                        const redRunUrl = getHeroBasePath() + 'run.fbx';
-                        const runObj = await loadFBX(redRunUrl);
-                        if (runObj.animations && runObj.animations.length > 0) {
+                        const runObj = await loadFBX(getGeneralHeroBasePath() + 'run.fbx');
+                        if (runObj && runObj.animations && runObj.animations.length > 0) {
                             const runClip = runObj.animations[0].clone();
                             runClip.name = 'run';
                             this.clips.run = runClip;
                         }
                     }
                 } catch (rErr) {
-                    console.warn('[EnemyFoxTreeAssetManager] Run clip fallback note:', rErr);
+                    console.warn('[EnemyFoxTreeAssetManager] Run clip load note:', rErr);
                 }
 
                 // 3. Load Punch 1 (combat/punch/punch1.fbx)
@@ -1854,6 +2093,7 @@ window.EnemyFoxTreeAssetManager = {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
+                child.frustumCulled = false;
                 if (child.material) {
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach(m => {
@@ -1874,6 +2114,16 @@ window.EnemyFoxTreeAssetManager = {
         instance.actions = {};
         instance.currentWeights = { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
         instance.targetWeights = { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
+
+        // Fallback sync walk & run clips jika HeroAssetManager sudah selesai
+        if (!this.clips.walk && window.HeroAssetManager && window.HeroAssetManager.clips && window.HeroAssetManager.clips.walk) {
+            this.clips.walk = window.HeroAssetManager.clips.walk.clone();
+            this.clips.walk.name = 'walk';
+        }
+        if (!this.clips.run && window.HeroAssetManager && window.HeroAssetManager.clips && window.HeroAssetManager.clips.run) {
+            this.clips.run = window.HeroAssetManager.clips.run.clone();
+            this.clips.run.name = 'run';
+        }
 
         if (this.clips.idle) {
             const idleAction = mixer.clipAction(this.clips.idle);
@@ -2011,6 +2261,47 @@ function createEnemyFoxTreeModel() {
                 action.play();
                 if (this.targetWeights) this.targetWeights[chosenKey] = 1.0;
                 if (this.currentWeights) this.currentWeights[chosenKey] = 1.0;
+            }
+        },
+
+        triggerRevive() {
+            this.isDead = false;
+            this.isTakingHit = false;
+            this.isPunching = false;
+            this.activeDeadKey = null;
+
+            ['dead1', 'dead2', 'hit1', 'hit2', 'punch1', 'punch2', 'punch3'].forEach(k => {
+                if (this.targetWeights) this.targetWeights[k] = 0.0;
+                if (this.currentWeights) this.currentWeights[k] = 0.0;
+                if (this.actions && this.actions[k]) {
+                    this.actions[k].stop();
+                    this.actions[k].setEffectiveWeight(0.0);
+                }
+            });
+
+            if (this.actions) {
+                if (this.actions.walk) {
+                    this.actions.walk.reset().play();
+                    this.actions.walk.setEffectiveWeight(0.0);
+                }
+                if (this.actions.run) {
+                    this.actions.run.reset().play();
+                    this.actions.run.setEffectiveWeight(0.0);
+                }
+                if (this.actions.idle) {
+                    this.actions.idle.reset().play();
+                    this.actions.idle.setEffectiveWeight(1.0);
+                }
+            }
+            if (this.targetWeights) {
+                this.targetWeights.idle = 1.0;
+                this.targetWeights.walk = 0.0;
+                this.targetWeights.run = 0.0;
+            }
+            if (this.currentWeights) {
+                this.currentWeights.idle = 1.0;
+                this.currentWeights.walk = 0.0;
+                this.currentWeights.run = 0.0;
             }
         },
 
@@ -2185,6 +2476,17 @@ function createEnemyFoxTreeModel() {
                     const cfg = ENEMY_PUNCH_CONFIGS[pKey] || { minTime: 0.30, maxTime: 0.45, reach: 1.15, minDot: 0.45 };
 
                     if (this.punchTimer >= cfg.minTime && this.punchTimer <= cfg.maxTime) {
+                        const isPlayerDead = Boolean(
+                            (typeof PlayerHealthState !== 'undefined' && PlayerHealthState.isDead) ||
+                            (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.isDead)
+                        );
+                        if (isPlayerDead) {
+                            if (this.isPunching && typeof this.cancelPunch === 'function') {
+                                this.cancelPunch();
+                            }
+                            return;
+                        }
+
                         if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
                             const pPos = wolfCharacter.root.position;
                             const distToPlayer = this.root.position.distanceTo(pPos);
@@ -2196,7 +2498,11 @@ function createEnemyFoxTreeModel() {
                                     if (fwd.dot(toP) >= cfg.minDot) {
                                         this.strikeProcessed = true;
                                         if (typeof PlayerHealthState !== 'undefined') {
-                                            PlayerHealthState.takeDamage(15, this.root.position);
+                                            const cfgDmg = (typeof window.ENEMY_COMBAT_CONFIG !== 'undefined')
+                                                ? (this.isBoss ? window.ENEMY_COMBAT_CONFIG.boss.damagePerHit : window.ENEMY_COMBAT_CONFIG.nonBoss.damagePerHit)
+                                                : 15;
+                                            const finalDmg = (typeof this.damagePerHit === 'number') ? this.damagePerHit : cfgDmg;
+                                            PlayerHealthState.takeDamage(finalDmg, this.root.position);
                                         }
                                         if (typeof wolfCharacter.takeHit === 'function') {
                                             wolfCharacter.takeHit(this.root.position);
@@ -2221,26 +2527,40 @@ function createEnemyFoxTreeModel() {
             if (!this.isTakingHit && !this.isPunching) {
                 const moveSpeed = Math.abs(currentSpeed);
                 if (moveSpeed > 2.8) {
-                    // BERJALAN CEPAT / SPRINT MENGEJAR PEMAIN: GUNAKAN RED RUN.FBX!
-                    this.targetWeights.run = 1.0;
-                    this.targetWeights.walk = 0.0;
-                    this.targetWeights.idle = 0.0;
+                    // BERJALAN CEPAT / SPRINT MENGEJAR PEMAIN: GUNAKAN RUN.FBX!
                     if (this.actions.run) {
+                        if (!this.actions.run.isRunning()) this.actions.run.play();
+                        this.targetWeights.run = 1.0;
+                        this.targetWeights.walk = 0.0;
+                        this.targetWeights.idle = 0.0;
                         this.actions.run.timeScale = THREE.MathUtils.clamp(moveSpeed / 4.8, 0.85, 1.35);
+                    } else if (this.actions.walk) {
+                        if (!this.actions.walk.isRunning()) this.actions.walk.play();
+                        this.targetWeights.walk = 1.0;
+                        this.targetWeights.run = 0.0;
+                        this.targetWeights.idle = 0.0;
+                        this.actions.walk.timeScale = THREE.MathUtils.clamp(moveSpeed / 1.65, 0.85, 1.35);
+                    } else {
+                        this.targetWeights.idle = 1.0;
+                        if (this.actions.idle && !this.actions.idle.isRunning()) this.actions.idle.play();
                     }
                 } else if (moveSpeed > 0.25) {
                     // BERJALAN SANTAI: GUNAKAN WALK
-                    this.targetWeights.walk = 1.0;
-                    this.targetWeights.run = 0.0;
-                    this.targetWeights.idle = 0.0;
                     if (this.actions.walk) {
-                        // Korelasi langkah kaki rasional dengan kecepatan gerak (basis 1.65 m/s)
+                        if (!this.actions.walk.isRunning()) this.actions.walk.play();
+                        this.targetWeights.walk = 1.0;
+                        this.targetWeights.run = 0.0;
+                        this.targetWeights.idle = 0.0;
                         this.actions.walk.timeScale = THREE.MathUtils.clamp(moveSpeed / 1.65, 0.85, 1.35);
+                    } else {
+                        this.targetWeights.idle = 1.0;
+                        if (this.actions.idle && !this.actions.idle.isRunning()) this.actions.idle.play();
                     }
                 } else {
                     this.targetWeights.walk = 0.0;
                     this.targetWeights.run = 0.0;
                     this.targetWeights.idle = 1.0;
+                    if (this.actions.idle && !this.actions.idle.isRunning()) this.actions.idle.play();
                 }
                 this.targetWeights.punch1 = 0.0;
                 this.targetWeights.punch2 = 0.0;
@@ -2249,12 +2569,19 @@ function createEnemyFoxTreeModel() {
                 this.targetWeights.hit2 = 0.0;
             }
 
+            // Safety guard: jika total bobot locomotion 0, pertahankan idle agar tidak pernah kolaps ke bind-pose (T-pose)
+            const totalLocoWeight = (this.targetWeights.walk || 0) + (this.targetWeights.run || 0) + (this.targetWeights.punch1 || 0) + (this.targetWeights.punch2 || 0) + (this.targetWeights.punch3 || 0) + (this.targetWeights.hit1 || 0) + (this.targetWeights.hit2 || 0);
+            if (totalLocoWeight <= 0.001) {
+                this.targetWeights.idle = 1.0;
+                if (this.actions.idle && !this.actions.idle.isRunning()) this.actions.idle.play();
+            }
+
             const blendSpeed = this.isTakingHit ? 35.0 : 10.0;
             const keys = ['idle', 'walk', 'run', 'punch1', 'punch2', 'punch3', 'hit1', 'hit2'];
             for (let i = 0; i < keys.length; i++) {
                 const k = keys[i];
                 const targetW = this.targetWeights[k] || 0.0;
-                this.currentWeights[k] = THREE.MathUtils.lerp(this.currentWeights[k] || 0.0, targetW, blendSpeed * dt);
+                this.currentWeights[k] = THREE.MathUtils.lerp(this.currentWeights[k] || 0.0, targetW, Math.min(1.0, blendSpeed * dt));
                 if (this.actions[k]) {
                     this.actions[k].setEffectiveWeight(this.currentWeights[k]);
                 }
@@ -2276,8 +2603,8 @@ function createEnemyFoxTreeModel() {
             this.currentWeights = { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
             this.targetWeights = { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 };
             if (this.actions.idle) { this.actions.idle.reset().play(); this.actions.idle.setEffectiveWeight(1.0); }
-            if (this.actions.walk) { this.actions.walk.setEffectiveWeight(0.0); }
-            if (this.actions.run) { this.actions.run.setEffectiveWeight(0.0); }
+            if (this.actions.walk) { this.actions.walk.reset().play(); this.actions.walk.setEffectiveWeight(0.0); }
+            if (this.actions.run) { this.actions.run.reset().play(); this.actions.run.setEffectiveWeight(0.0); }
             ['punch1', 'punch2', 'punch3', 'hit1', 'hit2', 'dead1', 'dead2'].forEach(k => {
                 if (this.actions[k]) { this.actions[k].stop(); this.actions[k].setEffectiveWeight(0.0); }
             });
@@ -2295,3 +2622,78 @@ function createEnemyFoxTreeModel() {
 }
 
 window.createEnemyFoxTreeModel = createEnemyFoxTreeModel;
+
+// ===================================================================
+// STARTUP ASSET PRELOADER (MEMUAT SEMUA ASSET HERO RED FOX & ENEMY)
+// Mencegah blank/delay saat masuk ke Demo Mode Play
+// ===================================================================
+window.preloadAllGameAssets = function(onComplete) {
+    const loaderOverlay = document.getElementById('pandora-asset-loader');
+    const fillEl = document.getElementById('asset-loader-fill');
+    const statusEl = document.getElementById('asset-loader-status');
+    const pctEl = document.getElementById('asset-loader-pct');
+
+    const updateUI = (text, pct) => {
+        if (fillEl) fillEl.style.width = pct + '%';
+        if (pctEl) pctEl.innerText = Math.round(pct) + '%';
+        if (statusEl) statusEl.innerText = text;
+    };
+
+    updateUI('Memuat Mesh & Rig Karakter Red Fox...', 15);
+
+    Promise.all([
+        window.HeroAssetManager.load((status, p) => {
+            updateUI(status, p);
+        }),
+        window.EnemyFoxTreeAssetManager.load(),
+        window.GeneralTakingAssetManager.load(),
+        window.GeneralDeadAssetManager.load()
+    ]).then(() => {
+        updateUI('Menyiapkan Instance Karakter Red Fox...', 95);
+        if (typeof wolfCharacter === 'undefined' || !wolfCharacter) {
+            if (typeof createWolfCharacterModel === 'function') {
+                window.wolfCharacter = createWolfCharacterModel('red');
+                if (typeof wolfCharacter !== 'undefined') {
+                    wolfCharacter = window.wolfCharacter;
+                }
+                if (typeof scene !== 'undefined' && scene && window.wolfCharacter && window.wolfCharacter.root) {
+                    scene.add(window.wolfCharacter.root);
+                    window.wolfCharacter.root.visible = false; // Siap seketika untuk demo mode
+                }
+            }
+        }
+        const isCached = Boolean(window.PandoraAssetCache && window.PandoraAssetCache.stats.cacheHits > 0);
+        updateUI(isCached ? 'Semua Asset Siap Digunakan! ⚡ (Loaded from Cache)' : 'Semua Asset Siap Digunakan!', 100);
+        setTimeout(() => {
+            if (loaderOverlay) {
+                loaderOverlay.classList.add('fade-out');
+                setTimeout(() => {
+                    loaderOverlay.style.display = 'none';
+                }, 600);
+            }
+            if (typeof onComplete === 'function') onComplete();
+        }, 350);
+    }).catch(err => {
+        console.error('[Preloader] Error preloading assets:', err);
+        updateUI('Memuat selesai dengan beberapa catatan.', 100);
+        setTimeout(() => {
+            if (loaderOverlay) {
+                loaderOverlay.classList.add('fade-out');
+                setTimeout(() => {
+                    loaderOverlay.style.display = 'none';
+                }, 600);
+            }
+        }, 500);
+    });
+};
+
+// Jalankan otomatis saat halaman selesai dimuat
+if (typeof window !== 'undefined') {
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(() => window.preloadAllGameAssets(), 150);
+    } else {
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => window.preloadAllGameAssets(), 150);
+        });
+    }
+}

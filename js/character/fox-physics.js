@@ -331,6 +331,10 @@ let cameraReleaseTimer = 0.0;
 let activeCameraTouches = new Map();
 let lastPinchDistance = null;
 
+// Delta akumulasi rotasi kamera dari sentuhan layar mobile (Multitouch look)
+let pendingCameraYawDelta = 0.0;
+let pendingCameraPitchDelta = 0.0;
+
 // Multi-Touch listener pada Canvas (Kamera bebas digerakkan bersamaan dengan Analog Joystick)
 window.addEventListener('touchstart', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
@@ -339,10 +343,11 @@ window.addEventListener('touchstart', (e) => {
         const el = document.elementFromPoint(touch.clientX, touch.clientY);
         const inJoystick = el && el.closest && el.closest('#mobile-joystick-zone');
         const inActionBtn = el && el.closest && el.closest('.mobile-action-buttons');
+        const inExitBtn = el && el.closest && el.closest('#btn-mobile-exit-demo');
         const inToolbar = el && el.closest && el.closest('#top-toolbar');
         const inSpecies = el && el.closest && el.closest('#fox-species-bar');
 
-        if (!inJoystick && !inActionBtn && !inToolbar && !inSpecies) {
+        if (!inJoystick && !inActionBtn && !inExitBtn && !inToolbar && !inSpecies) {
             activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
             isInteractingWithCamera = true;
             cameraReleaseTimer = 0.0;
@@ -361,21 +366,35 @@ window.addEventListener('touchmove', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
     let cameraTouchMoved = false;
 
-    for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        if (activeCameraTouches.has(touch.identifier)) {
-            activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
-            cameraTouchMoved = true;
+    // Geser kamera dengan 1 jari kamera (bahkan saat jempol lain sedang menahan joystick lari/jalan)
+    if (activeCameraTouches.size === 1) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            if (activeCameraTouches.has(touch.identifier)) {
+                const prev = activeCameraTouches.get(touch.identifier);
+                const dx = touch.clientX - prev.x;
+                const dy = touch.clientY - prev.y;
+
+                // Sensitivitas usapan jempol kamera mobile (natural, halus, dan presisi)
+                const SENSITIVITY_YAW = 0.0055;
+                const SENSITIVITY_PITCH = 0.0045;
+                pendingCameraYawDelta -= dx * SENSITIVITY_YAW;
+                pendingCameraPitchDelta -= dy * SENSITIVITY_PITCH;
+
+                activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+                cameraTouchMoved = true;
+            }
         }
-    }
+    } else if (activeCameraTouches.size >= 2) {
+        // Multi-touch 2 jari khusus area kamera: Pinch-to-zoom
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            if (activeCameraTouches.has(touch.identifier)) {
+                activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+                cameraTouchMoved = true;
+            }
+        }
 
-    if (cameraTouchMoved) {
-        isInteractingWithCamera = true;
-        cameraReleaseTimer = 0.0;
-    }
-
-    // Cubit layar (Pinch-to-zoom) pada smartphone
-    if (activeCameraTouches.size >= 2) {
         const touches = Array.from(activeCameraTouches.values());
         const currentPinch = Math.hypot(touches[0].x - touches[1].x, touches[0].y - touches[1].y);
         if (lastPinchDistance !== null && lastPinchDistance > 5 && currentPinch > 5) {
@@ -384,6 +403,11 @@ window.addEventListener('touchmove', (e) => {
             userPreferredDist = THREE.MathUtils.clamp(userPreferredDist + zoomDelta, 3.0, 18.0);
         }
         lastPinchDistance = currentPinch;
+    }
+
+    if (cameraTouchMoved) {
+        isInteractingWithCamera = true;
+        cameraReleaseTimer = 1.0;
     }
 }, { passive: true });
 
@@ -397,7 +421,7 @@ function removeCameraTouches(e) {
     }
     if (activeCameraTouches.size === 0) {
         isInteractingWithCamera = false;
-        cameraReleaseTimer = 0.6;
+        cameraReleaseTimer = 0.8;
     }
 }
 
@@ -537,6 +561,78 @@ function applyPlayerKnockback(impulseVec, verticalPop = 0) {
 }
 window.applyPlayerKnockback = applyPlayerKnockback;
 
+/**
+ * Mencari dan mengunci musuh terdekat untuk sistem Camera Auto-Lock & Camera-Relative Movement.
+ * Memprioritaskan musuh terdekat dengan sisa HP paling rendah, dengan target-stickiness
+ * agar kamera tidak glitch atau berpindah-pindah target saat sedang bertarung.
+ */
+function getCombatLockTarget(playerRoot, acquireRange = 9.5, releaseRange = 12.0) {
+    if (!playerRoot) return null;
+    const list = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) ? spawnedFoxesList : [];
+    if (list.length === 0) {
+        playerRoot._combatLockTarget = null;
+        window.currentCombatLockTarget = null;
+        return null;
+    }
+
+    const pPos = playerRoot.position;
+
+    // TARGET STICKINESS: Jika musuh sebelumnya masih hidup dan dalam jarak toleransi (releaseRange),
+    // pertahankan target agar kamera dan kontrol analog stabil tanpa jitter
+    const prev = playerRoot._combatLockTarget || playerRoot._lockedAttackTarget;
+    if (prev && prev.root && prev.root.visible) {
+        const isDead = (prev.ai && prev.ai.isDead) || (prev.model && prev.model.isDead) || ((prev.health || 0) <= 0);
+        if (!isDead) {
+            const curDist = pPos.distanceTo(prev.root.position);
+            if (curDist <= releaseRange) {
+                playerRoot._combatLockTarget = prev;
+                window.currentCombatLockTarget = prev;
+                return prev;
+            }
+        }
+    }
+
+    let bestTarget = null;
+    let bestScore = Infinity;
+
+    const forwardX = Math.sin(playerRoot.rotation.y);
+    const forwardZ = Math.cos(playerRoot.rotation.y);
+
+    for (let i = 0; i < list.length; i++) {
+        const item = list[i];
+        if (!item || !item.root || !item.root.visible) continue;
+        const isDead = (item.ai && item.ai.isDead) || (item.model && item.model.isDead) || ((item.health || 0) <= 0);
+        if (isDead) continue;
+
+        const ePos = item.root.position;
+        const dx = ePos.x - pPos.x;
+        const dz = ePos.z - pPos.z;
+        const distSq = dx * dx + dz * dz;
+
+        if (distSq > acquireRange * acquireRange || distSq < 0.04) continue;
+
+        const dist = Math.sqrt(distSq);
+        const dot = (dx / dist) * forwardX + (dz / dist) * forwardZ;
+
+        const curHp = (item.ai && typeof item.ai.health === 'number') ? item.ai.health : (item.health || 100);
+        const maxHp = (item.ai && typeof item.ai.maxHealth === 'number') ? item.ai.maxHealth : (item.maxHealth || 100);
+        const hpRatio = THREE.MathUtils.clamp(curHp / Math.max(1, maxHp), 0, 1);
+
+        // FORMULA SKOR: Jarak terdekat + HP bar terkecil - bias arah hadapan
+        const score = (dist * 1.0) + (hpRatio * 1.5) - (dot * 0.4);
+
+        if (score < bestScore) {
+            bestScore = score;
+            bestTarget = item;
+        }
+    }
+
+    playerRoot._combatLockTarget = bestTarget;
+    window.currentCombatLockTarget = bestTarget;
+    return bestTarget;
+}
+window.getCombatLockTarget = getCombatLockTarget;
+
 function updateWolfPhysics(dt, elapsed) {
     if (!wolfCharacter) return;
     dt = Math.min(dt, 0.05);
@@ -589,9 +685,32 @@ function updateWolfPhysics(dt, elapsed) {
     const analogFwd = (typeof mobileJoystickForward !== 'undefined') ? mobileJoystickForward : 0;
     const analogTurn = (typeof mobileJoystickTurn !== 'undefined') ? mobileJoystickTurn : 0;
 
+    // Normalisasi input kontrol dari Virtual Joystick Mobile atau Keyboard WASD
+    let inputX = 0;
+    let inputY = 0;
+    const hasJoy = (typeof mobileJoystickForward !== 'undefined' && typeof mobileJoystickTurn !== 'undefined');
+    const joyMag = hasJoy ? Math.hypot(mobileJoystickTurn, mobileJoystickForward) : 0;
+
+    if (hasJoy && joyMag > 0.05) {
+        inputX = mobileJoystickTurn;
+        inputY = mobileJoystickForward;
+    } else {
+        if (keys.w) inputY += 1.0;
+        if (keys.s) inputY -= 1.0;
+        if (keys.a) inputX -= 1.0;
+        if (keys.d) inputX += 1.0;
+    }
+
+    const inputMag = Math.hypot(inputX, inputY);
+    if (inputMag > 1.0) {
+        inputX /= inputMag;
+        inputY /= inputMag;
+    }
+    window.currentFoxInputMag = inputMag;
+
     // Update Sistem Stamina:
-    // Berkurang saat dipaksa lari (Shift + W / Shift + S / Joystick), bertambah saat jalan pelan atau diam
-    const isMovingActively = keys.w || keys.s || (Math.abs(analogFwd) > 0.15);
+    // Berkurang saat sprint aktif (input gerak + Shift / joystick cepat), bertambah saat santai/diam
+    const isMovingActively = inputMag > 0.15;
     const isSprintingAllowed = (typeof FoxStaminaState !== 'undefined')
         ? FoxStaminaState.update(dt, keys.shift, isMovingActively)
         : keys.shift;
@@ -601,71 +720,104 @@ function updateWolfPhysics(dt, elapsed) {
 
     const walkSpeed = stats.walkSpeed;
     const huntRunSpeed = stats.runSpeed;
-    // Jika pemain menggerakkan keyboard atau joystick saat menendang, batalkan tendangan seketika!
-    const hasMoveInput = (typeof keys !== 'undefined') && (keys.w || keys.s || keys.a || keys.d);
-    const hasJoystickMove = (typeof mobileJoystickForward !== 'undefined' && Math.abs(mobileJoystickForward) > 0.05) ||
-                            (typeof mobileJoystickTurn !== 'undefined' && Math.abs(mobileJoystickTurn) > 0.05);
+    const reverseSpeed = stats.reverseSpeed || 1.35;
+    const fastReverseSpeed = stats.fastReverseSpeed || (reverseSpeed * 2.3);
 
+    // Deteksi interupsi aksi oleh pergerakan pemain
+    const hasMoveInput = inputMag > 0.05;
     if (wolfCharacter) {
-        // Joystick: hanya dorongan BARU (transisi diam -> aktif) yang membatalkan tendangan / pukulan
-        if (wolfCharacter.isKicking && hasJoystickMove && !wolfCharacter._joyWasActive) {
+        // Joystick / Input baru: transisi diam -> aktif membatalkan tendangan / pukulan
+        if (wolfCharacter.isKicking && hasMoveInput && !wolfCharacter._joyWasActive) {
             if (typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
         }
-        if (wolfCharacter.isPunching && hasJoystickMove && !wolfCharacter._joyWasActive) {
+        if (wolfCharacter.isPunching && hasMoveInput && !wolfCharacter._joyWasActive) {
             if (typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
         }
-        wolfCharacter._joyWasActive = !!hasJoystickMove;
+        wolfCharacter._joyWasActive = !!hasMoveInput;
 
-        if (!wolfCharacter.isKicking && !wolfCharacter.isPunching && (hasMoveInput || hasJoystickMove || Math.abs(currentSpeed) > 0.02 || Math.abs(currentTurnRate) > 0.02)) {
+        if (!wolfCharacter.isKicking && !wolfCharacter.isPunching && (hasMoveInput || Math.abs(currentSpeed) > 0.02 || Math.abs(currentTurnRate) > 0.02)) {
             wolfCharacter.idleTimer = 0.0;
             wolfCharacter.activeIdleKey = null;
             wolfCharacter.idleCycleTimer = 0.0;
         }
     }
 
+    // Kunci kontrol saat sedang melompat di tempat (stationary jump) atau saat combat/terkena hit
+    const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && wolfCharacter.isStationaryJump);
     const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit));
+    const isMovementLocked = isPlayerInCombat || isStationaryJumping;
+
+    // Vektor arah pandangan kamera pada bidang horizontal (XZ ground plane)
+    const camFwd = new THREE.Vector3().subVectors(controls.target, camera.position);
+    camFwd.y = 0;
+    if (camFwd.lengthSq() > 0.0001) {
+        camFwd.normalize();
+    } else {
+        camFwd.set(0, 0, 1);
+    }
+    // Vektor sisi kanan kamera (camFwd x UP): [-camFwd.z, 0, camFwd.x]
+    const camRight = new THREE.Vector3(-camFwd.z, 0, camFwd.x);
+
+    // Arah pergerakan dunia yang dihitung relatif terhadap sudut pandang (POV) kamera
+    const moveWorldDir = new THREE.Vector3()
+        .addScaledVector(camFwd, inputY)
+        .addScaledVector(camRight, inputX);
+    const moveDirLen = moveWorldDir.length();
+    if (moveDirLen > 0.0001) {
+        moveWorldDir.normalize();
+    }
+
+    // Auto-Lock target musuh terdekat untuk orientasi pertarungan & kamera
+    const combatTarget = getCombatLockTarget(foxRoot, 9.5, 12.0);
 
     let targetSpeed = 0;
-    const reverseSpeed = stats.reverseSpeed || 1.35;
-    // Kecepatan mundur cepat saat menahan Shift (sprint mundur atletis ~3.1 m/s)
-    const fastReverseSpeed = stats.fastReverseSpeed || (reverseSpeed * 2.3);
+    let isMovingBackward = false;
+    let targetFacingYaw = foxRoot.rotation.y;
+    let moveDisplacement = new THREE.Vector3();
 
-    if (isPlayerInCombat) {
+    if (isMovementLocked) {
         targetSpeed = 0;
         currentSpeed = 0;
-    } else if (keys.w) {
-        targetSpeed = isHunting ? huntRunSpeed : walkSpeed;
-    } else if (keys.s) {
-        // Arah bawah / tombol S: bergerak mundur tanpa membalik badan
-        // Dengan Shift: bergerak mundur lebih cepat!
-        const rSpeed = isHunting ? fastReverseSpeed : reverseSpeed;
-        targetSpeed = -rSpeed;
-    } else if (Math.abs(analogFwd) > 0.05) {
-        const rSpeed = isHunting ? fastReverseSpeed : reverseSpeed;
-        targetSpeed = (analogFwd > 0)
-            ? analogFwd * (isHunting ? huntRunSpeed : walkSpeed)
-            : analogFwd * rSpeed;
-    }
-
-    let targetTurn = 0;
-    if (Math.abs(analogTurn) > 0.05) {
-        targetTurn = -analogTurn * stats.turnRate;
-    } else {
-        if (keys.a) targetTurn = stats.turnRate;
-        if (keys.d) targetTurn = -stats.turnRate;
-    }
-
-    if (isPlayerInCombat) {
         currentTurnRate = 0;
     } else {
-        currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, targetTurn, stats.turnAccel * dt);
-        foxRoot.rotation.y += currentTurnRate * dt;
+        // Kontrol analog bebas berbasis POV kamera (Camera-Relative):
+        // Karakter bebas bergerak dan menghadap ke segala arah mengikuti kemudi joystick di layar,
+        // posisinya tidak terpaku / tidak terpatri titik hadapnya ke musuh.
+        if (inputMag > 0.05) {
+            // Mundur tanpa membalik badan jika menahan tombol S / menarik analog lurus ke bawah
+            if (inputY < -0.28 && Math.abs(inputX) < 0.35) {
+                isMovingBackward = true;
+                const rSpeed = isHunting ? fastReverseSpeed : reverseSpeed;
+                targetSpeed = -inputMag * rSpeed;
+                const fwdFacing = new THREE.Vector3(Math.sin(foxRoot.rotation.y), 0, Math.cos(foxRoot.rotation.y));
+                moveDisplacement.copy(fwdFacing).multiplyScalar(-1);
+            } else {
+                isMovingBackward = false;
+                targetSpeed = inputMag * (isHunting ? huntRunSpeed : walkSpeed);
+                targetFacingYaw = Math.atan2(moveWorldDir.x, moveWorldDir.z);
+
+                let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
+                if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+                if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+                foxRoot.rotation.y += yawDiff * Math.min(1.0, stats.turnAccel * dt);
+                currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 6.0, stats.turnAccel * dt);
+
+                moveDisplacement.copy(moveWorldDir);
+            }
+        } else {
+            targetSpeed = 0;
+            currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, 0, stats.turnAccel * dt);
+        }
     }
 
     // Hitung vektor arah maju (Hero model menghadap +Z secara lokal)
     const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), foxRoot.rotation.y);
 
-    currentSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, 8.0 * dt);
+    if (isMovementLocked) {
+        currentSpeed = 0;
+    } else {
+        currentSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, 8.0 * dt);
+    }
     window.currentFoxSpeed = currentSpeed;
 
     const speedNorm = Math.min(1, Math.abs(currentSpeed) / walkSpeed);
@@ -684,6 +836,9 @@ function updateWolfPhysics(dt, elapsed) {
         } else if (wolfCharacter && wolfCharacter.isKicking) {
             hudState.innerText = "TENDANGAN (KICK)";
             hudState.style.color = "#f43f5e";
+        } else if (wolfCharacter && wolfCharacter.isJumping && wolfCharacter.isStationaryJump) {
+            hudState.innerText = "LOMPAT DI TEMPAT";
+            hudState.style.color = "#8be9fd";
         } else if (foxInWaterState) {
             hudState.innerText = isFoxSwimmingDeep ? "BERENANG (DOG PADDLE)" : "MENYEBRANG AIR (WADING)";
             hudState.style.color = "#06b6d4";
@@ -714,8 +869,8 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
-    if (Math.abs(currentSpeed) > 0.01 && !isPlayerInCombat) {
-        const moveStep = forward.clone().multiplyScalar(currentSpeed * dt);
+    if (Math.abs(currentSpeed) > 0.01 && !isMovementLocked) {
+        const moveStep = moveDisplacement.clone().multiplyScalar(Math.abs(currentSpeed) * dt);
         foxRoot.position.add(moveStep);
         camera.position.add(moveStep);
 
@@ -1187,27 +1342,27 @@ function updateWolfPhysics(dt, elapsed) {
             foxInWaterState = false;
         }
 
-        if (keys.space && isGrounded && !(wolfCharacter && (wolfCharacter.isJumping || wolfCharacter.isKicking || wolfCharacter.isPunching))) {
-            // Sprint -> Jump-withrun.fbx (impuls langsung); tidak sprint -> jump-normal.fbx (impuls di frame tolakan)
+        // Jump diperbolehkan meskipun sedang memukul atau menendang (jump akan meng-cancel aksi tersebut)
+        if (keys.space && isGrounded && !(wolfCharacter && wolfCharacter.isJumping)) {
+            const hasWalkRunInput = Boolean(keys.w || keys.s || (typeof mobileJoystickForward !== 'undefined' && Math.abs(mobileJoystickForward) > 0.18));
             const isSprinting = (huntBlend > 0.4 && Math.abs(currentSpeed) > 1.8);
+            // Lompat tanpa berjalan / berlari -> lompat murni di tempat (stationary)
+            const isStationary = !hasWalkRunInput && !isSprinting && (Math.abs(currentSpeed) < 0.4);
+
             let applyNow = true;
             if (wolfCharacter && typeof wolfCharacter.triggerJump === 'function') {
-                applyNow = wolfCharacter.triggerJump(isSprinting) !== false;
+                applyNow = wolfCharacter.triggerJump(isSprinting, isStationary) !== false;
             }
             if (applyNow) {
-                velocityY = isSprinting ? 6.8 : 5.8;
-                isGrounded = false;
-                if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) foxSoundFX.playJump();
-            }
-        }
-
-        // Lepas landas tertunda untuk jump-normal.fbx (setelah ancang-ancang jongkok selesai)
-        if (wolfCharacter && wolfCharacter.jumpImpulsePending && wolfCharacter.isJumping &&
-            wolfCharacter.jumpTimer >= wolfCharacter.jumpTakeoffTime) {
-            wolfCharacter.jumpImpulsePending = false;
-            if (isGrounded) {
-                velocityY = wolfCharacter.jumpImpulseVel || 5.5;
-                isGrounded = false;
+                // Hilangkan lompatan paksa native Y code, biarkan dieksekusi oleh animasi jump-normal.fbx saja
+                if (isSprinting) {
+                    velocityY = 6.8;
+                    isGrounded = false;
+                } else {
+                    velocityY = 0;
+                    isGrounded = true; // Tetap grounded, gerakan visual lompat dieksekusi penuh oleh animasi jump-normal.fbx
+                }
+                keys.space = false; // Reset keys.space agar jump berikutnya merespons input segar
                 if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) foxSoundFX.playJump();
             }
         }
@@ -1216,13 +1371,19 @@ function updateWolfPhysics(dt, elapsed) {
         foxRoot.position.y += velocityY * dt;
 
         if (foxRoot.position.y <= effectiveGroundH) {
-            if (!wasGrounded && velocityY < -3) {
-                landingSquash = 0.10;
-                if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playLand) foxSoundFX.playLand();
-            }
             foxRoot.position.y = effectiveGroundH;
             velocityY = 0;
             isGrounded = true;
+
+            if (!wasGrounded) {
+                if (velocityY < -3) landingSquash = 0.10;
+                if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playLand) foxSoundFX.playLand();
+                // Saat menyentuh tanah, seketika reset status jump & cooldown idle
+                // agar pemain bisa langsung jump lagi tanpa jeda tersedat!
+                if (wolfCharacter && typeof wolfCharacter.onLanded === 'function') {
+                    wolfCharacter.onLanded();
+                }
+            }
         } else {
             velocityY += gravity * dt;
         }
@@ -1238,19 +1399,35 @@ function updateWolfPhysics(dt, elapsed) {
     updateWolfLocomotionAnimation(dt, elapsed, currentSpeed, currentTurnRate, huntBlend, locomotionGrounded, velocityY, isFoxSwimmingDeep);
 
     // ========================================================
-    // 3. FREE ORBIT SPRING-ARM CAMERA DENGAN SMOOTH ANTI-OBSTACLE OCCLUSION
+    // 3. FREE ORBIT SPRING-ARM CAMERA DENGAN SMOOTH ANTI-OBSTACLE OCCLUSION & COMBAT AUTO-LOCK
     // ========================================================
-    // Titik fokus kamera mengikuti dada/kepala Hero character
-    const currentTargetPos = new THREE.Vector3(
+    // Titik fokus kamera mengikuti dada/kepala Hero character atau midpoint antara Hero dan Enemy yang di-lock
+    const playerTargetPos = new THREE.Vector3(
         foxRoot.position.x + forward.x * (0.15 * foxScale),
         foxRoot.position.y + 0.95 * foxScale,
         foxRoot.position.z + forward.z * (0.15 * foxScale)
     );
 
+    // Frame musuh jika combat lock aktif
+    const activeCombatTarget = (typeof window.currentCombatLockTarget !== 'undefined' && window.currentCombatLockTarget && window.currentCombatLockTarget.root)
+        ? window.currentCombatLockTarget
+        : null;
+
+    let currentTargetPos = playerTargetPos;
+    if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
+        const enemyHeadY = activeCombatTarget.root.position.y + 0.95;
+        const enemyTargetPos = new THREE.Vector3(
+            activeCombatTarget.root.position.x,
+            enemyHeadY,
+            activeCombatTarget.root.position.z
+        );
+        // Lerp 32% ke arah musuh agar hero & musuh selalu berada seimbang di tengah frame layar
+        currentTargetPos = playerTargetPos.clone().lerp(enemyTargetPos, 0.32);
+    }
+
     // Modern AAA spring-arm focus target lag:
-    // Fokus kamera mengikuti rubah secara halus dengan sedikit lagging inersia natural,
-    // sehingga saat rubah melesat atau berbelok, terdapat sensasi tertinggal yang dinamis.
-    const posLagSpeed = 8.5;
+    // Fokus kamera mengikuti rubah secara halus dengan sedikit lagging inersia natural
+    const posLagSpeed = (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) ? 10.5 : 8.5;
     const posAlpha = 1.0 - Math.exp(-posLagSpeed * dt);
     controls.target.x = THREE.MathUtils.lerp(controls.target.x, currentTargetPos.x, posAlpha);
     controls.target.z = THREE.MathUtils.lerp(controls.target.z, currentTargetPos.z, posAlpha);
@@ -1284,17 +1461,47 @@ function updateWolfPhysics(dt, elapsed) {
     // (Kamera TIDAK BISA menukik ke atas kepala / up-to-down top-down under ANY circumstance)
     const MAX_ALLOWED_PITCH = THREE.MathUtils.degToRad(30.0);
     const MIN_ALLOWED_PITCH = THREE.MathUtils.degToRad(6.0);
+
+    // Terapkan delta usapan kamera touch mobile (Multitouch kamera saat berjalan/berlari)
+    if (pendingCameraYawDelta !== 0.0 || pendingCameraPitchDelta !== 0.0) {
+        curYaw += pendingCameraYawDelta;
+        curPitch += pendingCameraPitchDelta;
+        pendingCameraYawDelta = 0.0;
+        pendingCameraPitchDelta = 0.0;
+    }
+
     curPitch = THREE.MathUtils.clamp(curPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
 
-    const isCharacterMoving = (Math.abs(currentSpeed) > 0.15 || Math.abs(currentTurnRate) > 0.15 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.15 || Math.abs(analogTurn) > 0.15);
+    const isCharacterMoving = (Math.abs(currentSpeed) > 0.15 || Math.abs(currentTurnRate) > 0.15 || (window.currentFoxInputMag || 0) > 0.1 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.15 || Math.abs(analogTurn) > 0.15);
 
     if (isUserHoldingCamera) {
         // SAAT USER MENGGESER KAMERA (BAIK SEDANG DIAM MAUPUN BERJALAN):
         // Kamera bebas dirotasi oleh user sesuai arah drag mouse/touch,
         // sudut kamera dipertahankan dan rubah tidak dipaksa memutar arah.
+    } else if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
+        // AUTO LOCK KAMERA KE MUSUH TERDEKAT:
+        // Kamera secara otomatis mengarah dari belakang Hero menuju Musuh
+        const toEnemyX = activeCombatTarget.root.position.x - foxRoot.position.x;
+        const toEnemyZ = activeCombatTarget.root.position.z - foxRoot.position.z;
+        const targetYaw = Math.atan2(-toEnemyX, -toEnemyZ);
+
+        let diff = (targetYaw - curYaw) % (Math.PI * 2);
+        if (diff < -Math.PI) diff += Math.PI * 2;
+        if (diff > Math.PI) diff -= Math.PI * 2;
+
+        const lockChaseSpeed = 6.8;
+        const smoothT = 1.0 - Math.exp(-lockChaseSpeed * dt);
+        curYaw += diff * smoothT;
+
+        const targetPitch = THREE.MathUtils.degToRad(18.0);
+        curPitch = THREE.MathUtils.clamp(
+            THREE.MathUtils.lerp(curPitch, targetPitch, 1.0 - Math.exp(-3.0 * dt)),
+            MIN_ALLOWED_PITCH,
+            MAX_ALLOWED_PITCH
+        );
     } else {
-        // SAAT TIDAK DIGERAKKAN SECARA MANUAL (ATAU BEGITU KAMERA DILEPAS):
-        // Sistem kamera (existing) berlaku kembali: kamera secara otomatis mengikuti di belakang rubah
+        // SAAT TIDAK DIGERAKKAN SECARA MANUAL & TIDAK SEDANG COMBAT LOCK:
+        // Sistem kamera normal mengikuti di belakang rubah saat bergerak
         if (isCharacterMoving) {
             const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
             let diff = (targetYaw - curYaw) % (Math.PI * 2);

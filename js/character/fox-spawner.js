@@ -334,9 +334,11 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
         : (isBossCheck ? 'Lingxuzi' : 'FoxTree Enemy');
 
     const hpInput = document.getElementById('input-spawner-fox-hp');
+    const defaultBossHp = (typeof window.ENEMY_COMBAT_CONFIG !== 'undefined') ? window.ENEMY_COMBAT_CONFIG.boss.maxHealth : 500;
+    const defaultNonBossHp = (typeof window.ENEMY_COMBAT_CONFIG !== 'undefined') ? window.ENEMY_COMBAT_CONFIG.nonBoss.maxHealth : 100;
     const customHp = (hpInput && parseFloat(hpInput.value))
         ? parseFloat(hpInput.value)
-        : (isBossCheck ? 500 : 100);
+        : (isBossCheck ? defaultBossHp : defaultNonBossHp);
 
     const foxRecord = {
         id: 'enemy_' + Date.now() + '_' + Math.floor(Math.random() * 1000),

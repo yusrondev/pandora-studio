@@ -24,6 +24,24 @@
 </head>
 
 <body>
+    <!-- PANDORA STARTUP ASSET PRELOADER (MEMUAT ASSET HERO RED FOX & ENEMY) -->
+    <div id="pandora-asset-loader" class="pandora-asset-loader">
+        <div class="loader-content">
+            <div class="loader-brand">
+                <span class="loader-logo">🦊</span>
+                <div class="loader-title">PANDORA STUDIO</div>
+                <div class="loader-subtitle">MEMUAT ASSET HERO & ANIMASI RED FOX</div>
+            </div>
+            <div class="loader-track">
+                <div id="asset-loader-fill" class="loader-fill" style="width: 0%;"></div>
+            </div>
+            <div class="loader-status-row">
+                <span id="asset-loader-status" class="loader-status">Menyiapkan Engine 3D...</span>
+                <span id="asset-loader-pct" class="loader-pct">0%</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Screen Explosion Flash from plasma.html -->
     <div id="fl"></div>
 
@@ -408,64 +426,28 @@
     <!-- BOSS HEALTH BAR (Tengah Atas - Hanya Tampil Saat di Dalam Radius Area Boss) -->
     <div id="boss-health-bar-container" class="boss-health-bar-container" style="display: none;">
         <div class="boss-bar-meta">
-            <!-- Lingkaran Ornamen Emblem Boss -->
-            <div class="boss-emblem-circle">
-                <svg viewBox="0 0 36 36" class="boss-emblem-svg">
-                    <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.2" stroke-dasharray="3 2"></circle>
-                    <circle cx="18" cy="18" r="13" fill="rgba(10,12,16,0.85)" stroke="#cbd5e1" stroke-width="1.4"></circle>
-                    <!-- Fang / Relic oriental icon -->
-                    <path d="M18 7 L21 17 L18 28 L15 17 Z" fill="#f8fafc" opacity="0.95"></path>
-                    <circle cx="18" cy="18" r="2.5" fill="#ef4444"></circle>
-                </svg>
-            </div>
             <!-- Nama Boss (misal Lingxuzi) -->
             <div class="boss-name-text" id="boss-name-text">Lingxuzi</div>
         </div>
 
-        <!-- Bar Panjang Tengah Tipis Horizontal dengan Ornamen Ujung Naga / Cloud -->
+        <!-- Bar Bersih Tanpa Ornamen -->
         <div class="boss-bar-frame">
-            <div class="boss-bar-ornament left">
-                <svg viewBox="0 0 28 16" class="boss-ornament-svg">
-                    <path d="M28 8 C20 8 16 3 8 4 C3 4 1 8 5 11 C8 13 14 10 18 11 C22 12 25 10 28 8 Z" fill="none" stroke="#e2e8f0" stroke-width="1.4" opacity="0.85"></path>
-                </svg>
-            </div>
             <div class="boss-bar-track">
                 <div class="boss-bar-ghost" id="boss-bar-ghost" style="width: 100%;"></div>
                 <div class="boss-bar-fill" id="boss-bar-fill" style="width: 100%;"></div>
             </div>
-            <div class="boss-bar-ornament right">
-                <svg viewBox="0 0 28 16" class="boss-ornament-svg">
-                    <path d="M0 8 C8 8 12 3 20 4 C25 4 27 8 23 11 C20 13 14 10 10 11 C6 12 3 10 0 8 Z" fill="none" stroke="#e2e8f0" stroke-width="1.4" opacity="0.85"></path>
-                </svg>
-            </div>
         </div>
     </div>
 
-    <!-- PLAYER COMBAT HUD (Pojok Kiri Bawah - Avatar Medallion + HP Hijau & Stamina Kuning) -->
+    <!-- PLAYER COMBAT HUD (Pojok Kiri Bawah - HP Hijau & Stamina Kuning Tanpa Ornamen Bulatan) -->
     <div id="player-combat-hud" class="player-combat-hud" style="display: none;">
-        <!-- Avatar Medallion Bulat Kiri dengan Ornamen Oriental Cloud/Naga -->
-        <div class="player-avatar-medallion">
-            <svg viewBox="0 0 64 64" class="player-avatar-ornament">
-                <circle cx="32" cy="32" r="30" fill="rgba(15,17,23,0.85)" stroke="#64748b" stroke-width="1.8"></circle>
-                <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.2" stroke-dasharray="4 2"></circle>
-                <!-- Oriental Cloud / Smoke Swirl detail -->
-                <path d="M12 38 C16 48 34 50 42 44 C48 40 48 30 40 28 C32 26 30 18 38 14" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"></path>
-                <!-- Hero Wolf / Fighter Silhouette -->
-                <path d="M26 44 L29 32 L23 27 L32 23 L35 15 L39 23 L47 27 L41 32 L44 44 L35 39 Z" fill="#f8fafc" opacity="0.95"></path>
-            </svg>
-        </div>
-
         <!-- Dua Bar Mendatar: HP (Hijau) Atas & Stamina (Kuning) Bawah -->
         <div class="player-bars-column">
-            <!-- HP Bar (Hijau) -->
+            <!-- HP Bar (Hijau Bersih Tanpa Strip Hitam) -->
             <div class="player-bar-wrapper hp-wrapper">
                 <div class="player-bar-track hp-track">
                     <div class="player-bar-ghost hp-ghost" id="player-hp-bar-ghost" style="width: 100%;"></div>
                     <div class="player-bar-fill hp-fill" id="player-hp-bar-fill" style="width: 100%;"></div>
-                    <!-- Pembatas Segmen Bar -->
-                    <div class="player-bar-segments">
-                        <span></span><span></span><span></span>
-                    </div>
                 </div>
             </div>
 
@@ -537,6 +519,15 @@
     <!-- MOBILE SIDEBAR OVERLAY BACKDROP -->
     <div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop"></div>
 
+    <!-- DEMO MODE EXIT BUTTON (Tampil di Desktop maupun Mobile saat Demo Mode berjalan) -->
+    <button type="button" id="btn-mobile-exit-demo" class="mobile-action-btn mobile-exit-btn" title="Keluar Demo (ESC)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <span class="mobile-exit-text">Exit (ESC)</span>
+    </button>
+
     <!-- MOBILE TOUCH CONTROLS (Virtual Analog Joystick & Action Buttons for Fox) -->
     <div id="mobile-play-controls" class="mobile-play-controls" style="display: none;">
         <!-- Left Virtual Joystick Zone -->
@@ -546,32 +537,54 @@
             </div>
         </div>
 
-        <!-- Right Action Buttons (Minimalist Translucent Circular SVG Controls) -->
+        <!-- Right Action Buttons Arcade Cluster (Punch, Kick, Jump, Sprint, Item) -->
         <div class="mobile-action-buttons">
+            <!-- Use Item (Plasma Bazooka) - Hanya muncul jika senjata terpasang -->
             <button type="button" id="btn-mobile-use-item" class="mobile-action-btn mobile-plasma-btn" title="Use Item (Plasma)" style="display: none;">
-                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor">
                     <circle cx="12" cy="12" r="5" fill="#ffffff" stroke="#ffdd55" stroke-width="2" />
                     <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
                     <path d="M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12" stroke="#ffe066" stroke-width="2" stroke-linecap="round" />
                 </svg>
-                <span class="mobile-plasma-badge">FIRE</span>
+                <span class="mobile-btn-label">FIRE</span>
             </button>
-            <button type="button" id="btn-mobile-sprint" class="mobile-action-btn mobile-sprint-btn" title="Toggle Sprint">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+
+            <!-- Kick Button (Tendangan Melee) -->
+            <button type="button" id="btn-mobile-kick" class="mobile-action-btn mobile-kick-btn" title="Kick (Tendangan)">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 17l4.5-4.5L14 18l7-11"/>
+                    <path d="M18 7h3v3"/>
+                    <path d="M7 21l3-7"/>
                 </svg>
+                <span class="mobile-btn-label">KICK</span>
             </button>
-            <button type="button" id="btn-mobile-jump" class="mobile-action-btn mobile-jump-btn" title="Jump">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+
+            <!-- Jump Button (Lompat) -->
+            <button type="button" id="btn-mobile-jump" class="mobile-action-btn mobile-jump-btn" title="Jump (Lompat)">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="18 15 12 9 6 15"></polyline>
                     <line x1="12" y1="9" x2="12" y2="21"></line>
                 </svg>
+                <span class="mobile-btn-label">JUMP</span>
             </button>
-            <button type="button" id="btn-mobile-exit-demo" class="mobile-action-btn mobile-exit-btn" title="Exit Demo">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
+
+            <!-- Sprint Button (Lari Cepat) -->
+            <button type="button" id="btn-mobile-sprint" class="mobile-action-btn mobile-sprint-btn" title="Toggle Sprint">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                 </svg>
+                <span class="mobile-btn-label">RUN</span>
+            </button>
+
+            <!-- Main Punch Button (Pukulan Combo Utama - Ukuran Paling Menonjol) -->
+            <button type="button" id="btn-mobile-punch" class="mobile-action-btn mobile-punch-btn" title="Punch Attack (Pukulan Combo)">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
+                    <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
+                    <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+                    <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 13"/>
+                </svg>
+                <span class="mobile-punch-label">PUNCH</span>
             </button>
         </div>
     </div>
@@ -3039,6 +3052,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+    <script src="js/core/asset-cache.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 
     <script src="js/core/random.js"></script>

@@ -8,6 +8,24 @@
 //    - TAHAP 3: Visual radius ring aktif di Play Mode.
 // ===================================================================
 
+// ===================================================================
+// KONFIGURASI COMBAT ENEMY AI (BOSS & NON-BOSS)
+// Pengaturan HP maksimum dan Damage per hit untuk Enemy AI
+// ===================================================================
+const ENEMY_COMBAT_CONFIG = {
+    boss: {
+        name: 'Lingxuzi',
+        maxHealth: 500,       // HP darah Boss
+        damagePerHit: 25,     // Damage yang diterima player saat terkena serangan Boss
+    },
+    nonBoss: {
+        name: 'FoxTree Enemy',
+        maxHealth: 100,       // HP darah Enemy biasa
+        damagePerHit: 12,     // Damage yang diterima player saat terkena serangan Enemy biasa
+    }
+};
+window.ENEMY_COMBAT_CONFIG = ENEMY_COMBAT_CONFIG;
+
 let FoxAIManager = null;
 
 class FoxAIAgent {
@@ -32,12 +50,17 @@ class FoxAIAgent {
         this.maxAmmo = 3;
         this.weaponMeshGroup = null;
 
-        // Kesehatan & Status
+        // Kesehatan & Status (Mengikuti ENEMY_COMBAT_CONFIG terpusat)
         this.isBoss = !!foxRecord.isBoss;
-        this.name = foxRecord.name || (this.isBoss ? 'Lingxuzi' : 'FoxTree Enemy');
-        this.maxHealth = typeof foxRecord.maxHealth === 'number' ? foxRecord.maxHealth : (this.isBoss ? 500 : 100);
+        const cfgCombat = this.isBoss ? ENEMY_COMBAT_CONFIG.boss : ENEMY_COMBAT_CONFIG.nonBoss;
+        this.name = foxRecord.name || cfgCombat.name;
+        this.maxHealth = typeof foxRecord.maxHealth === 'number' ? foxRecord.maxHealth : cfgCombat.maxHealth;
+        this.damagePerHit = typeof foxRecord.damagePerHit === 'number' ? foxRecord.damagePerHit : cfgCombat.damagePerHit;
         this.health = typeof foxRecord.health === 'number' ? foxRecord.health : this.maxHealth;
         this.isDead = false;
+        this.isFadingOut = false;
+        this.fadeTimer = 0.0;
+        this.fadeDuration = 1.8; // Fadeout 1.8 detik sebelum menghilang sepenuhnya
         this.state = 'IDLE'; // 'IDLE', 'SEEK_BOX', 'COMBAT_ENGAGE', 'HIT_STUN'
         this.hitStunTimer = 0;
         this.shootCooldown = 1.0 + Math.random() * 0.8;
@@ -275,6 +298,20 @@ class FoxAIAgent {
 
         if (this.model && typeof this.model.triggerDeath === 'function') {
             this.model.triggerDeath();
+        }
+
+        // Mulai animasi fadeout material halus setelah tereliminasi
+        this.isFadingOut = true;
+        this.fadeTimer = 0.0;
+        if (this.root) {
+            this.root.traverse(child => {
+                if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(m => {
+                        m.transparent = true;
+                    });
+                }
+            });
         }
     }
 
@@ -514,6 +551,22 @@ class FoxAIAgent {
     think(dt, elapsed) {
         if (this.isDead) {
             this.targetSpeed = 0;
+            return;
+        }
+
+        // Jika player sudah dead, musuh berhenti menyerang dan kembali ke IDLE
+        const isPlayerDead = Boolean(
+            (typeof PlayerHealthState !== 'undefined' && PlayerHealthState.isDead) ||
+            (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.isDead)
+        );
+        if (isPlayerDead) {
+            this.targetSpeed = 0;
+            this.currentSpeed = 0;
+            this.isPunching = false;
+            if (this.model && typeof this.model.cancelPunch === 'function') {
+                this.model.cancelPunch();
+            }
+            this.state = 'IDLE';
             return;
         }
 
@@ -898,6 +951,27 @@ class FoxAIAgent {
                 ? getTerrainHeightFast(this.root.position.x, this.root.position.z)
                 : 0;
             this.root.position.y = groundH;
+
+            // Fade out material secara bertahap sampai transparan lalu sembunyikan root
+            if (this.isFadingOut) {
+                this.fadeTimer += dt;
+                const alpha = Math.max(0, 1.0 - (this.fadeTimer / this.fadeDuration));
+                this.root.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach(m => {
+                            m.transparent = true;
+                            m.opacity = alpha;
+                        });
+                    }
+                });
+
+                if (this.fadeTimer >= this.fadeDuration) {
+                    this.isFadingOut = false;
+                    this.root.visible = false; // Menghilang sepenuhnya dari scene
+                }
+            }
+
             if (this.model && typeof this.model.updateAnimation === 'function') {
                 this.model.updateAnimation(dt, 0);
             } else if (this.model && this.model.mixer) {
@@ -1178,17 +1252,33 @@ class FoxAIAgent {
         if (this.root && this.spawnOrigin) {
             this.root.position.copy(this.spawnOrigin);
             this.root.rotation.y = this.spawnRotationY;
+            this.root.visible = true; // Spawn kembali saat demo mode dimulai lagi
+
+            // Kembalikan opacity material ke 100%
+            this.root.traverse(child => {
+                if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(m => {
+                        m.opacity = 1.0;
+                    });
+                }
+            });
         }
         this.currentSpeed = 0;
         this.targetSpeed = 0;
         this.dropWeapon();
         this.health = this.maxHealth;
+        if (this.fox) this.fox.health = this.maxHealth;
         this.isDead = false;
+        this.isFadingOut = false;
+        this.fadeTimer = 0.0;
         this.state = 'IDLE';
         if (this.ringGroup) this.ringGroup.visible = false;
 
-        // Kembalikan pose bawaan editor
-        if (this.model && this.fox && typeof applyFoxPose === 'function') {
+        // Hidupkan kembali animasi idle jika ini enemy model Mixamo
+        if (this.model && typeof this.model.triggerRevive === 'function') {
+            this.model.triggerRevive();
+        } else if (this.model && this.fox && typeof applyFoxPose === 'function') {
             applyFoxPose(this.model, this.fox.pose || 'idle', 0);
         }
     }

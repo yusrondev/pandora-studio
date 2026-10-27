@@ -42,7 +42,11 @@ const LEFT_CLICK_MAX_MOVE_PX = 6;   // Lebih dari 6px perpindahan dianggap drag 
 
 function handleLeftPointerDown(e) {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
-    if (e.button !== 0) return;
+    if (e.pointerType === 'touch') {
+        // Pada perangkat touch / mobile, kontrol serangan menggunakan tombol on-screen Punch & Kick
+        isLeftButtonHeld = false;
+        return;
+    }
     // Hindari trigger saat user mengklik tombol UI / HUD (seperti tombol exit, mobile button, dll)
     if (e.target && e.target.closest && (e.target.closest('button') || e.target.closest('.play-hud') || e.target.closest('#play-hud') || e.target.closest('.mobile-joystick') || e.target.closest('#mobile-play-controls'))) {
         isLeftButtonHeld = false;
@@ -254,6 +258,12 @@ function startPlayMode() {
     wolfCharacter.root.position.set(spawnX, spawnY, spawnZ);
     wolfCharacter.root.rotation.y = spawnRotY;
     wolfCharacter.root.visible = true;
+    wolfCharacter.root.traverse(child => {
+        child.visible = true;
+        if (child.isMesh) child.frustumCulled = false;
+    });
+    wolfCharacter.root.updateMatrix();
+    wolfCharacter.root.updateMatrixWorld(true);
 
     // Reset physics state
     currentSpeed = 0;
@@ -319,7 +329,12 @@ function startPlayMode() {
         window.glbImporterInstance.transformControl.detach();
     }
     document.body.classList.add('play-mode-active');
-    if (typeof updateViewportSize === 'function') updateViewportSize();
+    if (typeof updateViewportSize === 'function') {
+        updateViewportSize();
+        requestAnimationFrame(updateViewportSize);
+        setTimeout(updateViewportSize, 60);
+        setTimeout(updateViewportSize, 200);
+    }
     const btnPlay = document.getElementById('btn-play-mode');
     if (btnPlay) {
         btnPlay.classList.add('playing');
@@ -327,9 +342,9 @@ function startPlayMode() {
         if (txt) txt.innerText = 'Stop Demo';
     }
 
-    // Tampilkan floating species switcher bar & stats stamina HUD
+    // Sembunyikan species switcher bar di Mode Demo per permintaan user
     const speciesBar = document.getElementById('fox-species-bar');
-    if (speciesBar) speciesBar.style.display = 'flex';
+    if (speciesBar) speciesBar.style.display = 'none';
 
     const statsHud = document.getElementById('fox-stats-hud');
     if (statsHud) statsHud.style.display = 'none';
@@ -364,6 +379,16 @@ function startPlayMode() {
     if (typeof FoxAIManager !== 'undefined' && FoxAIManager) {
         if (typeof FoxAIManager.syncSpawnedFoxes === 'function') FoxAIManager.syncSpawnedFoxes();
         if (typeof FoxAIManager.resetAll === 'function') FoxAIManager.resetAll();
+    }
+
+    if (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) {
+        spawnedFoxesList.forEach(fox => {
+            if (fox) {
+                fox.visible = true;
+                if (fox.root) fox.root.visible = true;
+                if (typeof fox.maxHealth === 'number') fox.health = fox.maxHealth;
+            }
+        });
     }
 }
 

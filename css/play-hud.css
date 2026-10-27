@@ -573,3 +573,303 @@ body.play-mode-active #viewport-container {
         color: #ffffff !important;
     }
 }
+
+/* =========================================================
+   BOSS HEALTH BAR (CENTER BOTTOM - MYTHIC ORIENTAL AAA STYLE)
+   Muncul hanya saat berada di dalam radius area boss.
+   Terletak di area bawah tengah (tidak sejajar dengan bar player di kiri bawah)
+   ========================================================= */
+.boss-health-bar-container {
+    position: fixed;
+    bottom: 64px;
+    left: 50%;
+    transform: translateX(-50%) translateY(14px);
+    z-index: 9998;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    width: min(560px, 76vw);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.boss-health-bar-container.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.boss-bar-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    align-self: flex-start;
+    margin-left: 14px;
+    margin-bottom: 1px;
+}
+
+.boss-emblem-circle {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.7));
+}
+
+.boss-emblem-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.boss-name-text {
+    font-family: 'Cinzel', 'Times New Roman', serif, system-ui;
+    font-size: 14px;
+    letter-spacing: 2px;
+    font-weight: 600;
+    color: #e2e8f0;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+.boss-bar-frame {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    position: relative;
+    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.85));
+}
+
+.boss-bar-ornament {
+    width: 28px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.boss-bar-ornament.left {
+    margin-right: -4px;
+    z-index: 2;
+}
+
+.boss-bar-ornament.right {
+    margin-left: -4px;
+    z-index: 2;
+}
+
+.boss-ornament-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.boss-bar-track {
+    position: relative;
+    flex: 1;
+    height: 8px;
+    background: rgba(12, 14, 18, 0.88);
+    border-top: 1px solid rgba(255, 255, 255, 0.25);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.boss-bar-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #dc2626;
+    opacity: 0.8;
+    transition: width 0.4s ease-out;
+}
+
+.boss-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #e2e8f0 0%, #ffffff 80%, #f1f5f9 100%);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
+    transition: width 0.12s ease-out;
+}
+
+/* =========================================================
+   PLAYER COMBAT HUD (BOTTOM LEFT - ORIENTAL AAA DESIGN)
+   Avatar Medallion + HP (Hijau) & Stamina (Kuning)
+   ========================================================= */
+.player-combat-hud {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+    user-select: none;
+}
+
+.player-avatar-medallion {
+    width: 58px;
+    height: 58px;
+    flex-shrink: 0;
+    position: relative;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.85));
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.player-avatar-ornament {
+    width: 100%;
+    height: 100%;
+}
+
+.player-bars-column {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75));
+}
+
+/* HP Bar (Hijau Trapesium) */
+.player-bar-wrapper.hp-wrapper {
+    position: relative;
+    width: 220px;
+    height: 14px;
+}
+
+.player-bar-track.hp-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 17, 23, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    transform: skewX(-14deg);
+    overflow: hidden;
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.player-bar-ghost.hp-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #dc2626;
+    opacity: 0.75;
+    transition: width 0.4s ease-out;
+}
+
+.player-bar-fill.hp-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #15803d 0%, #22c55e 60%, #4ade80 100%);
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+    transition: width 0.12s ease-out;
+}
+
+.player-bar-segments {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: space-evenly;
+    pointer-events: none;
+}
+
+.player-bar-segments span {
+    width: 1px;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+/* Stamina Bar (Kuning Trapesium) */
+.player-bar-wrapper.stamina-wrapper {
+    position: relative;
+    width: 175px;
+    height: 9px;
+}
+
+.player-bar-track.stamina-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 17, 23, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    transform: skewX(-14deg);
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.player-bar-fill.stamina-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #b45309 0%, #eab308 60%, #fde047 100%);
+    box-shadow: 0 0 8px rgba(234, 179, 8, 0.45);
+    transition: width 0.08s ease-out;
+}
+
+/* =========================================================
+   OVERHEAD FLOATING HEALTH BAR FOR NON-BOSS ENEMIES (3D)
+   ========================================================= */
+.floating-hp-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9995;
+    overflow: hidden;
+}
+
+.enemy-overhead-bar {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: 72px;
+    transform: translate(-50%, -100%);
+    transition: opacity 0.2s ease;
+    user-select: none;
+    pointer-events: none;
+}
+
+.enemy-overhead-name {
+    font-size: 9px;
+    font-weight: 600;
+    color: #e2e8f0;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.enemy-overhead-track {
+    position: relative;
+    width: 100%;
+    height: 5px;
+    background: rgba(10, 12, 16, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.enemy-overhead-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ef4444 0%, #f97316 100%);
+    transition: width 0.15s ease-out;
+}
+

@@ -307,8 +307,10 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
         }
     });
 
-    // Jika model bukan FBX skinned mesh dengan AnimationMixer, aplikasikan procedural pose
-    if (!model.mixer) {
+    // Jika model adalah FBX skinned mesh dengan AnimationMixer, segera evaluasi mixer agar kaki menapak tanah dan tidak T-pose
+    if (model.mixer) {
+        model.mixer.update(0.016);
+    } else {
         applyFoxPose(model, pose, 0);
     }
 
@@ -322,12 +324,30 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
         ? parseFloat(document.getElementById('slider-spawner-ai-radius').value)
         : 18.0;
 
+    const isBossCheck = document.getElementById('chk-spawner-fox-boss')
+        ? document.getElementById('chk-spawner-fox-boss').checked
+        : false;
+
+    const nameInput = document.getElementById('input-spawner-fox-name');
+    const customName = (nameInput && nameInput.value.trim())
+        ? nameInput.value.trim()
+        : (isBossCheck ? 'Lingxuzi' : 'FoxTree Enemy');
+
+    const hpInput = document.getElementById('input-spawner-fox-hp');
+    const customHp = (hpInput && parseFloat(hpInput.value))
+        ? parseFloat(hpInput.value)
+        : (isBossCheck ? 500 : 100);
+
     const foxRecord = {
         id: 'enemy_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
         model: model,
         root: model.root,
         species: effectiveSpecies,
         pose: pose,
+        isBoss: isBossCheck,
+        name: customName,
+        maxHealth: customHp,
+        health: customHp,
         aiMode: defaultSpawnerAI || 'combat',
         detectionRadius: defaultSpawnerRadius || 18.0,
         animOffset: Math.random() * 50,
@@ -561,8 +581,15 @@ window.setFoxAIRadiusByIndex = setFoxAIRadiusByIndex;
 // ==========================================
 // 3. ANIMASI LOOP UNTUK SEMUA RUBAH DI SCENE
 // ==========================================
-function updateAllSpawnedFoxesAnimation(elapsedTime) {
+function updateAllSpawnedFoxesAnimation(delta = 0.016, elapsedTime = 0) {
     if (!spawnedFoxesList || spawnedFoxesList.length === 0) return;
+
+    if (typeof delta !== 'number' || isNaN(delta)) delta = 0.016;
+    if (typeof elapsedTime !== 'number' || isNaN(elapsedTime)) elapsedTime = performance.now() * 0.001;
+    if (delta > 1.0 && elapsedTime === 0) {
+        elapsedTime = delta;
+        delta = 0.016;
+    }
 
     // Jika dalam Play Mode, pergerakan & animasi rubah dikendalikan secara dinamis & cerdas oleh FoxAIManager!
     if (typeof isPlayMode !== 'undefined' && isPlayMode) {
@@ -572,7 +599,19 @@ function updateAllSpawnedFoxesAnimation(elapsedTime) {
     for (let i = 0; i < spawnedFoxesList.length; i++) {
         const fox = spawnedFoxesList[i];
         if (!fox || !fox.root || !fox.root.visible || !fox.model) continue;
-        applyFoxPose(fox.model, fox.pose, elapsedTime + fox.animOffset);
+
+        // Pastikan posisi Y selalu pas menapak di atas permukaan tanah (tidak tenggelam di preview editor)
+        const gy = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(fox.root.position.x, fox.root.position.z) : 0;
+        fox.root.position.y = gy;
+
+        // Update animasi di editor mode: jalankan idle animation pada FBX agar kaki menapak dan bernapas alami
+        if (typeof fox.model.updateAnimation === 'function') {
+            fox.model.updateAnimation(delta, 0);
+        } else if (fox.model.mixer) {
+            fox.model.mixer.update(delta);
+        } else {
+            applyFoxPose(fox.model, fox.pose, elapsedTime + fox.animOffset);
+        }
     }
 }
 window.updateAllSpawnedFoxesAnimation = updateAllSpawnedFoxesAnimation;
@@ -583,7 +622,9 @@ window.updateAllSpawnedFoxesAnimation = updateAllSpawnedFoxesAnimation;
 function updateFoxInspectorUI() {
     const acc = document.getElementById('accordion-fox-inspector');
     const badge = document.getElementById('fox-inspector-badge');
-    const selectSpecies = document.getElementById('select-fox-inspector-species');
+    const chkBoss = document.getElementById('chk-fox-inspector-boss');
+    const inputName = document.getElementById('input-fox-inspector-name');
+    const inputHp = document.getElementById('input-fox-inspector-hp');
     const selectAI = document.getElementById('select-fox-inspector-ai');
     const sliderHeading = document.getElementById('slider-fox-heading');
     const valHeading = document.getElementById('val-fox-heading');
@@ -594,15 +635,8 @@ function updateFoxInspectorUI() {
     const sliderPosZ = document.getElementById('slider-fox-pos-z');
     const valPosZ = document.getElementById('val-fox-pos-z');
 
-    const btnPoseIdle = document.getElementById('btn-fox-pose-idle');
-    const btnPoseSit = document.getElementById('btn-fox-pose-sit');
-    const btnPoseProne = document.getElementById('btn-fox-pose-prone');
-
     if (selectedFoxIndex < 0 || selectedFoxIndex >= spawnedFoxesList.length) {
         if (badge) badge.innerText = 'Tidak Ada Rubah Terpilih';
-        if (btnPoseIdle) btnPoseIdle.classList.remove('active');
-        if (btnPoseSit) btnPoseSit.classList.remove('active');
-        if (btnPoseProne) btnPoseProne.classList.remove('active');
         return;
     }
 
@@ -610,11 +644,14 @@ function updateFoxInspectorUI() {
     if (!fox) return;
 
     if (badge) {
-        const sName = (typeof FOX_SPECIES !== 'undefined' && FOX_SPECIES[fox.species]) ? FOX_SPECIES[fox.species].name : fox.species;
-        badge.innerText = `Rubah #${selectedFoxIndex + 1} (${sName})`;
+        const role = fox.isBoss ? '👹 BOSS: ' : '⚔️ ';
+        badge.innerText = `${role}${fox.name || 'FoxTree'} (#${selectedFoxIndex + 1})`;
     }
 
-    if (selectSpecies) selectSpecies.value = fox.species;
+    if (chkBoss) chkBoss.checked = !!fox.isBoss;
+    if (inputName) inputName.value = fox.name || (fox.isBoss ? 'Lingxuzi' : 'FoxTree Enemy');
+    if (inputHp) inputHp.value = fox.maxHealth || (fox.isBoss ? 500 : 100);
+
     if (selectAI) selectAI.value = fox.aiMode || 'combat';
 
     const sliderAIRadius = document.getElementById('slider-fox-ai-radius');
@@ -624,11 +661,6 @@ function updateFoxInspectorUI() {
         sliderAIRadius.value = rad;
         valAIRadius.innerText = `${rad} m`;
     }
-
-    // Tombol pose aktif
-    if (btnPoseIdle) btnPoseIdle.classList.toggle('active', fox.pose === 'idle');
-    if (btnPoseSit) btnPoseSit.classList.toggle('active', fox.pose === 'sit');
-    if (btnPoseProne) btnPoseProne.classList.toggle('active', fox.pose === 'prone');
 
     // Heading (derajat)
     if (sliderHeading && valHeading && fox.root) {
@@ -667,40 +699,95 @@ function initFoxSpawnerUI() {
     selectFoxMode = document.getElementById('select-fox-mode');
     window.selectFoxMode = selectFoxMode;
 
-    // 1. Spawner Pose Selector (Idle / Sit / Prone)
-    const spawnerPoseBtns = document.querySelectorAll('[data-spawner-pose]');
-    spawnerPoseBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const pose = btn.getAttribute('data-spawner-pose');
-            currentSpawnerPose = pose;
-            window.currentSpawnerPose = pose;
-            spawnerPoseBtns.forEach(b => b.classList.toggle('active', b === btn));
-            if (typeof updateActiveModeHUD === 'function') updateActiveModeHUD();
-        });
-    });
-
-    // 2. Inspector Pose Selector
-    const inspectorPoseBtns = document.querySelectorAll('[data-inspector-pose]');
-    inspectorPoseBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const pose = btn.getAttribute('data-inspector-pose');
-            if (selectedFoxIndex >= 0) {
-                setFoxPoseByIndex(selectedFoxIndex, pose);
-            }
-        });
-    });
-
-    // 3. Inspector Species Selector
-    const selectSpecies = document.getElementById('select-fox-inspector-species');
-    if (selectSpecies) {
-        selectSpecies.addEventListener('change', () => {
-            if (selectedFoxIndex >= 0) {
-                setFoxSpeciesByIndex(selectedFoxIndex, selectSpecies.value);
+    // Spawner Boss Toggle Helper (auto update suggested name & HP)
+    const chkSpawnerBoss = document.getElementById('chk-spawner-fox-boss');
+    const inputSpawnerName = document.getElementById('input-spawner-fox-name');
+    const inputSpawnerHp = document.getElementById('input-spawner-fox-hp');
+    if (chkSpawnerBoss) {
+        chkSpawnerBoss.addEventListener('change', () => {
+            if (chkSpawnerBoss.checked) {
+                if (inputSpawnerName && (inputSpawnerName.value === 'FoxTree' || !inputSpawnerName.value)) {
+                    inputSpawnerName.value = 'Lingxuzi';
+                }
+                if (inputSpawnerHp && inputSpawnerHp.value === '100') {
+                    inputSpawnerHp.value = '500';
+                }
+            } else {
+                if (inputSpawnerName && inputSpawnerName.value === 'Lingxuzi') {
+                    inputSpawnerName.value = 'FoxTree';
+                }
+                if (inputSpawnerHp && inputSpawnerHp.value === '500') {
+                    inputSpawnerHp.value = '100';
+                }
             }
         });
     }
 
-    // 3B. Inspector AI Mode Selector
+    // Inspector Boss Checkbox
+    const chkInspectorBoss = document.getElementById('chk-fox-inspector-boss');
+    if (chkInspectorBoss) {
+        chkInspectorBoss.addEventListener('change', () => {
+            if (selectedFoxIndex >= 0 && spawnedFoxesList[selectedFoxIndex]) {
+                const fox = spawnedFoxesList[selectedFoxIndex];
+                fox.isBoss = chkInspectorBoss.checked;
+                if (fox.ai) fox.ai.isBoss = chkInspectorBoss.checked;
+
+                const inspectorName = document.getElementById('input-fox-inspector-name');
+                const inspectorHp = document.getElementById('input-fox-inspector-hp');
+                if (chkInspectorBoss.checked) {
+                    if (inspectorName && (inspectorName.value === 'FoxTree' || !inspectorName.value)) {
+                        inspectorName.value = 'Lingxuzi';
+                        fox.name = 'Lingxuzi';
+                        if (fox.ai) fox.ai.name = 'Lingxuzi';
+                    }
+                    if (inspectorHp && inspectorHp.value === '100') {
+                        inspectorHp.value = '500';
+                        fox.maxHealth = 500;
+                        fox.health = 500;
+                        if (fox.ai) { fox.ai.maxHealth = 500; fox.ai.health = 500; }
+                    }
+                }
+                updateFoxInspectorUI();
+            }
+        });
+    }
+
+    // Inspector Name Input
+    const inputInspectorName = document.getElementById('input-fox-inspector-name');
+    if (inputInspectorName) {
+        inputInspectorName.addEventListener('input', () => {
+            if (selectedFoxIndex >= 0 && spawnedFoxesList[selectedFoxIndex]) {
+                const fox = spawnedFoxesList[selectedFoxIndex];
+                const val = inputInspectorName.value.trim() || 'Enemy';
+                fox.name = val;
+                if (fox.ai) fox.ai.name = val;
+                const badge = document.getElementById('fox-inspector-badge');
+                if (badge) {
+                    const role = fox.isBoss ? '👹 BOSS: ' : '⚔️ ';
+                    badge.innerText = `${role}${val} (#${selectedFoxIndex + 1})`;
+                }
+            }
+        });
+    }
+
+    // Inspector HP Input
+    const inputInspectorHp = document.getElementById('input-fox-inspector-hp');
+    if (inputInspectorHp) {
+        inputInspectorHp.addEventListener('input', () => {
+            if (selectedFoxIndex >= 0 && spawnedFoxesList[selectedFoxIndex]) {
+                const fox = spawnedFoxesList[selectedFoxIndex];
+                const val = Math.max(10, parseFloat(inputInspectorHp.value) || 100);
+                fox.maxHealth = val;
+                fox.health = val;
+                if (fox.ai) {
+                    fox.ai.maxHealth = val;
+                    fox.ai.health = val;
+                }
+            }
+        });
+    }
+
+    // Inspector AI Mode Selector
     const selectAI = document.getElementById('select-fox-inspector-ai');
     if (selectAI) {
         selectAI.addEventListener('change', () => {
@@ -710,7 +797,7 @@ function initFoxSpawnerUI() {
         });
     }
 
-    // 3C. Inspector AI Radius Slider
+    // Inspector AI Radius Slider
     const sliderAIRadius = document.getElementById('slider-fox-ai-radius');
     const valAIRadius = document.getElementById('val-fox-ai-radius');
     if (sliderAIRadius) {
@@ -723,7 +810,7 @@ function initFoxSpawnerUI() {
         });
     }
 
-    // 3D. Spawner Default AI Radius Slider
+    // Spawner Default AI Radius Slider
     const sliderSpawnerRadius = document.getElementById('slider-spawner-ai-radius');
     const valSpawnerRadius = document.getElementById('val-spawner-ai-radius');
     if (sliderSpawnerRadius) {

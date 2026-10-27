@@ -60,7 +60,7 @@ function animate() {
     }
 
     if (typeof updateAllSpawnedFoxesAnimation === 'function') {
-        updateAllSpawnedFoxesAnimation(elapsedTime);
+        updateAllSpawnedFoxesAnimation(delta, elapsedTime);
     }
 
     if (typeof SelectionOutlineManager !== 'undefined') {
@@ -80,6 +80,9 @@ function animate() {
         } else if (typeof FoxAIManager.updateInEditor === 'function') {
             FoxAIManager.updateInEditor(delta, elapsedTime);
         }
+    }
+    if (typeof CombatHUD !== 'undefined' && CombatHUD.update) {
+        CombatHUD.update(delta, elapsedTime);
     }
     if (typeof glbImporterInstance !== 'undefined' && glbImporterInstance) {
         glbImporterInstance.update(delta, elapsedTime);

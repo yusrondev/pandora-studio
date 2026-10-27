@@ -131,6 +131,108 @@ window.GeneralTakingAssetManager = {
     }
 };
 
+function getGeneralDeadBasePath() {
+    if (typeof document !== 'undefined') {
+        const scripts = document.getElementsByTagName('script');
+        for (let i = 0; i < scripts.length; i++) {
+            const src = scripts[i].src;
+            if (src && src.includes('fox-model.js')) {
+                return src.replace(/js\/character\/fox-model\.js(\?.*)?$/, 'hero/general/dead/');
+            }
+        }
+    }
+    return 'hero/general/dead/';
+}
+
+// Global Asset Manager for Death Animations (hero/general/dead/dead1.fbx, dead2.fbx)
+window.GeneralDeadAssetManager = {
+    isLoaded: false,
+    isLoading: false,
+    loadPromise: null,
+    clips: {
+        dead1: null,
+        dead2: null
+    },
+    instancesPending: [],
+
+    load() {
+        if (this.loadPromise) return this.loadPromise;
+        this.isLoading = true;
+
+        this.loadPromise = new Promise(async (resolve, reject) => {
+            try {
+                if (typeof THREE.FBXLoader === 'undefined') {
+                    throw new Error('THREE.FBXLoader is not available.');
+                }
+                const loader = new THREE.FBXLoader();
+                const loadFBX = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+                const basePath = getGeneralDeadBasePath();
+
+                console.log('[GeneralDeadAssetManager] Loading dead FBX assets from', basePath);
+
+                // 1. Load dead1.fbx
+                try {
+                    const d1Obj = await loadFBX(basePath + 'dead1.fbx');
+                    if (d1Obj.animations && d1Obj.animations.length > 0) {
+                        const d1Clip = d1Obj.animations[0].clone();
+                        d1Clip.name = 'dead1';
+                        this.clips.dead1 = d1Clip;
+                    }
+                } catch (e1) {
+                    console.warn('[GeneralDeadAssetManager] Could not load dead1.fbx:', e1);
+                }
+
+                // 2. Load dead2.fbx
+                try {
+                    const d2Obj = await loadFBX(basePath + 'dead2.fbx');
+                    if (d2Obj.animations && d2Obj.animations.length > 0) {
+                        const d2Clip = d2Obj.animations[0].clone();
+                        d2Clip.name = 'dead2';
+                        this.clips.dead2 = d2Clip;
+                    }
+                } catch (e2) {
+                    console.warn('[GeneralDeadAssetManager] Could not load dead2.fbx:', e2);
+                }
+
+                this.isLoaded = true;
+                this.isLoading = false;
+                console.log('[GeneralDeadAssetManager] Dead assets loaded successfully!', Object.keys(this.clips));
+
+                this.instancesPending.forEach(inst => this.setupInstance(inst));
+                this.instancesPending = [];
+
+                resolve(this);
+            } catch (err) {
+                console.error('[GeneralDeadAssetManager] Failed to load dead FBX assets:', err);
+                this.isLoading = false;
+                reject(err);
+            }
+        });
+
+        return this.loadPromise;
+    },
+
+    setupInstance(instance) {
+        if (!instance || !instance.mixer) return;
+        ['dead1', 'dead2'].forEach(deadKey => {
+            const clip = this.clips[deadKey];
+            if (clip && (!instance.actions || !instance.actions[deadKey])) {
+                const act = instance.mixer.clipAction(clip);
+                act.setLoop(THREE.LoopOnce, 1);
+                act.clampWhenFinished = true;
+                act.setEffectiveWeight(0.0);
+                instance.actions[deadKey] = act;
+                if (instance.currentWeights && instance.currentWeights[deadKey] === undefined) {
+                    instance.currentWeights[deadKey] = 0.0;
+                }
+                if (instance.targetWeights && instance.targetWeights[deadKey] === undefined) {
+                    instance.targetWeights[deadKey] = 0.0;
+                }
+            }
+        });
+    }
+};
+
 const HERO_CHARACTER_CONFIG = {
     getPath() {
         return getHeroBasePath();
@@ -511,6 +613,16 @@ window.HeroAssetManager = {
             }
         }
 
+        // Attach death animations (dead1.fbx, dead2.fbx)
+        if (window.GeneralDeadAssetManager) {
+            if (window.GeneralDeadAssetManager.isLoaded) {
+                window.GeneralDeadAssetManager.setupInstance(instance);
+            } else {
+                window.GeneralDeadAssetManager.instancesPending.push(instance);
+                window.GeneralDeadAssetManager.load();
+            }
+        }
+
         instance.isLoaded = true;
         if (typeof instance.onLoaded === 'function') {
             instance.onLoaded(instance);
@@ -520,11 +632,15 @@ window.HeroAssetManager = {
 
 // Start preloading hero FBX assets immediately in the background
 if (typeof window !== 'undefined') {
-    window.addEventListener('DOMContentLoaded', () => {
-        window.HeroAssetManager.load();
-    });
+    const preloadAll = () => {
+        if (window.HeroAssetManager) window.HeroAssetManager.load();
+        if (window.GeneralTakingAssetManager) window.GeneralTakingAssetManager.load();
+        if (window.GeneralDeadAssetManager) window.GeneralDeadAssetManager.load();
+        if (window.EnemyFoxTreeAssetManager) window.EnemyFoxTreeAssetManager.load();
+    };
+    window.addEventListener('DOMContentLoaded', preloadAll);
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        window.HeroAssetManager.load();
+        preloadAll();
     }
 }
 
@@ -649,12 +765,49 @@ function createWolfCharacterModel(speciesKey = 'red') {
         jumpTakeoffTime: 0.0,
         jumpImpulseVel: 0.0,
 
+        // Death state (hero/general/dead/dead1.fbx, dead2.fbx)
+        isDead: false,
+        activeDeadKey: null,
+
+        triggerDeath(forcedDeadKey = null) {
+            if (this.isDead) return;
+            this.isDead = true;
+            this.isTakingHit = false;
+            this.isPunching = false;
+            this.isKicking = false;
+            this.isJumping = false;
+            this.jumpImpulsePending = false;
+
+            const deadChoices = ['dead1', 'dead2'];
+            const chosenKey = forcedDeadKey || deadChoices[Math.floor(Math.random() * deadChoices.length)];
+            this.activeDeadKey = chosenKey;
+
+            ['idle', 'idle2', 'idle3', 'walk', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3', 'hit1', 'hit2'].forEach(k => {
+                if (this.targetWeights) this.targetWeights[k] = 0.0;
+                if (this.actions && this.actions[k]) {
+                    this.actions[k].fadeOut(0.2);
+                }
+            });
+
+            const action = this.actions ? this.actions[chosenKey] : null;
+            if (action) {
+                action.reset();
+                action.setLoop(THREE.LoopOnce, 1);
+                action.clampWhenFinished = true;
+                action.fadeIn(0.15);
+                action.play();
+                if (this.targetWeights) this.targetWeights[chosenKey] = 1.0;
+                if (this.currentWeights) this.currentWeights[chosenKey] = 1.0;
+            }
+        },
+
         /**
          * Reaksi menerima pukulan / tendangan (Damage Reaction):
          * Memilih secara acak antara hit1.fbx dan hit2.fbx dari hero/general/taking/
          * Menghentikan aksi serangan yang sedang berlangsung (hit stun) dan memberi micro-knockback.
          */
         takeHit(attackerPos) {
+            if (this.isDead) return;
             const hitChoices = ['hit1', 'hit2'];
             const hitKey = hitChoices[Math.floor(Math.random() * hitChoices.length)];
 
@@ -705,6 +858,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
         },
 
         takeDamage(amount, attackerPos) {
+            if (this.isDead) return;
             this.takeHit(attackerPos);
         },
 
@@ -717,7 +871,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
          *   sebelum tendangan berikutnya dimulai. Klik berlebih tidak memotong animasi.
          */
         triggerKick() {
-            if (this.isTakingHit) return;
+            if (this.isDead || this.isTakingHit) return;
             autoLockToNearestEnemy(this.root);
             if (this.isPunching) {
                 this.cancelPunch();
@@ -813,7 +967,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
          *   sebelum pukulan berikutnya dimulai. Klik berlebih tidak memotong animasi.
          */
         triggerPunch() {
-            if (this.isTakingHit) return;
+            if (this.isDead || this.isTakingHit) return;
             autoLockToNearestEnemy(this.root);
             if (this.isKicking) {
                 this.cancelKick();
@@ -1011,7 +1165,12 @@ function createWolfCharacterModel(speciesKey = 'red') {
                         toEnemy.normalize();
                         if (fwd.dot(toEnemy) >= cfg.minDot) {
                             hitAny = true;
-                            if (item.model && typeof item.model.takeHit === 'function') {
+                            const strikeDamage = (attackKey && attackKey.startsWith('kick')) ? 30 : 25;
+                            if (item.ai && typeof item.ai.takeDamage === 'function') {
+                                item.ai.takeDamage(strikeDamage, pPos);
+                            } else if (item.model && typeof item.model.takeDamage === 'function') {
+                                item.model.takeDamage(strikeDamage, pPos);
+                            } else if (item.model && typeof item.model.takeHit === 'function') {
                                 item.model.takeHit(pPos);
                             }
                             if (typeof FoxAIManager !== 'undefined' && FoxAIManager.getAgent) {
@@ -1051,7 +1210,23 @@ function createWolfCharacterModel(speciesKey = 'red') {
             // Lompat normal yang masih di fase ancang-ancang tidak boleh terpotong deteksi "di udara"
             this.targetWeights.jumpNormal = 0.0;
 
-            // 0. PRIORITAS UTAMA: REAKSI TERKENA HIT / DAMAGE (TAKING HIT)
+            // 0. PRIORITAS UTAMA: KEMATIAN KARAKTER (DEAD ANIMATION)
+            if (this.isDead) {
+                if (this.activeDeadKey && this.actions && this.actions[this.activeDeadKey]) {
+                    this.actions[this.activeDeadKey].setEffectiveWeight(1.0);
+                }
+                if (this.actions) {
+                    Object.keys(this.actions).forEach(k => {
+                        if (k !== this.activeDeadKey && this.actions[k]) {
+                            this.actions[k].setEffectiveWeight(0.0);
+                        }
+                    });
+                }
+                this.mixer.update(dt);
+                return;
+            }
+
+            // REAKSI TERKENA HIT / DAMAGE (TAKING HIT)
             if (this.isTakingHit) {
                 this.hitTimer += dt;
                 this.idleTimer = 0.0;
@@ -1429,6 +1604,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.activeIdleKey = null;
             this.idleCycleTimer = 0.0;
 
+            this.isDead = false;
+            this.activeDeadKey = null;
             if (this.actions.idle) { this.actions.idle.reset().play(); this.actions.idle.setEffectiveWeight(1.0); }
             if (this.actions.idle2) { this.actions.idle2.stop(); this.actions.idle2.setEffectiveWeight(0.0); }
             if (this.actions.idle3) { this.actions.idle3.stop(); this.actions.idle3.setEffectiveWeight(0.0); }
@@ -1437,7 +1614,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             if (this.actions.jump) this.actions.jump.setEffectiveWeight(0.0);
             if (this.actions.jumpRun) this.actions.jumpRun.setEffectiveWeight(0.0);
             if (this.actions.jumpNormal) this.actions.jumpNormal.setEffectiveWeight(0.0);
-            ['kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3'].forEach(k => {
+            ['kick1', 'kick2', 'kick3', 'punch1', 'punch2', 'punch3', 'hit1', 'hit2', 'dead1', 'dead2'].forEach(k => {
                 if (this.actions[k]) { this.actions[k].stop(); this.actions[k].setEffectiveWeight(0.0); }
             });
         }
@@ -1739,6 +1916,21 @@ window.EnemyFoxTreeAssetManager = {
                 window.GeneralTakingAssetManager.load();
             }
         }
+
+        // Attach death animations (dead1.fbx, dead2.fbx)
+        if (window.GeneralDeadAssetManager) {
+            if (window.GeneralDeadAssetManager.isLoaded) {
+                window.GeneralDeadAssetManager.setupInstance(instance);
+            } else {
+                window.GeneralDeadAssetManager.instancesPending.push(instance);
+                window.GeneralDeadAssetManager.load();
+            }
+        }
+
+        // Segera evaluasi pose animasi idle awal agar tulang kaki menapak lantai secara presisi di y=0
+        if (mixer) {
+            mixer.update(0.016);
+        }
     }
 };
 
@@ -1789,6 +1981,39 @@ function createEnemyFoxTreeModel() {
         baseScale: baseScale,
         isEnemy: true,
 
+        // Death state (hero/general/dead/dead1.fbx, dead2.fbx)
+        isDead: false,
+        activeDeadKey: null,
+
+        triggerDeath(forcedDeadKey = null) {
+            if (this.isDead) return;
+            this.isDead = true;
+            this.isTakingHit = false;
+            this.isPunching = false;
+
+            const deadChoices = ['dead1', 'dead2'];
+            const chosenKey = forcedDeadKey || deadChoices[Math.floor(Math.random() * deadChoices.length)];
+            this.activeDeadKey = chosenKey;
+
+            ['idle', 'walk', 'run', 'punch1', 'punch2', 'punch3', 'hit1', 'hit2'].forEach(k => {
+                if (this.targetWeights) this.targetWeights[k] = 0.0;
+                if (this.actions && this.actions[k]) {
+                    this.actions[k].fadeOut(0.2);
+                }
+            });
+
+            const action = this.actions ? this.actions[chosenKey] : null;
+            if (action) {
+                action.reset();
+                action.setLoop(THREE.LoopOnce, 1);
+                action.clampWhenFinished = true;
+                action.fadeIn(0.15);
+                action.play();
+                if (this.targetWeights) this.targetWeights[chosenKey] = 1.0;
+                if (this.currentWeights) this.currentWeights[chosenKey] = 1.0;
+            }
+        },
+
         // Taking damage / Hit reaction state (hero/general/taking/hit*.fbx)
         isTakingHit: false,
         activeHitKey: null,
@@ -1810,6 +2035,7 @@ function createEnemyFoxTreeModel() {
          * Menghentikan aksi pukulan yang sedang berlangsung (hit stun) dan memberi micro-knockback.
          */
         takeHit(attackerPos) {
+            if (this.isDead) return;
             const hitChoices = ['hit1', 'hit2'];
             const hitKey = hitChoices[Math.floor(Math.random() * hitChoices.length)];
 
@@ -1854,12 +2080,12 @@ function createEnemyFoxTreeModel() {
         },
 
         takeDamage(amount, attackerPos) {
+            if (this.isDead) return;
             this.takeHit(attackerPos);
         },
 
         triggerPunch() {
-            if (this.isTakingHit) return;
-            if (this.isPunching) return;
+            if (this.isDead || this.isTakingHit || this.isPunching) return;
             const comboKeys = ['punch1', 'punch2', 'punch3'];
             const nextKey = comboKeys[this.punchComboIndex % comboKeys.length];
             this.punchComboIndex++;
@@ -1908,7 +2134,23 @@ function createEnemyFoxTreeModel() {
         updateAnimation(dt, currentSpeed = 0) {
             if (!this.mixer) return;
 
-            // 0. PRIORITAS UTAMA: REAKSI TERKENA HIT / DAMAGE
+            // 0. PRIORITAS UTAMA: KEMATIAN ENEMY (DEAD ANIMATION)
+            if (this.isDead) {
+                if (this.activeDeadKey && this.actions && this.actions[this.activeDeadKey]) {
+                    this.actions[this.activeDeadKey].setEffectiveWeight(1.0);
+                }
+                if (this.actions) {
+                    Object.keys(this.actions).forEach(k => {
+                        if (k !== this.activeDeadKey && this.actions[k]) {
+                            this.actions[k].setEffectiveWeight(0.0);
+                        }
+                    });
+                }
+                this.mixer.update(dt);
+                return;
+            }
+
+            // REAKSI TERKENA HIT / DAMAGE
             if (this.isTakingHit) {
                 this.hitTimer += dt;
                 ['idle', 'walk', 'run', 'punch1', 'punch2', 'punch3'].forEach(k => {
@@ -1953,6 +2195,9 @@ function createEnemyFoxTreeModel() {
                                     toP.normalize();
                                     if (fwd.dot(toP) >= cfg.minDot) {
                                         this.strikeProcessed = true;
+                                        if (typeof PlayerHealthState !== 'undefined') {
+                                            PlayerHealthState.takeDamage(15, this.root.position);
+                                        }
                                         if (typeof wolfCharacter.takeHit === 'function') {
                                             wolfCharacter.takeHit(this.root.position);
                                         }
@@ -2019,6 +2264,8 @@ function createEnemyFoxTreeModel() {
         },
 
         resetAnimation() {
+            this.isDead = false;
+            this.activeDeadKey = null;
             this.isTakingHit = false;
             this.activeHitKey = null;
             this.hitTimer = 0.0;
@@ -2031,7 +2278,7 @@ function createEnemyFoxTreeModel() {
             if (this.actions.idle) { this.actions.idle.reset().play(); this.actions.idle.setEffectiveWeight(1.0); }
             if (this.actions.walk) { this.actions.walk.setEffectiveWeight(0.0); }
             if (this.actions.run) { this.actions.run.setEffectiveWeight(0.0); }
-            ['punch1', 'punch2', 'punch3', 'hit1', 'hit2'].forEach(k => {
+            ['punch1', 'punch2', 'punch3', 'hit1', 'hit2', 'dead1', 'dead2'].forEach(k => {
                 if (this.actions[k]) { this.actions[k].stop(); this.actions[k].setEffectiveWeight(0.0); }
             });
         }

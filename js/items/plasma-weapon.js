@@ -717,6 +717,9 @@ class PlasmaWeapon {
                 if (typeof applyPlayerKnockback === 'function') {
                     applyPlayerKnockback(dir.multiplyScalar(impulseH), verticalPop);
                 }
+                if (typeof PlayerHealthState !== 'undefined') {
+                    PlayerHealthState.takeDamage(Math.round(factor * 35));
+                }
             }
         }
 
@@ -1119,6 +1122,9 @@ class PlasmaWeapon {
                     if (typeof applyPlayerKnockback === 'function') {
                         const kDir = m.v.clone().setY(0).normalize();
                         applyPlayerKnockback(kDir.multiplyScalar(8.0), 1.8);
+                    }
+                    if (typeof PlayerHealthState !== 'undefined') {
+                        PlayerHealthState.takeDamage(40);
                     }
                 } else if (targetRef && typeof targetRef.takeDamage === 'function') {
                     targetRef.takeDamage(50);

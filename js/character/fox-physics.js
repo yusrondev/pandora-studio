@@ -541,6 +541,22 @@ function updateWolfPhysics(dt, elapsed) {
     if (!wolfCharacter) return;
     dt = Math.min(dt, 0.05);
 
+    // Kematian Pemain: Tetap di animasi dead (frame terakhir), hentikan pergerakan
+    const isPlayerDead = !!((typeof PlayerHealthState !== 'undefined' && PlayerHealthState.isDead) || (wolfCharacter && wolfCharacter.isDead));
+    if (isPlayerDead) {
+        currentSpeed = 0;
+        currentTurnRate = 0;
+        velocityY = 0;
+        if (wolfCharacter.root) {
+            const groundH = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(wolfCharacter.root.position.x, wolfCharacter.root.position.z) : 0;
+            wolfCharacter.root.position.y = groundH;
+        }
+        if (typeof wolfCharacter.updateAnimation === 'function') {
+            wolfCharacter.updateAnimation(dt, 0);
+        }
+        return;
+    }
+
     const {
         root: foxRoot,
         bodyTiltGroup,

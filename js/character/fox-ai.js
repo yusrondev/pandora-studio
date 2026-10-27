@@ -33,8 +33,10 @@ class FoxAIAgent {
         this.weaponMeshGroup = null;
 
         // Kesehatan & Status
-        this.health = 100;
-        this.maxHealth = 100;
+        this.isBoss = !!foxRecord.isBoss;
+        this.name = foxRecord.name || (this.isBoss ? 'Lingxuzi' : 'FoxTree Enemy');
+        this.maxHealth = typeof foxRecord.maxHealth === 'number' ? foxRecord.maxHealth : (this.isBoss ? 500 : 100);
+        this.health = typeof foxRecord.health === 'number' ? foxRecord.health : this.maxHealth;
         this.isDead = false;
         this.state = 'IDLE'; // 'IDLE', 'SEEK_BOX', 'COMBAT_ENGAGE', 'HIT_STUN'
         this.hitStunTimer = 0;
@@ -248,17 +250,31 @@ class FoxAIAgent {
     takeDamage(amount, attackerPos = null) {
         if (this.isDead) return;
         this.health = Math.max(0, this.health - amount);
-        this.takeHit(attackerPos);
+        if (this.fox) this.fox.health = this.health;
 
         if (this.health <= 0) {
-            this.isDead = true;
-            this.dropWeapon();
-            this.state = 'HIT_STUN';
-            setTimeout(() => {
-                this.health = this.maxHealth;
-                this.isDead = false;
-                this.state = 'IDLE';
-            }, 4000);
+            this.die(attackerPos);
+            return;
+        }
+
+        this.takeHit(attackerPos);
+    }
+
+    die(attackerPos = null) {
+        if (this.isDead) return;
+        this.isDead = true;
+        this.state = 'DEAD';
+        this.targetSpeed = 0;
+        this.currentSpeed = 0;
+        this.velocityY = 0;
+        this.dropWeapon();
+
+        if (this.ringGroup) {
+            this.ringGroup.visible = false;
+        }
+
+        if (this.model && typeof this.model.triggerDeath === 'function') {
+            this.model.triggerDeath();
         }
     }
 
@@ -873,6 +889,23 @@ class FoxAIAgent {
             return;
         }
 
+        if (this.isDead) {
+            this.currentSpeed = 0;
+            this.targetSpeed = 0;
+            this.velocityY = 0;
+            if (this.ringGroup) this.ringGroup.visible = false;
+            const groundH = (typeof getTerrainHeightFast === 'function')
+                ? getTerrainHeightFast(this.root.position.x, this.root.position.z)
+                : 0;
+            this.root.position.y = groundH;
+            if (this.model && typeof this.model.updateAnimation === 'function') {
+                this.model.updateAnimation(dt, 0);
+            } else if (this.model && this.model.mixer) {
+                this.model.mixer.update(dt);
+            }
+            return;
+        }
+
         this.think(dt, elapsed);
 
         // Knockback impuls
@@ -1331,6 +1364,11 @@ class FoxAIManagerClass {
         return this.getBlockingObstacle(posA, posB) === null;
     }
 
+    getAgent(foxOrModel) {
+        if (!foxOrModel) return null;
+        return this.agents.find(a => a.fox === foxOrModel || a.model === foxOrModel || a.root === foxOrModel);
+    }
+
     syncSpawnedFoxes() {
         if (typeof spawnedFoxesList === 'undefined' || !Array.isArray(spawnedFoxesList)) return;
         const inPlay = (typeof isPlayMode !== 'undefined' && isPlayMode);
@@ -1344,9 +1382,12 @@ class FoxAIManagerClass {
                 this.agents.push(agent);
                 fox.ai = agent;
             } else {
-                if (fox.aiMode !== undefined) {
-                    agent.aiMode = fox.aiMode;
-                }
+                if (fox.aiMode !== undefined) agent.aiMode = fox.aiMode;
+                if (fox.isBoss !== undefined) agent.isBoss = fox.isBoss;
+                if (fox.name !== undefined) agent.name = fox.name;
+                if (fox.maxHealth !== undefined) agent.maxHealth = fox.maxHealth;
+                if (!inPlay && fox.health !== undefined) agent.health = fox.health;
+
                 if (fox.detectionRadius !== undefined && fox.detectionRadius !== agent.detectionRadius) {
                     agent.setDetectionRadius(fox.detectionRadius);
                 }
@@ -1562,6 +1603,16 @@ class FoxAIManagerClass {
                 const gx = agent.root.position.x;
                 const gz = agent.root.position.z;
                 const gy = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(gx, gz) : (agent.root.position.y || 0);
+
+                // Selalu tempelkan kaki di atas terrain permukaan tanah
+                agent.root.position.y = gy;
+
+                // Update animasi idle di editor agar karakter tidak T-pose / tenggelam
+                if (agent.model && typeof agent.model.updateAnimation === 'function') {
+                    agent.model.updateAnimation(dt, 0);
+                } else if (agent.model && agent.model.mixer) {
+                    agent.model.mixer.update(dt);
+                }
 
                 agent.updateDetectionRing(elapsed, false, gy);
             } else if (agent && agent.ringGroup) {

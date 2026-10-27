@@ -334,6 +334,10 @@ function startPlayMode() {
     const statsHud = document.getElementById('fox-stats-hud');
     if (statsHud) statsHud.style.display = 'none';
 
+    if (typeof CombatHUD !== 'undefined' && CombatHUD.onPlayModeStart) {
+        CombatHUD.onPlayModeStart();
+    }
+
     const activeBanner = document.getElementById('active-mode-banner');
     if (activeBanner) activeBanner.style.display = 'none';
 
@@ -400,6 +404,10 @@ function stopPlayMode() {
 
     const statsHud = document.getElementById('fox-stats-hud');
     if (statsHud) statsHud.style.display = 'none';
+
+    if (typeof CombatHUD !== 'undefined' && CombatHUD.onPlayModeStop) {
+        CombatHUD.onPlayModeStop();
+    }
 
     const btnPlay = document.getElementById('btn-play-mode');
     if (btnPlay) {

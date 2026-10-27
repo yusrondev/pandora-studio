@@ -2551,7 +2551,8 @@ function createEnemyFoxTreeModel() {
                         this.targetWeights.walk = 1.0;
                         this.targetWeights.run = 0.0;
                         this.targetWeights.idle = 0.0;
-                        this.actions.walk.timeScale = THREE.MathUtils.clamp(moveSpeed / 1.65, 0.85, 1.35);
+                        const wScale = THREE.MathUtils.clamp(moveSpeed / 1.65, 0.85, 1.35);
+                        this.actions.walk.timeScale = (currentSpeed < 0) ? -wScale : wScale;
                     } else {
                         this.targetWeights.idle = 1.0;
                         if (this.actions.idle && !this.actions.idle.isRunning()) this.actions.idle.play();

@@ -67,6 +67,13 @@ class FoxAIAgent {
         this.strafeDir = Math.random() > 0.5 ? 1 : -1;
         this.strafeTimer = 1.5;
 
+        // Ritme & Tempo Serangan Melee (Burst 3-5 pukulan lalu mundur sedikit selama 2 detik)
+        this.attackComboTarget = 3 + Math.floor(Math.random() * 3); // 3, 4, atau 5 serangan
+        this.attacksCompletedInBurst = 0;
+        this.combatRestTimer = 0.0;     // Timer 2 detik untuk mundur & istirahat
+        this.betweenPunchDelay = 0.0;   // Jeda mikro natural antar pukulan
+        this._wasPunching = false;
+
         // Kecepatan & Kemudi (Diselaraskan persis dengan stats spesies player red fox)
         const speciesKey = (foxRecord && foxRecord.species) ? foxRecord.species : 'foxtree';
         const speciesCfg = (typeof FOX_STATS_CONFIG !== 'undefined' && FOX_STATS_CONFIG[speciesKey])
@@ -607,6 +614,7 @@ class FoxAIAgent {
             if (!playerPos || !isPlayerInAggro) {
                 this.targetSpeed = 0;
                 this.isPunching = false;
+                this._wasPunching = false;
                 if (this.model && typeof this.model.cancelPunch === 'function') {
                     this.model.cancelPunch();
                 }
@@ -614,8 +622,70 @@ class FoxAIAgent {
                 return;
             }
 
+            // FASE 1: FASE TEMPO / ISTIRAHAT & MUNDUR SEDIKIT SELAMA 2 DETIK
+            // Terjadi setelah musuh melancarkan spam 3-5 serangan
+            if (this.combatRestTimer > 0) {
+                this.combatRestTimer -= dt;
+
+                // Selalu hadapkan badan menghadap ke Player selama mundur
+                const toPlayer = new THREE.Vector3().subVectors(playerPos, this.root.position).setY(0);
+                if (toPlayer.lengthSq() > 0.001) {
+                    toPlayer.normalize();
+                    const aimAngle = Math.atan2(toPlayer.x, toPlayer.z);
+                    this.turnTowardAngle(aimAngle, dt);
+                }
+
+                // Mundur santai menjauhi player (hingga jarak aman ~2.3m)
+                if (distToPlayer < 2.3) {
+                    this.targetSpeed = -this.walkSpeed * 0.75; // Langkah mundur santai ~ -1.2 m/s
+                } else {
+                    this.targetSpeed = 0; // Berdiri siaga mengamati player
+                }
+
+                this.state = 'COMBAT_RETREAT';
+
+                // Ketika waktu istirahat 2 detik habis: mulai burst serangan baru dengan random 3-5 pukulan!
+                if (this.combatRestTimer <= 0) {
+                    this.attacksCompletedInBurst = 0;
+                    this.attackComboTarget = 3 + Math.floor(Math.random() * 3); // 3, 4, atau 5 serangan
+                    this.betweenPunchDelay = 0.0;
+                    this._wasPunching = false;
+                }
+                return;
+            }
+
+            // FASE 2: FASE SERANGAN DENGAN RITME 3-5 PUKULAN
+            // Deteksi ketika pukulan yang sedang dieksekusi selesai
+            const isCurrentlyPunching = Boolean(this.model && this.model.isPunching);
+            if (this._wasPunching && !isCurrentlyPunching) {
+                this.attacksCompletedInBurst++;
+                this._wasPunching = false;
+                this.betweenPunchDelay = 0.12 + Math.random() * 0.10; // Jeda mikro natural antar pukulan
+
+                // Jika sudah mencapai batas ritme spam (3-5 serangan random):
+                if (this.attacksCompletedInBurst >= this.attackComboTarget) {
+                    this.combatRestTimer = 2.0; // Aktifkan fase mundur 2 detik
+                    this.targetSpeed = -this.walkSpeed * 0.75;
+                    this.state = 'COMBAT_RETREAT';
+                    return;
+                }
+            }
+
+            // Jeda mikro antar pukulan dalam 1 burst agar animasi memiliki ritme
+            if (this.betweenPunchDelay > 0) {
+                this.betweenPunchDelay -= dt;
+                this.targetSpeed = 0;
+                const toPlayer = new THREE.Vector3().subVectors(playerPos, this.root.position).setY(0);
+                if (toPlayer.lengthSq() > 0.001) {
+                    toPlayer.normalize();
+                    const aimAngle = Math.atan2(toPlayer.x, toPlayer.z);
+                    this.turnTowardAngle(aimAngle, dt);
+                }
+                return;
+            }
+
             // Jarak Dekat Presisi untuk Pukulan Melee (Close Combat Fist Impact Range)
-            const PUNCH_RANGE = 1.10;
+            const PUNCH_RANGE = 1.15;
 
             if (distToPlayer <= PUNCH_RANGE) {
                 // Berhenti melangkah agar pukulan stabil di tempat
@@ -630,16 +700,16 @@ class FoxAIAgent {
                     this.turnTowardAngle(aimAngle, dt);
                 }
 
-                // Eksekusi animasi pukulan
-                if (typeof this.model.triggerPunch === 'function') {
+                // Eksekusi animasi pukulan jika belum sedang memukul
+                if (!isCurrentlyPunching && typeof this.model.triggerPunch === 'function') {
                     this.model.triggerPunch();
-                    this.isPunching = this.model.isPunching;
+                    this._wasPunching = true;
+                    this.isPunching = true;
                 }
                 this.state = 'COMBAT_PUNCH';
             } else {
-                // Player berada di luar jarak pukul (> 1.10m) tetapi masih di dalam radius deteksi (Aggro):
-                // Jika sedang mengeksekusi pukulan dan player hanya mundur sedikit (< 1.45m), selesaikan pukulan
-                if (this.model && this.model.isPunching && distToPlayer < 1.45) {
+                // Player berada di luar jarak pukul (> 1.15m) tetapi masih di dalam radius deteksi (Aggro):
+                if (isCurrentlyPunching && distToPlayer < 1.45) {
                     this.targetSpeed = 0;
                     this.isPunching = true;
                 } else {
@@ -648,6 +718,7 @@ class FoxAIAgent {
                         this.model.cancelPunch();
                     }
                     this.isPunching = false;
+                    this._wasPunching = false;
                     const chaseSpeed = (distToPlayer > 5.0) ? this.sprintSpeed : this.walkSpeed;
                     this.steerToward(playerPos, chaseSpeed, dt, distToPlayer > 5.0);
                     this.state = 'CHASE_PLAYER';

@@ -64,18 +64,19 @@ class PlayerSpawnManagerClass {
         this.markerGroup.add(this.beaconDisc);
 
         // 3. Panah Petunjuk Arah Hadap (Direction Arrow)
+        // Dikalibrasi presisi menghadap +Z agar 100% identik dengan hadapan Hero character
         const arrowShape = new THREE.Shape();
-        arrowShape.moveTo(-1.45, 0);
-        arrowShape.lineTo(-0.55, 0.48);
-        arrowShape.lineTo(-0.65, 0.18);
-        arrowShape.lineTo(0.85, 0.18);
-        arrowShape.lineTo(0.85, -0.18);
-        arrowShape.lineTo(-0.65, -0.18);
-        arrowShape.lineTo(-0.55, -0.48);
+        arrowShape.moveTo(0, 1.45);              // Ujung panah (Tip) mengarah ke depan (+Z)
+        arrowShape.lineTo(-0.48, 0.55);          // Sayap kiri
+        arrowShape.lineTo(-0.18, 0.65);          // Lekukan kiri
+        arrowShape.lineTo(-0.18, -0.85);         // Ekor kiri
+        arrowShape.lineTo(0.18, -0.85);          // Ekor kanan
+        arrowShape.lineTo(0.18, 0.65);           // Lekukan kanan
+        arrowShape.lineTo(0.48, 0.55);           // Sayap kanan
         arrowShape.closePath();
 
         const arrowGeo = new THREE.ShapeGeometry(arrowShape);
-        arrowGeo.rotateX(-Math.PI / 2);
+        arrowGeo.rotateX(Math.PI / 2); // Baringkan rata di atas tanah dengan ujung menunjuk ke +Z
         const arrowMat = new THREE.MeshBasicMaterial({
             color: 0x34d399,
             side: THREE.DoubleSide,
@@ -231,8 +232,8 @@ class PlayerSpawnManagerClass {
                 camera.getWorldDirection(forward);
                 forward.y = 0;
                 forward.normalize();
-                // Three.js fox model forward adalah (-1, 0, 0)
-                const targetRotY = Math.atan2(forward.z, -forward.x);
+                // Hero 3D model forward adalah (0, 0, 1) (+Z)
+                const targetRotY = Math.atan2(forward.x, forward.z);
                 this.setSpawnRotation(Math.round(THREE.MathUtils.radToDeg(targetRotY)));
             }
         }

@@ -1010,7 +1010,15 @@ class PlasmaWeapon {
             }
 
             // 2. Objek 3D Impor GLB (window.importedObjectsList)
-            if (!hitObstacle && Array.isArray(window.importedObjectsList)) {
+            // 2. Objek 3D Impor GLB (window.importedObjectsList) — gunakan mesh triangle hit agar lubang/gerbang bisa ditembus
+            if (!hitObstacle && window.PandoraGLBCollision) {
+                const hitGlb = window.PandoraGLBCollision.checkSphereHit(m.p, 0.32);
+                if (hitGlb) {
+                    hitObstacle = true;
+                    hitNormal.copy(hitGlb.normal);
+                    hitPos.copy(hitGlb.point);
+                }
+            } else if (!hitObstacle && Array.isArray(window.importedObjectsList)) {
                 for (let o = 0; o < window.importedObjectsList.length; o++) {
                     const item = window.importedObjectsList[o];
                     if (!item || !item.root || !item.root.visible || item.hasCollision === false) continue;

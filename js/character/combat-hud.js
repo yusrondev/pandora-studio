@@ -53,17 +53,20 @@ const PlayerHealthState = {
                 wolfCharacter.triggerDeath();
             }
             // Karakter stop di animasi dead (frame terakhir) dan tidak bangun lagi
-            // Hentikan semua musuh dari menyerang / mengejar
+            // Hentikan semua musuh dari mengejar, namun biarkan animasi serangan terakhir musuh selesai dulu sebelum kembali ke IDLE
             if (typeof FoxAIManager !== 'undefined' && FoxAIManager && Array.isArray(FoxAIManager.agents)) {
                 FoxAIManager.agents.forEach(agent => {
                     if (agent) {
                         agent.targetSpeed = 0;
                         agent.currentSpeed = 0;
-                        agent.isPunching = false;
-                        if (agent.model && typeof agent.model.cancelPunch === 'function') {
-                            agent.model.cancelPunch();
+                        if (agent.model && agent.model.isPunching) {
+                            agent.model.strikeProcessed = true;
+                            agent.isPunching = true;
+                            agent.state = 'COMBAT_PUNCH';
+                        } else {
+                            agent.isPunching = false;
+                            agent.state = 'IDLE';
                         }
-                        agent.state = 'IDLE';
                     }
                 });
             }
@@ -103,7 +106,9 @@ const CombatHUD = {
     floatingContainer: null,
 
     activeBoss: null,
+    activeBoss: null,
     overheadBarPool: new Map(),
+    floatingDamageItems: [],
 
     init() {
         this.bossContainer = document.getElementById('boss-health-bar-container');
@@ -112,6 +117,46 @@ const CombatHUD = {
         this.bossGhost = document.getElementById('boss-bar-ghost');
         this.playerHUD = document.getElementById('player-combat-hud');
         this.floatingContainer = document.getElementById('floating-hp-container');
+        if (typeof document !== 'undefined' && !document.getElementById('combat-floating-dmg-style')) {
+            const st = document.createElement('style');
+            st.id = 'combat-floating-dmg-style';
+            st.textContent = `
+                .floating-damage-text {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    pointer-events: none;
+                    user-select: none;
+                    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                    font-weight: 900;
+                    font-size: 20px;
+                    letter-spacing: -0.5px;
+                    color: #fde047;
+                    text-shadow:
+                        0 2px 0 #7c2d12,
+                        -1.5px -1.5px 0 #451a03,
+                        1.5px -1.5px 0 #451a03,
+                        -1.5px 1.5px 0 #451a03,
+                        1.5px 1.5px 0 #451a03,
+                        0 4px 12px rgba(239, 68, 68, 0.75);
+                    z-index: 45;
+                    will-change: transform, opacity;
+                    white-space: nowrap;
+                }
+                .floating-damage-text.critical {
+                    font-size: 25px;
+                    color: #ffedd5;
+                    text-shadow:
+                        0 2px 0 #991b1b,
+                        -2px -2px 0 #450a0a,
+                        2px -2px 0 #450a0a,
+                        -2px 2px 0 #450a0a,
+                        2px 2px 0 #450a0a,
+                        0 0 16px rgba(249, 115, 22, 0.95);
+                }
+            `;
+            document.head.appendChild(st);
+        }
     },
 
     onPlayModeStart() {
@@ -131,6 +176,8 @@ const CombatHUD = {
             this.floatingContainer.innerHTML = '';
         }
         this.overheadBarPool.clear();
+        this.floatingDamageItems = [];
+        this.activeBoss = null;
         this.activeBoss = null;
     },
 
@@ -234,6 +281,86 @@ const CombatHUD = {
 
         // 3. OVERHEAD FLOATING HP BARS UNTUK NON-BOSS ENEMIES
         this.updateNonBossOverheadBars(foxList, playerPos);
+        this.updateFloatingDamageItems(dt);
+    },
+
+    spawnFloatingDamage(worldPos, amount = 25, isCritical = false) {
+        if (typeof isPlayMode !== 'undefined' && !isPlayMode) return;
+        if (!this.floatingContainer) this.init();
+        if (!this.floatingContainer || !worldPos) return;
+
+        const dmgVal = Math.max(1, Math.round(Number(amount) || 0));
+        const el = document.createElement('div');
+        el.className = 'floating-damage-text' + (isCritical ? ' critical' : '');
+        el.innerText = '-' + dmgVal;
+        this.floatingContainer.appendChild(el);
+
+        const jitterX = (Math.random() - 0.5) * 0.24;
+        const jitterZ = (Math.random() - 0.5) * 0.24;
+        const startPos = new THREE.Vector3(
+            (worldPos.x || 0) + jitterX,
+            (worldPos.y || 0) + 0.08,
+            (worldPos.z || 0) + jitterZ
+        );
+
+        this.floatingDamageItems.push({
+            el,
+            worldPos: startPos,
+            vx: jitterX * 1.4,
+            vy: isCritical ? 1.55 : 1.25,
+            vz: jitterZ * 1.4,
+            age: 0.0,
+            maxLife: isCritical ? 0.98 : 0.85
+        });
+    },
+
+    updateFloatingDamageItems(dt) {
+        if (!this.floatingDamageItems || this.floatingDamageItems.length === 0) return;
+        if (typeof camera === 'undefined' || !camera) return;
+
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+        const projVec = new THREE.Vector3();
+
+        for (let i = this.floatingDamageItems.length - 1; i >= 0; i--) {
+            const item = this.floatingDamageItems[i];
+            item.age += dt;
+
+            if (item.age >= item.maxLife) {
+                if (item.el && item.el.parentNode) {
+                    item.el.parentNode.removeChild(item.el);
+                }
+                this.floatingDamageItems.splice(i, 1);
+                continue;
+            }
+
+            item.worldPos.x += item.vx * dt;
+            item.worldPos.y += item.vy * dt;
+            item.worldPos.z += item.vz * dt;
+            item.vy = Math.max(0.35, item.vy - 1.15 * dt);
+
+            projVec.copy(item.worldPos).project(camera);
+            if (projVec.z >= 1.0) {
+                item.el.style.display = 'none';
+                continue;
+            }
+
+            item.el.style.display = 'block';
+            const pxX = (projVec.x * 0.5 + 0.5) * screenW;
+            const pxY = (-(projVec.y * 0.5) + 0.5) * screenH;
+
+            const t = item.age / item.maxLife;
+            let scale = 1.0;
+            if (t < 0.14) {
+                scale = 0.55 + (t / 0.14) * 0.72;
+            } else if (t < 0.28) {
+                scale = 1.27 - ((t - 0.14) / 0.14) * 0.27;
+            }
+            const opacity = t > 0.65 ? Math.max(0, 1.0 - (t - 0.65) / 0.35) : 1.0;
+
+            item.el.style.opacity = opacity.toFixed(2);
+            item.el.style.transform = `translate3d(${pxX.toFixed(1)}px, ${pxY.toFixed(1)}px, 0) translate(-50%, -50%) scale(${scale.toFixed(2)})`;
+        }
     },
 
     updateNonBossOverheadBars(foxList, playerPos) {

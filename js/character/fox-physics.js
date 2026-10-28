@@ -74,8 +74,8 @@ window.addEventListener('keydown', (e) => {
             const isMoveKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) ||
                 ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code);
             if (isMoveKey && !e.repeat) {
-                if (wolfCharacter.isKicking && (!wolfCharacter.isFlyingKick || wolfCharacter.kickTimer > 0.85) && typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
-                if (wolfCharacter.isPunching && (!wolfCharacter.isFlyingPunch || wolfCharacter.punchTimer > 0.85) && typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
+                if (wolfCharacter.isKicking && !wolfCharacter.isFlyingKick && typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
+                if (wolfCharacter.isPunching && !wolfCharacter.isFlyingPunch && typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
             }
             wolfCharacter.idleTimer = 0.0;
             wolfCharacter.activeIdleKey = null;
@@ -456,22 +456,26 @@ function removeCameraTouches(e) {
 window.addEventListener('touchend', removeCameraTouches, { passive: true });
 window.addEventListener('touchcancel', removeCameraTouches, { passive: true });
 
-// Mouse fallback untuk desktop
+// Mouse fallback untuk desktop (hanya dianggap menggeser kamera bila di-drag > 6px, agar klik serang Punch/Kick tidak mengunci kamera)
+let _camMouseDownButton = -1;
+let _camMouseDownX = 0;
+let _camMouseDownY = 0;
 window.addEventListener('pointerdown', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
     if (e.pointerType === 'mouse' && e.target && e.target.tagName === 'CANVAS') {
-        isUserMouseDown = true;
-        isInteractingWithCamera = true;
-        cameraReleaseTimer = 0.0;
+        _camMouseDownButton = e.button;
+        _camMouseDownX = e.clientX || 0;
+        _camMouseDownY = e.clientY || 0;
     }
 }, { capture: true });
 
 window.addEventListener('pointerup', (e) => {
     if (e.pointerType === 'mouse') {
+        _camMouseDownButton = -1;
         if (isUserMouseDown) {
             isUserMouseDown = false;
             isInteractingWithCamera = false;
-            cameraReleaseTimer = 0.6;
+            cameraReleaseTimer = 0.45;
         }
     }
 });
@@ -479,14 +483,17 @@ window.addEventListener('pointerup', (e) => {
 window.addEventListener('pointermove', (e) => {
     if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
     if (e.pointerType === 'mouse') {
-        if (e.buttons > 0) {
-            isUserMouseDown = true;
-            isInteractingWithCamera = true;
-            cameraReleaseTimer = 0.0;
-        } else if (isUserMouseDown) {
+        if (e.buttons === 1 && _camMouseDownButton === 0) {
+            const movedDist = Math.hypot((e.clientX || 0) - _camMouseDownX, (e.clientY || 0) - _camMouseDownY);
+            if (movedDist > 6) {
+                isUserMouseDown = true;
+                isInteractingWithCamera = true;
+                cameraReleaseTimer = 0.0;
+            }
+        } else if (e.buttons === 0 && isUserMouseDown) {
             isUserMouseDown = false;
             isInteractingWithCamera = false;
-            cameraReleaseTimer = 0.6;
+            cameraReleaseTimer = 0.45;
         }
     }
 });
@@ -514,6 +521,7 @@ window.addEventListener('wheel', (e) => {
 
 let currentSpeed = 0;
 let currentTurnRate = 0;
+let backwardHoldTimer = 0.0;
 let huntBlend = 0;
 let velocityY = 0;
 let isGrounded = true;
@@ -568,6 +576,18 @@ let playerKnockbackVel = new THREE.Vector3();
 window.playerKnockbackVel = playerKnockbackVel;
 
 function applyPlayerKnockback(impulseVec, verticalPop = 0) {
+    if (!wolfCharacter || !wolfCharacter.root) return;
+    // Saat sedang mengeksekusi Flying Punch / Flying Kick, jangan intervensi posisi/animasi dengan knockback
+    if (wolfCharacter.isFlyingPunch || wolfCharacter.isFlyingKick) {
+        const dmgVignette = document.getElementById('player-damage-vignette');
+        if (dmgVignette) {
+            dmgVignette.classList.add('active');
+            setTimeout(() => {
+                if (dmgVignette) dmgVignette.classList.remove('active');
+            }, 320);
+        }
+        return;
+    }
     if (!wolfCharacter || !wolfCharacter.root) return;
     playerKnockbackVel.add(impulseVec);
     velocityY = Math.max(velocityY, 0) + verticalPop;
@@ -754,12 +774,12 @@ function updateWolfPhysics(dt, elapsed) {
     // Deteksi interupsi aksi oleh pergerakan pemain
     const hasMoveInput = inputMag > 0.05;
     if (wolfCharacter) {
-        // Joystick / Input baru: HANYA batalkan jika serangan sudah melewati fase benturan mendarat
-        // Mencegah animasi terpotong seketika di awal yang membuat stamina terkuras tanpa animasi terlaksana!
-        if (wolfCharacter.isKicking && hasMoveInput && !wolfCharacter._joyWasActive && (wolfCharacter.isFlyingKick ? wolfCharacter.kickTimer > 0.85 : wolfCharacter.kickTimer > 0.35)) {
+        // Joystick / Input baru: HANYA batalkan serangan darat biasa jika sudah melewati fase benturan.
+        // Flying kick & flying punch dikunci 1x penuh sampai mendarat agar tidak pernah terpotong/glitch!
+        if (wolfCharacter.isKicking && !wolfCharacter.isFlyingKick && hasMoveInput && !wolfCharacter._joyWasActive && wolfCharacter.kickTimer > 0.35) {
             if (typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
         }
-        if (wolfCharacter.isPunching && hasMoveInput && !wolfCharacter._joyWasActive && (wolfCharacter.isFlyingPunch ? wolfCharacter.punchTimer > 0.85 : wolfCharacter.punchTimer > 0.30)) {
+        if (wolfCharacter.isPunching && !wolfCharacter.isFlyingPunch && hasMoveInput && !wolfCharacter._joyWasActive && wolfCharacter.punchTimer > 0.30) {
             if (typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
         }
         wolfCharacter._joyWasActive = !!hasMoveInput;
@@ -809,6 +829,13 @@ function updateWolfPhysics(dt, elapsed) {
     let targetFacingYaw = foxRoot.rotation.y;
     let moveDisplacement = new THREE.Vector3();
 
+    const isBackwardInput = (inputY < -0.20) && (Math.abs(inputY) >= Math.abs(inputX) * 0.75);
+    if (!isMovementLocked && isBackwardInput) {
+        backwardHoldTimer += dt;
+    } else if (!isBackwardInput) {
+        backwardHoldTimer = 0.0;
+    }
+
     if (isMovementLocked) {
         targetSpeed = 0;
         currentSpeed = 0;
@@ -818,17 +845,37 @@ function updateWolfPhysics(dt, elapsed) {
         // Karakter bebas bergerak dan menghadap ke segala arah mengikuti kemudi joystick di layar,
         // posisinya tidak terpaku / tidak terpatri titik hadapnya ke musuh.
         if (inputMag > 0.05) {
-            isMovingBackward = false;
-            targetSpeed = inputMag * (isHunting ? huntRunSpeed : walkSpeed);
-            targetFacingYaw = Math.atan2(moveWorldDir.x, moveWorldDir.z);
+            if (isBackwardInput && backwardHoldTimer < 3.0) {
+                // Selama < 3 detik menahan S / analog bawah: jalan mundur (backward.fbx) tanpa memutar balik badan
+                isMovingBackward = true;
+                const backSpeed = isHunting ? Math.max(3.2, walkSpeed * 1.70) : Math.max(2.45, walkSpeed * 1.42);
+                targetSpeed = -inputMag * backSpeed;
 
-            let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
-            if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
-            if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-            foxRoot.rotation.y += yawDiff * Math.min(1.0, stats.turnAccel * dt);
-            currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 6.0, stats.turnAccel * dt);
+                const steerFwdX = camFwd.x - camRight.x * (inputX * 0.35);
+                const steerFwdZ = camFwd.z - camRight.z * (inputX * 0.35);
+                targetFacingYaw = Math.atan2(steerFwdX, steerFwdZ);
 
-            moveDisplacement.copy(moveWorldDir);
+                let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
+                if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+                if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+                foxRoot.rotation.y += yawDiff * Math.min(1.0, stats.turnAccel * dt);
+                currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 4.0, stats.turnAccel * dt);
+
+                moveDisplacement.copy(moveWorldDir);
+            } else {
+                // Maju normal ATAU sudah menahan arah bawah >= 3 detik -> langsung berbalik seperti semula
+                isMovingBackward = false;
+                targetSpeed = inputMag * (isHunting ? huntRunSpeed : walkSpeed);
+                targetFacingYaw = Math.atan2(moveWorldDir.x, moveWorldDir.z);
+
+                let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
+                if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+                if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+                foxRoot.rotation.y += yawDiff * Math.min(1.0, stats.turnAccel * dt);
+                currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 6.0, stats.turnAccel * dt);
+
+                moveDisplacement.copy(moveWorldDir);
+            }
         } else {
             targetSpeed = 0;
             currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, 0, stats.turnAccel * dt);
@@ -988,7 +1035,29 @@ function updateWolfPhysics(dt, elapsed) {
     // 1C. COLLISION ASSET 3D IMPORT (GLB / GLTF)
     // Menahan laju rubah jika Auto Collision = ON (solid AABB / cylinder anti-tembus)
     // ========================================================
-    if (Array.isArray(window.importedObjectsList) && window.importedObjectsList.length > 0) {
+    // ========================================================
+    // 1C. COLLISION PRESISI MESH SEGITIGA ASSET 3D IMPORT (GLB / GLTF)
+    // Mengikuti bentuk asli permukaan mesh 3D (lubang/gerbang/terowongan bisa dilewati!)
+    // ========================================================
+    let glbGroundSupportY = -999;
+    if (window.PandoraGLBCollision && Array.isArray(window.importedObjectsList) && window.importedObjectsList.length > 0) {
+        const maxGlbStepUp = (huntBlend > 0.4) ? 0.90 : 0.65;
+        const glbRes = window.PandoraGLBCollision.resolveCharacterCollision(
+            foxRoot.position,
+            foxScale,
+            maxGlbStepUp,
+            velocityY,
+            (typeof camera !== 'undefined' && camera) ? camera.position : null,
+            Math.abs(currentSpeed) > 0.05,
+            dt
+        );
+        if (glbRes && glbRes.supportY > glbGroundSupportY) {
+            glbGroundSupportY = glbRes.supportY;
+        }
+        if (glbRes && glbRes.hitWall && currentSpeed > 0.1) {
+            currentSpeed *= 0.65;
+        }
+    } else if (Array.isArray(window.importedObjectsList) && window.importedObjectsList.length > 0) {
         const foxPosX = foxRoot.position.x;
         const foxPosZ = foxRoot.position.z;
         const foxPosY = foxRoot.position.y;
@@ -1331,7 +1400,7 @@ function updateWolfPhysics(dt, elapsed) {
     // 2. TERRAIN HEIGHT, WATER INTERACTION (100% ocean.html) & LOMPATAN
     // ========================================================
     groundH = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(foxRoot.position.x, foxRoot.position.z) : 0;
-    const effectiveGroundH = Math.max(groundH, rockGroundSupportY);
+    const effectiveGroundH = Math.max(groundH, rockGroundSupportY, glbGroundSupportY);
 
     // Cek keberadaan air dan gelombang laut di posisi rubah
     const inWaterArea = (typeof isWaterAtWorld === 'function') ? isWaterAtWorld(foxRoot.position.x, foxRoot.position.z) : false;
@@ -1549,12 +1618,13 @@ function updateWolfPhysics(dt, elapsed) {
     const isCameraSwipeActive = (Math.abs(pendingCameraYawDelta) > 0.00001 || Math.abs(pendingCameraPitchDelta) > 0.00001);
 
     const isCharacterMoving = (Math.abs(currentSpeed) > 0.10 || Math.abs(currentTurnRate) > 0.10 || (window.currentFoxInputMag || 0) > 0.08 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.10 || Math.abs(analogTurn) > 0.10);
+    const isPlayerAttacking = !!(wolfCharacter && (wolfCharacter.isPunching || wolfCharacter.isKicking));
 
     if (isTouchingCamera || isCameraSwipeActive) {
         cameraReleaseTimer = 0.5;
         isUserHoldingCamera = true;
-    } else if (isCharacterMoving) {
-        // Player melepas gesture kamera dan menyetir analog: segera ikuti hadapan rubah tanpa jeda
+    } else if (isPlayerAttacking || isCharacterMoving) {
+        // Saat menyerang musuh (Punch/Kick/Flying) atau bergerak: segera posisikan kamera di belakang Fox tanpa jeda!
         cameraReleaseTimer = 0.0;
         isUserHoldingCamera = false;
     } else if (cameraReleaseTimer > 0) {
@@ -1616,8 +1686,33 @@ function updateWolfPhysics(dt, elapsed) {
     if (isUserHoldingCamera) {
         // 1. SAAT USER MEMEGANG / MENGGESER KAMERA:
         // Kamera bebas dirotasi oleh user sesuai usapan jari/mouse, sudut dipertahankan
+    } else if (isPlayerAttacking) {
+        // 2A. SAAT MENYERANG MUSUH (PUNCH / KICK / FLYING PUNCH / FLYING KICK):
+        // Kamera secara responsif langsung berada tepat di belakang punggung Fox kita menghadap ke sasaran
+        const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
+        let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
+        if (diff < -Math.PI) diff += Math.PI * 2;
+        if (diff > Math.PI) diff -= Math.PI * 2;
+
+        if (Math.abs(diff) > Math.PI - 0.06) {
+            diff = (_lastFollowSign || 1) * (Math.PI - 0.06);
+        } else {
+            _lastFollowSign = Math.sign(diff) || 1;
+        }
+
+        const attackChaseSpeed = 10.5;
+        const smoothT = 1.0 - Math.exp(-attackChaseSpeed * dt);
+        const maxAttackStep = 9.0 * dt;
+        camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxAttackStep, maxAttackStep);
+
+        const targetPitch = THREE.MathUtils.degToRad(18.0);
+        camOrbitPitch = THREE.MathUtils.clamp(
+            THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-5.0 * dt)),
+            MIN_ALLOWED_PITCH,
+            MAX_ALLOWED_PITCH
+        );
     } else if (isCharacterMoving) {
-        // 2. SAAT MELEPAS GESTURE KAMERA DAN MENYETIR ANALOG:
+        // 2B. SAAT MELEPAS GESTURE KAMERA DAN MENYETIR ANALOG:
         // Kamera secara otomatis dan responsif mengikuti hadapan (belakang) rubah
         const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
         let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
@@ -1977,3 +2072,568 @@ function updateWolfLocomotionAnimation(dt, elapsed, speed, turnRate, huntRatio =
 }
 window.updateWolfLocomotionAnimation = updateWolfLocomotionAnimation;
 window.updateLegArticulation = updateLegArticulation;
+
+// ========================================================
+// 5. SISTEM COLLISION MESH SEGITIGA PRESISI ASSET 3D IMPORT (GLB / GLTF)
+// Memperhitungkan bentuk geometri 3D asli menggunakan Spatial Grid + Closest-Point Triangle:
+// - Lubang, gerbang (Torii gate), terowongan, pintu, dan celah kosong dapat ditembus / dilewati dengan bebas!
+// - Tiang, dinding, dan permukaan padat menahan karakter secara presisi mengikuti kontur asli 3D mesh.
+// - Permukaan datar/landai (jembatan, tangga, pijakan) mendukung pijakan kaki (vertical support & step-up).
+// ========================================================
+(function () {
+    const _invMat = new THREE.Matrix4();
+    const _relMat = new THREE.Matrix4();
+    const _vA = new THREE.Vector3();
+    const _vB = new THREE.Vector3();
+    const _vC = new THREE.Vector3();
+    const _localFoot = new THREE.Vector3();
+    const _localHead = new THREE.Vector3();
+    const _closestPt = new THREE.Vector3();
+
+    function closestPointOnTriangle(px, py, pz, ax, ay, az, bx, by, bz, cx, cy, cz, out) {
+        const abx = bx - ax, aby = by - ay, abz = bz - az;
+        const acx = cx - ax, acy = cy - ay, acz = cz - az;
+        const apx = px - ax, apy = py - ay, apz = pz - az;
+
+        const d1 = abx * apx + aby * apy + abz * apz;
+        const d2 = acx * apx + acy * apy + acz * apz;
+        if (d1 <= 0.0 && d2 <= 0.0) {
+            out.set(ax, ay, az);
+            return out;
+        }
+
+        const bpx = px - bx, bpy = py - by, bpz = pz - bz;
+        const d3 = abx * bpx + aby * bpy + abz * bpz;
+        const d4 = acx * bpx + acy * bpy + acz * bpz;
+        if (d3 >= 0.0 && d4 <= d3) {
+            out.set(bx, by, bz);
+            return out;
+        }
+
+        const vc = d1 * d4 - d3 * d2;
+        if (vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0) {
+            const v = d1 / (d1 - d3);
+            out.set(ax + v * abx, ay + v * aby, az + v * abz);
+            return out;
+        }
+
+        const cpx = px - cx, cpy = py - cy, cpz = pz - cz;
+        const d5 = abx * cpx + aby * cpy + abz * cpz;
+        const d6 = acx * cpx + acy * cpy + acz * cpz;
+        if (d6 >= 0.0 && d5 <= d6) {
+            out.set(cx, cy, cz);
+            return out;
+        }
+
+        const vb = d5 * d2 - d1 * d6;
+        if (vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0) {
+            const w = d2 / (d2 - d6);
+            out.set(ax + w * acx, ay + w * acy, az + w * acz);
+            return out;
+        }
+
+        const va = d3 * d6 - d5 * d4;
+        if (va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0) {
+            const w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+            out.set(bx + w * (cx - bx), by + w * (cy - by), bz + w * (cz - bz));
+            return out;
+        }
+
+        const denom = 1.0 / (va + vb + vc);
+        const v = vb * denom;
+        const w = vc * denom;
+        out.set(
+            ax + abx * v + acx * w,
+            ay + aby * v + acy * w,
+            az + abz * v + acz * w
+        );
+        return out;
+    }
+
+    function getOrBuildCollider(item) {
+        if (!item || !item.root) return null;
+        if (item._meshCollider) return item._meshCollider;
+
+        item.root.updateMatrixWorld(true);
+        _invMat.copy(item.root.matrixWorld).invert();
+
+        // Hitung total segitiga untuk menentukan stride bila mesh sangat padat (> 35.000 segitiga)
+        let rawTriCount = 0;
+        const meshes = [];
+        item.root.traverse((child) => {
+            if (child.isMesh && child.geometry && child.geometry.attributes && child.geometry.attributes.position) {
+                const pos = child.geometry.attributes.position;
+                const idx = child.geometry.index;
+                const count = idx ? Math.floor(idx.count / 3) : Math.floor(pos.count / 3);
+                if (count > 0) {
+                    rawTriCount += count;
+                    meshes.push(child);
+                }
+            }
+        });
+
+        if (rawTriCount === 0) {
+            item._meshCollider = { triCount: 0 };
+            return item._meshCollider;
+        }
+
+        const stride = rawTriCount > 35000 ? Math.ceil(rawTriCount / 35000) : 1;
+        const tempVerts = [];
+        const tempMinY = [];
+        const tempMaxY = [];
+
+        let minX = Infinity, minY = Infinity, minZ = Infinity;
+        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+        for (let m = 0; m < meshes.length; m++) {
+            const mesh = meshes[m];
+            mesh.updateMatrixWorld(true);
+            _relMat.multiplyMatrices(_invMat, mesh.matrixWorld);
+
+            const pos = mesh.geometry.attributes.position;
+            const idx = mesh.geometry.index;
+            const triTotal = idx ? Math.floor(idx.count / 3) : Math.floor(pos.count / 3);
+
+            for (let t = 0; t < triTotal; t += stride) {
+                const i0 = idx ? idx.getX(t * 3) : (t * 3);
+                const i1 = idx ? idx.getX(t * 3 + 1) : (t * 3 + 1);
+                const i2 = idx ? idx.getX(t * 3 + 2) : (t * 3 + 2);
+
+                _vA.fromBufferAttribute(pos, i0).applyMatrix4(_relMat);
+                _vB.fromBufferAttribute(pos, i1).applyMatrix4(_relMat);
+                _vC.fromBufferAttribute(pos, i2).applyMatrix4(_relMat);
+
+                // Lewati segitiga degenerat (luas ~ 0)
+                const abx = _vB.x - _vA.x, aby = _vB.y - _vA.y, abz = _vB.z - _vA.z;
+                const acx = _vC.x - _vA.x, acy = _vC.y - _vA.y, acz = _vC.z - _vA.z;
+                const cx = aby * acz - abz * acy;
+                const cy = abz * acx - abx * acz;
+                const cz = abx * acy - aby * acx;
+                if (cx * cx + cy * cy + cz * cz < 1e-10) continue;
+
+                const tMinX = Math.min(_vA.x, _vB.x, _vC.x);
+                const tMaxX = Math.max(_vA.x, _vB.x, _vC.x);
+                const tMinY = Math.min(_vA.y, _vB.y, _vC.y);
+                const tMaxY = Math.max(_vA.y, _vB.y, _vC.y);
+                const tMinZ = Math.min(_vA.z, _vB.z, _vC.z);
+                const tMaxZ = Math.max(_vA.z, _vB.z, _vC.z);
+
+                if (tMinX < minX) minX = tMinX;
+                if (tMaxX > maxX) maxX = tMaxX;
+                if (tMinY < minY) minY = tMinY;
+                if (tMaxY > maxY) maxY = tMaxY;
+                if (tMinZ < minZ) minZ = tMinZ;
+                if (tMaxZ > maxZ) maxZ = tMaxZ;
+
+                tempVerts.push(_vA.x, _vA.y, _vA.z, _vB.x, _vB.y, _vB.z, _vC.x, _vC.y, _vC.z);
+                tempMinY.push(tMinY);
+                tempMaxY.push(tMaxY);
+            }
+        }
+
+        const triCount = tempMinY.length;
+        if (triCount === 0) {
+            item._meshCollider = { triCount: 0 };
+            return item._meshCollider;
+        }
+
+        const verts = new Float32Array(tempVerts);
+        const triMinY = new Float32Array(tempMinY);
+        const triMaxY = new Float32Array(tempMaxY);
+
+        // Bangun 2D Spatial Hash Grid (24 x 24) di ruang lokal XZ objek
+        const gridCols = 24;
+        const gridRows = 24;
+        const pad = 0.01;
+        minX -= pad; maxX += pad;
+        minY -= pad; maxY += pad;
+        minZ -= pad; maxZ += pad;
+
+        const spanX = Math.max(0.001, maxX - minX);
+        const spanZ = Math.max(0.001, maxZ - minZ);
+        const cellBuckets = new Array(gridCols * gridRows);
+        for (let c = 0; c < cellBuckets.length; c++) cellBuckets[c] = [];
+
+        for (let t = 0; t < triCount; t++) {
+            const base = t * 9;
+            const ax = verts[base], az = verts[base + 2];
+            const bx = verts[base + 3], bz = verts[base + 5];
+            const cx = verts[base + 6], cz = verts[base + 8];
+
+            const tMinX = Math.min(ax, bx, cx);
+            const tMaxX = Math.max(ax, bx, cx);
+            const tMinZ = Math.min(az, bz, cz);
+            const tMaxZ = Math.max(az, bz, cz);
+
+            const gx0 = Math.max(0, Math.min(gridCols - 1, Math.floor(((tMinX - minX) / spanX) * gridCols)));
+            const gx1 = Math.max(0, Math.min(gridCols - 1, Math.floor(((tMaxX - minX) / spanX) * gridCols)));
+            const gz0 = Math.max(0, Math.min(gridRows - 1, Math.floor(((tMinZ - minZ) / spanZ) * gridRows)));
+            const gz1 = Math.max(0, Math.min(gridRows - 1, Math.floor(((tMaxZ - minZ) / spanZ) * gridRows)));
+
+            for (let gz = gz0; gz <= gz1; gz++) {
+                const rowOff = gz * gridCols;
+                for (let gx = gx0; gx <= gx1; gx++) {
+                    cellBuckets[rowOff + gx].push(t);
+                }
+            }
+        }
+
+        const cells = new Array(gridCols * gridRows);
+        for (let c = 0; c < cellBuckets.length; c++) {
+            cells[c] = cellBuckets[c].length > 0 ? new Uint32Array(cellBuckets[c]) : null;
+        }
+
+        item._meshCollider = {
+            triCount,
+            verts,
+            triMinY,
+            triMaxY,
+            localBox: { minX, minY, minZ, maxX, maxY, maxZ, spanX, spanZ },
+            gridCols,
+            gridRows,
+            cells,
+            stamp: new Uint32Array(triCount),
+            currentStamp: 1
+        };
+        return item._meshCollider;
+    }
+
+    function queryWorldTriangles(item, collider, worldMinX, worldMaxX, worldMinY, worldMaxY, worldMinZ, worldMaxZ, outTris) {
+        outTris.length = 0;
+        const matWorld = item.root.matrixWorld;
+        const te = matWorld.elements;
+
+        const sx = Math.hypot(te[0], te[1], te[2]) || 1;
+        const sy = Math.hypot(te[4], te[5], te[6]) || 1;
+        const sz = Math.hypot(te[8], te[9], te[10]) || 1;
+
+        _invMat.copy(matWorld).invert();
+
+        const cxWorld = (worldMinX + worldMaxX) * 0.5;
+        const czWorld = (worldMinZ + worldMaxZ) * 0.5;
+        const halfWorldXZ = Math.max(worldMaxX - worldMinX, worldMaxZ - worldMinZ) * 0.5;
+
+        _localFoot.set(cxWorld, worldMinY, czWorld).applyMatrix4(_invMat);
+        _localHead.set(cxWorld, worldMaxY, czWorld).applyMatrix4(_invMat);
+
+        const localRadX = halfWorldXZ / sx;
+        const localRadZ = halfWorldXZ / sz;
+        const localPadY = 0.25 / sy;
+
+        const qMinX = Math.min(_localFoot.x, _localHead.x) - localRadX;
+        const qMaxX = Math.max(_localFoot.x, _localHead.x) + localRadX;
+        const qMinZ = Math.min(_localFoot.z, _localHead.z) - localRadZ;
+        const qMaxZ = Math.max(_localFoot.z, _localHead.z) + localRadZ;
+        const qMinY = Math.min(_localFoot.y, _localHead.y) - localPadY;
+        const qMaxY = Math.max(_localFoot.y, _localHead.y) + localPadY;
+
+        const lb = collider.localBox;
+        if (qMaxX < lb.minX || qMinX > lb.maxX || qMaxZ < lb.minZ || qMinZ > lb.maxZ || qMaxY < lb.minY || qMinY > lb.maxY) {
+            return outTris;
+        }
+
+        const { gridCols, gridRows, cells, verts, triMinY, triMaxY, stamp } = collider;
+        let curStamp = (collider.currentStamp + 1) | 0;
+        if (curStamp >= 0x7fffffff) {
+            stamp.fill(0);
+            curStamp = 1;
+        }
+        collider.currentStamp = curStamp;
+
+        const gx0 = Math.max(0, Math.min(gridCols - 1, Math.floor(((qMinX - lb.minX) / lb.spanX) * gridCols)));
+        const gx1 = Math.max(0, Math.min(gridCols - 1, Math.floor(((qMaxX - lb.minX) / lb.spanX) * gridCols)));
+        const gz0 = Math.max(0, Math.min(gridRows - 1, Math.floor(((qMinZ - lb.minZ) / lb.spanZ) * gridRows)));
+        const gz1 = Math.max(0, Math.min(gridRows - 1, Math.floor(((qMaxZ - lb.minZ) / lb.spanZ) * gridRows)));
+
+        const m00 = te[0], m01 = te[4], m02 = te[8], m03 = te[12];
+        const m10 = te[1], m11 = te[5], m12 = te[9], m13 = te[13];
+        const m20 = te[2], m21 = te[6], m22 = te[10], m23 = te[14];
+
+        for (let gz = gz0; gz <= gz1; gz++) {
+            const rowOff = gz * gridCols;
+            for (let gx = gx0; gx <= gx1; gx++) {
+                const bucket = cells[rowOff + gx];
+                if (!bucket) continue;
+                for (let k = 0; k < bucket.length; k++) {
+                    const t = bucket[k];
+                    if (stamp[t] === curStamp) continue;
+                    stamp[t] = curStamp;
+
+                    if (triMaxY[t] < qMinY || triMinY[t] > qMaxY) continue;
+
+                    const base = t * 9;
+                    const lax = verts[base], lay = verts[base + 1], laz = verts[base + 2];
+                    const lbx = verts[base + 3], lby = verts[base + 4], lbz = verts[base + 5];
+                    const lcx = verts[base + 6], lcy = verts[base + 7], lcz = verts[base + 8];
+
+                    const ax = m00 * lax + m01 * lay + m02 * laz + m03;
+                    const ay = m10 * lax + m11 * lay + m12 * laz + m13;
+                    const az = m20 * lax + m21 * lay + m22 * laz + m23;
+
+                    const bx = m00 * lbx + m01 * lby + m02 * lbz + m03;
+                    const by = m10 * lbx + m11 * lby + m12 * lbz + m13;
+                    const bz = m20 * lbx + m21 * lby + m22 * lbz + m23;
+
+                    const cx = m00 * lcx + m01 * lcy + m02 * lcz + m03;
+                    const cy = m10 * lcx + m11 * lcy + m12 * lcz + m13;
+                    const cz = m20 * lcx + m21 * lcy + m22 * lcz + m23;
+
+                    const wMinY = Math.min(ay, by, cy);
+                    const wMaxY = Math.max(ay, by, cy);
+                    if (wMaxY < worldMinY || wMinY > worldMaxY) continue;
+
+                    const abx = bx - ax, aby = by - ay, abz = bz - az;
+                    const acx = cx - ax, acy = cy - ay, acz = cz - az;
+                    let nx = aby * acz - abz * acy;
+                    let ny = abz * acx - abx * acz;
+                    let nz = abx * acy - aby * acx;
+                    const nLen = Math.hypot(nx, ny, nz);
+                    if (nLen < 1e-8) continue;
+                    nx /= nLen; ny /= nLen; nz /= nLen;
+
+                    outTris.push({
+                        ax, ay, az,
+                        bx, by, bz,
+                        cx, cy, cz,
+                        wMinY, wMaxY,
+                        nx, ny, nz
+                    });
+                }
+            }
+        }
+        return outTris;
+    }
+
+    const _candidateTris = [];
+
+    window.PandoraGLBCollision = {
+        resolveCharacterCollision(rootPos, charScale = 1.85, maxStepUp = 0.70, velocityY = 0, camPos = null, isMoving = false, dt = 0.016) {
+            const list = window.importedObjectsList;
+            if (!Array.isArray(list) || list.length === 0 || !rootPos) {
+                return { supportY: -999, hitWall: false };
+            }
+
+            const scaleFactor = (charScale || 1.85) / 1.85;
+            const charHeight = 1.70 * scaleFactor;
+            const maxRadius = 0.35 * scaleFactor;
+
+            const spheres = [
+                { h: 0.42 * scaleFactor, r: 0.30 * scaleFactor },
+                { h: 0.86 * scaleFactor, r: 0.34 * scaleFactor },
+                { h: 1.28 * scaleFactor, r: 0.35 * scaleFactor },
+                { h: 1.58 * scaleFactor, r: 0.27 * scaleFactor }
+            ];
+
+            let bestSupportY = -999;
+            let hitWall = false;
+
+            for (let i = 0; i < list.length; i++) {
+                const item = list[i];
+                if (!item || item.hasCollision === false || !item.root || !item.root.visible) continue;
+
+                item.root.updateMatrixWorld(true);
+                const collider = getOrBuildCollider(item);
+                if (!collider || collider.triCount === 0) continue;
+
+                const queryR = maxRadius + 0.35;
+                const tris = queryWorldTriangles(
+                    item,
+                    collider,
+                    rootPos.x - queryR,
+                    rootPos.x + queryR,
+                    rootPos.y - 0.45,
+                    rootPos.y + charHeight + 0.20,
+                    rootPos.z - queryR,
+                    rootPos.z + queryR,
+                    _candidateTris
+                );
+
+                if (tris.length === 0) continue;
+
+                // 1. Deteksi pijakan permukaan atas (jembatan / tangga / platform GLB)
+                const footSampleR = maxRadius * 0.68;
+                const footSampleRSq = footSampleR * footSampleR;
+                for (let t = 0; t < tris.length; t++) {
+                    const tri = tris[t];
+                    if (Math.abs(tri.ny) < 0.68) continue;
+                    if (tri.wMinY > rootPos.y + maxStepUp + 0.05 || tri.wMaxY < rootPos.y - 0.45) continue;
+
+                    closestPointOnTriangle(
+                        rootPos.x, rootPos.y + 0.25 * scaleFactor, rootPos.z,
+                        tri.ax, tri.ay, tri.az,
+                        tri.bx, tri.by, tri.bz,
+                        tri.cx, tri.cy, tri.cz,
+                        _closestPt
+                    );
+
+                    const dx = rootPos.x - _closestPt.x;
+                    const dz = rootPos.z - _closestPt.z;
+                    if (dx * dx + dz * dz <= footSampleRSq) {
+                        const py = _closestPt.y;
+                        if (py <= rootPos.y + maxStepUp + 0.05 && py >= rootPos.y - 0.45) {
+                            if (py > bestSupportY) {
+                                bestSupportY = py;
+                            }
+                        }
+                    }
+                }
+
+                const effBaseY = Math.max(rootPos.y, bestSupportY > -900 ? bestSupportY : rootPos.y);
+
+                // 2. Iterasi resolusi tabrakan dinding / tiang / lengkungan (3 iterasi agar licin di sudut)
+                for (let iter = 0; iter < 3; iter++) {
+                    for (let t = 0; t < tris.length; t++) {
+                        const tri = tris[t];
+
+                        // Abaikan segitiga lantai di bawah mata kaki atau permukaan landai yang bisa didaki
+                        if (tri.wMaxY <= effBaseY + 0.24 * scaleFactor) continue;
+                        if (Math.abs(tri.ny) > 0.78 && tri.wMaxY <= effBaseY + maxStepUp) continue;
+                        // Abaikan segitiga atap/palang gerbang (seperti lintel Torii gate) yang berada di atas kepala karakter!
+                        if (tri.wMinY >= rootPos.y + charHeight) continue;
+
+                        for (let s = 0; s < spheres.length; s++) {
+                            const sph = spheres[s];
+                            const sy = rootPos.y + sph.h;
+                            const sr = sph.r;
+
+                            if (sy + sr < tri.wMinY || sy - sr > tri.wMaxY) continue;
+
+                            closestPointOnTriangle(
+                                rootPos.x, sy, rootPos.z,
+                                tri.ax, tri.ay, tri.az,
+                                tri.bx, tri.by, tri.bz,
+                                tri.cx, tri.cy, tri.cz,
+                                _closestPt
+                            );
+
+                            // Abaikan titik kontak yang sangat dekat dengan telapak kaki
+                            if (_closestPt.y <= effBaseY + 0.20 * scaleFactor) continue;
+
+                            const dy = sy - _closestPt.y;
+                            if (Math.abs(dy) >= sr) continue;
+
+                            const dx = rootPos.x - _closestPt.x;
+                            const dz = rootPos.z - _closestPt.z;
+                            const effR = Math.sqrt(Math.max(0, sr * sr - dy * dy));
+                            const horizDistSq = dx * dx + dz * dz;
+
+                            if (horizDistSq < effR * effR) {
+                                const horizDist = Math.sqrt(horizDistSq);
+                                const pushAmt = effR - horizDist;
+                                let ux = 0, uz = 0;
+                                if (horizDist > 0.0001) {
+                                    ux = dx / horizDist;
+                                    uz = dz / horizDist;
+                                } else {
+                                    const nLen = Math.hypot(tri.nx, tri.nz) || 1;
+                                    ux = tri.nx / nLen;
+                                    uz = tri.nz / nLen;
+                                }
+
+                                const pushX = ux * pushAmt;
+                                const pushZ = uz * pushAmt;
+                                rootPos.x += pushX;
+                                rootPos.z += pushZ;
+                                if (camPos) {
+                                    camPos.x += pushX;
+                                    camPos.z += pushZ;
+                                }
+                                hitWall = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (bestSupportY > rootPos.y && bestSupportY <= rootPos.y + maxStepUp && isMoving && dt > 0) {
+                rootPos.y = THREE.MathUtils.lerp(rootPos.y, bestSupportY, Math.min(1.0, 14.0 * dt));
+            }
+
+            return { supportY: bestSupportY, hitWall };
+        },
+
+        checkSphereHit(point, radius = 0.35) {
+            const list = window.importedObjectsList;
+            if (!Array.isArray(list) || list.length === 0 || !point) return null;
+
+            for (let i = 0; i < list.length; i++) {
+                const item = list[i];
+                if (!item || item.hasCollision === false || !item.root || !item.root.visible) continue;
+
+                item.root.updateMatrixWorld(true);
+                const collider = getOrBuildCollider(item);
+                if (!collider || collider.triCount === 0) continue;
+
+                const tris = queryWorldTriangles(
+                    item,
+                    collider,
+                    point.x - radius,
+                    point.x + radius,
+                    point.y - radius,
+                    point.y + radius,
+                    point.z - radius,
+                    point.z + radius,
+                    _candidateTris
+                );
+
+                for (let t = 0; t < tris.length; t++) {
+                    const tri = tris[t];
+                    closestPointOnTriangle(
+                        point.x, point.y, point.z,
+                        tri.ax, tri.ay, tri.az,
+                        tri.bx, tri.by, tri.bz,
+                        tri.cx, tri.cy, tri.cz,
+                        _closestPt
+                    );
+                    const dx = point.x - _closestPt.x;
+                    const dy = point.y - _closestPt.y;
+                    const dz = point.z - _closestPt.z;
+                    if (dx * dx + dy * dy + dz * dz <= radius * radius) {
+                        return {
+                            item,
+                            point: _closestPt.clone(),
+                            normal: new THREE.Vector3(tri.nx, tri.ny, tri.nz)
+                        };
+                    }
+                }
+            }
+            return null;
+        },
+
+        raycastWalkwayObstacle(posA, posB, probeRadius = 0.35) {
+            const list = window.importedObjectsList;
+            if (!Array.isArray(list) || list.length === 0 || !posA || !posB) return null;
+
+            const dxSeg = posB.x - posA.x;
+            const dySeg = posB.y - posA.y;
+            const dzSeg = posB.z - posA.z;
+            const dist = Math.hypot(dxSeg, dzSeg);
+            if (dist < 0.2) return null;
+
+            const steps = Math.max(2, Math.min(14, Math.ceil(dist / 0.55)));
+            const samplePt = new THREE.Vector3();
+
+            for (let s = 1; s < steps; s++) {
+                const alpha = s / steps;
+                samplePt.set(
+                    posA.x + dxSeg * alpha,
+                    posA.y + dySeg * alpha + 0.90,
+                    posA.z + dzSeg * alpha
+                );
+                const hit = this.checkSphereHit(samplePt, probeRadius);
+                if (hit && Math.abs(hit.normal.y) < 0.75) {
+                    return {
+                        type: 'imported',
+                        x: hit.point.x,
+                        y: hit.point.y,
+                        z: hit.point.z,
+                        radius: 0.55,
+                        proj: dist * alpha,
+                        object: hit.item
+                    };
+                }
+            }
+            return null;
+        }
+    };
+})();

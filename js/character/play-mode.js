@@ -300,9 +300,22 @@ function startPlayMode() {
     if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.clearMissiles === 'function') {
         window.plasmaWeaponInstance.clearMissiles();
     }
+    isLeftButtonHeld = false;
+    leftButtonIsDrag = false;
+    lastPunchTriggerTime = 0;
+    lastKickTriggerTime = 0;
+    window.wolfCharacter = wolfCharacter;
     if (typeof foxIdleTimer !== 'undefined') foxIdleTimer = 0;
-    if (wolfCharacter && typeof wolfCharacter.resetAnimation === 'function') {
-        wolfCharacter.resetAnimation();
+    if (wolfCharacter) {
+        wolfCharacter.isFlyingPunch = false;
+        wolfCharacter.isFlyingKick = false;
+        wolfCharacter.isPunching = false;
+        wolfCharacter.isKicking = false;
+        wolfCharacter.isTakingHit = false;
+        wolfCharacter.isDead = false;
+        if (typeof wolfCharacter.resetAnimation === 'function') {
+            wolfCharacter.resetAnimation();
+        }
     }
     if (typeof foxProneBlend !== 'undefined') foxProneBlend = 0;
     if (typeof foxSitBlend !== 'undefined') foxSitBlend = 0;
@@ -458,7 +471,17 @@ function stopPlayMode() {
         hideMobileControls();
     }
 
+    isLeftButtonHeld = false;
+    leftButtonIsDrag = false;
     if (wolfCharacter) {
+        wolfCharacter.isFlyingPunch = false;
+        wolfCharacter.isFlyingKick = false;
+        wolfCharacter.isPunching = false;
+        wolfCharacter.isKicking = false;
+        wolfCharacter.isTakingHit = false;
+        if (typeof wolfCharacter.resetAnimation === 'function') {
+            wolfCharacter.resetAnimation();
+        }
         wolfCharacter.root.visible = false;
     }
 

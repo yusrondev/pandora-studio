@@ -1,0 +1,314 @@
+{
+    "version": 2,
+    "updatedAt": "2026-10-28T13:45:28+00:00",
+    "characters": {
+        "hero": {
+            "hurtbox": {
+                "radius": 0.42,
+                "height": 1.72,
+                "offsetY": 0.02,
+                "offsetZ": 0.04,
+                "useBoneCapsules": true
+            },
+            "animations": {
+                "punch1": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_hero_punch1_main",
+                            "name": "Hitbox Tangan Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.04,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch2": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_hero_punch2_main",
+                            "name": "Kepalan Tangan Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.04,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch3": {
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.14,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_hero_punch3_main",
+                            "name": "Hitbox Tangan Kiri",
+                            "bone": "LeftHand",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.05,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingPunch": {
+                    "damage": 100,
+                    "knockback": 0.36,
+                    "activeStartPct": 0.4,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_hero_flypunch_main",
+                            "name": "Hitbox Tangan Kiri",
+                            "bone": "LeftHand",
+                            "shape": "sphere",
+                            "radius": 0.34,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick1": {
+                    "damage": 30,
+                    "knockback": 0.25,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.49,
+                    "hitboxes": [
+                        {
+                            "id": "hb_hero_kick1_main",
+                            "name": "Hitbox Kaki \/ Engkel Kiri",
+                            "bone": "LeftFoot",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick2": {
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_hero_kick2_main",
+                            "name": "Tendangan Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick3": {
+                    "damage": 35,
+                    "knockback": 0.32,
+                    "activeStartPct": 0.2,
+                    "activeEndPct": 0.42,
+                    "hitboxes": [
+                        {
+                            "id": "hb_hero_kick3_main",
+                            "name": "Hitbox Kaki \/ Engkel Kiri",
+                            "bone": "LeftFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingKick": {
+                    "damage": 45,
+                    "knockback": 0.42,
+                    "activeStartPct": 0.38,
+                    "activeEndPct": 0.52,
+                    "hitboxes": [
+                        {
+                            "id": "hb_hero_flykick_main",
+                            "name": "Tendangan Terbang Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.36,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "idle": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "walk": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "run": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "block": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "hit1": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "hit2": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                }
+            }
+        },
+        "enemy-foxtree": {
+            "hurtbox": {
+                "radius": 0.44,
+                "height": 1.72,
+                "offsetY": 0.02,
+                "offsetZ": 0.04,
+                "useBoneCapsules": true
+            },
+            "animations": {
+                "punch1": {
+                    "damage": 15,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_enemy_punch1_main",
+                            "name": "Tangan Kanan Musuh",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.05,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch2": {
+                    "damage": 15,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_enemy_punch2_main",
+                            "name": "Tangan Kiri Musuh",
+                            "bone": "LeftHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.05,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch3": {
+                    "damage": 22,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.33,
+                    "activeEndPct": 0.49,
+                    "hitboxes": [
+                        {
+                            "id": "hb_enemy_punch3_main",
+                            "name": "Hitbox Tangan Kiri",
+                            "bone": "LeftHand",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "idle": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "walk": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "run": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "hit1": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "hit2": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                }
+            }
+        }
+    }
+}

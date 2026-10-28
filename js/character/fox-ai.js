@@ -281,11 +281,23 @@ class FoxAIAgent {
     // ==========================================
     // HEALTH, DAMAGE, & KNOCKBACK
     // ==========================================
-    takeDamage(amount, attackerPos = null) {
+    takeDamage(amount, attackerPos = null, hitWorldPos = null, isCritical = false) {
         if (this.isDead) return;
-        this.health = Math.max(0, this.health - amount);
+        const dmgVal = Math.max(1, Math.round(Number(amount) || 0));
+        this.health = Math.max(0, this.health - dmgVal);
         if (this.fox) this.fox.health = this.health;
 
+        // Tampilkan Floating Damage Text tepat di area tubuh enemy yang terkena serangan dari Player
+        if (typeof CombatHUD !== 'undefined' && CombatHUD && typeof CombatHUD.spawnFloatingDamage === 'function') {
+            const scaleM = (this.fox && this.fox.scaleMultiplier) || 1.0;
+            const spawnPos = hitWorldPos
+                ? hitWorldPos
+                : (this.root ? new THREE.Vector3(this.root.position.x, this.root.position.y + 1.25 * scaleM, this.root.position.z) : null);
+            if (spawnPos) {
+                CombatHUD.spawnFloatingDamage(spawnPos, dmgVal, isCritical || dmgVal >= 35);
+            }
+        }
+        
         if (this.health <= 0) {
             this.die(attackerPos);
             return;
@@ -485,7 +497,21 @@ class FoxAIAgent {
                 radius: (rData.radiusMax || 1.8) * 1.25
             });
         }
-        if (Array.isArray(window.importedObjectsList)) {
+        if (window.PandoraGLBCollision) {
+            const probeEnd = new THREE.Vector3(
+                myPos.x + desiredDir.x * 2.2,
+                myPos.y,
+                myPos.z + desiredDir.z * 2.2
+            );
+            const hitGlb = window.PandoraGLBCollision.raycastWalkwayObstacle(myPos, probeEnd, 0.36);
+            if (hitGlb) {
+                obstacles.push({
+                    x: hitGlb.x,
+                    z: hitGlb.z,
+                    radius: 0.65
+                });
+            }
+        } else if (Array.isArray(window.importedObjectsList)) {
             for (let i = 0; i < window.importedObjectsList.length; i++) {
                 const item = window.importedObjectsList[i];
                 if (!item || !item.root || !item.root.visible || item.hasCollision === false) continue;
@@ -582,10 +608,15 @@ class FoxAIAgent {
         if (isPlayerDead) {
             this.targetSpeed = 0;
             this.currentSpeed = 0;
-            this.isPunching = false;
-            if (this.model && typeof this.model.cancelPunch === 'function') {
-                this.model.cancelPunch();
+            // Biarkan gerakan / animasi serangan terakhir dieksekusi sampai selesai dulu, jangan langsung dipotong ke IDLE
+            if (this.model && this.model.isPunching) {
+                this.model.strikeProcessed = true;
+                this.isPunching = true;
+                this.state = 'COMBAT_PUNCH';
+                return;
             }
+            this.isPunching = false;
+            this._wasPunching = false;
             this.state = 'IDLE';
             return;
         }
@@ -1158,6 +1189,23 @@ class FoxAIAgent {
             }
         }
 
+        // Tabrakan fisik AI Enemy terhadap mesh segitiga Asset 3D Import (GLB / GLTF)
+        let glbSupportH = -999;
+        if (window.PandoraGLBCollision && Array.isArray(window.importedObjectsList) && window.importedObjectsList.length > 0) {
+            const glbRes = window.PandoraGLBCollision.resolveCharacterCollision(
+                this.root.position,
+                1.55,
+                0.70,
+                this.velocityY || 0,
+                null,
+                Math.abs(this.currentSpeed || 0) > 0.05,
+                dt
+            );
+            if (glbRes && glbRes.supportY > glbSupportH) {
+                glbSupportH = glbRes.supportY;
+            }
+        }
+
         // Tabrakan fisik antar sesama AI Enemy (Anti-Tembus & Anti-Tumpuk)
         if (Array.isArray(window.spawnedFoxesList) && window.spawnedFoxesList.length > 1) {
             const minEnemyDist = 0.95;
@@ -1198,7 +1246,7 @@ class FoxAIAgent {
             }
         }
 
-        const effectiveH = groundH;
+        const effectiveH = Math.max(groundH, glbSupportH);
         this.root.position.y += this.velocityY * dt;
 
         if (this.root.position.y <= effectiveH) {
@@ -1511,7 +1559,13 @@ class FoxAIManagerClass {
         }
 
         // 2. Cek objek 3D impor (window.importedObjectsList)
-        if (Array.isArray(window.importedObjectsList)) {
+        if (window.PandoraGLBCollision) {
+            const hitGlb = window.PandoraGLBCollision.raycastWalkwayObstacle(posA, posB, 0.35);
+            if (hitGlb && hitGlb.proj < minProj) {
+                minProj = hitGlb.proj;
+                closest = hitGlb;
+            }
+        } else if (Array.isArray(window.importedObjectsList)) {
             for (let i = 0; i < window.importedObjectsList.length; i++) {
                 const item = window.importedObjectsList[i];
                 if (!item || !item.root || !item.root.visible || item.hasCollision === false) continue;

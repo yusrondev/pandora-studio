@@ -481,6 +481,9 @@
         }
 
         dummyHitTriggeredInCycle = false;
+        if (HS && typeof HS.resetAttackStrikeTracker === 'function') {
+            HS.resetAttackStrikeTracker(attacker);
+        }
     }
 
     function playIdleOnDummy() {
@@ -1269,6 +1272,9 @@
                     if (isLooping) {
                         currentClipTime = currentClipTime % currentClipDuration;
                         dummyHitTriggeredInCycle = false;
+                        if (HS && typeof HS.resetAttackStrikeTracker === 'function') {
+                            HS.resetAttackStrikeTracker(attacker);
+                        }
                     } else {
                         currentClipTime = currentClipDuration;
                         isPlaying = false;
@@ -1503,14 +1509,23 @@
             }
         }
 
+        const attacker = getAttackerInstance();
+        const multiHit = (HS && typeof HS.evaluateMultiHitStrike === 'function' && attacker)
+            ? HS.evaluateMultiHitStrike(attacker, 'studio_dummy', evalRes, currentClipTime)
+            : { triggeredNewHit: evalRes.hit && !dummyHitTriggeredInCycle, hitCount: evalRes.hit ? 1 : 0 };
+
         if (banner && icon && text) {
             if (evalRes.hit && evalRes.bestHit) {
                 banner.classList.add('status-hit');
                 icon.innerText = '💥';
                 const hbName = evalRes.bestHit.hitbox.name || evalRes.bestHit.hitbox.bone;
-                text.innerText = `HIT KENA! (${hbName} ➔ ${evalRes.bestHit.hitPart} Lawan | -${evalRes.damage} HP)`;
+                const hitCountNum = Math.max(1, multiHit.hitCount || 1);
+                const totalDmg = (evalRes.damage || 25) * hitCountNum;
+                text.innerText = hitCountNum > 1
+                    ? `HIT #${hitCountNum} KENA! (${hitCountNum}x Combo Hit | ${hbName} ➔ ${evalRes.bestHit.hitPart} | Total -${totalDmg} HP)`
+                    : `HIT KENA! (${hbName} ➔ ${evalRes.bestHit.hitPart} Lawan | -${evalRes.damage} HP)`;
 
-                if (!dummyHitTriggeredInCycle) {
+                if (multiHit.triggeredNewHit) {
                     dummyHitTriggeredInCycle = true;
                     triggerDummyHitReaction();
                     if (impactRingMesh) {

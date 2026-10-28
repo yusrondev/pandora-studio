@@ -960,36 +960,42 @@ body.play-mode-active #btn-mobile-exit-demo {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.5px;
-    width: 44px; /* Ukuran lebih pendek & proporsional untuk enemy non-boss */
+    gap: 5px;
+    width: 66px;
     transform-origin: center bottom;
-    will-change: transform;
     user-select: none;
     pointer-events: none;
     background: transparent;
     box-shadow: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
 }
 
 .enemy-overhead-name {
-    font-size: 8px;
-    font-weight: 600;
-    color: #e2e8f0;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
-    letter-spacing: 0.2px;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: #ffffff;
+    letter-spacing: 0.45px;
     white-space: nowrap;
-    background: transparent;
-    box-shadow: none;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(10, 14, 24, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
 }
 
 .enemy-overhead-track {
     position: relative;
     width: 100%;
-    height: 3.5px; /* Lebih tipis dan rapi */
-    background: rgba(15, 23, 42, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    height: 5px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(0, 0, 0, 0.75);
+    border-radius: 3px;
     overflow: hidden;
-    box-shadow: none; /* Hilangkan shadow box */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 .enemy-overhead-fill {
@@ -1004,23 +1010,25 @@ body.play-mode-active #btn-mobile-exit-demo {
 }
 
 .enemy-overhead-bar.target-locked .enemy-overhead-track {
-    border-color: #ef4444;
-    box-shadow: none; /* Hilangkan shadow box */
+    border-color: #f87171;
 }
 
 .enemy-overhead-bar.target-locked .enemy-overhead-name {
-    color: #f87171;
-    font-weight: 700;
-    box-shadow: none;
+    color: #fef08a;
+    font-weight: 800;
+    background: rgba(28, 10, 14, 0.84);
+    border-color: rgba(239, 68, 68, 0.65);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.98);
 }
 
 .enemy-overhead-bar.target-locked::after {
     content: '▼';
     position: absolute;
-    top: -11px;
-    font-size: 8.5px;
+    top: -17px;
+    font-size: 10px;
+    line-height: 1;
     color: #ef4444;
-    filter: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
     animation: pulseTargetLock 0.8s ease-in-out infinite alternate;
 }
 

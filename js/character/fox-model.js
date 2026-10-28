@@ -1412,7 +1412,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 const kbDir = new THREE.Vector3().subVectors(this.root.position, attackerPos).setY(0);
                 if (kbDir.lengthSq() > 0.001) {
                     kbDir.normalize();
-                    this.root.position.addScaledVector(kbDir, 0.22);
+                    this.root.position.addScaledVector(kbDir, 0.10);
                 }
             }
         },
@@ -1521,6 +1521,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.hasQueuedPunch = false;
             this.queuedNextAction = null;
             this.strikeProcessed = false;
+            if (typeof window !== 'undefined' && window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.resetAttackStrikeTracker === 'function') {
+                window.PandoraHitboxSystem.resetAttackStrikeTracker(this);
+            }
             this.activeKickKey = 'flyingKick';
             this.kickTimer = 0.0;
             this.flyingKickPrevTime = 0.0;
@@ -1572,6 +1575,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.isKicking = true;
             this.isFlyingKick = false;
             this.strikeProcessed = false;
+            if (typeof window !== 'undefined' && window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.resetAttackStrikeTracker === 'function') {
+                window.PandoraHitboxSystem.resetAttackStrikeTracker(this);
+            }
             this.activeKickKey = kickKey;
             this.kickComboIndex = comboKeys.indexOf(kickKey);
             this.kickTimer = 0.0;
@@ -1729,6 +1735,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.hasQueuedKick = false;
             this.queuedNextAction = null;
             this.strikeProcessed = false;
+            if (typeof window !== 'undefined' && window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.resetAttackStrikeTracker === 'function') {
+                window.PandoraHitboxSystem.resetAttackStrikeTracker(this);
+            }
             this.activePunchKey = 'flyingPunch';
             this.punchTimer = 0.0;
             this.flyingPunchPrevTime = 0.0;
@@ -1780,6 +1789,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.isPunching = true;
             this.isFlyingPunch = false;
             this.strikeProcessed = false;
+            if (typeof window !== 'undefined' && window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.resetAttackStrikeTracker === 'function') {
+                window.PandoraHitboxSystem.resetAttackStrikeTracker(this);
+            }
             this.activePunchKey = punchKey;
             this.punchComboIndex = comboKeys.indexOf(punchKey);
             this.punchTimer = 0.0;
@@ -1984,19 +1996,20 @@ function createWolfCharacterModel(speciesKey = 'red') {
          * atau kaki mencapai ekstensi penuh (mendarat di tubuh target), BUKAN di awal ancang-ancang.
          */
         _checkMeleeStrike() {
-            if (this.strikeProcessed) return;
-
             const attackKey = this.isPunching ? this.activePunchKey : (this.isKicking ? this.activeKickKey : null);
             if (!attackKey) return;
 
-            // Utamakan deteksi 3D Bone Hitbox nyata dari PandoraHitboxSystem (sesuai konfigurasi Hit Tool)
+            // Utamakan deteksi 3D Bone Hitbox nyata dari PandoraHitboxSystem (mendukung multi-hit / 2x pukulan dalam 1 animasi!)
             if (typeof window !== 'undefined' && window.PandoraHitboxSystem) {
-                const animCfg = window.PandoraHitboxSystem.getAnimationConfig('hero', attackKey);
+                const cKey = this.charKey || this.speciesKey || 'hero';
+                const animCfg = window.PandoraHitboxSystem.getAnimationConfig(cKey, attackKey);
                 if (animCfg && Array.isArray(animCfg.hitboxes) && animCfg.hitboxes.some(h => h.enabled !== false)) {
                     window.PandoraHitboxSystem.checkHeroMeleeStrike(this);
                     return;
                 }
             }
+
+            if (this.strikeProcessed) return;
 
             const STRIKE_CONFIGS = {
                 // Pukulan: tangan lurus/mendarat di tengah siklus animasi
@@ -2647,7 +2660,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.mixer.update(dt);
 
             // Evaluasi ulang tabrakan 3D Bone Hitbox tepat setelah pose tulang diperbarui oleh mixer
-            if ((this.isPunching || this.isKicking) && !this.strikeProcessed) {
+            if (this.isPunching || this.isKicking) {
                 this._checkMeleeStrike();
             }
             if (typeof window !== 'undefined' && window.PandoraHitboxSystem && typeof scene !== 'undefined') {
@@ -3300,6 +3313,9 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
         _startPunch(punchKey) {
             this.isPunching = true;
             this.strikeProcessed = false;
+            if (typeof window !== 'undefined' && window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.resetAttackStrikeTracker === 'function') {
+                window.PandoraHitboxSystem.resetAttackStrikeTracker(this);
+            }
             this.activePunchKey = punchKey;
             this.punchTimer = 0.0;
 
@@ -3381,18 +3397,18 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
             } else if (this.isPunching) {
                 this.punchTimer += dt;
 
-                // Melee strike impact window: cek apakah Hitbox 3D tulang tangan enemy mengenai Hurtbox player
-                if (!this.strikeProcessed) {
-                    if (typeof window !== 'undefined' && window.PandoraHitboxSystem) {
-                        const pKey = this.activePunchKey || 'punch1';
-                        const cKey = this.charKey || 'enemy-foxtree';
-                        const animCfg = window.PandoraHitboxSystem.getAnimationConfig(cKey, pKey);
-                        if (animCfg && Array.isArray(animCfg.hitboxes) && animCfg.hitboxes.some(h => h.enabled !== false)) {
-                            window.PandoraHitboxSystem.checkEnemyMeleeStrike(this);
-                        }
+                // Melee strike impact window: cek apakah Hitbox 3D tulang tangan enemy mengenai Hurtbox player (mendukung multi-hit!)
+                let usedBoneHitbox = false;
+                if (typeof window !== 'undefined' && window.PandoraHitboxSystem) {
+                    const pKey = this.activePunchKey || 'punch1';
+                    const cKey = this.charKey || 'enemy-foxtree';
+                    const animCfg = window.PandoraHitboxSystem.getAnimationConfig(cKey, pKey);
+                    if (animCfg && Array.isArray(animCfg.hitboxes) && animCfg.hitboxes.some(h => h.enabled !== false)) {
+                        usedBoneHitbox = true;
+                        window.PandoraHitboxSystem.checkEnemyMeleeStrike(this);
                     }
                 }
-                if (!this.strikeProcessed) {
+                if (!usedBoneHitbox && !this.strikeProcessed) {
                     const pKey = this.activePunchKey || 'punch1';
                     // Konfigurasi pukulan presisi fisik: kepalan tangan 3D harus benar-benar menyentuh tubuh lawan
                     // (reach: 1.25m - 1.30m setara dengan Hero Red agar tidak ada phantom hit / kena angin)

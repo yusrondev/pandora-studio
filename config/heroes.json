@@ -1,6 +1,6 @@
 {
     "success": true,
-    "updatedAt": "2026-10-28T15:44:17+00:00",
+    "updatedAt": "2026-10-28T17:22:10+00:00",
     "general": {
         "basePath": "hero\/general\/",
         "files": [
@@ -115,6 +115,70 @@
             "extraClips": []
         },
         {
+            "id": "jax",
+            "folder": "jax",
+            "spawnerKey": "jax",
+            "hitToolKey": "jax",
+            "name": "Jax",
+            "badge": "⚔️",
+            "basePath": "hero\/jax\/",
+            "baseScale": 1.85,
+            "yOffset": 0,
+            "files": [
+                "combat\/punch\/punch1.fbx",
+                "idle.fbx"
+            ],
+            "slots": {
+                "idle": "idle.fbx",
+                "punch1": "combat\/punch\/punch1.fbx"
+            },
+            "extraClips": []
+        },
+        {
+            "id": "mozai",
+            "folder": "mozai",
+            "spawnerKey": "mozai",
+            "hitToolKey": "mozai",
+            "name": "Mozai",
+            "badge": "⚔️",
+            "basePath": "hero\/mozai\/",
+            "baseScale": 1.85,
+            "yOffset": 0,
+            "files": [
+                "idle.fbx"
+            ],
+            "slots": {
+                "idle": "idle.fbx"
+            },
+            "extraClips": []
+        },
+        {
+            "id": "noxis",
+            "folder": "noxis",
+            "spawnerKey": "noxis",
+            "hitToolKey": "noxis",
+            "name": "Noxis",
+            "badge": "⚔️",
+            "basePath": "hero\/noxis\/",
+            "baseScale": 1.85,
+            "yOffset": 0,
+            "files": [
+                "combat\/punch\/punch1.fbx",
+                "combat\/punch\/punch2.fbx",
+                "combat\/punch\/punch3.fbx",
+                "idle.fbx",
+                "run.fbx"
+            ],
+            "slots": {
+                "idle": "idle.fbx",
+                "run": "run.fbx",
+                "punch1": "combat\/punch\/punch1.fbx",
+                "punch2": "combat\/punch\/punch2.fbx",
+                "punch3": "combat\/punch\/punch3.fbx"
+            },
+            "extraClips": []
+        },
+        {
             "id": "taurus",
             "folder": "taurus",
             "spawnerKey": "taurus",
@@ -125,10 +189,12 @@
             "baseScale": 1.85,
             "yOffset": 0,
             "files": [
+                "combat\/punch\/punch1.fbx",
                 "idle.fbx"
             ],
             "slots": {
-                "idle": "idle.fbx"
+                "idle": "idle.fbx",
+                "punch1": "combat\/punch\/punch1.fbx"
             },
             "extraClips": []
         }

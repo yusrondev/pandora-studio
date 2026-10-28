@@ -383,9 +383,19 @@ const CombatHUD = {
             const enemyId = fox.id || ('fox_' + i);
             activeIds.add(enemyId);
 
-            // Ambil posisi kepala (world Y + ~2.1m)
+            // Ambil posisi tepat di atas kepala musuh (mengikuti tulang Head + margin proporsional, atau fallback 1.24m)
+            const scaleM = fox.scaleMultiplier || 1.0;
             const headPos = fox.root.position.clone();
-            headPos.y += 2.05 * (fox.scaleMultiplier || 1.0);
+            const headBone = (window.PandoraHitboxSystem && fox.model)
+                ? window.PandoraHitboxSystem.resolveBone(fox.model, 'Head')
+                : null;
+            if (headBone) {
+                headBone.updateWorldMatrix(true, false);
+                headBone.getWorldPosition(headPos);
+                headPos.y = Math.max(fox.root.position.y + 0.95 * scaleM, headPos.y + 0.36 * scaleM);
+            } else {
+                headPos.y += 1.32 * scaleM;
+            }
 
             // Jarak ke kamera
             const distCam = camera.position.distanceTo(headPos);
@@ -423,8 +433,10 @@ const CombatHUD = {
             }
 
             barEl.style.display = 'flex';
-            // GPU-accelerated transform: translate3d untuk pergerakan 100% mulus tanpa getar
-            barEl.style.transform = `translate3d(${pxX.toFixed(1)}px, ${pxY.toFixed(1)}px, 0) translate(-50%, -100%)`;
+            // Gunakan koordinat piksel bulat (integer) tanpa translate3d sub-pixel agar teks nama 100% tajam (HD) dan tidak blur
+            barEl.style.left = `${Math.round(pxX)}px`;
+            barEl.style.top = `${Math.round(pxY)}px`;
+            barEl.style.transform = 'translate(-50%, -100%)';
 
             const nameEl = barEl.querySelector('.enemy-overhead-name');
             if (nameEl && nameEl.innerText !== (fox.name || 'FoxTree')) {

@@ -545,23 +545,22 @@ function setupSpawnerCardGrid(gridId, selectId) {
     }
     grid.dataset.gridInitialized = 'true';
 
-    const cards = grid.querySelectorAll('.spawner-card');
-
-    cards.forEach(card => {
-        card.addEventListener('click', (e) => {
-            e.preventDefault();
-            const val = card.getAttribute('data-value');
-            if (select.value === val && val !== 'none') {
-                select.value = 'none';
-            } else {
-                select.value = val;
-            }
-            select.dispatchEvent(new Event('change'));
-            syncCards();
-            if (typeof updateActiveModeHUD === 'function') {
-                updateActiveModeHUD();
-            }
-        });
+    // Gunakan event delegation agar kartu spawner yang di-generate secara dinamis (dari hero/*) langsung berfungsi
+    grid.addEventListener('click', (e) => {
+        const card = e.target.closest('.spawner-card');
+        if (!card || !grid.contains(card)) return;
+        e.preventDefault();
+        const val = card.getAttribute('data-value');
+        if (select.value === val && val !== 'none') {
+            select.value = 'none';
+        } else {
+            select.value = val;
+        }
+        select.dispatchEvent(new Event('change'));
+        syncCards();
+        if (typeof updateActiveModeHUD === 'function') {
+            updateActiveModeHUD();
+        }
     });
 
     select.addEventListener('change', syncCards);

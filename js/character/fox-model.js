@@ -1121,11 +1121,16 @@ function createWolfCharacterModel(speciesKey = 'red') {
         return g;
     };
 
+    const normalizedHeroCharKey = (!speciesKey || speciesKey === 'red' || speciesKey === 'hero')
+        ? 'hero'
+        : ((speciesKey === 'foxtree' || speciesKey === 'enemy-foxtree') ? 'enemy-foxtree' : speciesKey);
+
     const characterInstance = {
         root: foxRoot,
         meshContainer: meshContainer,
         modelMesh: null,
         speciesKey: speciesKey,
+        charKey: normalizedHeroCharKey,
         baseScale: baseScale,
         mixer: null,
         actions: {},
@@ -2731,13 +2736,16 @@ function createWolfCharacterModel(speciesKey = 'red') {
         }
     };
 
-    // If assets already loaded, setup character immediately
-    if (window.HeroAssetManager.isLoaded) {
-        window.HeroAssetManager.setupInstance(characterInstance);
-    } else {
-        // Queue to attach when loading finishes
-        window.HeroAssetManager.instancesPending.push(characterInstance);
-        window.HeroAssetManager.load();
+    // Pilih AssetManager dinamis sesuai folder hero/<speciesKey>/ dari PandoraHeroRegistry
+    const targetAssetMgr = (window.PandoraHeroRegistry && typeof window.PandoraHeroRegistry.getAssetManager === 'function')
+        ? window.PandoraHeroRegistry.getAssetManager(speciesKey || 'red')
+        : window.HeroAssetManager;
+
+    if (targetAssetMgr && targetAssetMgr.isLoaded) {
+        targetAssetMgr.setupInstance(characterInstance);
+    } else if (targetAssetMgr) {
+        targetAssetMgr.instancesPending.push(characterInstance);
+        targetAssetMgr.load();
     }
 
     return characterInstance;
@@ -3067,13 +3075,19 @@ window.EnemyFoxTreeAssetManager = {
 /**
  * Factory function: creates a new Enemy FoxTree instance
  */
-function createEnemyFoxTreeModel() {
+function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
+    const cleanSpecies = (speciesKey && speciesKey !== 'none') ? String(speciesKey).trim() : 'enemy-foxtree';
+    const normCharKey = (cleanSpecies === 'foxtree' || cleanSpecies === 'enemy-foxtree')
+        ? 'enemy-foxtree'
+        : (cleanSpecies === 'red' || cleanSpecies === 'hero' ? 'hero' : cleanSpecies);
+
     const enemyRoot = new THREE.Group();
-    enemyRoot.name = 'EnemyFoxTreeRoot_' + Math.random().toString(36).substr(2, 7);
+    enemyRoot.name = 'EnemyCharacterRoot_' + cleanSpecies + '_' + Math.random().toString(36).substr(2, 7);
 
     const baseScale = ENEMY_FOXTREE_CONFIG.baseScale;
     enemyRoot.scale.set(baseScale, baseScale, baseScale);
-    enemyRoot.userData.speciesKey = 'foxtree';
+    enemyRoot.userData.speciesKey = cleanSpecies;
+    enemyRoot.userData.charKey = normCharKey;
     enemyRoot.userData.isEnemyCharacter = true;
     enemyRoot.userData.isFoxTree = true;
 
@@ -3090,6 +3104,8 @@ function createEnemyFoxTreeModel() {
     const enemyInstance = {
         root: enemyRoot,
         meshContainer: meshContainer,
+        speciesKey: cleanSpecies,
+        charKey: normCharKey,
         bodyTiltGroup: dummyBody,
         neckJoint: dummyJoint(),
         headJoint: dummyJoint(),
@@ -3106,8 +3122,11 @@ function createEnemyFoxTreeModel() {
         modelMesh: null,
         mixer: null,
         actions: {},
-        currentWeights: { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 },
-        targetWeights: { idle: 1.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 },
+        currentWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 },
+        targetWeights: { idle: 1.0, idle2: 0.0, idle3: 0.0, walk: 0.0, run: 0.0, punch1: 0.0, punch2: 0.0, punch3: 0.0, hit1: 0.0, hit2: 0.0 },
+        idleTimer: 0.0,
+        activeIdleKey: null,
+        idleCycleTimer: 0.0,
         baseScale: baseScale,
         isEnemy: true,
 
@@ -3366,7 +3385,8 @@ function createEnemyFoxTreeModel() {
                 if (!this.strikeProcessed) {
                     if (typeof window !== 'undefined' && window.PandoraHitboxSystem) {
                         const pKey = this.activePunchKey || 'punch1';
-                        const animCfg = window.PandoraHitboxSystem.getAnimationConfig('enemy-foxtree', pKey);
+                        const cKey = this.charKey || 'enemy-foxtree';
+                        const animCfg = window.PandoraHitboxSystem.getAnimationConfig(cKey, pKey);
                         if (animCfg && Array.isArray(animCfg.hitboxes) && animCfg.hitboxes.some(h => h.enabled !== false)) {
                             window.PandoraHitboxSystem.checkEnemyMeleeStrike(this);
                         }
@@ -3467,25 +3487,65 @@ function createEnemyFoxTreeModel() {
                 } else {
                     this.targetWeights.walk = 0.0;
                     this.targetWeights.run = 0.0;
-                    this.targetWeights.idle = 1.0;
-                    if (this.actions.idle && !this.actions.idle.isRunning()) this.actions.idle.play();
+                    this.idleTimer = (this.idleTimer || 0.0) + dt;
+                    if (this.idleTimer >= 4.0 && (this.actions.idle2 || this.actions.idle3)) {
+                        if (!this.activeIdleKey) {
+                            const choices = ['idle'];
+                            if (this.actions.idle2) choices.push('idle2');
+                            if (this.actions.idle3) choices.push('idle3');
+                            this.activeIdleKey = choices[Math.floor(Math.random() * choices.length)];
+                            this.idleCycleTimer = 0.0;
+                            if (this.actions[this.activeIdleKey]) {
+                                this.actions[this.activeIdleKey].reset().play();
+                            }
+                        } else {
+                            this.idleCycleTimer = (this.idleCycleTimer || 0.0) + dt;
+                            const act = this.actions[this.activeIdleKey];
+                            const clipDur = (act && act.getClip && act.getClip()) ? act.getClip().duration : 3.5;
+                            if (this.idleCycleTimer >= clipDur - 0.15) {
+                                this.activeIdleKey = null;
+                                this.idleTimer = 1.5;
+                            }
+                        }
+                        const curIdle = this.activeIdleKey || 'idle';
+                        this.targetWeights.idle = (curIdle === 'idle') ? 1.0 : 0.0;
+                        this.targetWeights.idle2 = (curIdle === 'idle2') ? 1.0 : 0.0;
+                        this.targetWeights.idle3 = (curIdle === 'idle3') ? 1.0 : 0.0;
+                    } else {
+                        this.activeIdleKey = null;
+                        this.targetWeights.idle = 1.0;
+                        this.targetWeights.idle2 = 0.0;
+                        this.targetWeights.idle3 = 0.0;
+                        if (this.actions.idle && !this.actions.idle.isRunning()) this.actions.idle.play();
+                    }
+                }
+                if (moveSpeed > 0.25) {
+                    this.idleTimer = 0.0;
+                    this.activeIdleKey = null;
+                    this.targetWeights.idle2 = 0.0;
+                    this.targetWeights.idle3 = 0.0;
                 }
                 this.targetWeights.punch1 = 0.0;
                 this.targetWeights.punch2 = 0.0;
                 this.targetWeights.punch3 = 0.0;
                 this.targetWeights.hit1 = 0.0;
                 this.targetWeights.hit2 = 0.0;
+            } else {
+                this.idleTimer = 0.0;
+                this.activeIdleKey = null;
+                this.targetWeights.idle2 = 0.0;
+                this.targetWeights.idle3 = 0.0;
             }
 
             // Safety guard: jika total bobot locomotion 0, pertahankan idle agar tidak pernah kolaps ke bind-pose (T-pose)
-            const totalLocoWeight = (this.targetWeights.walk || 0) + (this.targetWeights.run || 0) + (this.targetWeights.punch1 || 0) + (this.targetWeights.punch2 || 0) + (this.targetWeights.punch3 || 0) + (this.targetWeights.hit1 || 0) + (this.targetWeights.hit2 || 0);
+            const totalLocoWeight = (this.targetWeights.idle2 || 0) + (this.targetWeights.idle3 || 0) + (this.targetWeights.walk || 0) + (this.targetWeights.run || 0) + (this.targetWeights.punch1 || 0) + (this.targetWeights.punch2 || 0) + (this.targetWeights.punch3 || 0) + (this.targetWeights.hit1 || 0) + (this.targetWeights.hit2 || 0);
             if (totalLocoWeight <= 0.001) {
                 this.targetWeights.idle = 1.0;
                 if (this.actions.idle && !this.actions.idle.isRunning()) this.actions.idle.play();
             }
 
             const blendSpeed = this.isTakingHit ? 35.0 : 10.0;
-            const keys = ['idle', 'walk', 'run', 'punch1', 'punch2', 'punch3', 'hit1', 'hit2'];
+            const keys = ['idle', 'idle2', 'idle3', 'walk', 'run', 'punch1', 'punch2', 'punch3', 'hit1', 'hit2'];
             for (let i = 0; i < keys.length; i++) {
                 const k = keys[i];
                 const targetW = this.targetWeights[k] || 0.0;
@@ -3533,17 +3593,568 @@ function createEnemyFoxTreeModel() {
         }
     };
 
-    if (window.EnemyFoxTreeAssetManager.isLoaded) {
-        window.EnemyFoxTreeAssetManager.setupInstance(enemyInstance);
-    } else {
-        window.EnemyFoxTreeAssetManager.instancesPending.push(enemyInstance);
-        window.EnemyFoxTreeAssetManager.load();
+    const targetAssetMgr = (window.PandoraHeroRegistry && typeof window.PandoraHeroRegistry.getAssetManager === 'function')
+        ? window.PandoraHeroRegistry.getAssetManager(cleanSpecies)
+        : window.EnemyFoxTreeAssetManager;
+
+    if (targetAssetMgr && targetAssetMgr.isLoaded) {
+        targetAssetMgr.setupInstance(enemyInstance);
+    } else if (targetAssetMgr) {
+        targetAssetMgr.instancesPending.push(enemyInstance);
+        targetAssetMgr.load();
     }
 
     return enemyInstance;
 }
 
 window.createEnemyFoxTreeModel = createEnemyFoxTreeModel;
+window.createEnemyCharacterModel = createEnemyFoxTreeModel;
+
+/* ===================================================================
+   PANDORA DYNAMIC HERO & CHARACTER FOLDER REGISTRY (hero/<folder>/*)
+   Otomatis menyinkronkan setiap folder baru di dalam hero/ (melalui api/heroes.php
+   atau config/heroes.json) dan membangun AssetManager dinamis untuk setiap karakter
+   tanpa perlu menambah kode manual.
+   =================================================================== */
+(function () {
+    function getRootPrefix() {
+        if (typeof document !== 'undefined') {
+            const scripts = document.getElementsByTagName('script');
+            for (let i = 0; i < scripts.length; i++) {
+                const src = scripts[i].src;
+                if (src && src.includes('fox-model.js')) {
+                    return src.replace(/js\/character\/fox-model\.js(\?.*)?$/, '');
+                }
+            }
+        }
+        return '';
+    }
+
+    function createDynamicHeroFolderAssetManager(meta) {
+        const mgr = {
+            id: meta.id,
+            meta: meta,
+            isLoaded: false,
+            isLoading: false,
+            loadPromise: null,
+            baseModel: null,
+            clips: {
+                idle: null,
+                idle2: null,
+                idle3: null,
+                walk: null,
+                backward: null,
+                run: null,
+                jump: null,
+                jumpRun: null,
+                jumpNormal: null,
+                kick1: null,
+                kick2: null,
+                kick3: null,
+                flyingKick: null,
+                punch1: null,
+                punch2: null,
+                punch3: null,
+                flyingPunch: null,
+                block: null
+            },
+            instancesPending: [],
+            kick3RootMotion: null,
+            flyingKickRootMotion: null,
+            flyingPunchRootMotion: null,
+
+            sampleKick3Z(t) {
+                const rm = this.kick3RootMotion || (window.HeroAssetManager && window.HeroAssetManager.kick3RootMotion);
+                if (!rm) return 0;
+                const { times, z, totalZ } = rm;
+                if (t <= times[0]) return 0;
+                if (t >= times[times.length - 1]) return totalZ;
+                let i = 0;
+                while (i < times.length - 1 && times[i + 1] < t) i++;
+                const alpha = (t - times[i]) / (times[i + 1] - times[i]);
+                return z[i] + alpha * (z[i + 1] - z[i]);
+            },
+
+            sampleFlyingKickZ(t) {
+                const rm = this.flyingKickRootMotion || (window.HeroAssetManager && window.HeroAssetManager.flyingKickRootMotion);
+                if (!rm) return 0;
+                const { times, z, totalZ } = rm;
+                if (t <= times[0]) return 0;
+                if (t >= times[times.length - 1]) return totalZ;
+                let i = 0;
+                while (i < times.length - 1 && times[i + 1] < t) i++;
+                const alpha = (t - times[i]) / (times[i + 1] - times[i]);
+                return z[i] + alpha * (z[i + 1] - z[i]);
+            },
+
+            sampleFlyingPunchZ(t) {
+                const rm = this.flyingPunchRootMotion || (window.HeroAssetManager && window.HeroAssetManager.flyingPunchRootMotion);
+                if (!rm) return 0;
+                const { times, z, totalZ } = rm;
+                if (t <= times[0]) return 0;
+                if (t >= times[times.length - 1]) return totalZ;
+                let i = 0;
+                while (i < times.length - 1 && times[i + 1] < t) i++;
+                const alpha = (t - times[i]) / (times[i + 1] - times[i]);
+                return z[i] + alpha * (z[i + 1] - z[i]);
+            },
+
+            load() {
+                if (this.loadPromise) return this.loadPromise;
+                this.isLoading = true;
+
+                this.loadPromise = new Promise(async (resolve, reject) => {
+                    try {
+                        if (typeof THREE.FBXLoader === 'undefined') {
+                            throw new Error('THREE.FBXLoader is not available.');
+                        }
+
+                        // Pastikan manifest dari api/heroes.php sudah sinkron agar daftar file .fbx akurat (0 error 404)
+                        if (window.PandoraHeroRegistry && !window.PandoraHeroRegistry.isSynced) {
+                            try {
+                                await window.PandoraHeroRegistry.sync();
+                            } catch (eSync) {}
+                        }
+
+                        const updatedMeta = (window.PandoraHeroRegistry && window.PandoraHeroRegistry.getCharacterMeta(this.id)) || this.meta;
+                        this.meta = updatedMeta;
+
+                        const loader = new THREE.FBXLoader();
+                        const loadFBX = (url) => (window.PandoraAssetCache ? window.PandoraAssetCache.loadFBX(url, loader) : new Promise((res, rej) => loader.load(url, res, undefined, rej)));
+
+                        const prefix = getRootPrefix();
+                        const basePath = prefix + (this.meta.basePath || ('hero/' + this.id + '/'));
+                        const slots = this.meta.slots || {};
+                        const extraClips = this.meta.extraClips || {};
+
+                        const idleFile = slots.idle || 'idle.fbx';
+                        console.log('[PandoraHeroRegistry] Loading character "' + this.id + '" from ' + basePath + idleFile);
+
+                        // 1. Muat model utama + animasi idle dasar
+                        const idleObj = await loadFBX(basePath + idleFile);
+                        idleObj.traverse(child => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                                child.frustumCulled = false;
+                                if (child.material) {
+                                    const makeMatte = (m) => {
+                                        const newMat = new THREE.MeshLambertMaterial({
+                                            map: m.map || null,
+                                            color: m.color ? m.color : new THREE.Color(0xffffff),
+                                            emissive: new THREE.Color(0x222222),
+                                            skinning: true
+                                        });
+                                        if (newMat.map) newMat.map.encoding = THREE.LinearEncoding;
+                                        return newMat;
+                                    };
+                                    if (Array.isArray(child.material)) {
+                                        child.material = child.material.map(makeMatte);
+                                    } else {
+                                        child.material = makeMatte(child.material);
+                                    }
+                                }
+                            }
+                        });
+
+                        this.baseModel = idleObj;
+                        if (idleObj.animations && idleObj.animations.length > 0) {
+                            const idleClip = idleObj.animations[0].clone();
+                            idleClip.name = 'idle';
+                            this.clips.idle = idleClip;
+                        }
+
+                        // 2. Muat seluruh file .fbx spesifik yang ada di dalam folder karakter ini (sesuai hasil scan api/heroes.php)
+                        const slotKeys = Object.keys(slots).filter(k => k !== 'idle');
+                        for (const sKey of slotKeys) {
+                            const relFile = slots[sKey];
+                            if (!relFile) continue;
+                            try {
+                                const clipObj = await loadFBX(basePath + relFile);
+                                if (clipObj && clipObj.animations && clipObj.animations.length > 0) {
+                                    const clip = clipObj.animations[0].clone();
+                                    clip.name = sKey;
+                                    this.clips[sKey] = clip;
+                                    if (sKey === 'jump') {
+                                        this.clips.jumpRun = clip;
+                                    }
+                                }
+                            } catch (sErr) {
+                                console.warn('[PandoraHeroRegistry] Could not load ' + basePath + relFile + ':', sErr);
+                            }
+                        }
+
+                        // 2b. Muat file .fbx ekstra/kustom jika ada
+                        if (extraClips && typeof extraClips === 'object') {
+                            for (const extKey of Object.keys(extraClips)) {
+                                const relFile = extraClips[extKey];
+                                if (!relFile) continue;
+                                try {
+                                    const extObj = await loadFBX(basePath + relFile);
+                                    if (extObj && extObj.animations && extObj.animations.length > 0) {
+                                        const extClip = extObj.animations[0].clone();
+                                        extClip.name = extKey;
+                                        this.clips[extKey] = extClip;
+                                    }
+                                } catch (extErr) {}
+                            }
+                        }
+
+                        // 3. Pastikan HeroAssetManager & General AssetManagers siap untuk menyediakan fallback animasi kombat/lokomosi
+                        if (window.HeroAssetManager && !window.HeroAssetManager.isLoaded) {
+                            try {
+                                await window.HeroAssetManager.load();
+                            } catch (hErr) {}
+                        }
+
+                        const heroClips = (window.HeroAssetManager && window.HeroAssetManager.clips) ? window.HeroAssetManager.clips : {};
+                        const fallbackSlots = ['walk', 'backward', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'block'];
+                        fallbackSlots.forEach(fKey => {
+                            if (!this.clips[fKey] && heroClips[fKey]) {
+                                const cloned = heroClips[fKey].clone();
+                                cloned.name = fKey;
+                                this.clips[fKey] = cloned;
+                            }
+                        });
+
+                        this.isLoaded = true;
+                        this.isLoading = false;
+                        console.log('[PandoraHeroRegistry] Character "' + this.id + '" loaded! Available clips:', Object.keys(this.clips).filter(k => !!this.clips[k]));
+
+                        this.instancesPending.forEach(inst => this.setupInstance(inst));
+                        this.instancesPending = [];
+
+                        resolve(this);
+                    } catch (err) {
+                        console.error('[PandoraHeroRegistry] Failed to load character "' + this.id + '":', err);
+                        this.isLoading = false;
+                        reject(err);
+                    }
+                });
+
+                return this.loadPromise;
+            },
+
+            setupInstance(instance) {
+                if (!this.baseModel) return;
+
+                let modelClone;
+                if (typeof THREE.SkeletonUtils !== 'undefined') {
+                    modelClone = THREE.SkeletonUtils.clone(this.baseModel);
+                } else {
+                    modelClone = this.baseModel.clone(true);
+                }
+
+                const yOff = (this.meta && typeof this.meta.yOffset === 'number') ? this.meta.yOffset : 0.0;
+                modelClone.position.set(0, yOff, 0);
+
+                modelClone.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        child.frustumCulled = false;
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(m => m.clone());
+                            } else {
+                                child.material = child.material.clone();
+                            }
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(m => {
+                                m.roughness = 1.0;
+                                m.metalness = 0.0;
+                                if (m.shininess !== undefined) m.shininess = 0;
+                                if (m.specular) m.specular.set(0x000000);
+                                if (m.emissive) m.emissive.set(0x222222);
+                                m.transparent = false;
+                                m.opacity = 1.0;
+                            });
+                        }
+                    }
+                });
+
+                instance.meshContainer.add(modelClone);
+                instance.modelMesh = modelClone;
+
+                const mixer = new THREE.AnimationMixer(modelClone);
+                instance.mixer = mixer;
+                instance.actions = {};
+
+                // Pasang klip lokomosi & idle (LoopRepeat)
+                ['idle', 'idle2', 'idle3', 'walk', 'backward', 'run', 'block'].forEach(k => {
+                    if (this.clips[k]) {
+                        const act = mixer.clipAction(this.clips[k]);
+                        act.setEffectiveWeight(k === 'idle' ? 1.0 : 0.0);
+                        act.play();
+                        instance.actions[k] = act;
+                    }
+                });
+
+                // Pasang klip aksi kombat & lompat (LoopOnce)
+                ['jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'hit1', 'hit2', 'dead1', 'dead2'].forEach(k => {
+                    if (this.clips[k]) {
+                        const act = mixer.clipAction(this.clips[k]);
+                        act.setLoop(THREE.LoopOnce, 1);
+                        act.clampWhenFinished = true;
+                        act.setEffectiveWeight(0.0);
+                        act.play();
+                        instance.actions[k] = act;
+                    }
+                });
+
+                // Pasang klip ekstra kustom jika ada
+                Object.keys(this.clips).forEach(k => {
+                    if (this.clips[k] && !instance.actions[k]) {
+                        const act = mixer.clipAction(this.clips[k]);
+                        act.setLoop(THREE.LoopOnce, 1);
+                        act.clampWhenFinished = true;
+                        act.setEffectiveWeight(0.0);
+                        act.play();
+                        instance.actions[k] = act;
+                    }
+                });
+
+                if (instance.actions.kick1) instance.actions.kick = instance.actions.kick1;
+                if (instance.actions.punch1) instance.actions.punch = instance.actions.punch1;
+
+                // Attach General Taking / Dead / Block jika belum ada dari folder karakter sendiri
+                if (window.GeneralTakingAssetManager) {
+                    if (window.GeneralTakingAssetManager.isLoaded) {
+                        window.GeneralTakingAssetManager.setupInstance(instance);
+                    } else {
+                        window.GeneralTakingAssetManager.instancesPending.push(instance);
+                        window.GeneralTakingAssetManager.load();
+                    }
+                }
+                if (window.GeneralDeadAssetManager) {
+                    if (window.GeneralDeadAssetManager.isLoaded) {
+                        window.GeneralDeadAssetManager.setupInstance(instance);
+                    } else {
+                        window.GeneralDeadAssetManager.instancesPending.push(instance);
+                        window.GeneralDeadAssetManager.load();
+                    }
+                }
+                if (window.GeneralBlockAssetManager) {
+                    if (window.GeneralBlockAssetManager.isLoaded) {
+                        window.GeneralBlockAssetManager.setupInstance(instance);
+                    } else {
+                        window.GeneralBlockAssetManager.instancesPending.push(instance);
+                        window.GeneralBlockAssetManager.load();
+                    }
+                }
+
+                if (mixer) {
+                    mixer.update(0.016);
+                }
+
+                instance.isLoaded = true;
+                if (typeof instance.onLoaded === 'function') {
+                    instance.onLoaded(instance);
+                }
+            }
+        };
+
+        return mgr;
+    }
+
+    const DEFAULT_CHARACTERS = [
+        {
+            id: 'red',
+            folder: 'red',
+            spawnerKey: 'red',
+            hitToolKey: 'hero',
+            name: 'Red Fox',
+            badge: '🦊',
+            basePath: 'hero/red/',
+            baseScale: 1.85,
+            yOffset: 0.0,
+            files: ['idle.fbx', 'idle2.fbx', 'idle3.fbx', 'jump-normal.fbx', 'Jump-withrun.fbx', 'combat/kick/kick1.fbx', 'combat/kick/kick2.fbx', 'combat/kick/kick3.fbx', 'combat/punch/punch1.fbx', 'combat/punch/punch2.fbx', 'combat/punch/punch3.fbx'],
+            slots: {
+                idle: 'idle.fbx',
+                idle2: 'idle2.fbx',
+                idle3: 'idle3.fbx',
+                jump: 'Jump-withrun.fbx',
+                jumpNormal: 'jump-normal.fbx',
+                kick1: 'combat/kick/kick1.fbx',
+                kick2: 'combat/kick/kick2.fbx',
+                kick3: 'combat/kick/kick3.fbx',
+                punch1: 'combat/punch/punch1.fbx',
+                punch2: 'combat/punch/punch2.fbx',
+                punch3: 'combat/punch/punch3.fbx'
+            },
+            extraClips: {}
+        },
+        {
+            id: 'enemy-foxtree',
+            folder: 'enemy-foxtree',
+            spawnerKey: 'foxtree',
+            hitToolKey: 'enemy-foxtree',
+            name: 'FoxTree',
+            badge: '👹',
+            basePath: 'hero/enemy-foxtree/',
+            baseScale: 1.85,
+            yOffset: 0.0,
+            files: ['Idle.fbx', 'combat/punch/punch1.fbx', 'combat/punch/punch2.fbx', 'combat/punch/punch3.fbx'],
+            slots: {
+                idle: 'Idle.fbx',
+                punch1: 'combat/punch/punch1.fbx',
+                punch2: 'combat/punch/punch2.fbx',
+                punch3: 'combat/punch/punch3.fbx'
+            },
+            extraClips: {}
+        },
+        {
+            id: 'tharon',
+            folder: 'tharon',
+            spawnerKey: 'tharon',
+            hitToolKey: 'tharon',
+            name: 'Tharon',
+            badge: '⚔️',
+            basePath: 'hero/tharon/',
+            baseScale: 1.85,
+            yOffset: 0.0,
+            files: ['idle.fbx', 'idle2.fbx'],
+            slots: {
+                idle: 'idle.fbx',
+                idle2: 'idle2.fbx'
+            },
+            extraClips: {}
+        }
+    ];
+
+    const PandoraHeroRegistry = {
+        characters: DEFAULT_CHARACTERS.slice(),
+        general: { basePath: 'hero/general/', files: [], slots: {} },
+        assetManagers: {},
+        isSynced: false,
+        syncPromise: null,
+        listeners: [],
+
+        onSync(callback) {
+            if (typeof callback !== 'function') return;
+            this.listeners.push(callback);
+            if (this.isSynced) {
+                try { callback(this.characters); } catch (e) {}
+            }
+        },
+
+        _notifyListeners() {
+            this.listeners.forEach(cb => {
+                try { cb(this.characters); } catch (e) {}
+            });
+        },
+
+        getCharacterMeta(key) {
+            if (!key) return this.characters[0];
+            const lower = String(key).trim().toLowerCase();
+            const found = this.characters.find(c =>
+                c.id.toLowerCase() === lower ||
+                c.folder.toLowerCase() === lower ||
+                (c.spawnerKey && c.spawnerKey.toLowerCase() === lower) ||
+                (c.hitToolKey && c.hitToolKey.toLowerCase() === lower)
+            );
+            if (found) return found;
+
+            // Jika folder baru dipanggil secara dinamis sebelum sync selesai, buat metadata otomatis
+            const dynamicMeta = {
+                id: key,
+                folder: key,
+                spawnerKey: key,
+                hitToolKey: key,
+                name: key.charAt(0).toUpperCase() + key.slice(1),
+                badge: '⚔️',
+                basePath: 'hero/' + key + '/',
+                baseScale: 1.85,
+                yOffset: 0.0,
+                files: ['idle.fbx'],
+                slots: { idle: 'idle.fbx' },
+                extraClips: {}
+            };
+            this.characters.push(dynamicMeta);
+            return dynamicMeta;
+        },
+
+        getAssetManager(key) {
+            const meta = this.getCharacterMeta(key);
+            const idLower = meta.id.toLowerCase();
+            if (idLower === 'red') {
+                return window.HeroAssetManager;
+            }
+            if (idLower === 'enemy-foxtree') {
+                return window.EnemyFoxTreeAssetManager;
+            }
+            if (!this.assetManagers[meta.id]) {
+                this.assetManagers[meta.id] = createDynamicHeroFolderAssetManager(meta);
+            } else {
+                this.assetManagers[meta.id].meta = meta;
+            }
+            return this.assetManagers[meta.id];
+        },
+
+        async sync(forceReload = false) {
+            if (this.syncPromise && !forceReload) return this.syncPromise;
+
+            this.syncPromise = (async () => {
+                const prefix = getRootPrefix();
+                let data = null;
+
+                // 1. Panggil api/heroes.php (live directory scanner)
+                try {
+                    const res = await fetch(prefix + 'api/heroes.php?t=' + Date.now(), { cache: 'no-store' });
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (json && json.success && Array.isArray(json.characters)) {
+                            data = json;
+                        }
+                    }
+                } catch (errApi) {}
+
+                // 2. Fallback ke config/heroes.json jika berjalan di static server tanpa PHP
+                if (!data) {
+                    try {
+                        const resFallback = await fetch(prefix + 'config/heroes.json?t=' + Date.now(), { cache: 'no-store' });
+                        if (resFallback.ok) {
+                            const jsonFallback = await resFallback.json();
+                            if (jsonFallback && Array.isArray(jsonFallback.characters)) {
+                                data = jsonFallback;
+                            }
+                        }
+                    } catch (errCfg) {}
+                }
+
+                if (data && Array.isArray(data.characters) && data.characters.length > 0) {
+                    this.characters = data.characters;
+                    if (data.general) this.general = data.general;
+
+                    // Pastikan setiap karakter terdaftar di PandoraHitboxSystem & memiliki AssetManager
+                    this.characters.forEach(c => {
+                        if (c.id.toLowerCase() !== 'red' && c.id.toLowerCase() !== 'enemy-foxtree') {
+                            if (!this.assetManagers[c.id]) {
+                                this.assetManagers[c.id] = createDynamicHeroFolderAssetManager(c);
+                            } else {
+                                this.assetManagers[c.id].meta = c;
+                            }
+                        }
+                        if (window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.ensureCharacterConfig === 'function') {
+                            window.PandoraHitboxSystem.ensureCharacterConfig(c.hitToolKey || c.id);
+                            window.PandoraHitboxSystem.getCharacterAnimations(c.hitToolKey || c.id);
+                        }
+                    });
+                }
+
+                this.isSynced = true;
+                this._notifyListeners();
+                return this.characters;
+            })();
+
+            return this.syncPromise;
+        }
+    };
+
+    window.PandoraHeroRegistry = PandoraHeroRegistry;
+    // Segera jalankan sinkronisasi otomatis dengan folder hero/
+    PandoraHeroRegistry.sync();
+})();
 
 // ===================================================================
 // STARTUP ASSET PRELOADER (MEMUAT SEMUA ASSET HERO RED FOX & ENEMY)

@@ -41,6 +41,7 @@
     let gizmoAnchor = null;
     let isDraggingGizmo = false;
 
+    const charInstances = {}; // key ('hero', 'enemy-foxtree', 'tharon', dll) -> character model instance
     let heroInstance = null;
     let enemyInstance = null;
 
@@ -71,15 +72,19 @@
     }
 
     function getAttackerInstance() {
-        return activeCharKey === 'hero' ? heroInstance : enemyInstance;
-    }
-
-    function getDummyInstance() {
-        return activeCharKey === 'hero' ? enemyInstance : heroInstance;
+        return charInstances[activeCharKey] || heroInstance || enemyInstance;
     }
 
     function getDummyCharKey() {
-        return activeCharKey === 'hero' ? 'enemy-foxtree' : 'hero';
+        if (activeCharKey === 'hero') {
+            return charInstances['enemy-foxtree'] ? 'enemy-foxtree' : (Object.keys(charInstances).find(k => k !== 'hero') || 'enemy-foxtree');
+        }
+        return 'hero';
+    }
+
+    function getDummyInstance() {
+        const dKey = getDummyCharKey();
+        return charInstances[dKey] || enemyInstance || heroInstance;
     }
 
     // ===================================================================
@@ -282,46 +287,123 @@
     }
 
     // ===================================================================
-    // 2. MEMUAT KARAKTER HERO & ENEMY FOXTREE
+    // 2. MEMUAT SELURUH KARAKTER DARI FOLDER hero/* SECARA DINAMIS
     // ===================================================================
-    async function loadCharacters() {
-        const statusText = document.getElementById('ht-contact-text');
-        if (statusText) statusText.innerText = 'Memuat Model 3D Hero & Enemy FoxTree...';
+    async function ensureCharacterInstanceLoaded(charMeta) {
+        const cKey = charMeta.hitToolKey || (charMeta.id === 'red' ? 'hero' : charMeta.id);
+        if (charInstances[cKey]) return charInstances[cKey];
 
-        heroInstance = window.createWolfCharacterModel('red');
-        enemyInstance = window.createEnemyFoxTreeModel();
-
-        scene.add(heroInstance.root);
-        scene.add(enemyInstance.root);
-
-        // Tunggu seluruh AssetManager selesai memuat FBX
-        const promises = [];
-        if (window.HeroAssetManager) promises.push(window.HeroAssetManager.load());
-        if (window.EnemyFoxTreeAssetManager) promises.push(window.EnemyFoxTreeAssetManager.load());
-        if (window.GeneralTakingAssetManager) promises.push(window.GeneralTakingAssetManager.load());
-        if (window.GeneralBlockAssetManager) promises.push(window.GeneralBlockAssetManager.load());
-        if (window.GeneralDeadAssetManager) promises.push(window.GeneralDeadAssetManager.load());
-        if (HS && typeof HS.loadFromServer === 'function') promises.push(HS.loadFromServer());
-
-        try {
-            await Promise.allSettled(promises);
-        } catch (e) {}
-
-        // Pastikan setupInstance terpanggil jika sudah loaded
-        if (window.HeroAssetManager && window.HeroAssetManager.isLoaded && !heroInstance.modelMesh) {
-            window.HeroAssetManager.setupInstance(heroInstance);
+        HS.ensureCharacterConfig(cKey);
+        let inst = null;
+        if (cKey === 'hero' || charMeta.id === 'red') {
+            inst = window.createWolfCharacterModel('red');
+        } else {
+            inst = window.createEnemyFoxTreeModel(charMeta.id);
         }
-        if (window.EnemyFoxTreeAssetManager && window.EnemyFoxTreeAssetManager.isLoaded && !enemyInstance.modelMesh) {
-            window.EnemyFoxTreeAssetManager.setupInstance(enemyInstance);
+        inst.root.visible = false;
+        scene.add(inst.root);
+        charInstances[cKey] = inst;
+
+        if (cKey === 'hero') heroInstance = inst;
+        if (cKey === 'enemy-foxtree') enemyInstance = inst;
+
+        const mgr = window.PandoraHeroRegistry ? window.PandoraHeroRegistry.getAssetManager(charMeta.id) : null;
+        if (mgr) {
+            await mgr.load();
+            if (mgr.isLoaded && !inst.modelMesh) mgr.setupInstance(inst);
         }
         if (window.GeneralTakingAssetManager && window.GeneralTakingAssetManager.isLoaded) {
-            window.GeneralTakingAssetManager.setupInstance(heroInstance);
-            window.GeneralTakingAssetManager.setupInstance(enemyInstance);
+            window.GeneralTakingAssetManager.setupInstance(inst);
+        }
+        if (window.GeneralBlockAssetManager && window.GeneralBlockAssetManager.isLoaded) {
+            window.GeneralBlockAssetManager.setupInstance(inst);
+        }
+        if (window.GeneralDeadAssetManager && window.GeneralDeadAssetManager.isLoaded) {
+            window.GeneralDeadAssetManager.setupInstance(inst);
+        }
+        HS.ensureBoneCache(inst);
+        return inst;
+    }
+
+    function renderCharacterSwitcherUI() {
+        const containerEl = document.getElementById('ht-char-switch-container');
+        if (!containerEl) return;
+
+        const chars = (window.PandoraHeroRegistry && Array.isArray(window.PandoraHeroRegistry.characters) && window.PandoraHeroRegistry.characters.length > 0)
+            ? window.PandoraHeroRegistry.characters
+            : [
+                { id: 'red', hitToolKey: 'hero', name: 'Red Fox', icon: '🦊' },
+                { id: 'enemy-foxtree', hitToolKey: 'enemy-foxtree', name: 'FoxTree', icon: '👹' },
+                { id: 'tharon', hitToolKey: 'tharon', name: 'Tharon', icon: '⚔️' }
+            ];
+
+        containerEl.innerHTML = '';
+        chars.forEach(c => {
+            const cKey = c.hitToolKey || (c.id === 'red' ? 'hero' : c.id);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ht-char-btn' + (cKey === activeCharKey ? ' active' : '');
+            btn.dataset.char = cKey;
+            btn.innerHTML = (c.icon || '🦸') + ' ' + (c.name || c.id);
+            btn.title = 'Atur Hitbox & Animasi untuk folder ' + (c.folder || ('hero/' + c.id));
+            btn.addEventListener('click', async () => {
+                activeCharKey = cKey;
+                await ensureCharacterInstanceLoaded(c);
+                renderCharacterSwitcherUI();
+                const anims = HS.getCharacterAnimations(activeCharKey);
+                if (!anims.some(a => a.key === activeAnimKey)) {
+                    activeAnimKey = anims.length > 0 ? anims[0].key : 'punch1';
+                }
+                const cfg = getCurrentAnimConfig();
+                selectedHitboxId = (cfg && cfg.hitboxes && cfg.hitboxes.length > 0) ? cfg.hitboxes[0].id : null;
+
+                applyCharacterPositionsAndRoles();
+                playSelectedAnimationOnAttacker(true);
+                playIdleOnDummy();
+                renderAllUI();
+            });
+            containerEl.appendChild(btn);
+        });
+    }
+
+    async function loadCharacters() {
+        const statusText = document.getElementById('ht-contact-text');
+        if (statusText) statusText.innerText = 'Memuat Model 3D dari folder hero/*...';
+
+        // 1. Sync daftar karakter dari api/heroes.php
+        if (window.PandoraHeroRegistry) {
+            try {
+                await window.PandoraHeroRegistry.sync(false);
+            } catch (e) {}
         }
 
-        // Bangun cache bone untuk kedua karakter
-        HS.ensureBoneCache(heroInstance);
-        HS.ensureBoneCache(enemyInstance);
+        // 2. Muat General Asset Managers & konfigurasi Hitbox
+        const basePromises = [];
+        if (window.HeroAssetManager) basePromises.push(window.HeroAssetManager.load());
+        if (window.EnemyFoxTreeAssetManager) basePromises.push(window.EnemyFoxTreeAssetManager.load());
+        if (window.GeneralTakingAssetManager) basePromises.push(window.GeneralTakingAssetManager.load());
+        if (window.GeneralBlockAssetManager) basePromises.push(window.GeneralBlockAssetManager.load());
+        if (window.GeneralDeadAssetManager) basePromises.push(window.GeneralDeadAssetManager.load());
+        if (HS && typeof HS.loadFromServer === 'function') basePromises.push(HS.loadFromServer());
+
+        try {
+            await Promise.allSettled(basePromises);
+        } catch (e) {}
+
+        // 3. Buat & muat seluruh karakter yang ditemukan di hero/*
+        const chars = (window.PandoraHeroRegistry && window.PandoraHeroRegistry.characters.length > 0)
+            ? window.PandoraHeroRegistry.characters
+            : [
+                { id: 'red', hitToolKey: 'hero', name: 'Red Fox', icon: '🦊' },
+                { id: 'enemy-foxtree', hitToolKey: 'enemy-foxtree', name: 'FoxTree', icon: '👹' },
+                { id: 'tharon', hitToolKey: 'tharon', name: 'Tharon', icon: '⚔️' }
+            ];
+
+        for (const c of chars) {
+            await ensureCharacterInstanceLoaded(c);
+        }
+
+        renderCharacterSwitcherUI();
 
         const cfg = getCurrentAnimConfig();
         selectedHitboxId = (cfg && cfg.hitboxes && cfg.hitboxes.length > 0) ? cfg.hitboxes[0].id : null;
@@ -333,10 +415,16 @@
     }
 
     function applyCharacterPositionsAndRoles() {
-        if (!heroInstance || !enemyInstance) return;
-
         const attacker = getAttackerInstance();
         const dummy = getDummyInstance();
+        if (!attacker || !dummy) return;
+
+        // Sembunyikan seluruh karakter terlebih dahulu
+        Object.keys(charInstances).forEach(k => {
+            if (charInstances[k] && charInstances[k].root) {
+                charInstances[k].root.visible = false;
+            }
+        });
 
         // Penyerang selalu berdiri di (0, 0, 0) menghadap +Z (ke arah Dummy)
         attacker.root.visible = true;
@@ -344,13 +432,15 @@
         attacker.root.rotation.set(0, 0, 0);
 
         // Dummy berdiri di depan penyerang sesuai jarak & sudut
-        dummy.root.visible = dummyEnabled;
-        const rad = THREE.MathUtils.degToRad(dummyAngleDeg);
-        const dx = Math.sin(rad) * dummyDistance;
-        const dz = Math.cos(rad) * dummyDistance;
-        dummy.root.position.set(dx, 0, dz);
-        // Dummy menghadap ke penyerang (0,0,0)
-        dummy.root.rotation.set(0, Math.atan2(-dx, -dz), 0);
+        if (dummy !== attacker) {
+            dummy.root.visible = dummyEnabled;
+            const rad = THREE.MathUtils.degToRad(dummyAngleDeg);
+            const dx = Math.sin(rad) * dummyDistance;
+            const dz = Math.cos(rad) * dummyDistance;
+            dummy.root.position.set(dx, 0, dz);
+            // Dummy menghadap ke penyerang (0,0,0)
+            dummy.root.rotation.set(0, Math.atan2(-dx, -dz), 0);
+        }
     }
 
     // ===================================================================
@@ -575,10 +665,11 @@
         if (!listEl) return;
 
         if (charBadge) {
-            charBadge.innerText = activeCharKey === 'hero' ? 'HERO RED FOX' : 'ENEMY FOXTREE';
+            const meta = window.PandoraHeroRegistry ? window.PandoraHeroRegistry.getCharacterMeta(activeCharKey) : null;
+            charBadge.innerText = meta ? ((meta.icon || '🦸') + ' ' + meta.name.toUpperCase()) : activeCharKey.toUpperCase();
         }
 
-        const anims = HS.CHARACTER_ANIMATIONS[activeCharKey] || [];
+        const anims = HS.getCharacterAnimations(activeCharKey) || [];
         if (countLbl) countLbl.innerText = `${anims.length} Animasi`;
 
         listEl.innerHTML = '';
@@ -800,26 +891,26 @@
             });
         }
 
-        // Character Switcher
-        ['btn-char-hero', 'btn-char-enemy'].forEach(id => {
-            const btn = document.getElementById(id);
-            if (!btn) return;
-            btn.addEventListener('click', () => {
-                document.getElementById('btn-char-hero').classList.remove('active');
-                document.getElementById('btn-char-enemy').classList.remove('active');
-                btn.classList.add('active');
-
-                activeCharKey = btn.dataset.char;
-                activeAnimKey = 'punch1';
-                const cfg = getCurrentAnimConfig();
-                selectedHitboxId = (cfg && cfg.hitboxes && cfg.hitboxes.length > 0) ? cfg.hitboxes[0].id : null;
-
-                applyCharacterPositionsAndRoles();
-                playSelectedAnimationOnAttacker(true);
-                playIdleOnDummy();
+        // Character Switcher & Auto-Sync Button
+        renderCharacterSwitcherUI();
+        const btnSyncHeroes = document.getElementById('btn-ht-sync-heroes');
+        if (btnSyncHeroes) {
+            btnSyncHeroes.addEventListener('click', async () => {
+                btnSyncHeroes.disabled = true;
+                btnSyncHeroes.innerHTML = '<span>⏳ Syncing...</span>';
+                if (window.PandoraHeroRegistry) {
+                    await window.PandoraHeroRegistry.sync(true);
+                    for (const c of window.PandoraHeroRegistry.characters) {
+                        await ensureCharacterInstanceLoaded(c);
+                    }
+                }
+                renderCharacterSwitcherUI();
                 renderAllUI();
+                btnSyncHeroes.disabled = false;
+                btnSyncHeroes.innerHTML = '<span>🔄 Sync Hero</span>';
+                showToast('🔄 Daftar karakter folder hero/* berhasil di-sync!');
             });
-        });
+        }
 
         // Header Checkboxes
         const chkBones = document.getElementById('chk-show-bones');

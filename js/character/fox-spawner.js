@@ -273,7 +273,10 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
     if (typeof saveState === 'function') saveState();
 
     const effectiveSpecies = (species && species !== 'none') ? species : 'foxtree';
-    const model = createWolfCharacterModel(effectiveSpecies);
+    const enemyFactory = (typeof window.createEnemyCharacterModel === 'function')
+        ? window.createEnemyCharacterModel
+        : createWolfCharacterModel;
+    const model = enemyFactory(effectiveSpecies);
     if (!model || !model.root) return null;
 
     const y = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(posX, posZ) : 0;
@@ -341,10 +344,18 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
         ? document.getElementById('chk-spawner-fox-boss').checked
         : false;
 
+    const charMeta = (window.PandoraHeroRegistry && typeof window.PandoraHeroRegistry.getCharacterMeta === 'function')
+        ? window.PandoraHeroRegistry.getCharacterMeta(effectiveSpecies)
+        : null;
+    const defaultSpeciesDisplayName = (charMeta && charMeta.name)
+        ? charMeta.name
+        : ((effectiveSpecies === 'foxtree' || effectiveSpecies === 'enemy-foxtree') ? 'FoxTree' : effectiveSpecies);
+
     const nameInput = document.getElementById('input-spawner-fox-name');
-    const customName = (nameInput && nameInput.value.trim())
-        ? nameInput.value.trim()
-        : (isBossCheck ? 'Lingxuzi' : 'FoxTree Enemy');
+    const rawInputName = nameInput ? nameInput.value.trim() : '';
+    const customName = (rawInputName && rawInputName !== 'FoxTree' && rawInputName !== 'FoxTree Enemy')
+        ? rawInputName
+        : (isBossCheck ? (defaultSpeciesDisplayName + ' Boss') : defaultSpeciesDisplayName);
 
     const hpInput = document.getElementById('input-spawner-fox-hp');
     const defaultBossHp = (typeof window.ENEMY_COMBAT_CONFIG !== 'undefined') ? window.ENEMY_COMBAT_CONFIG.boss.maxHealth : 500;
@@ -398,7 +409,7 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
         SelectionOutlineManager.selectObject(model.root, false);
     }
 
-    const speciesLabel = (effectiveSpecies === 'foxtree' || effectiveSpecies === 'enemy-foxtree') ? 'FoxTree Enemy' : effectiveSpecies;
+    const speciesLabel = defaultSpeciesDisplayName;
     if (typeof PandoraToast !== 'undefined' && typeof PandoraToast.show === 'function') {
         PandoraToast.show(`⚔️ ${speciesLabel} berhasil diletakkan`, 'success');
     }
@@ -536,12 +547,15 @@ function setFoxSpeciesByIndex(idx, newSpecies) {
     // Hapus model lama
     scene.remove(fox.root);
 
-    // Buat model baru dengan warna & proporsi spesies baru
-    const newModel = createWolfCharacterModel(newSpecies);
+    // Buat model baru dari folder hero/<newSpecies>/
+    const enemyFactory = (typeof window.createEnemyCharacterModel === 'function')
+        ? window.createEnemyCharacterModel
+        : createWolfCharacterModel;
+    const newModel = enemyFactory(newSpecies);
     newModel.root.position.copy(curPos);
     newModel.root.rotation.y = curRot;
 
-    const baseScale = newModel.baseScale || 0.58;
+    const baseScale = newModel.baseScale || 1.85;
     newModel.root.scale.set(baseScale * curScale, baseScale * curScale, baseScale * curScale);
 
     newModel.root.userData = {
@@ -568,6 +582,10 @@ function setFoxSpeciesByIndex(idx, newSpecies) {
     fox.model = newModel;
     fox.root = newModel.root;
     fox.species = newSpecies;
+    if (fox.ai) {
+        fox.ai.model = newModel;
+        fox.ai.root = newModel.root;
+    }
 
     if (typeof SelectionOutlineManager !== 'undefined' && selectedFoxIndex === idx) {
         SelectionOutlineManager.selectObject(newModel.root, false);
@@ -679,6 +697,10 @@ function updateFoxInspectorUI() {
     const inputDamage = document.getElementById('input-fox-inspector-damage');
     if (inputDamage) inputDamage.value = (typeof fox.damagePerHit === 'number') ? fox.damagePerHit : (fox.isBoss ? 25 : 15);
 
+    const selectInspectorSpecies = document.getElementById('select-fox-inspector-species');
+    if (selectInspectorSpecies) {
+        selectInspectorSpecies.value = fox.species || 'foxtree';
+    }
     if (selectAI) selectAI.value = fox.aiMode || 'combat';
 
     const sliderAIRadius = document.getElementById('slider-fox-ai-radius');
@@ -954,9 +976,198 @@ function initFoxSpawnerUI() {
         });
     }
 
-    // 6. Setup Spawner Card Grid untuk Fox / Enemy
+    // 5b. Dropdown ganti Model Karakter di Inspector
+    const selectInspectorSpecies = document.getElementById('select-fox-inspector-species');
+    if (selectInspectorSpecies) {
+        selectInspectorSpecies.addEventListener('change', () => {
+            if (selectedFoxIndex >= 0 && spawnedFoxesList[selectedFoxIndex]) {
+                const newSpec = selectInspectorSpecies.value;
+                setFoxSpeciesByIndex(selectedFoxIndex, newSpec);
+                const meta = (window.PandoraHeroRegistry && window.PandoraHeroRegistry.getCharacterMeta)
+                    ? window.PandoraHeroRegistry.getCharacterMeta(newSpec)
+                    : null;
+                if (meta && meta.name) {
+                    spawnedFoxesList[selectedFoxIndex].name = meta.name;
+                    if (spawnedFoxesList[selectedFoxIndex].ai) spawnedFoxesList[selectedFoxIndex].ai.name = meta.name;
+                    updateFoxInspectorUI();
+                }
+            }
+        });
+    }
+
+    // 5c. Dropdown pilih Karakter Player Utama di Player Spawn Area
+    const selectPlayerHero = document.getElementById('select-player-hero-folder');
+    if (selectPlayerHero) {
+        selectPlayerHero.addEventListener('change', () => {
+            const heroKey = selectPlayerHero.value || 'red';
+            window.currentFoxSpeciesKey = heroKey;
+            if (typeof switchFoxSpecies === 'function') {
+                switchFoxSpecies(heroKey);
+            }
+            if (typeof PandoraToast !== 'undefined' && PandoraToast.show) {
+                PandoraToast.show('🦊 Karakter Player diubah ke: ' + heroKey, 'info');
+            }
+        });
+    }
+
+    // 6. Setup Spawner Card Grid & Sinkronisasi Otomatis dengan Folder hero/*
     if (typeof setupSpawnerCardGrid === 'function') {
         setupSpawnerCardGrid('fox-picker-grid', 'select-fox-mode');
+    }
+
+    if (selectFoxMode) {
+        selectFoxMode.addEventListener('change', () => {
+            const val = selectFoxMode.value;
+            if (val && val !== 'none' && window.PandoraHeroRegistry) {
+                const meta = window.PandoraHeroRegistry.getCharacterMeta(val);
+                if (meta && meta.name && inputSpawnerName) {
+                    inputSpawnerName.value = (chkSpawnerBoss && chkSpawnerBoss.checked) ? (meta.name + ' Boss') : meta.name;
+                }
+                // Preload model karakter yang dipilih agar instan saat diklik di tanah
+                const mgr = window.PandoraHeroRegistry.getAssetManager(val);
+                if (mgr && !mgr.isLoaded && !mgr.isLoading) {
+                    mgr.load();
+                }
+            }
+        });
+    }
+
+    function renderDynamicHeroSpawnerUI(characters) {
+        if (!Array.isArray(characters) || characters.length === 0) return;
+
+        const curSelectVal = selectFoxMode ? selectFoxMode.value : 'none';
+        const grid = document.getElementById('fox-picker-grid');
+
+        // Palette warna kartu spawner agar setiap karakter baru punya tampilan visual keren otomatis
+        const CARD_THEMES = [
+            { bg: 'radial-gradient(circle, #065f46 0%, #022c22 100%)', head: '#34d399', body: '#059669', orb: '#f59e0b' },
+            { bg: 'radial-gradient(circle, #4c1d95 0%, #1e1b4b 100%)', head: '#c084fc', body: '#7c3aed', orb: '#38bdf8' },
+            { bg: 'radial-gradient(circle, #7c2d12 0%, #3b0764 100%)', head: '#fb923c', body: '#ea580c', orb: '#facc15' },
+            { bg: 'radial-gradient(circle, #1e3a8a 0%, #0f172a 100%)', head: '#60a5fa', body: '#2563eb', orb: '#34d399' },
+            { bg: 'radial-gradient(circle, #831843 0%, #2e1065 100%)', head: '#f472b6', body: '#db2777', orb: '#a78bfa' }
+        ];
+
+        // 1. Update #select-fox-mode
+        if (selectFoxMode) {
+            selectFoxMode.innerHTML = '<option value="none">Off</option>';
+            characters.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.spawnerKey || c.id;
+                opt.innerText = c.name + ' (hero/' + c.folder + ')';
+                selectFoxMode.appendChild(opt);
+            });
+            if ([...selectFoxMode.options].some(o => o.value === curSelectVal)) {
+                selectFoxMode.value = curSelectVal;
+            }
+        }
+
+        // 2. Update #fox-picker-grid
+        if (grid) {
+            let html = `
+                <button type="button" class="spawner-card ${curSelectVal === 'none' ? 'active' : ''}" data-value="none" title="Matikan Mode Spawner Karakter">
+                    <div class="card-preview">
+                        <svg viewBox="0 0 40 40" class="card-svg">
+                            <circle cx="20" cy="20" r="13" fill="none" stroke="#64748b" stroke-width="2.5" stroke-dasharray="4 2" />
+                            <line x1="12" y1="28" x2="28" y2="12" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <span class="card-name">Off</span>
+                </button>
+            `;
+
+            characters.forEach((c, idx) => {
+                const sKey = c.spawnerKey || c.id;
+                const isAct = (curSelectVal === sKey) ? 'active' : '';
+                const theme = (c.id === 'enemy-foxtree') ? CARD_THEMES[0] : (c.id === 'tharon' ? CARD_THEMES[1] : (c.id === 'red' ? CARD_THEMES[2] : CARD_THEMES[(idx + 1) % CARD_THEMES.length]));
+                const clipCount = Array.isArray(c.files) ? c.files.length : 1;
+                html += `
+                    <button type="button" class="spawner-card ${isAct}" data-value="${sKey}" title="${c.name} (hero/${c.folder}/* — ${clipCount} file FBX)">
+                        <div class="card-preview" style="background: ${theme.bg};">
+                            <svg viewBox="0 0 40 40" class="card-svg">
+                                <circle cx="20" cy="14" r="5" fill="${theme.head}" />
+                                <path d="M12 36 L15 22 L20 25 L25 22 L28 36 Z" fill="${theme.body}" />
+                                <circle cx="10" cy="20" r="3.2" fill="${theme.orb}" />
+                                <circle cx="30" cy="20" r="3.2" fill="${theme.orb}" />
+                            </svg>
+                        </div>
+                        <span class="card-name">${c.name}</span>
+                    </button>
+                `;
+            });
+            grid.innerHTML = html;
+        }
+
+        // 3. Update #select-fox-inspector-species
+        const selInspectorSpec = document.getElementById('select-fox-inspector-species');
+        if (selInspectorSpec) {
+            const prevVal = selInspectorSpec.value;
+            selInspectorSpec.innerHTML = '';
+            characters.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.spawnerKey || c.id;
+                opt.innerText = (c.badge || '⚔️') + ' ' + c.name + ' (hero/' + c.folder + ')';
+                selInspectorSpec.appendChild(opt);
+            });
+            if (prevVal) selInspectorSpec.value = prevVal;
+        }
+
+        // 4. Update #select-player-hero-folder
+        const selPlayerHero = document.getElementById('select-player-hero-folder');
+        if (selPlayerHero) {
+            const prevHero = selPlayerHero.value || 'red';
+            selPlayerHero.innerHTML = '';
+            characters.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = (c.badge || '🦊') + ' ' + c.name + ' (hero/' + c.folder + ')';
+                selPlayerHero.appendChild(opt);
+            });
+            if ([...selPlayerHero.options].some(o => o.value === prevHero)) {
+                selPlayerHero.value = prevHero;
+            }
+        }
+
+        // 5. Update Floating Species Bar (#fox-species-bar) saat Play Mode
+        const speciesBar = document.getElementById('fox-species-bar');
+        if (speciesBar) {
+            const battleBtn = document.getElementById('btn-toggle-battle-mode');
+            speciesBar.querySelectorAll('.btn-species-pill[data-species]').forEach(b => b.remove());
+            const activeHero = (typeof currentFoxSpeciesKey !== 'undefined' && currentFoxSpeciesKey) ? currentFoxSpeciesKey : 'red';
+            characters.forEach((c, idx) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn-species-pill' + (c.id === activeHero ? ' active' : '');
+                btn.dataset.species = c.id;
+                btn.title = c.name + ' (hero/' + c.folder + ') - Tekan ' + (idx + 1);
+                btn.innerHTML = '<span class="species-label">' + (c.badge || '') + ' ' + c.name + '</span>';
+                if (battleBtn && battleBtn.parentNode === speciesBar) {
+                    speciesBar.insertBefore(btn, battleBtn);
+                } else {
+                    speciesBar.appendChild(btn);
+                }
+            });
+        }
+    }
+
+    if (window.PandoraHeroRegistry) {
+        renderDynamicHeroSpawnerUI(window.PandoraHeroRegistry.characters);
+        window.PandoraHeroRegistry.onSync(renderDynamicHeroSpawnerUI);
+    }
+
+    const btnSyncHero = document.getElementById('btn-sync-hero-folders');
+    if (btnSyncHero) {
+        btnSyncHero.addEventListener('click', async () => {
+            if (!window.PandoraHeroRegistry) return;
+            btnSyncHero.disabled = true;
+            btnSyncHero.innerText = '⏳ Sync...';
+            const chars = await window.PandoraHeroRegistry.sync(true);
+            btnSyncHero.disabled = false;
+            btnSyncHero.innerText = '🔄 Sync Hero';
+            if (typeof PandoraToast !== 'undefined' && PandoraToast.show) {
+                const names = chars.map(c => c.name).join(', ');
+                PandoraToast.show('✅ Folder Hero disinkronkan: ' + names, 'success');
+            }
+        });
     }
 
     // Reset total semua enemy lama sesuai arahan user

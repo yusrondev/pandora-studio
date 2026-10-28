@@ -584,7 +584,8 @@ function stopPlayMode() {
 
 // Fungsi Reusable Switch Karakter Spesies Rubah
 function switchFoxSpecies(speciesKey) {
-    if (typeof FOX_SPECIES === 'undefined' || !FOX_SPECIES[speciesKey]) return;
+    const isHeroFolder = Boolean(window.PandoraHeroRegistry && window.PandoraHeroRegistry.getCharacterMeta(speciesKey));
+    if (!isHeroFolder && (typeof FOX_SPECIES === 'undefined' || !FOX_SPECIES[speciesKey])) return;
 
     let posX = 0, posY = 0, posZ = 0, rotY = 0;
     if (wolfCharacter && wolfCharacter.root) {

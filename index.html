@@ -2582,6 +2582,15 @@
                         </div>
                     </div>
 
+                    <div class="control-group" style="margin-bottom:8px;">
+                        <label style="font-size:11px; color:#34d399;">🦊 Karakter Player Utama (hero/*)</label>
+                        <select id="select-player-hero-folder" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(16,185,129,0.45); border-radius:6px; color:#f8fafc; font-size:12px;">
+                            <option value="red">🦊 Red Fox (hero/red)</option>
+                            <option value="tharon">⚔️ Tharon (hero/tharon)</option>
+                            <option value="foxtree">👹 FoxTree (hero/enemy-foxtree)</option>
+                        </select>
+                    </div>
+
                     <div class="control-group">
                         <label>
                             <span>Posisi X (Barat - Timur)</span>
@@ -2686,17 +2695,24 @@
                         <input type="range" id="slider-spawner-ai-radius" min="5" max="60" step="1" value="18">
                     </div>
 
-                    <div class="control-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                        <label style="margin:0;">Pilih Enemy (Klik Tanah untuk Spawn)</label>
-                        <button type="button" id="btn-reset-all-enemies" onclick="if(window.clearAllSpawnedFoxes) window.clearAllSpawnedFoxes();" style="padding:4px 8px; font-size:11px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#fca5a5; border-radius:4px; cursor:pointer;" title="Hapus total semua enemy yang terspawn di map">
-                            🗑️ Reset Enemy
-                        </button>
+                    <div class="control-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:4px;">
+                        <label style="margin:0;">Pilih Karakter (Otomatis dari <code>hero/*</code>)</label>
+                        <div style="display:flex; gap:4px;">
+                            <button type="button" id="btn-sync-hero-folders" style="padding:4px 7px; font-size:10.5px; background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.5); color:#7dd3fc; border-radius:4px; cursor:pointer;" title="Pindai ulang folder hero/ secara otomatis untuk mendeteksi karakter baru">
+                                🔄 Sync Hero
+                            </button>
+                            <button type="button" id="btn-reset-all-enemies" onclick="if(window.clearAllSpawnedFoxes) window.clearAllSpawnedFoxes();" style="padding:4px 8px; font-size:11px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#fca5a5; border-radius:4px; cursor:pointer;" title="Hapus total semua enemy yang terspawn di map">
+                                🗑️ Reset
+                            </button>
+                        </div>
                     </div>
 
                     <div class="control-group">
                         <select id="select-fox-mode" style="display:none;">
                             <option value="none">Off</option>
-                            <option value="foxtree">FoxTree Enemy</option>
+                            <option value="foxtree">FoxTree</option>
+                            <option value="tharon">Tharon</option>
+                            <option value="red">Red Fox</option>
                         </select>
                         <div class="spawner-card-grid fox-grid" id="fox-picker-grid">
                             <button type="button" class="spawner-card active" data-value="none" title="Matikan Mode Spawner Enemy">
@@ -2709,7 +2725,7 @@
                                 <span class="card-name">Off</span>
                             </button>
 
-                            <button type="button" class="spawner-card" data-value="foxtree" title="FoxTree Enemy (hero/enemy-foxtree/* - Melee Punch Combat)">
+                            <button type="button" class="spawner-card" data-value="foxtree" title="FoxTree (hero/enemy-foxtree/*)">
                                 <div class="card-preview" style="background: radial-gradient(circle, #065f46 0%, #022c22 100%);">
                                     <svg viewBox="0 0 40 40" class="card-svg">
                                         <circle cx="20" cy="14" r="5" fill="#34d399" />
@@ -2719,6 +2735,18 @@
                                     </svg>
                                 </div>
                                 <span class="card-name">FoxTree</span>
+                            </button>
+
+                            <button type="button" class="spawner-card" data-value="tharon" title="Tharon (hero/tharon/*)">
+                                <div class="card-preview" style="background: radial-gradient(circle, #4c1d95 0%, #1e1b4b 100%);">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <circle cx="20" cy="14" r="5" fill="#c084fc" />
+                                        <path d="M12 36 L15 22 L20 25 L25 22 L28 36 Z" fill="#7c3aed" />
+                                        <circle cx="10" cy="20" r="3.2" fill="#38bdf8" />
+                                        <circle cx="30" cy="20" r="3.2" fill="#38bdf8" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Tharon</span>
                             </button>
                         </div>
                     </div>
@@ -2965,6 +2993,15 @@
                             <label style="font-size:11px;">Damage / Hit</label>
                             <input type="number" id="input-fox-inspector-damage" value="15" min="1" max="500" step="1" title="Damage per hit serangan musuh" style="width:100%; box-sizing:border-box; margin-top:3px; padding:5px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.35); border-radius:6px; color:#f8fafc; font-size:12px;">
                         </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Model Karakter 3D (<code>hero/*</code>)</label>
+                        <select id="select-fox-inspector-species" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(56,189,248,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
+                            <option value="foxtree">👹 FoxTree (hero/enemy-foxtree)</option>
+                            <option value="tharon">⚔️ Tharon (hero/tharon)</option>
+                            <option value="red">🦊 Red Fox (hero/red)</option>
+                        </select>
                     </div>
 
                     <div class="control-group">

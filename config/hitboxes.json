@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "updatedAt": "2026-10-28T13:45:28+00:00",
+    "updatedAt": "2026-10-28T15:27:37+00:00",
     "characters": {
         "hero": {
             "hurtbox": {
@@ -145,20 +145,31 @@
                     ]
                 },
                 "flyingKick": {
-                    "damage": 45,
+                    "damage": 300,
                     "knockback": 0.42,
-                    "activeStartPct": 0.38,
+                    "activeStartPct": 0.43,
                     "activeEndPct": 0.52,
                     "hitboxes": [
                         {
                             "id": "hb_hero_flykick_main",
-                            "name": "Tendangan Terbang Kaki Kanan",
-                            "bone": "RightFoot",
+                            "name": "Hitbox Kaki \/ Engkel Kiri",
+                            "bone": "LeftFoot",
                             "shape": "sphere",
                             "radius": 0.36,
                             "offsetX": 0,
                             "offsetY": 0.04,
                             "offsetZ": 0.08,
+                            "enabled": true
+                        },
+                        {
+                            "id": "hb_hero_flyingKick_RightFoot_mvs9pq1k",
+                            "name": "Hitbox Kaki \/ Engkel Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.04,
                             "enabled": true
                         }
                     ]
@@ -273,6 +284,101 @@
                         }
                     ]
                 },
+                "flyingPunch": {
+                    "damage": 40,
+                    "knockback": 0.36,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_enemy-foxtree_flypunch_main",
+                            "name": "Kepalan Terbang Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.34,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick1": {
+                    "damage": 30,
+                    "knockback": 0.25,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.86,
+                    "hitboxes": [
+                        {
+                            "id": "hb_enemy-foxtree_kick1_main",
+                            "name": "Tendangan Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick2": {
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_enemy-foxtree_kick2_main",
+                            "name": "Tendangan Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick3": {
+                    "damage": 35,
+                    "knockback": 0.32,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_enemy-foxtree_kick3_main",
+                            "name": "Tendangan Maju Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingKick": {
+                    "damage": 45,
+                    "knockback": 0.42,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_enemy-foxtree_flykick_main",
+                            "name": "Tendangan Terbang Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.36,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                },
                 "idle": {
                     "damage": 25,
                     "knockback": 0.22,
@@ -307,6 +413,169 @@
                     "activeStartPct": 0.1,
                     "activeEndPct": 0.88,
                     "hitboxes": []
+                }
+            }
+        },
+        "tharon": {
+            "hurtbox": {
+                "radius": 0.42,
+                "height": 1.72,
+                "offsetY": 0.02,
+                "offsetZ": 0.04,
+                "useBoneCapsules": true
+            },
+            "animations": {
+                "punch1": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_tharon_punch1_main",
+                            "name": "Kepalan Tangan Kiri",
+                            "bone": "LeftHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.04,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch2": {
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_tharon_punch2_main",
+                            "name": "Kepalan Tangan Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.04,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch3": {
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.14,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_tharon_punch3_main",
+                            "name": "Kepalan Kanan Finisher",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.05,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingPunch": {
+                    "damage": 40,
+                    "knockback": 0.36,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_tharon_flypunch_main",
+                            "name": "Kepalan Terbang Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.34,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick1": {
+                    "damage": 30,
+                    "knockback": 0.25,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.86,
+                    "hitboxes": [
+                        {
+                            "id": "hb_tharon_kick1_main",
+                            "name": "Tendangan Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick2": {
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_tharon_kick2_main",
+                            "name": "Tendangan Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick3": {
+                    "damage": 35,
+                    "knockback": 0.32,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_tharon_kick3_main",
+                            "name": "Tendangan Maju Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingKick": {
+                    "damage": 45,
+                    "knockback": 0.42,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_tharon_flykick_main",
+                            "name": "Tendangan Terbang Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.36,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
                 }
             }
         }

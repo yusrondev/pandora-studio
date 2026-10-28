@@ -25,11 +25,15 @@
                 <span class="ht-brand-badge">3D COLLIDER</span>
             </div>
 
-            <!-- CHARACTER SWITCHER -->
-            <div class="ht-char-switch" title="Pilih Karakter yang Akan Diatur Hitbox-nya">
-                <button type="button" class="ht-char-btn active" data-char="hero" id="btn-char-hero">🦊 Hero (Red Fox)</button>
-                <button type="button" class="ht-char-btn" data-char="enemy-foxtree" id="btn-char-enemy">👹 Enemy (FoxTree)</button>
+            <!-- CHARACTER SWITCHER (Auto-Sync dari folder hero/*) -->
+            <div class="ht-char-switch" id="ht-char-switch-container" title="Pilih Karakter dari folder hero/* yang Akan Diatur Hitbox-nya" style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                <button type="button" class="ht-char-btn active" data-char="hero" id="btn-char-hero">🦊 Red Fox</button>
+                <button type="button" class="ht-char-btn" data-char="enemy-foxtree" id="btn-char-enemy">👹 FoxTree</button>
+                <button type="button" class="ht-char-btn" data-char="tharon" id="btn-char-tharon">⚔️ Tharon</button>
             </div>
+            <button type="button" id="btn-ht-sync-heroes" class="ht-btn" style="height:26px; padding:0 8px; font-size:10.5px;" title="Scan ulang folder hero/* secara otomatis">
+                <span>🔄 Sync Hero</span>
+            </button>
         </div>
 
         <div class="ht-header-center">

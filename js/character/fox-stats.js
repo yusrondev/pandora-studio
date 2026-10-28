@@ -31,10 +31,10 @@ const FOX_STATS_CONFIG = {
 
         // --- STAMINA SYSTEM ---
         maxStamina: 100,            // Total kapasitas stamina
-        staminaDrain: 18.0,         // Pengurangan stamina per detik saat lari (sprint)
-        staminaRecoveryWalk: 3.0,   // Penambahan stamina per detik saat jalan pelan (diperlambat)
-        staminaRecoveryIdle: 7.5,   // Penambahan stamina per detik saat diam (idle, diperlambat)
-        exhaustionThreshold: 25,    // Stamina minimum untuk bisa lari kembali setelah lelah
+        staminaDrain: 7.5,          // Pengurangan stamina hemat & tahan lama saat lari (sprint)
+        staminaRecoveryWalk: 3.5,   // Penambahan stamina per detik saat jalan pelan
+        staminaRecoveryIdle: 8.5,   // Penambahan stamina per detik saat diam (idle)
+        exhaustionThreshold: 20,    // Stamina minimum untuk bisa lari kembali setelah lelah
     },
 
     // 2. ARCTIC FOX - High Endurance (Daya Tahan Ekstrem & Stamina Besar)
@@ -59,10 +59,10 @@ const FOX_STATS_CONFIG = {
 
         // --- STAMINA SYSTEM ---
         maxStamina: 145,            // Stamina paling melimpah (tahan lari jauh di salju)
-        staminaDrain: 13.0,         // Konsumsi stamina hemat (~11 detik sprint penuh)
-        staminaRecoveryWalk: 3.8,   // Pemulihan santai saat jalan
-        staminaRecoveryIdle: 8.5,   // Pemulihan bertahap saat diam
-        exhaustionThreshold: 30,
+        staminaDrain: 5.5,          // Konsumsi stamina sangat hemat (~26 detik sprint penuh)
+        staminaRecoveryWalk: 4.2,   // Pemulihan santai saat jalan
+        staminaRecoveryIdle: 9.5,   // Pemulihan bertahap saat diam
+        exhaustionThreshold: 25,
     },
 
     // 3. CORSAC FOX - Acrobatic & High Jumper (Lompatan Tertinggi & Lincah)
@@ -87,10 +87,10 @@ const FOX_STATS_CONFIG = {
 
         // --- STAMINA SYSTEM ---
         maxStamina: 90,             // Kapasitas sedang
-        staminaDrain: 20.0,         // Pengurangan saat lari
-        staminaRecoveryWalk: 3.2,
-        staminaRecoveryIdle: 7.5,
-        exhaustionThreshold: 22,
+        staminaDrain: 8.5,          // Pengurangan hemat saat lari
+        staminaRecoveryWalk: 3.8,
+        staminaRecoveryIdle: 8.5,
+        exhaustionThreshold: 20,
     },
 
     // 4. SWIFT FOX - Lightning Speed (Paling Cepat & Belok Kilat)
@@ -114,11 +114,11 @@ const FOX_STATS_CONFIG = {
         jumpPower: 5.4,
 
         // --- STAMINA SYSTEM ---
-        maxStamina: 80,             // Stamina paling cepat habis karena lari kilat
-        staminaDrain: 26.0,         // Menguras energi tinggi (~3 detik sprint kilat)
-        staminaRecoveryWalk: 3.5,
-        staminaRecoveryIdle: 8.0,
-        exhaustionThreshold: 20,
+        maxStamina: 80,             // Stamina lari kilat
+        staminaDrain: 10.5,         // Konsumsi terkontrol untuk kecepatan tinggi
+        staminaRecoveryWalk: 4.0,
+        staminaRecoveryIdle: 9.0,
+        exhaustionThreshold: 18,
     },
 
     // 5. DARWIN FOX - Heavyweight & Steadfast (Kokoh, Stabil & Kuat)
@@ -143,10 +143,10 @@ const FOX_STATS_CONFIG = {
 
         // --- STAMINA SYSTEM ---
         maxStamina: 120,            // Kapasitas stamina besar dan stabil
-        staminaDrain: 15.0,         // Pengurangan seimbang (~8 detik sprint stabil)
-        staminaRecoveryWalk: 3.0,
-        staminaRecoveryIdle: 7.0,
-        exhaustionThreshold: 25,
+        staminaDrain: 6.5,          // Pengurangan sangat seimbang & awet
+        staminaRecoveryWalk: 3.5,
+        staminaRecoveryIdle: 8.0,
+        exhaustionThreshold: 20,
     },
 
     // 6. ENEMY FOXTREE - Melee Combat Enemy (Langkah Rasional & Teratur)
@@ -171,7 +171,7 @@ const FOX_STATS_CONFIG = {
 
         // --- STAMINA SYSTEM ---
         maxStamina: 100,
-        staminaDrain: 18.0,
+        staminaDrain: 7.5,
         staminaRecoveryWalk: 7.0,
         staminaRecoveryIdle: 16.0,
         exhaustionThreshold: 20
@@ -215,6 +215,15 @@ const FoxStaminaState = {
     update(dt, isSprintRequested, isMovingForward) {
         const cfg = FOX_STATS_CONFIG[this.activeSpeciesKey] || FOX_STATS_CONFIG.red;
         this.max = cfg.maxStamina;
+
+        // Jika karakter sedang bertahan (Shield / Block):
+        // Stamina TIDAK BERKURANG jika tidak menerima hit ("tidak berkurang jika tidak menerima hit"),
+        // dan stamina tidak bertambah agar posisi bertahan stabil.
+        const isPlayerBlocking = (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.isBlocking);
+        if (isPlayerBlocking) {
+            this.updateHUD();
+            return false;
+        }
 
         let canSprint = false;
 

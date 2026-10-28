@@ -434,7 +434,7 @@ body.play-mode-active canvas {
     position: absolute;
     bottom: 20px;
     right: 20px;
-    width: 180px;
+    width: 220px;
     height: 180px;
     pointer-events: none; /* Celah di antara tombol tidak memblokir sentuhan geser kamera */
     touch-action: none;
@@ -497,6 +497,27 @@ body.play-mode-active canvas {
     color: #fff;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
     pointer-events: none;
+}
+
+/* Shield Button - Guardian Cyan / Turquoise (Left of Kick, Above Sprint) */
+.mobile-shield-btn {
+    position: absolute;
+    bottom: 64px;
+    right: 132px;
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #0284c7 0%, #0d9488 100%);
+    border: 2px solid rgba(165, 243, 252, 0.9);
+    box-shadow: 0 5px 18px rgba(13, 148, 136, 0.6), 0 0 14px rgba(56, 189, 248, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.5);
+    z-index: 4;
+}
+
+.mobile-shield-btn:active,
+.mobile-shield-btn.active {
+    background: linear-gradient(135deg, #0369a1 0%, #0f766e 100%);
+    box-shadow: 0 0 22px rgba(56, 189, 248, 0.95), inset 0 0 8px rgba(255, 255, 255, 0.7);
+    border-color: #ffffff;
+    transform: scale(0.92);
 }
 
 /* Kick Button - Secondary Martial Attack (Upper-Left of Punch) */
@@ -687,13 +708,20 @@ body.play-mode-active #btn-mobile-exit-demo {
     .mobile-action-buttons {
         bottom: 18px !important;
         right: 18px !important;
-        width: 170px !important;
+        width: 200px !important;
         height: 170px !important;
     }
 
     .mobile-punch-btn {
         width: 65px !important;
         height: 65px !important;
+    }
+
+    .mobile-shield-btn {
+        width: 46px !important;
+        height: 46px !important;
+        bottom: 60px !important;
+        right: 120px !important;
     }
 
     .mobile-kick-btn {

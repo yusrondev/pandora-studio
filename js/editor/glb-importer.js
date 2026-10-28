@@ -34,9 +34,7 @@ class GLBImporterManager {
             scene.add(this.containerGroup);
         }
 
-        if (typeof THREE.GLTFLoader !== 'undefined') {
-            this.gltfLoader = new THREE.GLTFLoader();
-        }
+        this.gltfLoader = this.setupGLTFLoader();
 
         // Initialize Three.js TransformControls Gizmo for 3D Viewport
         if (typeof THREE.TransformControls !== 'undefined') {
@@ -172,16 +170,32 @@ class GLBImporterManager {
         return -1;
     }
 
+    setupGLTFLoader() {
+        if (typeof THREE.GLTFLoader === 'undefined') return null;
+        const loader = new THREE.GLTFLoader();
+        if (typeof THREE.DRACOLoader !== 'undefined') {
+            const dracoLoader = new THREE.DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.3/');
+            loader.setDRACOLoader(dracoLoader);
+            this.dracoLoader = dracoLoader;
+        }
+        return loader;
+    }
+
     importFile(file) {
         if (!file) return;
 
         if (!this.gltfLoader) {
-            if (typeof THREE.GLTFLoader !== 'undefined') {
-                this.gltfLoader = new THREE.GLTFLoader();
-            } else {
+            this.gltfLoader = this.setupGLTFLoader();
+            if (!this.gltfLoader) {
                 alert('THREE.GLTFLoader belum terpasang di runtime.');
                 return;
             }
+        } else if (!this.dracoLoader && typeof THREE.DRACOLoader !== 'undefined') {
+            const dracoLoader = new THREE.DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.3/');
+            this.gltfLoader.setDRACOLoader(dracoLoader);
+            this.dracoLoader = dracoLoader;
         }
 
         const reader = new FileReader();

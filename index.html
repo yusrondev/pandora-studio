@@ -511,8 +511,8 @@
 
         <!-- CONTROLS & RECOVERY HINT -->
         <div class="fox-stamina-hint">
-            <span><kbd>Shift</kbd> Lari (kuras stamina) &bull; <kbd>W</kbd> Jalan pelan (tambah stamina) &bull; <kbd>Space</kbd> Lompat</span>
-            <span><kbd>1-5</kbd> Ganti Rubah</span>
+            <span><kbd>Shift</kbd> Lari &bull; <kbd>Klik Kiri</kbd> Pukul &bull; <kbd>Klik Kanan</kbd> Tendang &bull; <kbd>Q</kbd> Shield / Block &bull; <kbd>Space</kbd> Lompat</span>
+            <span><kbd>1-5</kbd> Ganti Karakter</span>
         </div>
     </div>
  
@@ -537,7 +537,7 @@
             </div>
         </div>
 
-        <!-- Right Action Buttons Arcade Cluster (Punch, Kick, Jump, Sprint, Item) -->
+        <!-- Right Action Buttons Arcade Cluster (Punch, Kick, Shield, Jump, Sprint, Item) -->
         <div class="mobile-action-buttons">
             <!-- Use Item (Plasma Bazooka) - Hanya muncul jika senjata terpasang -->
             <button type="button" id="btn-mobile-use-item" class="mobile-action-btn mobile-plasma-btn" title="Use Item (Plasma)" style="display: none;">
@@ -547,6 +547,16 @@
                     <path d="M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12" stroke="#ffe066" stroke-width="2" stroke-linecap="round" />
                 </svg>
                 <span class="mobile-btn-label">FIRE</span>
+            </button>
+
+            <!-- Shield Button (Tangkisan / Pertahanan Karakter) -->
+            <button type="button" id="btn-mobile-shield" class="mobile-action-btn mobile-shield-btn" title="Shield / Block (Q)">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="M12 8v8"/>
+                    <path d="M8 12h8"/>
+                </svg>
+                <span class="mobile-btn-label">SHIELD</span>
             </button>
 
             <!-- Kick Button (Tendangan Melee) -->
@@ -3057,6 +3067,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>

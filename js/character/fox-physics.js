@@ -1,6 +1,6 @@
 /* Low-Poly Fox Physics, Locomotion, 3D Collision, and Spring-Arm Camera Occlusion */
 
-const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
+const keys = { w: false, a: false, s: false, d: false, shift: false, space: false, q: false };
 window.keys = keys;
 
 // ========================================================
@@ -54,6 +54,12 @@ window.addEventListener('keydown', (e) => {
         e.preventDefault();
         keys.space = true;
     }
+    if (k === 'q' || code === 'KeyQ') {
+        keys.q = true;
+        if (typeof startWolfBlock === 'function') {
+            startWolfBlock();
+        }
+    }
     if (k === 'c' || code === 'KeyC') {
         manualProne = !manualProne;
         if (!manualProne) foxIdleTimer = 0;
@@ -68,8 +74,8 @@ window.addEventListener('keydown', (e) => {
             const isMoveKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) ||
                 ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code);
             if (isMoveKey && !e.repeat) {
-                if (wolfCharacter.isKicking && typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
-                if (wolfCharacter.isPunching && typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
+                if (wolfCharacter.isKicking && (!wolfCharacter.isFlyingKick || wolfCharacter.kickTimer > 0.85) && typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
+                if (wolfCharacter.isPunching && (!wolfCharacter.isFlyingPunch || wolfCharacter.punchTimer > 0.85) && typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
             }
             wolfCharacter.idleTimer = 0.0;
             wolfCharacter.activeIdleKey = null;
@@ -88,6 +94,12 @@ window.addEventListener('keyup', (e) => {
     if (k === 'd' || k === 'arrowright' || code === 'KeyD') keys.d = false;
     if (k === 'shift' || code === 'ShiftLeft' || code === 'ShiftRight') keys.shift = false;
     if (k === ' ' || code === 'Space') keys.space = false;
+    if (k === 'q' || code === 'KeyQ') {
+        keys.q = false;
+        if (typeof stopWolfBlock === 'function') {
+            stopWolfBlock();
+        }
+    }
 
     // FIX BUG: Saat pemain melepas tombol gerak, reset idleTimer seketika ke 0.0
     // sehingga variasi idle lanjutan TIDAK AKAN PERNAH langsung muncul
@@ -744,10 +756,10 @@ function updateWolfPhysics(dt, elapsed) {
     if (wolfCharacter) {
         // Joystick / Input baru: HANYA batalkan jika serangan sudah melewati fase benturan mendarat
         // Mencegah animasi terpotong seketika di awal yang membuat stamina terkuras tanpa animasi terlaksana!
-        if (wolfCharacter.isKicking && hasMoveInput && !wolfCharacter._joyWasActive && (wolfCharacter.kickTimer > 0.35)) {
+        if (wolfCharacter.isKicking && hasMoveInput && !wolfCharacter._joyWasActive && (wolfCharacter.isFlyingKick ? wolfCharacter.kickTimer > 0.85 : wolfCharacter.kickTimer > 0.35)) {
             if (typeof wolfCharacter.cancelKick === 'function') wolfCharacter.cancelKick();
         }
-        if (wolfCharacter.isPunching && hasMoveInput && !wolfCharacter._joyWasActive && (wolfCharacter.punchTimer > 0.30)) {
+        if (wolfCharacter.isPunching && hasMoveInput && !wolfCharacter._joyWasActive && (wolfCharacter.isFlyingPunch ? wolfCharacter.punchTimer > 0.85 : wolfCharacter.punchTimer > 0.30)) {
             if (typeof wolfCharacter.cancelPunch === 'function') wolfCharacter.cancelPunch();
         }
         wolfCharacter._joyWasActive = !!hasMoveInput;
@@ -759,9 +771,9 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
-    // Kunci kontrol saat sedang melompat di tempat (stationary jump) atau saat combat/terkena hit
+    // Kunci kontrol saat sedang melompat di tempat (stationary jump) atau saat combat/terkena hit/shield
     const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && wolfCharacter.isStationaryJump);
-    const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit));
+    const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit || wolfCharacter.isBlocking));
     const isMovementLocked = isPlayerInCombat || isStationaryJumping;
 
     // Vektor arah pandangan kamera pada bidang horizontal (XZ ground plane)
@@ -843,7 +855,10 @@ function updateWolfPhysics(dt, elapsed) {
     if (hudSpeed) hudSpeed.innerText = (Math.abs(currentSpeed) * 2.2).toFixed(1) + ' m/s';
 
     if (hudState) {
-        if (wolfCharacter && wolfCharacter.isPunching) {
+        if (wolfCharacter && wolfCharacter.isBlocking) {
+            hudState.innerText = "BERTAHAN (SHIELD / BLOCK)";
+            hudState.style.color = "#38bdf8";
+        } else if (wolfCharacter && wolfCharacter.isPunching) {
             hudState.innerText = "PUKULAN (PUNCH)";
             hudState.style.color = "#f59e0b";
         } else if (wolfCharacter && wolfCharacter.isKicking) {
@@ -912,6 +927,7 @@ function updateWolfPhysics(dt, elapsed) {
     // Simpul anatomis proteksi dari ujung hidung/moncong sampai pangkal ekor
     const fwdX = forward.x;
     const fwdZ = forward.z;
+    let groundH = (typeof getTerrainHeightFast === 'function') ? getTerrainHeightFast(foxRoot.position.x, foxRoot.position.z) : 0;
 
     // Simpul anatomis kapsul silindris bipedal humanoid hero (100% mengikuti postur tegak)
     const heroRadius = 0.38 * (foxScale / 1.85);
@@ -970,52 +986,116 @@ function updateWolfPhysics(dt, elapsed) {
 
     // ========================================================
     // 1C. COLLISION ASSET 3D IMPORT (GLB / GLTF)
-    // Menahan laju rubah jika Auto Collision = ON (bisa ditembus jika OFF)
+    // Menahan laju rubah jika Auto Collision = ON (solid AABB / cylinder anti-tembus)
     // ========================================================
     if (Array.isArray(window.importedObjectsList) && window.importedObjectsList.length > 0) {
         const foxPosX = foxRoot.position.x;
         const foxPosZ = foxRoot.position.z;
         const foxPosY = foxRoot.position.y;
 
-        for (let iter = 0; iter < 2; iter++) {
+        for (let iter = 0; iter < 3; iter++) {
             for (let i = 0; i < window.importedObjectsList.length; i++) {
                 const item = window.importedObjectsList[i];
-                if (!item || !item.hasCollision || !item.root || !item.root.visible) continue;
+                if (!item || item.hasCollision === false || !item.root || !item.root.visible) continue;
 
                 const rootPos = item.root.position;
-                const colRadius = item.collisionRadius || 1.2;
-                const colHeight = item.collisionHeight || 2.5;
 
-                // Broadphase: jarak ke objek
-                const dxObj = foxPosX - rootPos.x;
-                const dzObj = foxPosZ - rootPos.z;
-                const maxCheckDist = colRadius + 4.0;
-                if (dxObj * dxObj + dzObj * dzObj > maxCheckDist * maxCheckDist) continue;
+                // Hitung atau perbarui world bounding box objek 3D untuk akurasi dimensi tinggi & lebar
+                if (!item._box3) item._box3 = new THREE.Box3();
+                item._box3.setFromObject(item.root);
+                const box = item._box3;
 
-                // Cek batas vertikal
-                if (foxPosY < rootPos.y - 0.5 || foxPosY > rootPos.y + colHeight + 0.5) continue;
+                if (!box.isEmpty()) {
+                    const objTop = box.max.y;
+                    const objBottom = box.min.y;
 
-                for (let n = 0; n < foxCollisionNodes.length; n++) {
-                    const node = foxCollisionNodes[n];
-                    const nodeX = foxRoot.position.x + fwdX * node.offset;
-                    const nodeZ = foxRoot.position.z + fwdZ * node.offset;
+                    // Lewati jika rubah secara vertikal jauh di bawah atau di atas objek
+                    if (foxPosY + 1.7 < objBottom || foxPosY > objTop + 0.35) continue;
 
-                    const dx = nodeX - rootPos.x;
-                    const dz = nodeZ - rootPos.z;
-                    const distSq = dx * dx + dz * dz;
-                    const minAllowedDist = colRadius + node.radius;
+                    // Jika rubah mendarat di atas permukaan atap objek tinggi dari atas
+                    if (foxPosY >= objTop - 0.25 && velocityY <= 0) {
+                        continue;
+                    }
 
-                    if (distSq < minAllowedDist * minAllowedDist) {
-                        const dist = Math.sqrt(distSq);
-                        if (dist > 0.0001) {
-                            const pushDist = minAllowedDist - dist;
-                            foxRoot.position.x += (dx / dist) * pushDist;
-                            foxRoot.position.z += (dz / dist) * pushDist;
-                            camera.position.x += (dx / dist) * pushDist;
-                            camera.position.z += (dz / dist) * pushDist;
-                        } else {
-                            foxRoot.position.x += minAllowedDist;
-                            camera.position.x += minAllowedDist;
+                    // Solid collision terhadap bounding box 3D
+                    for (let n = 0; n < foxCollisionNodes.length; n++) {
+                        const node = foxCollisionNodes[n];
+                        const nodeX = foxRoot.position.x + fwdX * node.offset;
+                        const nodeZ = foxRoot.position.z + fwdZ * node.offset;
+                        const nodeR = node.radius;
+
+                        const clampX = THREE.MathUtils.clamp(nodeX, box.min.x, box.max.x);
+                        const clampZ = THREE.MathUtils.clamp(nodeZ, box.min.z, box.max.z);
+
+                        const diffX = nodeX - clampX;
+                        const diffZ = nodeZ - clampZ;
+                        const distSq = diffX * diffX + diffZ * diffZ;
+
+                        if (distSq < nodeR * nodeR) {
+                            const dist = Math.sqrt(distSq);
+                            let pushX = 0, pushZ = 0;
+
+                            if (dist > 0.0001) {
+                                const pushAmt = nodeR - dist;
+                                pushX = (diffX / dist) * pushAmt;
+                                pushZ = (diffZ / dist) * pushAmt;
+                            } else {
+                                // Karakter berada di dalam volume: dorong keluar ke sisi terdekat
+                                const dMinX = nodeX - box.min.x;
+                                const dMaxX = box.max.x - nodeX;
+                                const dMinZ = nodeZ - box.min.z;
+                                const dMaxZ = box.max.z - nodeZ;
+                                const minD = Math.min(dMinX, dMaxX, dMinZ, dMaxZ);
+
+                                if (minD === dMinX) pushX = -(dMinX + nodeR);
+                                else if (minD === dMaxX) pushX = (dMaxX + nodeR);
+                                else if (minD === dMinZ) pushZ = -(dMinZ + nodeR);
+                                else pushZ = (dMaxZ + nodeR);
+                            }
+
+                            foxRoot.position.x += pushX;
+                            foxRoot.position.z += pushZ;
+                            camera.position.x += pushX;
+                            camera.position.z += pushZ;
+
+                            if (currentSpeed > 0.1) {
+                                currentSpeed *= 0.4;
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback silinder jika bounding box kosong
+                    const colRadius = item.collisionRadius || 1.2;
+                    const colHeight = item.collisionHeight || 2.5;
+
+                    const dxObj = foxPosX - rootPos.x;
+                    const dzObj = foxPosZ - rootPos.z;
+                    const maxCheckDist = colRadius + 4.0;
+                    if (dxObj * dxObj + dzObj * dzObj > maxCheckDist * maxCheckDist) continue;
+                    if (foxPosY < rootPos.y - 0.5 || foxPosY > rootPos.y + colHeight + 0.5) continue;
+
+                    for (let n = 0; n < foxCollisionNodes.length; n++) {
+                        const node = foxCollisionNodes[n];
+                        const nodeX = foxRoot.position.x + fwdX * node.offset;
+                        const nodeZ = foxRoot.position.z + fwdZ * node.offset;
+
+                        const dx = nodeX - rootPos.x;
+                        const dz = nodeZ - rootPos.z;
+                        const distSq = dx * dx + dz * dz;
+                        const minAllowedDist = colRadius + node.radius;
+
+                        if (distSq < minAllowedDist * minAllowedDist) {
+                            const dist = Math.sqrt(distSq);
+                            if (dist > 0.0001) {
+                                const pushDist = minAllowedDist - dist;
+                                foxRoot.position.x += (dx / dist) * pushDist;
+                                foxRoot.position.z += (dz / dist) * pushDist;
+                                camera.position.x += (dx / dist) * pushDist;
+                                camera.position.z += (dz / dist) * pushDist;
+                            } else {
+                                foxRoot.position.x += minAllowedDist;
+                                camera.position.x += minAllowedDist;
+                            }
                         }
                     }
                 }
@@ -1105,6 +1185,14 @@ function updateWolfPhysics(dt, elapsed) {
             rock.updateMatrixWorld(true);
             _rockInvMatrix.copy(rock.matrixWorld).invert();
 
+            // Puncak batu dan ketinggian relatif
+            const rockTopY = (rData.topY !== undefined) ? rData.topY : (rock.position.y + rock.scale.y * 1.12);
+            const heightAboveFox = rockTopY - curFoxY;
+            const rockTotalHeight = rockTopY - groundH;
+
+            // Bebatuan TINGGI (tidak boleh dilewati / didaki dari tanah)
+            const isTallRock = (heightAboveFox > maxStepUp) || (rockTotalHeight > maxStepUp);
+
             // Helper untuk mengecek ketinggian permukaan atas batu di sembarang koordinat dunia (worldX, worldZ)
             function getRockTopSurfaceAt(wX, wZ) {
                 _pWorld.set(wX, 0, wZ);
@@ -1118,47 +1206,57 @@ function updateWolfPhysics(dt, elapsed) {
             }
 
             // 1. VERTICAL SURFACE SUPPORT & STEP-UP DETECTION
-            const surfaceHCenter = getRockTopSurfaceAt(curFoxX, curFoxZ);
-            const surfaceHStep = getRockTopSurfaceAt(probeStepX, probeStepZ);
-
             let isStandingOnRock = false;
             let canStepUpThisRock = false;
 
-            // Apakah rubah sedang menapak di atas batu?
-            if (surfaceHCenter > -900) {
-                const diffCenter = surfaceHCenter - curFoxY;
-                if (diffCenter <= maxStepUp && diffCenter >= -1.2) {
-                    if (surfaceHCenter > rockGroundSupportY) {
-                        rockGroundSupportY = surfaceHCenter;
+            if (isTallRock) {
+                // Untuk batu tinggi, rubah HANYA bisa berdiri jika posisinya sudah berada di atas puncaknya
+                if (curFoxY >= rockTopY - 0.40) {
+                    const surfaceHCenter = getRockTopSurfaceAt(curFoxX, curFoxZ);
+                    if (surfaceHCenter > -900 && Math.abs(surfaceHCenter - curFoxY) <= 0.45) {
+                        isStandingOnRock = true;
+                        if (surfaceHCenter > rockGroundSupportY) {
+                            rockGroundSupportY = surfaceHCenter;
+                        }
                     }
-                    isStandingOnRock = true;
+                }
+                // canStepUpThisRock selalu FALSE untuk bebatuan tinggi
+            } else {
+                // Untuk batu rendah / ceper (ketinggian <= maxStepUp)
+                const surfaceHCenter = getRockTopSurfaceAt(curFoxX, curFoxZ);
+                const surfaceHStep = getRockTopSurfaceAt(probeStepX, probeStepZ);
+
+                if (surfaceHCenter > -900) {
+                    const diffCenter = surfaceHCenter - curFoxY;
+                    if (diffCenter <= maxStepUp && diffCenter >= -1.2) {
+                        if (surfaceHCenter > rockGroundSupportY) {
+                            rockGroundSupportY = surfaceHCenter;
+                        }
+                        isStandingOnRock = true;
+                    }
+                }
+
+                if (surfaceHStep > -900) {
+                    const diffStep = surfaceHStep - curFoxY;
+                    if (diffStep > 0 && diffStep <= maxStepUp) {
+                        canStepUpThisRock = true;
+                        if (surfaceHStep > rockGroundSupportY) {
+                            rockGroundSupportY = surfaceHStep;
+                        }
+                        // Bantu transisi halus step-up saat bergerak aktif
+                        if (Math.abs(currentSpeed) > 0.05) {
+                            foxRoot.position.y = THREE.MathUtils.lerp(foxRoot.position.y, surfaceHStep, Math.min(1.0, 14.0 * dt));
+                        }
+                    }
                 }
             }
 
-            // Apakah kaki depan rubah sedang melangkah ke atas batu?
-            if (surfaceHStep > -900) {
-                const diffStep = surfaceHStep - curFoxY;
-                if (diffStep > 0 && diffStep <= maxStepUp) {
-                    canStepUpThisRock = true;
-                    if (surfaceHStep > rockGroundSupportY) {
-                        rockGroundSupportY = surfaceHStep;
-                    }
-                    // Bantu transisi halus step-up saat bergerak aktif
-                    if (Math.abs(currentSpeed) > 0.05) {
-                        foxRoot.position.y = THREE.MathUtils.lerp(foxRoot.position.y, surfaceHStep, Math.min(1.0, 14.0 * dt));
-                    }
-                }
-            }
-
-            // 2. HORIZONTAL SOLID COLLISION (Hanya aktif untuk tebing batu tinggi / boulder raksasa)
-            // Jika batu ini bisa dinaiki atau rubah sedang di atasnya, JANGAN blokir / dorong mundur rubah!
-            if (!isStandingOnRock && !canStepUpThisRock) {
-                const rockTopY = (rData.topY !== undefined) ? rData.topY : (rock.position.y + rock.scale.y * 1.12);
-                const heightAboveFox = rockTopY - curFoxY;
-
-                // Hanya bentrok jika puncak batu ini memang melebihi kemampuan step-up rubah (boulder besar / tebing)
-                if (heightAboveFox > maxStepUp) {
-                    for (let iter = 0; iter < 2; iter++) {
+            // 2. HORIZONTAL SOLID COLLISION
+            // Jika rubah TIDAK sedang berdiri di atas puncak batu, atau jika ini adalah batu tinggi:
+            // WAJIB aktifkan tabrakan solid horizontal agar rubah TIDAK BISA MENEMBUS / MELEWATI!
+            if (!isStandingOnRock) {
+                if (isTallRock || (!canStepUpThisRock && heightAboveFox > maxStepUp)) {
+                    for (let iter = 0; iter < 3; iter++) {
                         for (let n = 0; n < rockCollisionNodes.length; n++) {
                             const node = rockCollisionNodes[n];
                             const nodeX = foxRoot.position.x + fwdX * node.offset;
@@ -1194,7 +1292,7 @@ function updateWolfPhysics(dt, elapsed) {
                             const localNodeMargin = node.radius / Math.max(0.1, scaleInDir);
                             const minAllowedLocalR = rockMeshRadiusLocal + localNodeMargin;
 
-                            if (rLocal < minAllowedLocalR && _pLocal.y >= -1.45 && _pLocal.y <= 1.15) {
+                            if (rLocal < minAllowedLocalR && _pLocal.y >= -1.50 && _pLocal.y <= 1.25) {
                                 _resolvedLocal.set(dirLocalX * minAllowedLocalR, _pLocal.y, dirLocalZ * minAllowedLocalR);
                                 _resolvedWorld.copy(_resolvedLocal).applyMatrix4(rock.matrixWorld);
 
@@ -1212,7 +1310,7 @@ function updateWolfPhysics(dt, elapsed) {
                                     const normOutZ = pushVecZ / pushDist;
                                     const inwardSpeed = forward.x * normOutX + forward.z * normOutZ;
 
-                                    if (inwardSpeed < -0.70) {
+                                    if (inwardSpeed < -0.25) {
                                         currentSpeed = 0;
                                     }
                                 }
@@ -1232,7 +1330,7 @@ function updateWolfPhysics(dt, elapsed) {
     // ========================================================
     // 2. TERRAIN HEIGHT, WATER INTERACTION (100% ocean.html) & LOMPATAN
     // ========================================================
-    const groundH = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(foxRoot.position.x, foxRoot.position.z) : 0;
+    groundH = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(foxRoot.position.x, foxRoot.position.z) : 0;
     const effectiveGroundH = Math.max(groundH, rockGroundSupportY);
 
     // Cek keberadaan air dan gelombang laut di posisi rubah
@@ -1466,6 +1564,17 @@ function updateWolfPhysics(dt, elapsed) {
         isUserHoldingCamera = false;
     }
 
+    // Reset kamera langsung ke belakang player saat masuk Play Mode
+    if (window._forceCameraBehindPlayer) {
+        window._forceCameraBehindPlayer = false;
+        camOrbitYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
+        camOrbitPitch = THREE.MathUtils.degToRad(18.0);
+        currentCamDist = 4.8;
+        userPreferredDist = 4.8;
+        cameraReleaseTimer = 0.0;
+        isUserHoldingCamera = false;
+    }
+
     // Inisialisasi camOrbitYaw & camOrbitPitch jika belum ada
     if (camOrbitYaw === null || typeof camOrbitYaw === 'undefined') {
         if (typeof window.camOrbitYaw !== 'undefined' && window.camOrbitYaw !== null) {
@@ -1473,7 +1582,7 @@ function updateWolfPhysics(dt, elapsed) {
         } else {
             const camRay = camera.position.clone().sub(controls.target);
             const hDist = Math.hypot(camRay.x, camRay.z);
-            camOrbitYaw = (hDist > 0.02) ? Math.atan2(camRay.x, camRay.z) : (foxRoot.rotation.y + Math.PI);
+            camOrbitYaw = (hDist > 0.02) ? Math.atan2(camRay.x, camRay.z) : Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
         }
     }
     if (typeof window.camOrbitPitch !== 'undefined' && window.camOrbitPitch !== null && camOrbitPitch === null) {

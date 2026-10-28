@@ -28,6 +28,30 @@ function triggerWolfPunch() {
 }
 window.triggerWolfPunch = triggerWolfPunch;
 
+function startWolfBlock() {
+    const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
+    if (char && typeof char.startBlock === 'function') {
+        char.startBlock();
+    }
+}
+window.startWolfBlock = startWolfBlock;
+
+function stopWolfBlock() {
+    const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
+    if (char && typeof char.stopBlock === 'function') {
+        char.stopBlock();
+    }
+}
+window.stopWolfBlock = stopWolfBlock;
+
+function triggerWolfBlock() {
+    const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
+    if (char && typeof char.triggerBlock === 'function') {
+        char.triggerBlock();
+    }
+}
+window.triggerWolfBlock = triggerWolfBlock;
+
 // Menangkap klik kanan (Kick) & klik kiri (Punch)
 let lastRightButtonDownTime = -10000;
 
@@ -317,13 +341,21 @@ function startPlayMode() {
     isCameraOccluded = false;
 
     controls.target.set(spawnX, spawnY + 1.15, spawnZ);
-    // Posisikan kamera tepat di belakang arah hadap Hero saat spawn (Hero menghadap +Z)
-    const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), spawnRotY);
-    const bwd = fwd.clone().negate();
+    // Posisikan kamera langsung berada tepat di belakang player saat Play Mode dimulai
+    const charYaw = (wolfCharacter && wolfCharacter.root) ? wolfCharacter.root.rotation.y : spawnRotY;
+    const behindYaw = Math.atan2(-Math.sin(charYaw), -Math.cos(charYaw));
+    const camPitch = THREE.MathUtils.degToRad(18.0);
     const camDist = 4.8;
-    camera.position.set(spawnX + bwd.x * camDist, spawnY + 2.0, spawnZ + bwd.z * camDist);
-    window.camOrbitYaw = spawnRotY + Math.PI;
-    window.camOrbitPitch = THREE.MathUtils.degToRad(18.0);
+    const cosP = Math.cos(camPitch);
+    const sinP = Math.sin(camPitch);
+    const rayDir = new THREE.Vector3(Math.sin(behindYaw) * cosP, sinP, Math.cos(behindYaw) * cosP).normalize();
+
+    camera.position.copy(controls.target).addScaledVector(rayDir, camDist);
+    camera.lookAt(controls.target);
+
+    window.camOrbitYaw = behindYaw;
+    window.camOrbitPitch = camPitch;
+    window._forceCameraBehindPlayer = true;
     controls.update();
 
     if (document.activeElement && typeof document.activeElement.blur === 'function') {
@@ -357,6 +389,21 @@ function startPlayMode() {
 
     if (typeof CombatHUD !== 'undefined' && CombatHUD.onPlayModeStart) {
         CombatHUD.onPlayModeStart();
+    }
+
+    // Pastikan di awal Play Mode: Full HP, Full Stamina & semua Stats maksimal
+    if (typeof PlayerHealthState !== 'undefined' && PlayerHealthState.reset) {
+        PlayerHealthState.reset(100);
+    }
+    if (typeof FoxStaminaState !== 'undefined' && FoxStaminaState.reset) {
+        FoxStaminaState.reset();
+    }
+    if (wolfCharacter) {
+        wolfCharacter.isDead = false;
+        wolfCharacter.isTakingHit = false;
+        wolfCharacter.isBlocking = false;
+        wolfCharacter.isBlockHeld = false;
+        wolfCharacter.blockDrainPool = 0;
     }
 
     const activeBanner = document.getElementById('active-mode-banner');

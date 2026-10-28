@@ -24,6 +24,7 @@ function initMobileControls() {
     const btnUseItem = document.getElementById('btn-mobile-use-item');
     const btnPunch = document.getElementById('btn-mobile-punch');
     const btnKick = document.getElementById('btn-mobile-kick');
+    const btnShield = document.getElementById('btn-mobile-shield');
 
     if (!controlsContainer || !joystickZone || !joystickBase || !joystickStick) {
         return;
@@ -286,6 +287,48 @@ function initMobileControls() {
         btnKick.addEventListener('click', (e) => doKick(e, false));
     }
 
+    // 5B. SHIELD / BLOCK BUTTON (TANGKISAN PERTAHANAN)
+    if (btnShield) {
+        let lastShieldTouchTime = 0;
+        btnShield.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            lastShieldTouchTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            btnShield.classList.add('active');
+            if (typeof startWolfBlock === 'function') {
+                startWolfBlock();
+            }
+            if (navigator.vibrate) navigator.vibrate(20);
+        }, { passive: false });
+
+        btnShield.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            btnShield.classList.remove('active');
+            if (typeof stopWolfBlock === 'function') {
+                stopWolfBlock();
+            }
+        }, { passive: false });
+
+        btnShield.addEventListener('touchcancel', () => {
+            btnShield.classList.remove('active');
+            if (typeof stopWolfBlock === 'function') {
+                stopWolfBlock();
+            }
+        });
+
+        btnShield.addEventListener('click', (e) => {
+            e.preventDefault();
+            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            if (now - lastShieldTouchTime < 450) return; // Sudah diproses oleh touchstart
+            btnShield.classList.add('active');
+            setTimeout(() => { btnShield.classList.remove('active'); }, 180);
+            if (typeof triggerWolfBlock === 'function') {
+                triggerWolfBlock();
+            }
+        });
+    }
+
     // 6. EXIT DEMO BUTTON
     if (btnExit) {
         btnExit.addEventListener('touchstart', (e) => {
@@ -319,6 +362,9 @@ function hideMobileControls() {
     keys.shift = false;
     const btnSprint = document.getElementById('btn-mobile-sprint');
     if (btnSprint) btnSprint.classList.remove('active');
+    const btnShield = document.getElementById('btn-mobile-shield');
+    if (btnShield) btnShield.classList.remove('active');
+    if (typeof stopWolfBlock === 'function') stopWolfBlock();
 }
 
 // Inisialisasi setelah DOM siap

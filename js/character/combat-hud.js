@@ -22,6 +22,15 @@ const PlayerHealthState = {
 
     takeDamage(amount = 15, attackerPos = null) {
         if (this.isDead || (typeof isPlayMode !== 'undefined' && !isPlayMode)) return;
+
+        // Pastikan saat shield ini aktif karakter TIDAK BISA DISERANG (kebal terhadap damage HP)
+        if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.isBlocking) {
+            if (typeof wolfCharacter.onBlockHit === 'function') {
+                wolfCharacter.onBlockHit(attackerPos, amount);
+            }
+            return; // HP tidak berkurang sama sekali
+        }
+
         this.current = Math.max(0, this.current - amount);
         this.lastDamageTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
         this.updateHUD();

@@ -1140,7 +1140,7 @@
             }
 
             // Broadphase (toleran terhadap Boss & Enemy raksasa hingga jarak 6 meter)
-            if (enemyInstance.root.position.distanceToSquared(wolfCharacter.root.position) > 36.0) {
+            if ((window.PandoraUltimate && PandoraUltimate.ghostActive) || enemyInstance.root.position.distanceToSquared(wolfCharacter.root.position) > 36.0) {
                 return false;
             }
 

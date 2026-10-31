@@ -1206,8 +1206,6 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
 .stamina-fill { stroke: #ffb71c; stroke-width: 4.6; }
 .stamina-tip { stroke: #fff4c8; stroke-width: 1.6; stroke-linecap: round; }
 #stamina-gauge.critical .stamina-fill { stroke: #ff4d3d; }
-#stamina-gauge.critical { animation: stamina-gauge-pulse 0.55s ease-in-out infinite alternate; }
-@keyframes stamina-gauge-pulse { from { opacity: 1; } to { opacity: 0.55; } }
 
 /* Layar pemuatan saat pindah stage lewat portal */
 .stage-travel {

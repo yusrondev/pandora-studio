@@ -4,6 +4,21 @@
 // ==========================================
 const clock = new THREE.Clock();
 
+// Material yang dipakai bersama InstancedMesh berwarna dan tanpa warna membuat Three membaca instanceColor
+// yang null, dan galat itu menghentikan render tiap frame. Mesh tersebut diberi warna putih (tampilan sama).
+const renderBufferDirectOriginal = renderer.renderBufferDirect;
+renderer.renderBufferDirect = function (cam, activeScene, geometry, material, object, group) {
+    try {
+        return renderBufferDirectOriginal.call(this, cam, activeScene, geometry, material, object, group);
+    } catch (err) {
+        if (!object.isInstancedMesh || object.instanceColor !== null) throw err;
+        const names = [];
+        for (let node = object; node; node = node.parent) names.push(node.name || node.type);
+        console.warn('[Render] InstancedMesh tanpa instanceColor:', names.join(' < '), material.type, err.message);
+        object.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(object.instanceMatrix.count * 3).fill(1), 3);
+    }
+};
+
 const SHADOW_UPDATE_EVERY_EDITOR = 6;
 const SHADOW_FOLLOW_SNAP = 4;
 const VSYNC_SAMPLE_COUNT = 30;
@@ -40,8 +55,115 @@ function updateAdaptiveResolution(now, frameLimit) {
     }
 }
 
+// Saat bermain, bayangan karakter diperbarui tiap frame agar tidak tersendat. Pohon dan batu yang mahal
+// digambar jarang ke peta terpisah, lalu disalin sebagai dasar peta bayangan tiap frame.
+const SHADOW_STATIC_REFRESH_FACTOR = 3; // Dikali shadowEvery preset; daun yang bergoyang tetap hidup
+const ShadowCache = {
+    target: null,
+    framesSinceBake: Infinity,
+    lightX: NaN,
+    lightZ: NaN,
+
+    framebuffer(renderTarget) {
+        return renderer.properties.get(renderTarget).__webglFramebuffer;
+    },
+
+    blit(from, to, width, height) {
+        const gl = renderer.getContext();
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, from);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, to);
+        gl.blitFramebuffer(0, 0, width, height, 0, 0, width, height, gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+    },
+
+    staticCasters() {
+        const casters = [];
+        const collect = (object) => {
+            if (object.isMesh && object.castShadow) casters.push(object);
+        };
+        treesList.forEach(tree => tree.traverse(collect));
+        rocksGroup.traverse(collect);
+        return casters;
+    },
+
+    setCasting(casters, value) {
+        for (let i = 0; i < casters.length; i++) casters[i].castShadow = value;
+    },
+
+    bake(renderShadows, statics, activeScene, map) {
+        const staticSet = new Set(statics);
+        const others = [];
+        activeScene.traverse((object) => {
+            if (object.isMesh && object.castShadow && !staticSet.has(object)) others.push(object);
+        });
+        this.setCasting(others, false);
+        renderShadows();
+        this.setCasting(others, true);
+
+        if (!this.target || this.target.width !== map.width || this.target.height !== map.height) {
+            if (this.target) this.target.dispose();
+            this.target = new THREE.WebGLRenderTarget(map.width, map.height, {
+                minFilter: THREE.NearestFilter,
+                magFilter: THREE.NearestFilter,
+                format: THREE.RGBAFormat
+            });
+        }
+        const previous = renderer.getRenderTarget();
+        renderer.setRenderTarget(this.target);
+        const gl = renderer.getContext();
+        const targetBuffer = this.framebuffer(this.target);
+        this.blit(this.framebuffer(map), targetBuffer, map.width, map.height);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, targetBuffer);
+        renderer.setRenderTarget(previous);
+    },
+
+    install() {
+        const shadowMap = renderer.shadowMap;
+        const renderOriginal = shadowMap.render;
+        const cache = this;
+        shadowMap.render = function (lights, activeScene, activeCamera) {
+            const map = sunLight.shadow.map;
+            const usable = this.needsUpdate && isPlayMode && map && lights.length === 1 && renderer.capabilities.isWebGL2;
+            if (!usable) {
+                renderOriginal.call(this, lights, activeScene, activeCamera);
+                return;
+            }
+            const renderShadows = () => {
+                this.needsUpdate = true;
+                renderOriginal.call(this, lights, activeScene, activeCamera);
+            };
+            const statics = cache.staticCasters();
+            const lightMoved = sunLight.position.x !== cache.lightX || sunLight.position.z !== cache.lightZ;
+            const refreshEvery = PandoraSettings.preset().shadowEvery * SHADOW_STATIC_REFRESH_FACTOR;
+            if (lightMoved || !cache.target || cache.framesSinceBake >= refreshEvery || cache.target.width !== map.width) {
+                cache.bake(renderShadows, statics, activeScene, map);
+                cache.lightX = sunLight.position.x;
+                cache.lightZ = sunLight.position.z;
+                cache.framesSinceBake = 0;
+            }
+            cache.framesSinceBake++;
+
+            // Pengganti clear() di dalam pass bayangan: isi peta dengan dasar statis, termasuk kedalamannya
+            const clearOriginal = renderer.clear;
+            renderer.clear = function () {
+                const gl = renderer.getContext();
+                const buffer = cache.framebuffer(map);
+                cache.blit(cache.framebuffer(cache.target), buffer, map.width, map.height);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
+            };
+            cache.setCasting(statics, false);
+            try {
+                renderShadows();
+            } finally {
+                cache.setCasting(statics, true);
+                renderer.clear = clearOriginal;
+            }
+        };
+    }
+};
+ShadowCache.install();
+
 function updateShadowSchedule(isGameplay) {
-    const every = isGameplay ? PandoraSettings.preset().shadowEvery : SHADOW_UPDATE_EVERY_EDITOR;
+    const every = isPlayMode ? 1 : (isGameplay ? PandoraSettings.preset().shadowEvery : SHADOW_UPDATE_EVERY_EDITOR);
     if (frameCounter % every !== 0) return;
     renderer.shadowMap.needsUpdate = true;
 

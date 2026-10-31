@@ -733,3 +733,17 @@ body.play-mode-active:not(.cinematic-playing):not(.boss-kill-cam) #btn-ultimate 
 }
 body.rage-mode #rage-overlay { opacity: 1; animation: rage-overlay-pulse 0.7s ease-in-out infinite alternate; }
 @keyframes rage-overlay-pulse { from { opacity: 0.72; } to { opacity: 1; } }
+
+/* Ghosting: pandangan pemindai dingin dengan garis pindai halus */
+#ghost-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9979;
+    pointer-events: none;
+    opacity: 0;
+    background:
+        repeating-linear-gradient(0deg, rgba(150, 225, 255, 0.05) 0 1px, transparent 1px 4px),
+        radial-gradient(ellipse at center, rgba(40, 120, 190, 0.1) 35%, rgba(10, 45, 95, 0.5) 100%);
+    transition: opacity 0.35s ease-out;
+}
+body.ghost-mode #ghost-overlay { opacity: 1; }

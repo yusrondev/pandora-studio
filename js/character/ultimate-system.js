@@ -1,5 +1,5 @@
 /* =========================================================
-   ULTIMATE: energi 3 orb, menu L1, jurus Bunshin, dan Rage Mode
+   ULTIMATE: energi 3 orb, menu L1, jurus Bunshin, Rage Mode, dan Ghosting
    L1 memperlambat waktu dan mendekatkan kamera, lalu pemain memilih jurus dari menu.
    Bunshin adalah salinan karakter pemain yang mengikuti dan menyerang musuh di sekitarnya.
    ========================================================= */
@@ -64,6 +64,44 @@ const FOG_FRAGMENT = `
     }
 `;
 
+const GHOST_COST = 1;
+const GHOST_SECONDS = 8;
+
+const GHOST_FRAGMENT = `
+    uniform float uTime;
+    varying vec3 vNormal;
+    varying vec3 vViewPosition;
+    void main() {
+        float facing = abs(dot(normalize(vNormal), normalize(vViewPosition)));
+        float edge = pow(1.0 - facing, 2.6);
+        float scan = 0.5 + 0.5 * sin(gl_FragCoord.y * 1.1 - uTime * 8.0);
+        float sweep = pow(fract(gl_FragCoord.y * 0.008 - uTime * 0.6), 18.0);
+        vec3 color = mix(vec3(0.25, 0.7, 1.0), vec3(0.85, 0.98, 1.0), edge);
+        gl_FragColor = vec4(color, min(1.0, edge * 0.95 + 0.05 + scan * 0.05 + sweep * 0.18));
+    }
+`;
+
+const GHOST_VERTEX = `
+    #ifdef USE_SKINNING
+        #include <skinning_pars_vertex>
+    #endif
+    varying vec3 vNormal;
+    varying vec3 vViewPosition;
+    void main() {
+        vec3 transformed = vec3(position);
+        vec3 objectNormal = vec3(normal);
+        #ifdef USE_SKINNING
+            #include <skinbase_vertex>
+            #include <skinnormal_vertex>
+            #include <skinning_vertex>
+        #endif
+        vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
+        vNormal = normalize(normalMatrix * objectNormal);
+        vViewPosition = -mvPosition.xyz;
+        gl_Position = projectionMatrix * mvPosition;
+    }
+`;
+
 const FLAME_VERTEX = `
     attribute vec3 aData; // umur 0-1, ukuran, acak (ukuran negatif = pendar)
     uniform float uPixelScale;
@@ -115,6 +153,11 @@ const PandoraUltimate = {
     ragePhase: null,    // null, 'intro' (animasi), atau 'active'
     rageTimer: 0,
     flames: null,
+    ghostActive: false,
+    ghostTimer: 0,
+    ghostSwapped: [],
+    ghostMaterials: null,
+    ghostTime: { value: 0 },
     bunshins: [],
     bursts: [],
     pool: [],
@@ -125,7 +168,8 @@ const PandoraUltimate = {
 
     options: [
         { id: 'bunshin', label: 'Bunshin', cost: BUNSHIN_COST, run() { PandoraUltimate.summonBunshin(); } },
-        { id: 'rage', label: 'Rage Mode', cost: RAGE_COST, run() { PandoraUltimate.startRage(); }, blocked() { return PandoraUltimate.ragePhase ? 'Rage Mode sedang aktif' : ''; } }
+        { id: 'rage', label: 'Rage Mode', cost: RAGE_COST, run() { PandoraUltimate.startRage(); }, blocked() { return PandoraUltimate.ragePhase ? 'Rage Mode sedang aktif' : ''; } },
+        { id: 'ghost', label: 'Ghosting', cost: GHOST_COST, run() { PandoraUltimate.startGhost(); }, blocked() { return PandoraUltimate.ghostActive ? 'Ghosting sedang aktif' : ''; } }
     ],
 
     // ---------- Persiapan: dilakukan di balik layar pemuatan supaya L1 tidak tersendat ----------
@@ -156,6 +200,7 @@ const PandoraUltimate = {
             }
         }
         this.buildFlames();
+        this.prewarmGhost();
         this.pool.forEach(model => scene.remove(model.root));
         this.pool = [];
         for (let i = 0; i < BUNSHIN_MAX; i++) {
@@ -337,6 +382,75 @@ const PandoraUltimate = {
         if (!alive && !flames.emitting) flames.points.visible = false;
     },
 
+    // ---------- Ghosting ----------
+    getGhostMaterial(skinned) {
+        if (!this.ghostMaterials) {
+            const make = (skinning) => new THREE.ShaderMaterial({
+                vertexShader: GHOST_VERTEX,
+                fragmentShader: GHOST_FRAGMENT,
+                uniforms: { uTime: this.ghostTime },
+                transparent: true,
+                skinning
+            });
+            this.ghostMaterials = { skinned: make(true), rigid: make(false) };
+        }
+        return skinned ? this.ghostMaterials.skinned : this.ghostMaterials.rigid;
+    },
+
+    // Mesh sementara agar shader ghost ikut dikompilasi saat loading
+    prewarmGhost() {
+        if (!wolfCharacter || !wolfCharacter.root || wolfCharacter.root.userData.ghostPrewarmed) return;
+        const skinned = [];
+        wolfCharacter.root.traverse((child) => {
+            if (child.isSkinnedMesh && child.skeleton) skinned.push(child);
+        });
+        if (skinned.length === 0) return;
+        wolfCharacter.root.userData.ghostPrewarmed = true;
+        const source = skinned[0];
+        const twin = new THREE.SkinnedMesh(source.geometry, this.getGhostMaterial(true));
+        twin.bind(source.skeleton, source.bindMatrix);
+        twin.frustumCulled = false;
+        source.parent.add(twin);
+        renderer.compile(scene, camera);
+        // Tidak boleh ditinggal di karakter: Play Demo memunculkan kembali semua anak karakter
+        source.parent.remove(twin);
+    },
+
+    startGhost() {
+        if (!wolfCharacter || !wolfCharacter.root || PlayerHealthState.isDead) return;
+        this.ghostActive = true;
+        this.ghostTimer = GHOST_SECONDS;
+        this.spawnFog(wolfCharacter.root.position);
+        wolfCharacter.root.traverse((child) => {
+            if (!child.isMesh || child.userData.isEagleVisionTwin) return;
+            this.ghostSwapped.push({ mesh: child, material: child.material, castShadow: child.castShadow });
+            child.material = this.getGhostMaterial(!!child.isSkinnedMesh);
+            child.castShadow = false;
+        });
+        document.body.classList.add('ghost-mode');
+    },
+
+    endGhost() {
+        if (!this.ghostActive) return;
+        this.ghostActive = false;
+        this.ghostSwapped.forEach((item) => {
+            item.mesh.material = item.material;
+            item.mesh.castShadow = item.castShadow;
+        });
+        this.ghostSwapped = [];
+        document.body.classList.remove('ghost-mode');
+    },
+
+    updateGhost(dt, realDelta) {
+        if (!this.ghostActive) return;
+        this.ghostTime.value += realDelta;
+        this.ghostTimer -= dt;
+        // Menyerang membongkar penyamaran
+        if (this.ghostTimer <= 0 || PlayerHealthState.isDead || wolfCharacter.isPunching || wolfCharacter.isKicking) {
+            this.endGhost();
+        }
+    },
+
     // ---------- Rage Mode ----------
     startRage() {
         if (!wolfCharacter || PlayerHealthState.isDead) return;
@@ -467,6 +581,10 @@ const PandoraUltimate = {
         rageOverlay.id = 'rage-overlay';
         document.body.appendChild(rageOverlay);
 
+        const ghostOverlay = document.createElement('div');
+        ghostOverlay.id = 'ghost-overlay';
+        document.body.appendChild(ghostOverlay);
+
         this.elements = { orbs, button, menu, list: menu.querySelector('.ultimate-list'), hint: menu.querySelector('.ultimate-hint') };
         this.renderOrbs();
     },
@@ -490,7 +608,9 @@ const PandoraUltimate = {
             });
             list.appendChild(row);
         });
-        hint.textContent = this.unavailableReason(this.options[this.selected]);
+        // Energi kurang cukup terlihat dari pilihan yang redup, tanpa teks
+        const option = this.options[this.selected];
+        hint.textContent = this.orbs < option.cost ? '' : this.unavailableReason(option);
     },
 
     unavailableReason(option) {
@@ -625,7 +745,7 @@ const PandoraUltimate = {
     pickEnemyTarget(agent) {
         const position = agent.root.position;
         let best = null;
-        let bestDist = wolfCharacter && wolfCharacter.root ? position.distanceTo(wolfCharacter.root.position) : Infinity;
+        let bestDist = !this.ghostActive && wolfCharacter && wolfCharacter.root ? position.distanceTo(wolfCharacter.root.position) : Infinity;
         for (let i = 0; i < this.bunshins.length; i++) {
             const ally = this.bunshins[i];
             if (!ally.alive || ally.reveal > 0) continue;
@@ -769,6 +889,7 @@ const PandoraUltimate = {
             else window.PandoraTimeScale = ULTIMATE_MENU_TIMESCALE;
         }
         this.updateRage(dt, realDelta);
+        this.updateGhost(dt, realDelta);
         if (this.orbs < ULTIMATE_MAX_ORBS && !this.menuOpen) {
             this.regen += dt / ULTIMATE_REGEN_SECONDS;
             if (this.regen >= 1) {
@@ -791,6 +912,7 @@ const PandoraUltimate = {
     resetForPlay() {
         if (this.menuOpen) this.closeMenu(false);
         this.endRage();
+        this.endGhost();
         this.bunshins.forEach(ally => this.release(ally));
         this.bunshins = [];
         if (!window.PANDORA_RUNTIME) {

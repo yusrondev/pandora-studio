@@ -1,9 +1,10 @@
 {
-    "name": "FOX Tree",
+    "name": "FOX Tree 2",
     "startStageId": "lembah-suram",
     "stageOrder": [
         "lembah-suram",
-        "padang-rumput"
+        "padang-rumput",
+        "taron"
     ],
     "allowedDomains": ""
 }

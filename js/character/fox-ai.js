@@ -606,8 +606,10 @@ class FoxAIAgent {
         const playerPos = allyTarget
             ? allyTarget.root.position
             : ((typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) ? wolfCharacter.root.position : null);
-        const distToPlayer = playerPos ? this.root.position.distanceTo(playerPos) : 999;
-        const hasLOS = playerPos ? this.canSeePlayer(playerPos) : false;
+        // Ghosting: pemain tidak terdeteksi sama sekali, hanya bunshin yang masih bisa menjadi sasaran
+        const playerHidden = !allyTarget && Boolean((window.PandoraUltimate && PandoraUltimate.ghostActive));
+        const distToPlayer = playerPos && !playerHidden ? this.root.position.distanceTo(playerPos) : 999;
+        const hasLOS = playerPos && !playerHidden ? this.canSeePlayer(playerPos) : false;
 
         // Radius AI Enemy dinamis mengikuti posisi terkini AI (misal dari titik A bergerak ke titik B,
         // radius otomatis berpusat di titik B). AI tidak kembali ke titik awal spawn.
@@ -1260,7 +1262,7 @@ class FoxAIAgent {
         const playerPos = (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root)
             ? wolfCharacter.root.position
             : null;
-        const distToPlayer = playerPos ? this.root.position.distanceTo(playerPos) : 999;
+        const distToPlayer = playerPos && !(window.PandoraUltimate && PandoraUltimate.ghostActive) ? this.root.position.distanceTo(playerPos) : 999;
         this.updateDetectionRing(elapsed, distToPlayer <= this.detectionRadius, effectiveH);
 
         // Animasi Model: Gunakan AnimationMixer jika FBX Enemy, atau Procedural Bone jika legacy
@@ -1302,7 +1304,7 @@ class FoxAIAgent {
             const playerPos = (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root)
                 ? wolfCharacter.root.position
                 : null;
-            const distToPlayer = playerPos ? this.root.position.distanceTo(playerPos) : 999;
+            const distToPlayer = playerPos && !(window.PandoraUltimate && PandoraUltimate.ghostActive) ? this.root.position.distanceTo(playerPos) : 999;
 
             let targetNeckYaw = 0;
             let targetHeadYaw = 0;
@@ -1390,7 +1392,7 @@ class FoxAIAgent {
             const playerPos = (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root)
                 ? wolfCharacter.root.position
                 : null;
-            const distToPlayer = playerPos ? this.root.position.distanceTo(playerPos) : 999;
+            const distToPlayer = playerPos && !(window.PandoraUltimate && PandoraUltimate.ghostActive) ? this.root.position.distanceTo(playerPos) : 999;
 
             let targetNeckYaw = 0;
             let targetHeadYaw = 0;
@@ -1809,7 +1811,7 @@ class FoxAIManagerClass {
 
         // Warning banner jika ada AI bersenjata yang siap menembak Player
         let isPlayerTargetedByAnyAI = false;
-        if (inPlay && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
+        if (inPlay && !(window.PandoraUltimate && PandoraUltimate.ghostActive) && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
             const pPos = wolfCharacter.root.position;
             for (let i = 0; i < this.agents.length; i++) {
                 const ai = this.agents[i];

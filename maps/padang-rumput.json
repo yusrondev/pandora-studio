@@ -1092835,7 +1092835,21 @@
             ]
         }
     ],
-    "portals": [],
+    "portals": [
+        {
+            "id": "portal-1793458052828-1",
+            "name": "Portal 1",
+            "x": 2.7,
+            "z": 33.2,
+            "rotY": 0,
+            "radius": 1.6,
+            "targetStageId": "taron",
+            "spawnMode": "default",
+            "spawnX": 0,
+            "spawnZ": 0,
+            "spawnRotY": 0
+        }
+    ],
     "triggers": [],
     "character": "red-mature",
     "cinematic": {
@@ -1093290,6 +1093304,6 @@
         "version": "1.0"
     },
     "filename": "padang-rumput.json",
-    "updatedAt": "2026-10-31T14:14:39+00:00",
-    "createdAt": "2026-10-31T14:14:39+00:00"
+    "updatedAt": "2026-10-31T14:47:41+00:00",
+    "createdAt": "2026-10-31T14:47:41+00:00"
 }

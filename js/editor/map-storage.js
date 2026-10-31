@@ -514,7 +514,23 @@ const MapStorageAPI = {
             }
         }
 
-        // Sync ke LocalStorage
+        // Sudah tersimpan di disk: stage terlalu besar untuk localStorage (batas sekitar 5 MB),
+        // dan salinan lama di browser dihapus agar tidak menimpa versi disk saat API tidak terjangkau
+        if (savedApi) {
+            try {
+                const raw = localStorage.getItem('pandora_maps_store');
+                if (raw) {
+                    const list = JSON.parse(raw);
+                    const kept = list.filter(m => m.id !== mapData.id);
+                    if (kept.length !== list.length) localStorage.setItem('pandora_maps_store', JSON.stringify(kept));
+                }
+            } catch (err) {
+                console.warn('Gagal membersihkan salinan map di localStorage:', err);
+            }
+            return { success: true, savedToDisk: true, map: mapData, message: responseJson.message };
+        }
+
+        // Fallback LocalStorage (atau saat dibuka via file:///)
         try {
             const raw = localStorage.getItem('pandora_maps_store') || '[]';
             let list = JSON.parse(raw);
@@ -530,13 +546,19 @@ const MapStorageAPI = {
             localStorage.setItem('pandora_maps_store', JSON.stringify(list));
         } catch (err) {
             console.error('Gagal menulis ke localStorage:', err);
+            return {
+                success: false,
+                savedToDisk: false,
+                map: mapData,
+                message: `Map '${mapData.name}' TIDAK tersimpan: server tidak terjangkau dan map terlalu besar untuk browser.`
+            };
         }
 
         return {
             success: true,
-            savedToDisk: savedApi,
+            savedToDisk: false,
             map: mapData,
-            message: responseJson ? responseJson.message : `Map '${mapData.name}' tersimpan di browser!`
+            message: `Map '${mapData.name}' tersimpan di browser!`
         };
     },
 
@@ -742,7 +764,7 @@ const MapManagerUI = {
                     await this.refreshList(currentActiveMapId);
                     PandoraToast.show(result.message || `Map '${result.map.name}' berhasil disimpan!`, 'success');
                 } else {
-                    PandoraToast.show('Gagal menyimpan map.', 'danger');
+                    PandoraToast.show(result.message || 'Gagal menyimpan map.', 'danger');
                 }
             }
         });

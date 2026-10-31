@@ -118,6 +118,8 @@ function renderWaterDepthPass(renderer, scene, camera) {
         (typeof cloudGroup !== 'undefined') ? cloudGroup : null,
         (typeof instancedGrassMesh !== 'undefined') ? instancedGrassMesh : null,
         (typeof grassChunksGroup !== 'undefined') ? grassChunksGroup : null,
+        // Daun jauh dari permukaan air, dan tanpa alpha test bentuknya hanya kotak
+        ...treesList.map(tree => tree.userData.leafMesh),
         (typeof fallingLeavesMesh !== 'undefined') ? fallingLeavesMesh : null
     ].filter(Boolean);
     const wasVisible = hidden.map(obj => obj.visible);

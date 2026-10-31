@@ -2,6 +2,10 @@
 // ==========================================
 // 6. GENERATOR POHON DINAMIS
 // ==========================================
+// Build: batang lebih hemat; dari jarak permainan bedanya nyaris tidak terlihat
+const TREE_BARK_SEGMENTS = window.PANDORA_RUNTIME ? 12 : 24;
+const TREE_BARK_RADIAL = window.PANDORA_RUNTIME ? 6 : 10;
+
 function populateLeavesInClustersDynamic(instancedLeaves, baseClusters, count) {
     const dummy = new THREE.Object3D();
     const countFactor = (count - 300) / (3200 - 300);
@@ -84,7 +88,7 @@ function createGenshinOakTree(foliageMat, initialLeafCount = 1200, branchCount =
     branchPaths.forEach((points, index) => {
         const curve = new THREE.CatmullRomCurve3(points);
         const radius = index === 0 ? 0.28 : 0.14;
-        const tubeGeo = new THREE.TubeGeometry(curve, 24, radius, 10, false);
+        const tubeGeo = new THREE.TubeGeometry(curve, TREE_BARK_SEGMENTS, radius, TREE_BARK_RADIAL, false);
         const mesh = new THREE.Mesh(tubeGeo, oakBarkMaterial);
         mesh.receiveShadow = true;
         mesh.castShadow = true;
@@ -160,7 +164,7 @@ function createGenshinBirchTree(foliageMat, initialLeafCount = 1000, branchCount
     branchPaths.forEach((points, index) => {
         const curve = new THREE.CatmullRomCurve3(points);
         const radius = index === 0 ? 0.17 : 0.085;
-        const tubeGeo = new THREE.TubeGeometry(curve, 24, radius, 10, false);
+        const tubeGeo = new THREE.TubeGeometry(curve, TREE_BARK_SEGMENTS, radius, TREE_BARK_RADIAL, false);
         const mesh = new THREE.Mesh(tubeGeo, birchBarkMaterial);
         mesh.receiveShadow = true;
         mesh.castShadow = true;

@@ -207,6 +207,8 @@ function applyMapDataToScene(mapData) {
         });
     }
 
+    if (window.PANDORA_RUNTIME) bakeTreesForRuntime();
+
     // 5. Terapkan Bebatuan (Rocks)
     if (typeof clearAllRocks === 'function') {
         clearAllRocks();

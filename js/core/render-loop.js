@@ -82,6 +82,7 @@ const ShadowCache = {
         };
         treesList.forEach(tree => tree.traverse(collect));
         rocksGroup.traverse(collect);
+        treeBarkGroup.traverse(collect);
         return casters;
     },
 
@@ -214,7 +215,14 @@ function animate() {
     vsyncsSinceRender = 0;
     frameCounter++;
     FpsCounter.tick(frameNow);
-    if (isGameplay && settings.dynamicResolution) updateAdaptiveResolution(frameNow, settings.fpsLimit);
+    if (settings.graphics === 'auto') {
+        // Menu jeda, loading, dan kamera bokeh L1 bukan beban permainan biasa, jadi tidak ikut dinilai
+        const measuring = isPlayMode && !window.PandoraGamePaused && !document.hidden && !BossKillCam.active;
+        if (measuring) PandoraAutoQuality.update(frameNow, settings.fpsLimit);
+        else PandoraAutoQuality.windowStart = 0;
+    } else if (isGameplay && settings.dynamicResolution) {
+        updateAdaptiveResolution(frameNow, settings.fpsLimit);
+    }
 
     if (window.PandoraGamePaused) {
         clock.getDelta();
@@ -369,6 +377,7 @@ function animate() {
     }
 
     if (typeof BossKillCam !== 'undefined') BossKillCam.beforeRender(realDelta);
+    const updatesDone = performance.now();
 
     // Render scene depth pass untuk perpotongan fisika air 100% presisi mengikuti bentuk 3D mesh (batu, pohon, rumput)
     if (typeof renderWaterDepthPass === 'function') {
@@ -381,6 +390,7 @@ function animate() {
     } else {
         renderer.render(scene, camera);
     }
+    FpsCounter.note(updatesDone - frameNow, performance.now() - updatesDone);
 }
 // Frame pertama setelah semua skrip selesai: di build, seluruh engine adalah satu berkas
 requestAnimationFrame(animate);

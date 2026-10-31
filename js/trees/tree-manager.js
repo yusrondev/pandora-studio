@@ -525,3 +525,94 @@ if (document.readyState === 'loading') {
 } else {
     setTimeout(refreshLayerUI, 150);
 }
+
+// Build: pohon tidak bisa disunting, jadi semua batang digabung per petak dan per material.
+// treesList tetap dipakai untuk tabrakan, yang hanya membaca posisi pohon.
+const TREE_BARK_CHUNK_SIZE = 40;
+const treeBarkGroup = new THREE.Group();
+treeBarkGroup.name = 'treeBark';
+scene.add(treeBarkGroup);
+
+function bakeTreesForRuntime() {
+    treeBarkGroup.children.slice().forEach((mesh) => {
+        treeBarkGroup.remove(mesh);
+        mesh.geometry.dispose();
+    });
+
+    const cells = new Map();
+    treesList.forEach((tree) => {
+        tree.updateMatrixWorld(true);
+        const barks = [];
+        tree.traverse((child) => {
+            if (child.isMesh && !child.isInstancedMesh && child.castShadow) barks.push(child);
+        });
+        barks.forEach((mesh) => {
+            const key = mesh.material.uuid + ':' + Math.floor(tree.position.x / TREE_BARK_CHUNK_SIZE) + ':' + Math.floor(tree.position.z / TREE_BARK_CHUNK_SIZE);
+            if (!cells.has(key)) cells.set(key, { material: mesh.material, meshes: [] });
+            cells.get(key).meshes.push(mesh);
+        });
+        barks.forEach(mesh => mesh.parent.remove(mesh));
+    });
+
+    const point = new THREE.Vector3();
+    const normalMatrix = new THREE.Matrix3();
+    cells.forEach(({ material, meshes }) => {
+        let vertexCount = 0;
+        let indexCount = 0;
+        meshes.forEach((mesh) => {
+            vertexCount += mesh.geometry.attributes.position.count;
+            indexCount += mesh.geometry.index.count;
+        });
+        const positions = new Float32Array(vertexCount * 3);
+        const normals = new Float32Array(vertexCount * 3);
+        const uvs = new Float32Array(vertexCount * 2);
+        const indices = new Uint32Array(indexCount);
+        let vertexOffset = 0;
+        let indexOffset = 0;
+        meshes.forEach((mesh) => {
+            const source = mesh.geometry.attributes;
+            normalMatrix.getNormalMatrix(mesh.matrixWorld);
+            for (let i = 0; i < source.position.count; i++) {
+                const v = vertexOffset + i;
+                point.fromBufferAttribute(source.position, i).applyMatrix4(mesh.matrixWorld);
+                positions.set([point.x, point.y, point.z], v * 3);
+                point.fromBufferAttribute(source.normal, i).applyMatrix3(normalMatrix).normalize();
+                normals.set([point.x, point.y, point.z], v * 3);
+                uvs.set([source.uv.getX(i), source.uv.getY(i)], v * 2);
+            }
+            const sourceIndex = mesh.geometry.index;
+            for (let i = 0; i < sourceIndex.count; i++) {
+                indices[indexOffset + i] = sourceIndex.getX(i) + vertexOffset;
+            }
+            vertexOffset += source.position.count;
+            indexOffset += sourceIndex.count;
+            mesh.geometry.dispose();
+        });
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+        geometry.computeBoundingSphere();
+        const chunk = new THREE.Mesh(geometry, material);
+        chunk.castShadow = true;
+        chunk.receiveShadow = true;
+        treeBarkGroup.add(chunk);
+    });
+    applyTreeLeafFraction();
+}
+
+// Daun lebih sedikit dibuat lebih lebar agar tajuk tetap rimbun
+function applyTreeLeafFraction() {
+    const fraction = PandoraSettings.preset().leafFraction;
+    treesList.forEach((tree) => {
+        const leaves = tree.userData.leafMesh;
+        if (!leaves) return;
+        if (leaves.userData.fullCount === undefined) leaves.userData.fullCount = leaves.count;
+        leaves.count = Math.max(1, Math.round(leaves.userData.fullCount * fraction));
+    });
+    const scale = 1 / Math.sqrt(fraction);
+    foliageMaterialsList.forEach((material) => {
+        if (material.uniforms.uLeafScale) material.uniforms.uLeafScale.value = scale;
+    });
+}

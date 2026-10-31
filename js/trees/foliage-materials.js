@@ -170,6 +170,7 @@ const genshinFoliageShader = {
             uShadowColor: { value: new THREE.Color() },
             uHighlightColor: { value: new THREE.Color() },
             uTime: { value: 0 },
+            uLeafScale: { value: 1 },
             uWindSpeed: { value: 1.0 },
             directionalShadowMap: { value: [] },
             directionalLightMatrix: { value: [] }
@@ -181,6 +182,7 @@ const genshinFoliageShader = {
         #include <fog_pars_vertex>
 
         uniform float uTime;
+        uniform float uLeafScale;
         uniform float uWindSpeed;
 
         varying vec2 vUv;
@@ -189,7 +191,7 @@ const genshinFoliageShader = {
 
         void main() {
             vUv = uv;
-            vec3 pos = position;
+            vec3 pos = position * uLeafScale;
 
             if (uWindSpeed > 0.0) {
                 float waveX = sin(uTime * 2.5 * uWindSpeed + position.y * 1.5) * 0.12 * uWindSpeed;

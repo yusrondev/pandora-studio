@@ -464,6 +464,8 @@ window.HeroAssetManager = {
     },
 
     load(onProgress = null) {
+        // Build game hanya membawa karakter yang dipakai stage-nya
+        if (window.PANDORA_GAME_CHARACTERS && !window.PANDORA_GAME_CHARACTERS.includes('red')) return Promise.resolve();
         if (this.loadPromise) return this.loadPromise;
         this.isLoading = true;
 
@@ -1062,6 +1064,7 @@ window.HeroAssetManager = {
 // Start preloading hero FBX assets immediately in the background
 if (typeof window !== 'undefined') {
     const preloadAll = () => {
+        if (window.PANDORA_RUNTIME) return; // Build memuat bertahap per stage (game-runtime.js)
         if (window.HeroAssetManager) window.HeroAssetManager.load();
         if (window.GeneralTakingAssetManager) window.GeneralTakingAssetManager.load();
         if (window.GeneralDeadAssetManager) window.GeneralDeadAssetManager.load();
@@ -2905,6 +2908,8 @@ window.EnemyFoxTreeAssetManager = {
     instancesPending: [],
 
     load() {
+        // Build game hanya membawa karakter yang dipakai stage-nya
+        if (window.PANDORA_GAME_CHARACTERS && !window.PANDORA_GAME_CHARACTERS.includes('foxtree')) return Promise.resolve();
         if (this.loadPromise) return this.loadPromise;
         this.isLoading = true;
 
@@ -4359,6 +4364,8 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
 // Mencegah blank/delay saat masuk ke Demo Mode Play
 // ===================================================================
 window.preloadAllGameAssets = function(onComplete) {
+    if (window.PANDORA_RUNTIME) return; // Build memuat bertahap per stage (game-runtime.js)
+
     const loaderOverlay = document.getElementById('pandora-asset-loader');
     const fillEl = document.getElementById('asset-loader-fill');
     const statusEl = document.getElementById('asset-loader-status');
@@ -4381,7 +4388,7 @@ window.preloadAllGameAssets = function(onComplete) {
         window.GeneralDeadAssetManager.load()
     ]).then(() => {
         updateUI('Menyiapkan Instance Karakter Red Fox...', 95);
-        if (typeof wolfCharacter === 'undefined' || !wolfCharacter) {
+        if (!window.PANDORA_RUNTIME && (typeof wolfCharacter === 'undefined' || !wolfCharacter)) {
             if (typeof createWolfCharacterModel === 'function') {
                 window.wolfCharacter = createWolfCharacterModel('red');
                 if (typeof wolfCharacter !== 'undefined') {

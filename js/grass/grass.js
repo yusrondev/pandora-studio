@@ -143,7 +143,7 @@ function createGrassGridSystem(count, areaSize) {
     return { mesh: instancedGrassMesh, material: tuftMat };
 }
 
-const MAX_TRAMPLE_SEGMENTS = 36;
+const MAX_TRAMPLE_SEGMENTS = 48;
 const trampleSegABArray = [];
 const trampleSegDataArray = [];
 for (let i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
@@ -171,7 +171,7 @@ const genshinGrassShader = {
         #include <shadowmap_pars_vertex>
         #include <fog_pars_vertex>
 
-        #define MAX_TRAMPLE_SEGMENTS 36
+        #define MAX_TRAMPLE_SEGMENTS 48
         uniform float uTime;
         uniform float uWindSpeed;
         uniform vec4 uTrampleSegAB[MAX_TRAMPLE_SEGMENTS];   // xy = A(x, z), zw = B(x, z)
@@ -406,6 +406,7 @@ function rebuildGrassTransforms() {
     // 1. Padatkan seluruh rumput aktif ke indeks awal secara teratur (0 ... activeCount - 1)
     const activeCount = compactGrass();
     const dummy = new THREE.Object3D();
+    const grassFraction = PandoraSettings.preset().grassFraction;
 
     // 2. Hanya hitung transformasi & matriks untuk instance yang BENAR-BENAR aktif
     for (let i = 0; i < activeCount; i++) {
@@ -427,7 +428,9 @@ function rebuildGrassTransforms() {
 
         const scaleXZ = 0.95 * slopeScaleBoost;
         const scaleY = grassScalesArray[i] * slopeScaleBoost;
-        dummy.scale.set(scaleXZ, scaleY, scaleXZ);
+        // Preset grafis rendah menyembunyikan sebagian helai secara merata (urutan indeks tidak berpola)
+        const keep = ((i * 0.6180339887) % 1) < grassFraction;
+        dummy.scale.set(keep ? scaleXZ : 0, keep ? scaleY : 0, keep ? scaleXZ : 0);
         dummy.updateMatrix();
         instancedGrassMesh.setMatrixAt(i, dummy.matrix);
     }
@@ -526,43 +529,127 @@ for (let i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
     });
 }
 
-let activeSegmentIndex = -1;
-let prevFoxX = 99999;
-let prevFoxZ = 99999;
-let lastFwdX = 0;
-let lastFwdZ = 0;
-let stationaryTimer = 0;
+// Setiap karakter yang berjalan punya jejak sendiri; slot kapsul dipakai bersama
+function createTrampleWalker() {
+    return { active: -1, prevX: 99999, prevZ: 99999, lastFwdX: 0, lastFwdZ: 0, stationary: 0 };
+}
+const playerTrampleWalker = createTrampleWalker();
+const enemyTrampleWalkers = new Map();
+const TRAMPLE_FIRST_TRAIL_SLOT = 2;
+const ENEMY_TRAMPLE_RANGE = 45;
 
 // Durasi robohnya rumput (7.5 detik hingga pulih tegak kembali normal)
 // Waktu pemulihan konsisten di setiap kecepatan (kecepatan lari fox tidak mempengaruhi durasi)
 const TRAMPLE_RECOVERY_TIME = 7.5;
 const MAX_SEG_LENGTH = 1.8; // Panjang maksimal satu kapsul sebelum membuat segmen baru (meter)
 
+function isTrailSlotInUse(slot) {
+    if (playerTrampleWalker.active === slot) return true;
+    for (const walker of enemyTrampleWalkers.values()) {
+        if (walker.active === slot) return true;
+    }
+    return false;
+}
+
+function stepTrampleWalker(walker, x, z, fwdX, fwdZ, dt) {
+    const isMoving = Math.hypot(x - walker.prevX, z - walker.prevZ) > 0.008;
+    walker.prevX = x;
+    walker.prevZ = z;
+
+    if (!isMoving) {
+        walker.stationary += dt;
+        // Saat berhenti, tutup segmen jejak aktif agar mulai proses pemulihan (decay)
+        if (walker.stationary > 0.22) walker.active = -1;
+        return;
+    }
+    walker.stationary = 0;
+
+    if (walker.active < TRAMPLE_FIRST_TRAIL_SLOT) {
+        // Cari slot dengan kekuatan terendah (yang sudah pulih 0 atau paling tua)
+        let bestSlot = -1;
+        let lowestStrength = 999;
+        for (let i = TRAMPLE_FIRST_TRAIL_SLOT; i < MAX_TRAMPLE_SEGMENTS; i++) {
+            if (trampleSegments[i].strength < lowestStrength && !isTrailSlotInUse(i)) {
+                lowestStrength = trampleSegments[i].strength;
+                bestSlot = i;
+                if (lowestStrength <= 0.005) break;
+            }
+        }
+        if (bestSlot < 0) return;
+        walker.active = bestSlot;
+        const cur = trampleSegments[bestSlot];
+        cur.ax = x;
+        cur.az = z;
+        cur.bx = x;
+        cur.bz = z;
+        cur.strength = 1.0;
+        cur.radius = 0.54;
+        walker.lastFwdX = fwdX;
+        walker.lastFwdZ = fwdZ;
+        return;
+    }
+
+    const cur = trampleSegments[walker.active];
+    cur.bx = x;
+    cur.bz = z;
+    cur.strength = 1.0;
+
+    // Kapsul cukup panjang atau berbelok tajam: segel dan buat kapsul baru di frame berikutnya
+    const segLen = Math.hypot(cur.bx - cur.ax, cur.bz - cur.az);
+    const turnDot = fwdX * walker.lastFwdX + fwdZ * walker.lastFwdZ;
+    if (segLen >= MAX_SEG_LENGTH || (segLen > 0.45 && turnDot < 0.88)) {
+        walker.active = -1;
+    }
+}
+
+function updateEnemyTrample(dt) {
+    const agents = (typeof FoxAIManager !== 'undefined' && FoxAIManager.agents) ? FoxAIManager.agents : [];
+    const center = wolfCharacter.root.position;
+    const seen = new Set();
+    for (let i = 0; i < agents.length; i++) {
+        const agent = agents[i];
+        if (!agent || agent.isDead || !agent.root || !agent.root.visible) continue;
+        const pos = agent.root.position;
+        if (Math.hypot(pos.x - center.x, pos.z - center.z) > ENEMY_TRAMPLE_RANGE) continue;
+        seen.add(agent);
+        if (!enemyTrampleWalkers.has(agent)) enemyTrampleWalkers.set(agent, createTrampleWalker());
+        const walker = enemyTrampleWalkers.get(agent);
+        if (agent.isGrounded === false) {
+            walker.active = -1;
+            continue;
+        }
+        const rotY = agent.root.rotation.y || 0;
+        stepTrampleWalker(walker, pos.x, pos.z, Math.sin(rotY), Math.cos(rotY), dt);
+    }
+    for (const agent of Array.from(enemyTrampleWalkers.keys())) {
+        if (!seen.has(agent)) enemyTrampleWalkers.delete(agent);
+    }
+}
+
 function updateGrassTrample(dt) {
     if (!grassSystem || !grassSystem.material || !grassSystem.material.uniforms) return;
     const shaderUniforms = grassSystem.material.uniforms;
     if (!shaderUniforms.uTrampleSegAB || !shaderUniforms.uTrampleSegData) return;
 
-    // 1. Reduksi bertahap (decay) semua segmen jejak yang sudah dilewati (berdasarkan waktu murni, bebas dari kecepatan lari)
+    // 1. Reduksi bertahap (decay) semua segmen jejak yang sudah dilewati (berdasarkan waktu murni)
     for (let i = 0; i < MAX_TRAMPLE_SEGMENTS; i++) {
         const seg = trampleSegments[i];
-        if (i !== activeSegmentIndex && seg.strength > 0) {
+        if (seg.strength > 0 && !isTrailSlotInUse(i)) {
             seg.strength = Math.max(0, seg.strength - dt / TRAMPLE_RECOVERY_TIME);
         }
     }
 
-    // 2. Jika dalam Mode Play Demo & Karakter Rubah Aktif:
+    // 2. Jika dalam Mode Play Demo & Karakter Aktif:
     if (typeof isPlayMode !== 'undefined' && isPlayMode && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
         const foxPos = wolfCharacter.root.position;
         const grounded = typeof isGrounded !== 'undefined' ? isGrounded : true;
 
         if (grounded) {
             const rotY = wolfCharacter.root.rotation.y || 0;
-            // Arah hadap rubah (model rubah menghadap -X secara lokal)
             const fwdX = -Math.cos(rotY);
             const fwdZ = Math.sin(rotY);
 
-            // A. Kontak Kaki Depan (Dada / Tapak Depan)
+            // Kontak kaki depan dan belakang
             trampleSegments[0].ax = foxPos.x + fwdX * 0.32;
             trampleSegments[0].az = foxPos.z + fwdZ * 0.32;
             trampleSegments[0].bx = trampleSegments[0].ax;
@@ -570,7 +657,6 @@ function updateGrassTrample(dt) {
             trampleSegments[0].strength = 1.0;
             trampleSegments[0].radius = 0.52;
 
-            // B. Kontak Kaki Belakang (Panggul / Tapak Belakang)
             trampleSegments[1].ax = foxPos.x - fwdX * 0.26;
             trampleSegments[1].az = foxPos.z - fwdZ * 0.26;
             trampleSegments[1].bx = trampleSegments[1].ax;
@@ -578,67 +664,14 @@ function updateGrassTrample(dt) {
             trampleSegments[1].strength = 1.0;
             trampleSegments[1].radius = 0.48;
 
-            // C. Cek apakah rubah sedang bergerak atau diam
-            const distMoved = Math.hypot(foxPos.x - prevFoxX, foxPos.z - prevFoxZ);
-            prevFoxX = foxPos.x;
-            prevFoxZ = foxPos.z;
-
-            const isMoving = (distMoved > 0.008);
-
-            if (!isMoving) {
-                stationaryTimer += dt;
-                // Saat rubah berhenti diam, tutup segmen jejak aktif agar mulai proses pemulihan (decay)
-                if (stationaryTimer > 0.22 && activeSegmentIndex >= 2) {
-                    activeSegmentIndex = -1;
-                }
-            } else {
-                stationaryTimer = 0;
-
-                // D. Manajemen Kapsul Jejak Langkah (Continuous Capsule Trail)
-                if (activeSegmentIndex < 2) {
-                    // Cari slot dengan kekuatan terendah (yang sudah pulih 0 atau paling tua)
-                    let bestSlot = 2;
-                    let lowestStrength = 999;
-                    for (let i = 2; i < MAX_TRAMPLE_SEGMENTS; i++) {
-                        if (trampleSegments[i].strength < lowestStrength) {
-                            lowestStrength = trampleSegments[i].strength;
-                            bestSlot = i;
-                            if (lowestStrength <= 0.005) break;
-                        }
-                    }
-
-                    activeSegmentIndex = bestSlot;
-                    const cur = trampleSegments[activeSegmentIndex];
-                    cur.ax = foxPos.x;
-                    cur.az = foxPos.z;
-                    cur.bx = foxPos.x;
-                    cur.bz = foxPos.z;
-                    cur.strength = 1.0;
-                    cur.radius = 0.54;
-                    lastFwdX = fwdX;
-                    lastFwdZ = fwdZ;
-                } else {
-                    const cur = trampleSegments[activeSegmentIndex];
-                    cur.bx = foxPos.x;
-                    cur.bz = foxPos.z;
-                    cur.strength = 1.0;
-
-                    const segLen = Math.hypot(cur.bx - cur.ax, cur.bz - cur.az);
-                    const turnDot = fwdX * lastFwdX + fwdZ * lastFwdZ;
-
-                    // Jika kapsul sudah cukup panjang atau rubah berbelok arah tajam,
-                    // segel kapsul ini dan buat kapsul baru di frame berikutnya
-                    if (segLen >= MAX_SEG_LENGTH || (segLen > 0.45 && turnDot < 0.88)) {
-                        activeSegmentIndex = -1;
-                    }
-                }
-            }
+            stepTrampleWalker(playerTrampleWalker, foxPos.x, foxPos.z, fwdX, fwdZ, dt);
         } else {
             // Jika melompat di udara, kaki tidak menginjak rumput
-            activeSegmentIndex = -1;
+            playerTrampleWalker.active = -1;
             trampleSegments[0].strength = Math.max(0, trampleSegments[0].strength - dt * 2.5);
             trampleSegments[1].strength = Math.max(0, trampleSegments[1].strength - dt * 2.5);
         }
+        updateEnemyTrample(dt);
     }
 
     // 3. Masukkan data ke array uniform shader Three.js

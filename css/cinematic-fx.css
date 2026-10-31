@@ -1,0 +1,109 @@
+/* Subtitle, title daerah, dan letterbox cinematic. Hanya animasi transform/opacity agar ringan. */
+@font-face { font-family: 'Pandora Title'; src: url('../runtime/fonts/cinzel.woff2') format('woff2'); font-weight: 400 900; font-display: swap; }
+@font-face { font-family: 'Pandora Serif'; src: url('../runtime/fonts/cormorant.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pandora Serif'; src: url('../runtime/fonts/cormorant-italic.woff2') format('woff2'); font-weight: 500; font-style: italic; font-display: swap; }
+
+#cfx-root { position: absolute; inset: 0; z-index: 60; pointer-events: none; overflow: hidden; }
+
+.cfx-bar { position: absolute; left: 0; right: 0; height: 11vh; background: #000; transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.cfx-bar-top { top: 0; transform: translateY(-100%); }
+.cfx-bar-bottom { bottom: 0; transform: translateY(100%); }
+#cfx-root.bars-on .cfx-bar { transform: translateY(0); }
+
+.cfx-skip { position: absolute; right: 26px; bottom: 3.2vh; color: rgba(255, 255, 255, 0.45); font: italic 500 15px 'Pandora Serif', Georgia, serif; letter-spacing: 0.06em; }
+
+.cfx-ch { display: inline-block; font: inherit; opacity: 0; animation: cfx-ch-in 0.42s ease-out forwards; }
+@keyframes cfx-ch-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* --- SUBTITLE --- */
+.cfx-sub { position: absolute; left: 50%; max-width: 74%; transform: translateX(-50%); text-align: center; animation: cfx-sub-in 0.4s ease-out both; }
+@keyframes cfx-sub-in { from { opacity: 0; } to { opacity: 1; } }
+.cfx-pos-bottom { bottom: 13.5vh; }
+.cfx-pos-top { top: 13.5vh; }
+.cfx-pos-center { top: 50%; transform: translate(-50%, -50%); }
+
+.cfx-speaker { margin-bottom: 6px; font: 500 14px 'Pandora Title', Georgia, serif; letter-spacing: 0.24em; text-transform: uppercase; }
+.cfx-line { font: 500 25px/1.42 'Pandora Serif', Georgia, serif; letter-spacing: 0.02em; }
+
+/* Bara: emas redup di atas garis abu */
+.cfx-sub-ember .cfx-line { color: #f4e7c5; text-shadow: 0 1px 2px #000, 0 0 16px rgba(0, 0, 0, 0.9); }
+.cfx-sub-ember .cfx-speaker { color: #d8a24a; text-shadow: 0 0 12px rgba(216, 120, 40, 0.65); }
+.cfx-sub-ember::after { content: ''; display: block; height: 1px; margin: 10px auto 0; width: 62%; background: linear-gradient(90deg, transparent, #b5782e, transparent); animation: cfx-rule-in 0.9s ease-out both; }
+
+/* Sapuan tinta: pita hitam memudar di kedua sisi */
+.cfx-sub-ink { padding: 12px 74px; background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.82) 16%, rgba(0, 0, 0, 0.82) 84%, transparent); }
+.cfx-sub-ink .cfx-line { color: #ebe6da; }
+.cfx-sub-ink .cfx-speaker { color: #b9412f; }
+
+/* Ramalan: kolom vertikal di sisi kanan */
+.cfx-sub-oracle { left: auto; right: 8%; top: 17vh; bottom: auto; max-width: none; max-height: 66vh; transform: none; display: flex; flex-direction: row-reverse; gap: 14px; writing-mode: vertical-rl; }
+.cfx-sub-oracle .cfx-line { color: #efe9d8; font-size: 27px; letter-spacing: 0.1em; text-shadow: 0 0 14px #000, 0 0 3px #000; }
+.cfx-sub-oracle .cfx-speaker { margin: 0; color: #c7a767; font-size: 13px; }
+
+/* Bisikan: tipis dan renggang */
+.cfx-sub-whisper .cfx-line { color: rgba(238, 241, 245, 0.9); font-style: italic; font-size: 23px; letter-spacing: 0.1em; text-shadow: 0 0 10px #000; }
+.cfx-sub-whisper .cfx-speaker { color: #9fb3c4; font-size: 12px; }
+
+/* Perang: besar dan tegas */
+.cfx-sub-war .cfx-line { color: #fff4ec; font-family: 'Pandora Title', Georgia, serif; font-weight: 700; font-size: 29px; letter-spacing: 0.06em; text-transform: uppercase; text-shadow: 0 2px 0 #4d0f08, 0 0 22px rgba(190, 30, 12, 0.85); }
+.cfx-sub-war .cfx-speaker { color: #e2573f; }
+.cfx-sub-war .cfx-ch { animation-name: cfx-ch-slam; animation-duration: 0.22s; }
+@keyframes cfx-ch-slam { from { opacity: 0; transform: scale(1.7); } to { opacity: 1; transform: scale(1); } }
+
+/* Perkamen: kartu naskah */
+.cfx-sub-parchment { padding: 13px 30px; background: #d9c8a0; border-top: 1px solid #8a7040; border-bottom: 1px solid #8a7040; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55); }
+.cfx-sub-parchment .cfx-line { color: #2a1d0e; }
+.cfx-sub-parchment .cfx-speaker { color: #7c2c17; }
+
+/* --- TITLE DAERAH --- */
+.cfx-title { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; animation: cfx-title-life var(--cfx-dur, 5s) linear both; }
+@keyframes cfx-title-life { 0% { opacity: 0; } 7% { opacity: 1; } 84% { opacity: 1; } 100% { opacity: 0; } }
+
+.cfx-wash { position: absolute; left: 0; right: 0; top: 50%; height: 50vh; transform: translateY(-50%); background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.66) 32%, rgba(0, 0, 0, 0.66) 68%, transparent); opacity: 0; animation: cfx-wash-in 1.3s ease-out forwards; }
+@keyframes cfx-wash-in { to { opacity: 1; } }
+
+.cfx-seal { position: relative; width: 34px; height: 34px; margin-bottom: 18px; display: flex; align-items: center; justify-content: center; transform: rotate(45deg); border: 1px solid currentColor; font: 700 15px 'Pandora Title', Georgia, serif; opacity: 0; animation: cfx-seal-in 0.9s 0.1s ease-out forwards; }
+@keyframes cfx-seal-in { from { opacity: 0; transform: rotate(45deg) scale(1.9); } to { opacity: 1; transform: rotate(45deg) scale(1); } }
+
+.cfx-main { position: relative; font: 700 clamp(38px, 6vw, 82px) 'Pandora Title', Georgia, serif; letter-spacing: 0.17em; margin-right: -0.17em; white-space: nowrap; text-transform: uppercase; }
+.cfx-main .cfx-ch { animation-name: cfx-main-in; animation-duration: 1s; animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1); }
+@keyframes cfx-main-in { from { opacity: 0; transform: translateY(14px) scale(1.07); } to { opacity: 1; transform: none; } }
+
+.cfx-rule { position: relative; width: min(46vw, 560px); height: 1px; margin: 18px 0 14px; transform: scaleX(0); background: linear-gradient(90deg, transparent, currentColor, transparent); animation: cfx-rule-in 1.5s 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+@keyframes cfx-rule-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.cfx-title-sub { position: relative; font: italic 500 clamp(17px, 1.7vw, 25px) 'Pandora Serif', Georgia, serif; letter-spacing: 0.2em; opacity: 0; animation: cfx-sub-in 1.3s 1.4s ease-out forwards; }
+
+.cfx-title-ember { color: #e8c483; }
+.cfx-title-ember .cfx-main { text-shadow: 0 2px 2px #000, 0 0 30px rgba(208, 112, 36, 0.62); }
+.cfx-title-ember .cfx-title-sub { color: #cdb99b; }
+
+.cfx-title-ink { color: #f2efe6; }
+.cfx-title-ink .cfx-main { text-shadow: 0 2px 3px #000; }
+.cfx-title-ink .cfx-seal { color: #c23b2a; background: rgba(120, 22, 12, 0.4); }
+.cfx-title-ink .cfx-title-sub { color: #c5bfb0; }
+
+.cfx-title-frost { color: #cfe6f2; }
+.cfx-title-frost .cfx-main { text-shadow: 0 1px 2px #06121b, 0 0 28px rgba(96, 178, 226, 0.6); }
+.cfx-title-frost .cfx-title-sub { color: #a8c5d6; }
+
+.cfx-title-blood { color: #e7ddd6; }
+.cfx-title-blood .cfx-main { color: #e9d9d0; text-shadow: 0 2px 2px #000, 0 0 34px rgba(186, 22, 12, 0.85); }
+.cfx-title-blood .cfx-seal, .cfx-title-blood .cfx-rule { color: #bb2a1a; }
+.cfx-title-blood .cfx-title-sub { color: #bfa79f; }
+
+/* HUD permainan disembunyikan selama cinematic */
+body.cinematic-playing #player-combat-hud,
+body.cinematic-playing #boss-health-bar-container,
+body.cinematic-playing #floating-hp-container,
+body.cinematic-playing #fox-stats-hud,
+body.cinematic-playing #item-slot-hud,
+body.cinematic-playing #mobile-play-controls,
+body.cinematic-playing #btn-mobile-exit-demo { visibility: hidden !important; }
+
+@media (max-width: 768px) {
+    .cfx-line { font-size: 19px; }
+    .cfx-sub { max-width: 90%; }
+    .cfx-sub-oracle .cfx-line { font-size: 20px; }
+    .cfx-sub-ink { padding: 10px 34px; }
+}

@@ -583,6 +583,43 @@ body.play-mode-active #viewport-container { border-radius: 0; }
 /* Layar pemuatan: splash flat */
 .pandora-asset-loader { background: var(--bl-window); }
 
+/* --- Project, Stage & Portal --- */
+.project-text-input {
+    width: 100%;
+    height: 20px;
+    padding: 0 6px;
+    background: var(--bl-field);
+    border: 1px solid #151515;
+    border-radius: 3px;
+    color: var(--bl-text);
+    font-size: 11px;
+    outline: none;
+}
+.project-text-input:focus { border-color: var(--bl-accent); }
+
+.stage-list { background: #282828; border: 1px solid #1f1f1f; border-radius: 3px; max-height: 190px; overflow-y: auto; }
+.stage-empty { padding: 8px; color: var(--bl-text-dim); font-size: 11px; text-align: center; }
+.stage-row { height: 22px; display: flex; align-items: center; gap: 5px; padding: 0 4px 0 6px; }
+.stage-row:hover { background: #3a3a3a; }
+.stage-row.active { background: #33527f; }
+.stage-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bl-text); font-size: 11px; }
+.stage-row-meta { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bl-text-dim); font-size: 10px; }
+.stage-start-radio { margin: 0; width: 12px; height: 12px; accent-color: var(--bl-orange); flex-shrink: 0; }
+.stage-move { width: 16px; height: 16px; padding: 0; background: transparent; border: none; border-radius: 2px; color: var(--bl-text-dim); font-size: 8px; line-height: 16px; flex-shrink: 0; }
+.stage-move:hover:not(:disabled) { background: #555; color: #fff; }
+.stage-move:disabled { opacity: 0.25; }
+
+#portal-form { display: flex; flex-direction: column; gap: 3px; }
+#portal-spawn-custom { display: flex; flex-direction: column; gap: 3px; }
+.portal-num-row { display: grid; grid-template-columns: 40% 1fr; column-gap: 6px; align-items: center; }
+.portal-num-row span { text-align: right; color: var(--bl-text-dim); font-size: 11px; }
+.portal-num-row input { height: 20px; width: 100%; min-width: 0; background: var(--bl-widget); border: none; border-radius: 3px; color: #fff; font-size: 11px; text-align: center; outline: none; }
+.portal-num-row input:focus { background: var(--bl-field); box-shadow: inset 0 0 0 1px var(--bl-accent); }
+
+.generate-status { color: var(--bl-text-dim); font-size: 11px; line-height: 1.4; word-break: break-all; }
+.generate-status.ok { color: #9ccf8f; }
+.generate-status.error { color: #e88; }
+
 /* =========================================================
    CATATAN: gaya hit-tool.html ada di css/hit-tool.css
    ========================================================= */

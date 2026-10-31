@@ -21,6 +21,9 @@
     <link rel="stylesheet" href="css/cinematic.css">
     <link rel="stylesheet" href="css/items.css">
     <link rel="stylesheet" href="css/blender-inspector.css">
+    <link rel="stylesheet" href="css/cinematic-fx.css">
+    <link rel="stylesheet" href="css/settings-panel.css">
+    <link rel="stylesheet" href="css/mobile-controls.css">
     <link rel="stylesheet" href="css/desktop-shell.css">
     <script src="js/editor/desktop-shell.js"></script>
 </head>
@@ -134,6 +137,10 @@
                 </svg>
             </span>
             <span id="txt-play-mode">Play Demo</span>
+        </button>
+
+        <button id="btn-open-generate" class="btn-compact" title="Buat game mandiri di luar folder project">
+            <span>Generate Game</span>
         </button>
 
         <button id="btn-player-spawn-tool" class="btn-compact" title="Tentukan Titik Area Awal Spawn Player di Map">
@@ -522,63 +529,18 @@
 
         <!-- Right Action Buttons Arcade Cluster (Punch, Kick, Shield, Jump, Sprint, Item) -->
         <div class="mobile-action-buttons">
-            <!-- Use Item (Plasma Bazooka) - Hanya muncul jika senjata terpasang -->
-            <button type="button" id="btn-mobile-use-item" class="mobile-action-btn mobile-plasma-btn" title="Use Item (Plasma)" style="display: none;">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor">
-                    <circle cx="12" cy="12" r="5" fill="#ffffff" stroke="#ffdd55" stroke-width="2" />
-                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
-                    <path d="M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12" stroke="#ffe066" stroke-width="2" stroke-linecap="round" />
-                </svg>
-                <span class="mobile-btn-label">FIRE</span>
-            </button>
 
             <!-- Shield Button (Tangkisan / Pertahanan Karakter) -->
-            <button type="button" id="btn-mobile-shield" class="mobile-action-btn mobile-shield-btn" title="Shield / Block (Q)">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                    <path d="M12 8v8"/>
-                    <path d="M8 12h8"/>
-                </svg>
-                <span class="mobile-btn-label">SHIELD</span>
-            </button>
+            <button type="button" id="btn-mobile-shield" class="mobile-action-btn mobile-shield-btn" title="Shield / Block (Q)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 4 21 20 3 20"/></svg><span class="pad-caption">GUARD</span></button>
 
             <!-- Kick Button (Tendangan Melee) -->
-            <button type="button" id="btn-mobile-kick" class="mobile-action-btn mobile-kick-btn" title="Kick (Tendangan)">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 17l4.5-4.5L14 18l7-11"/>
-                    <path d="M18 7h3v3"/>
-                    <path d="M7 21l3-7"/>
-                </svg>
-                <span class="mobile-btn-label">KICK</span>
-            </button>
+            <button type="button" id="btn-mobile-kick" class="mobile-action-btn mobile-kick-btn" title="Kick (Tendangan)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><circle cx="12" cy="12" r="8"/></svg><span class="pad-caption">TENDANG</span></button>
 
             <!-- Jump Button (Lompat) -->
-            <button type="button" id="btn-mobile-jump" class="mobile-action-btn mobile-jump-btn" title="Jump (Lompat)">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="18 15 12 9 6 15"></polyline>
-                    <line x1="12" y1="9" x2="12" y2="21"></line>
-                </svg>
-                <span class="mobile-btn-label">JUMP</span>
-            </button>
-
-            <!-- Sprint Button (Lari Cepat) -->
-            <button type="button" id="btn-mobile-sprint" class="mobile-action-btn mobile-sprint-btn" title="Toggle Sprint">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                </svg>
-                <span class="mobile-btn-label">RUN</span>
-            </button>
+            <button type="button" id="btn-mobile-jump" class="mobile-action-btn mobile-jump-btn" title="Jump (Lompat)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg><span class="pad-caption">LOMPAT</span></button>
 
             <!-- Main Punch Button (Pukulan Combo Utama - Ukuran Paling Menonjol) -->
-            <button type="button" id="btn-mobile-punch" class="mobile-action-btn mobile-punch-btn" title="Punch Attack (Pukulan Combo)">
-                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
-                    <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
-                    <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
-                    <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 13"/>
-                </svg>
-                <span class="mobile-punch-label">PUNCH</span>
-            </button>
+            <button type="button" id="btn-mobile-punch" class="mobile-action-btn mobile-punch-btn" title="Punch Attack (Pukulan Combo)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><rect x="4.5" y="4.5" width="15" height="15"/></svg><span class="pad-caption">PUKUL</span></button>
         </div>
     </div>
 
@@ -914,30 +876,45 @@
                         <!-- Active Fox Properties -->
                         <div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
                             <div style="display:flex; gap:4px;">
-                                <select id="select-cinematic-fox-species" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Select Species">
-                                    <option value="red" selected>Red Fox</option>
-                                    <option value="arctic">Arctic Fox</option>
-                                    <option value="corsac">Corsac Fox</option>
-                                    <option value="swift">Swift Fox</option>
-                                    <option value="darwin">Darwin Fox</option>
-                                    <option value="fennec">Fennec Fox</option>
-                                    <option value="silver">Silver Fox</option>
-                                </select>
+                                <select id="select-cinematic-fox-species" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Select Species"></select>
                                 <select id="select-cinematic-fox-gait" class="cinematic-mini-select" style="flex:1; box-sizing:border-box;" title="Gait">
                                     <option value="walk">Walk</option>
                                     <option value="trot" selected>Trot</option>
                                     <option value="sprint">Sprint</option>
                                 </select>
                             </div>
-                            <select id="select-cinematic-fox-idle" class="cinematic-mini-select" style="width:100%; box-sizing:border-box; max-width:100%;" title="Idle Pose">
-                                <option value="alert" selected>Pose: Alert</option>
-                                <option value="sit">Pose: Sit</option>
-                                <option value="sleep">Pose: Sleep</option>
+                            <select id="select-cinematic-fox-idle" class="cinematic-mini-select" style="width:100%; box-sizing:border-box; max-width:100%;" title="Idle Pose"></select>
+                            <select id="select-cinematic-fox-moveclip" class="cinematic-mini-select" style="width:100%; box-sizing:border-box;" title="Klip saat aktor bergerak di jalurnya"></select>
+                            <label style="display:flex; align-items:center; gap:5px; font-size:10px; color:var(--text-muted);" title="Ulangi klip diam. Matikan untuk klip sekali main, misalnya serangan atau mati">
+                                <input type="checkbox" id="toggle-cinematic-fox-loop" checked>
+                                <span>Ulangi klip diam</span>
+                            </label>
+                            <select id="select-cinematic-fox-endrole" class="cinematic-mini-select" style="width:100%; box-sizing:border-box;" title="Keadaan aktor setelah scene terakhir selesai">
+                                <option value="stay">Akhir: tetap di stage</option>
+                                <option value="player">Akhir: jadi posisi pemain</option>
+                                <option value="enemy">Akhir: jadi musuh</option>
+                                <option value="boss">Akhir: jadi boss</option>
+                                <option value="hide">Akhir: hilang</option>
                             </select>
                             <div style="display:flex; gap:3px; margin-top:1px;">
                                 <button type="button" id="btn-fox-snap-wp1" class="btn-compact" style="flex:1; font-size:10px; padding:2px 4px;" title="Snap Fox to Waypoint #1">Snap to #1</button>
                                 <button type="button" id="btn-fox-rotate-heading" class="btn-compact" style="font-size:10px; padding:2px 6px;" title="Rotate Heading 45°">Rotate 45°</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Title Daerah per Scene -->
+                <div class="cinematic-track-header">
+                    <span style="font-weight:500; font-size:11px; color:var(--text-bright);">Title Daerah (Scene Ini)</span>
+                    <div style="display:flex; flex-direction:column; gap:4px; margin-top:4px;">
+                        <input type="text" id="input-title-text" class="project-text-input" placeholder="Nama daerah, kosong = tanpa title" maxlength="40">
+                        <input type="text" id="input-title-sub" class="project-text-input" placeholder="Keterangan" maxlength="70">
+                        <div style="display:flex; gap:4px; align-items:center;">
+                            <input type="number" id="input-title-at" class="project-text-input" style="width:48px;" min="0" step="0.5" title="Muncul pada detik">
+                            <input type="number" id="input-title-duration" class="project-text-input" style="width:48px;" min="2" step="0.5" title="Lama tampil (detik)">
+                            <select id="select-title-style" class="cinematic-mini-select" style="flex:1; height:20px;"><option value="ember">Bara</option><option value="ink">Tinta</option><option value="frost">Beku</option><option value="blood">Darah</option></select>
+                            <button type="button" id="btn-title-preview" class="btn-compact" style="font-size:10px; padding:2px 6px;">Coba</button>
                         </div>
                     </div>
                 </div>
@@ -1010,12 +987,7 @@
 
                         <!-- Gaya & Posisi -->
                         <div style="display:flex; gap:4px; margin-top:1px;">
-                            <select id="select-subtitle-style" class="cinematic-mini-select" style="flex:1; font-size:10px; height:20px;" title="Gaya Tampilan Subtitle">
-                                <option value="capsule" selected>Gaya: Kapsul Gelap (Modern)</option>
-                                <option value="shadow">Gaya: Bayangan Bioskop (Clean)</option>
-                                <option value="gold">Gaya: Emas Elegan (Sinematik)</option>
-                                <option value="comic">Gaya: Storybook Bold</option>
-                            </select>
+                            <select id="select-subtitle-style" class="cinematic-mini-select" style="flex:1; font-size:10px; height:20px;" title="Gaya Tampilan Subtitle"><option value="ember">Gaya: Bara</option><option value="ink">Gaya: Sapuan Tinta</option><option value="oracle">Gaya: Ramalan (Vertikal)</option><option value="whisper">Gaya: Bisikan</option><option value="war">Gaya: Perang</option><option value="parchment">Gaya: Perkamen</option></select>
                             <select id="select-subtitle-position" class="cinematic-mini-select" style="width:75px; font-size:10px; height:20px;" title="Posisi Subtitle">
                                 <option value="bottom" selected>Bawah</option>
                                 <option value="top">Atas</option>
@@ -1105,6 +1077,104 @@
             </div>
         </div>
         <div class="sidebar-content">
+            <!-- PROJECT & STAGE -->
+            <div class="accordion collapsed" id="accordion-project">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#e87d0d;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="6" rx="1"></rect><rect x="3" y="14" width="18" height="6" rx="1"></rect></svg></span>
+                        <span>Project &amp; Stage</span>
+                    </div>
+                    <span class="chevron-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>Nama Game</label>
+                        <input type="text" id="project-game-name" class="project-text-input" maxlength="60">
+                    </div>
+                    <div class="control-group">
+                        <label title="Lingkaran = stage awal game. Karakter stage mengikuti pilihan Karakter di toolbar saat stage disimpan.">Stage (lingkaran = stage awal)</label>
+                        <div id="stage-list" class="stage-list"></div>
+                    </div>
+                    <button type="button" id="btn-stage-new" class="btn-action">Stage Baru</button>
+                    <button type="button" id="btn-generate-game" class="btn-action btn-primary">Generate Game</button>
+                    <div id="generate-status" class="generate-status"></div>
+                </div>
+            </div>
+
+            <!-- TRIGGER AREA -->
+            <div class="accordion collapsed" id="accordion-trigger">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#f0b13a;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle><polygon points="10 8 16 12 10 16" fill="currentColor" stroke="none"></polygon></svg></span>
+                        <span>Trigger Area</span>
+                    </div>
+                    <span class="chevron-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+                </div>
+                <div class="accordion-body">
+                    <button type="button" id="btn-trigger-place" class="btn-action">Letakkan Trigger (Klik Tanah)</button>
+                    <div id="trigger-list" class="stage-list"></div>
+                    <div id="trigger-form" style="display:none;">
+                        <div class="control-group"><label>Nama</label><input type="text" id="trigger-name" class="project-text-input" maxlength="40"></div>
+                        <div class="control-group">
+                            <label>Aksi</label>
+                            <select id="trigger-mode">
+                                <option value="cinematic">Putar Cinematic</option>
+                                <option value="title">Title Daerah Saja</option>
+                            </select>
+                        </div>
+                        <div id="trigger-cinematic-fields">
+                            <div class="control-group"><label>Dari</label><select id="trigger-scene-from"></select></div>
+                            <div class="control-group"><label>Sampai</label><select id="trigger-scene-to"></select></div>
+                        </div>
+                        <div id="trigger-title-fields">
+                            <div class="control-group"><label>Nama Daerah</label><input type="text" id="trigger-title-text" class="project-text-input" maxlength="40"></div>
+                            <div class="control-group"><label>Keterangan</label><input type="text" id="trigger-title-sub" class="project-text-input" maxlength="70"></div>
+                            <div class="control-group"><label>Gaya</label><select id="trigger-title-style"><option value="ember">Bara</option><option value="ink">Tinta</option><option value="frost">Beku</option><option value="blood">Darah</option></select></div>
+                        </div>
+                        <div class="portal-num-row"><span>Radius</span><input type="number" id="trigger-radius" step="0.5" min="0.5"></div>
+                        <div class="portal-num-row"><span>Posisi X</span><input type="number" id="trigger-x" step="0.5"></div>
+                        <div class="portal-num-row"><span>Posisi Z</span><input type="number" id="trigger-z" step="0.5"></div>
+                    </div>
+                    <button type="button" id="btn-trigger-delete" class="btn-action btn-danger" disabled>Hapus Trigger</button>
+                </div>
+            </div>
+
+            <!-- PORTAL -->
+            <div class="accordion collapsed" id="accordion-portal">
+                <div class="accordion-title">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon" style="color:#8b6cff;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="11" rx="7" ry="9"></ellipse><line x1="4" y1="22" x2="20" y2="22"></line></svg></span>
+                        <span>Portal Teleport</span>
+                    </div>
+                    <span class="chevron-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+                </div>
+                <div class="accordion-body">
+                    <button type="button" id="btn-portal-place" class="btn-action">Letakkan Portal (Klik Tanah)</button>
+                    <div id="portal-list" class="stage-list"></div>
+                    <div id="portal-form" style="display:none;">
+                        <div class="control-group"><label>Nama</label><input type="text" id="portal-name" class="project-text-input" maxlength="40"></div>
+                        <div class="control-group"><label>Stage Tujuan</label><select id="portal-target"></select></div>
+                        <div class="control-group">
+                            <label>Titik Spawn</label>
+                            <select id="portal-spawn-mode">
+                                <option value="default">Spawn Stage Tujuan</option>
+                                <option value="custom">Koordinat Khusus</option>
+                            </select>
+                        </div>
+                        <div id="portal-spawn-custom">
+                            <div class="portal-num-row"><span>Spawn X</span><input type="number" id="portal-spawn-x" step="0.5"></div>
+                            <div class="portal-num-row"><span>Spawn Z</span><input type="number" id="portal-spawn-z" step="0.5"></div>
+                            <div class="portal-num-row"><span>Arah Spawn °</span><input type="number" id="portal-spawn-rot" step="5"></div>
+                        </div>
+                        <div class="portal-num-row"><span>Posisi X</span><input type="number" id="portal-x" step="0.5"></div>
+                        <div class="portal-num-row"><span>Posisi Z</span><input type="number" id="portal-z" step="0.5"></div>
+                        <div class="portal-num-row"><span>Rotasi °</span><input type="number" id="portal-rot" step="5"></div>
+                        <div class="portal-num-row"><span>Radius Pemicu</span><input type="number" id="portal-radius" step="0.1" min="0.5"></div>
+                    </div>
+                    <button type="button" id="btn-portal-delete" class="btn-action btn-danger" disabled>Hapus Portal</button>
+                </div>
+            </div>
+
             <!-- CANVAS / PLAIN FLOOR SETTINGS -->
             <div class="accordion collapsed">
                 <div class="accordion-title">
@@ -2707,6 +2777,7 @@
                         </label>
                         <input type="checkbox" id="chk-spawner-fox-boss" style="width:18px; height:18px; accent-color:#f97316; cursor:pointer;">
                     </div>
+                    <div class="control-group"><label>Saat Mati</label><select id="select-spawner-death-mode"><option value="fade">Mati: Menghilang</option><option value="stay">Mati: Jasad Tetap</option><option value="auto">Mati: Cinematic Otomatis</option><option value="scene">Mati: Scene Cinematic</option></select></div>
 
                     <div class="control-group" style="display:flex; gap:8px;">
                         <div style="flex:1;">
@@ -2920,6 +2991,13 @@
                         <input type="range" id="slider-fox-pos-z" min="-40" max="40" step="0.2" value="0">
                     </div>
 
+                    <div class="control-group"><label>Saat Mati</label><select id="fox-death-mode"><option value="fade">Mati: Menghilang</option><option value="stay">Mati: Jasad Tetap</option><option value="auto">Mati: Cinematic Otomatis</option><option value="scene">Mati: Scene Cinematic</option></select></div>
+                    <div id="fox-death-auto-fields" class="control-group" style="display:none;"><label>Kata Terakhir</label><input type="text" id="fox-death-line" class="project-text-input" maxlength="90" placeholder="Opsional"></div>
+                    <div id="fox-death-scene-fields" style="display:none;">
+                        <div class="control-group"><label>Dari Scene</label><select id="fox-death-from"></select></div>
+                        <div class="control-group"><label>Sampai</label><select id="fox-death-to"></select></div>
+                        <div class="shortcut-hint">Buat scene di sekitar titik spawn; saat diputar, scene digeser ke tempat musuh jatuh.</div>
+                    </div>
                     <button id="btn-delete-fox" class="btn-action btn-danger" style="margin-top:6px;">
                         <span class="svg-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -3086,11 +3164,15 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+    <script src="runtime/vendor/meshopt_simplifier.js"></script>
     <script src="js/core/asset-cache.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 
     <script src="js/core/random.js"></script>
+    <script src="js/core/game-settings.js"></script>
     <script src="js/core/scene.js"></script>
+    <script src="js/core/cinematic-shared.js"></script>
+    <script src="js/core/cinematic-player.js"></script>
     <script src="js/environment/sky.js"></script>
     <script src="js/editor/history.js"></script>
     <script src="js/terrain/terrain.js"></script>
@@ -3128,11 +3210,17 @@
     <script src="js/editor/glb-importer.js"></script>
     <script src="js/character/mobile-controls.js"></script>
     <script src="js/character/player-spawn.js"></script>
+    <script src="js/environment/portal-manager.js"></script>
+    <script src="js/environment/trigger-manager.js"></script>
     <script src="js/character/play-mode.js"></script>
     <script src="js/core/render-loop.js"></script>
     <script src="js/editor/ui-handlers.js"></script>
+    <script src="js/core/stage-loader.js"></script>
     <script src="js/editor/map-storage.js"></script>
+    <script src="js/editor/project-panel.js"></script>
     <script src="js/editor/cinematic.js"></script>
+    <script src="js/editor/cinematic-extras.js"></script>
+    <script src="js/editor/enemy-death-panel.js"></script>
 </body>
 
 </html>

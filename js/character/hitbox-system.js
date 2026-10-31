@@ -474,6 +474,19 @@
 
         async loadFromServer() {
             try {
+                // Build game tidak punya PHP: konfigurasinya dibaca langsung dari file statis
+                if (window.PANDORA_RUNTIME) {
+                    const staticRes = await fetch('config/hitboxes.json');
+                    if (staticRes.ok) {
+                        const staticConfig = await staticRes.json();
+                        const incoming = staticConfig.config || staticConfig;
+                        if (incoming && incoming.characters) {
+                            this.mergeConfig(incoming);
+                            this.isLoadedFromServer = true;
+                        }
+                    }
+                    return this.config;
+                }
                 const res = await fetch('api/hitboxes.php?t=' + Date.now(), { cache: 'no-store' });
                 if (!res.ok) return null;
                 const data = await res.json();

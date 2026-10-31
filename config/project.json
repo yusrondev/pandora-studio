@@ -1,0 +1,8 @@
+{
+    "name": "FOX",
+    "startStageId": "training-camp",
+    "stageOrder": [
+        "training-camp",
+        "default-sanctuary"
+    ]
+}

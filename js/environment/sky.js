@@ -169,7 +169,7 @@ const tempDummy = new THREE.Object3D();
 // Fungsi untuk menghasilkan satu formasi awan cumulonimbus (ratusan partikel dirangkai)
 // Fungsi untuk menghasilkan satu formasi awan yang lebih ramping, horizontal, dan ramah POV rendah
 function spawnCumulonimbus(centerX, baseY, centerZ, scaleBase) {
-    const numPuffs = Math.floor(190 + Math.random() * 120);
+    const numPuffs = Math.floor(70 + Math.random() * 45);
     const maxRadius = 105 * scaleBase;                       // Bentuk lebih melebar & megah
     const maxHeight = 52 * scaleBase;                        // Ketinggian vertikal proporsional (tidak menjulang tinggi ke luar layar)
 
@@ -192,7 +192,7 @@ function spawnCumulonimbus(centerX, baseY, centerZ, scaleBase) {
         const pz = centerZ + lz;
 
         // Ukuran partikel puff proporsional
-        const puffScale = (18 + Math.random() * 26) * scaleBase * (0.6 + 0.4 * heightProfile);
+        const puffScale = (29 + Math.random() * 40) * scaleBase * (0.6 + 0.4 * heightProfile);
 
         tempDummy.position.set(px, py, pz);
         tempDummy.scale.set(puffScale, puffScale, puffScale);
@@ -235,6 +235,7 @@ function buildSkyDomeClouds() {
         cloudInstancedMesh.setMatrixAt(i, tempDummy.matrix);
     }
 
+    cloudInstancedMesh.count = Math.round(globalPuffIndex * PandoraSettings.preset().cloudFraction);
     cloudInstancedMesh.instanceMatrix.needsUpdate = true;
     cloudPuffGeo.attributes.aShadowFactor.needsUpdate = true;
 }

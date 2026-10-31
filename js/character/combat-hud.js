@@ -212,32 +212,12 @@ const CombatHUD = {
         }
 
         // 2. DETEKSI BOSS & UPDATE BAR BOSS TENGAH ATAS
-        let nearbyBoss = null;
-        let minBossDist = Infinity;
+        // Boss aktif ditentukan fox-physics agar bar dan kamera selalu sepakat soal radius
+        const nearbyBoss = window.activeBossEncounter || null;
 
         const foxList = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList))
             ? spawnedFoxesList
             : [];
-
-        for (let i = 0; i < foxList.length; i++) {
-            const fox = foxList[i];
-            if (!fox || !fox.root || !fox.root.visible) continue;
-            if (!fox.isBoss) continue;
-
-            const curHp = (fox.ai && typeof fox.ai.health === 'number') ? fox.ai.health : (fox.health || 0);
-            if (curHp <= 0) continue; // Boss sudah kalah
-
-            if (playerPos) {
-                const dist = playerPos.distanceTo(fox.root.position);
-                const radius = (fox.detectionRadius !== undefined) ? fox.detectionRadius : 18.0;
-
-                // Cek apakah player berada di dalam radius area boss
-                if (dist <= radius && dist < minBossDist) {
-                    minBossDist = dist;
-                    nearbyBoss = fox;
-                }
-            }
-        }
 
         if (nearbyBoss && this.bossContainer) {
             this.activeBoss = nearbyBoss;

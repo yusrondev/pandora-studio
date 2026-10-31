@@ -384,6 +384,7 @@ function spawnFoxAtLocation(species = 'foxtree', pose = 'idle', posX, posZ, rotY
         damagePerHit: customDmg,
         aiMode: defaultSpawnerAI || 'combat',
         detectionRadius: defaultSpawnerRadius || 18.0,
+        deathMode: (document.getElementById('select-spawner-death-mode') || {}).value || 'fade',
         animOffset: Math.random() * 50,
         scaleMultiplier: customScale,
         visible: true

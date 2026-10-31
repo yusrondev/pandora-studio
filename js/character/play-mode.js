@@ -260,7 +260,8 @@ function startPlayMode() {
 
     // Inisialisasi atau sinkronisasi model rubah sesuai karakter yang dipilih di Player Spawn Inspector / switcher
     const selPlayerHero = document.getElementById('select-player-hero-folder');
-    const targetSpecies = (selPlayerHero && selPlayerHero.value) || window.currentFoxSpeciesKey || currentFoxSpeciesKey || 'red';
+    const targetSpecies = window._pendingStageCharacter || (selPlayerHero && selPlayerHero.value) || window.currentFoxSpeciesKey || currentFoxSpeciesKey || 'red';
+    window._pendingStageCharacter = null;
 
     if (!wolfCharacter || currentFoxSpeciesKey !== targetSpecies) {
         if (wolfCharacter && wolfCharacter.root) {
@@ -284,6 +285,14 @@ function startPlayMode() {
         spawnZ = sp.z;
         spawnRotY = sp.rotY || 0;
         PlayerSpawnManager.updateVisibility(true);
+    }
+
+    // Tiba lewat portal dengan koordinat khusus
+    if (window._pendingStageSpawn) {
+        spawnX = window._pendingStageSpawn.x;
+        spawnZ = window._pendingStageSpawn.z;
+        spawnRotY = window._pendingStageSpawn.rotY || 0;
+        window._pendingStageSpawn = null;
     }
 
     const spawnY = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(spawnX, spawnZ) : 0;
@@ -358,16 +367,16 @@ function startPlayMode() {
         RIGHT: null
     };
 
-    userPreferredDist = 4.8;
-    currentCamDist = 4.8;
+    userPreferredDist = PLAY_CAMERA_START_DIST;
+    currentCamDist = PLAY_CAMERA_START_DIST;
     isCameraOccluded = false;
 
     controls.target.set(spawnX, spawnY + 1.15, spawnZ);
     // Posisikan kamera langsung berada tepat di belakang player saat Play Mode dimulai
     const charYaw = (wolfCharacter && wolfCharacter.root) ? wolfCharacter.root.rotation.y : spawnRotY;
     const behindYaw = Math.atan2(-Math.sin(charYaw), -Math.cos(charYaw));
-    const camPitch = THREE.MathUtils.degToRad(18.0);
-    const camDist = 4.8;
+    const camPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_START_PITCH);
+    const camDist = PLAY_CAMERA_START_DIST;
     const cosP = Math.cos(camPitch);
     const sinP = Math.sin(camPitch);
     const rayDir = new THREE.Vector3(Math.sin(behindYaw) * cosP, sinP, Math.cos(behindYaw) * cosP).normalize();
@@ -464,6 +473,9 @@ function startPlayMode() {
 }
 
 function stopPlayMode() {
+    // Game hasil generate tidak punya mode editor untuk dituju
+    if (window.PANDORA_RUNTIME && !(window.PandoraStageFlow && PandoraStageFlow.isTransitioning)) return;
+
     isPlayMode = false;
     keys.w = false;
     keys.a = false;
@@ -582,6 +594,10 @@ function stopPlayMode() {
     if (typeof updateActiveModeHUD === 'function') {
         updateActiveModeHUD();
     }
+    if (window.PandoraStageFlow) {
+        if (!PandoraStageFlow.isTransitioning && typeof exitMobileGameView === 'function') exitMobileGameView();
+        PandoraStageFlow.onPlayStopped();
+    }
 }
 
 // Fungsi Reusable Switch Karakter Spesies Rubah
@@ -679,7 +695,10 @@ function togglePlayMode() {
 
 const btnPlayMode = document.getElementById('btn-play-mode');
 if (btnPlayMode) {
-    btnPlayMode.addEventListener('click', togglePlayMode);
+    btnPlayMode.addEventListener('click', () => {
+        if (!isPlayMode && typeof enterMobileGameView === 'function') enterMobileGameView();
+        togglePlayMode();
+    });
 }
 
 const btnToggleBattle = document.getElementById('btn-toggle-battle-mode');

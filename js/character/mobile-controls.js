@@ -5,7 +5,6 @@
 
 let mobileJoystickForward = 0;
 let mobileJoystickTurn = 0;
-let isMobileSprintActive = false;
 
 function isTouchDevice() {
     return ('ontouchstart' in window) ||
@@ -19,9 +18,7 @@ function initMobileControls() {
     const joystickBase = document.getElementById('mobile-joystick-base');
     const joystickStick = document.getElementById('mobile-joystick-stick');
     const btnJump = document.getElementById('btn-mobile-jump');
-    const btnSprint = document.getElementById('btn-mobile-sprint');
     const btnExit = document.getElementById('btn-mobile-exit-demo');
-    const btnUseItem = document.getElementById('btn-mobile-use-item');
     const btnPunch = document.getElementById('btn-mobile-punch');
     const btnKick = document.getElementById('btn-mobile-kick');
     const btnShield = document.getElementById('btn-mobile-shield');
@@ -33,12 +30,20 @@ function initMobileControls() {
     // 1. VIRTUAL ANALOG JOYSTICK LOGIC
     let activeTouchId = null;
     let baseCenter = { x: 0, y: 0 };
-    const maxDistance = 55; // Max stick travel radius in px (disesuaikan dengan analog lebih besar)
+    const maxDistance = 46; // Jangkauan stick (px)
+    const deadZone = 0.1;  // Gerakan kecil ibu jari diabaikan
+    const STICK_RUN_ON = 0.85;
+    const STICK_RUN_OFF = 0.72;
 
-    function updateBaseCenter() {
+    // Joystick mengambang: dasar berpindah ke tempat ibu jari mendarat
+    function placeBaseAt(clientX, clientY) {
+        joystickBase.style.transform = '';
         const rect = joystickBase.getBoundingClientRect();
-        baseCenter.x = rect.left + rect.width / 2;
-        baseCenter.y = rect.top + rect.height / 2;
+        const restX = rect.left + rect.width / 2;
+        const restY = rect.top + rect.height / 2;
+        joystickBase.style.transform = `translate(${clientX - restX}px, ${clientY - restY}px)`;
+        baseCenter.x = clientX;
+        baseCenter.y = clientY;
     }
 
     function resetJoystick() {
@@ -49,9 +54,11 @@ function initMobileControls() {
         keys.s = false;
         keys.a = false;
         keys.d = false;
+        keys.shift = false;
         activeTouchId = null;
         window.activeJoystickTouchId = null;
         joystickStick.style.transform = 'translate(-50%, -50%)';
+        joystickBase.style.transform = '';
         joystickBase.classList.remove('active');
     }
 
@@ -69,8 +76,13 @@ function initMobileControls() {
         joystickStick.style.transform = `translate(calc(-50% + ${stickX}px), calc(-50% + ${stickY}px))`;
 
         // Normalisasi -1.0 sampai +1.0
-        const normX = stickX / maxDistance;
-        const normY = -stickY / maxDistance; // Ke atas bernilai positif
+        // Setengah dorongan = berjalan, didorong sampai mentok = berlari (ada jeda agar tidak bergetar di batas)
+        const rawStrength = clampedDist / maxDistance;
+        const strength = rawStrength <= deadZone ? 0 : Math.min(1, (rawStrength - deadZone) / (STICK_RUN_ON - deadZone));
+        const normX = Math.cos(angle) * strength;
+        const normY = -Math.sin(angle) * strength; // Ke atas bernilai positif
+        if (rawStrength >= STICK_RUN_ON) keys.shift = true;
+        else if (rawStrength < STICK_RUN_OFF) keys.shift = false;
 
         mobileJoystickForward = normY;
         mobileJoystickTurn = normX;
@@ -101,7 +113,7 @@ function initMobileControls() {
         const touch = e.changedTouches[0];
         activeTouchId = touch.identifier;
         window.activeJoystickTouchId = touch.identifier;
-        updateBaseCenter();
+        placeBaseAt(touch.clientX, touch.clientY);
         joystickBase.classList.add('active');
         processJoystickMove(touch.clientX, touch.clientY);
         if (navigator.vibrate) navigator.vibrate(10);
@@ -148,7 +160,7 @@ function initMobileControls() {
         e.preventDefault();
         e.stopPropagation();
         isMouseDriving = true;
-        updateBaseCenter();
+        placeBaseAt(e.clientX, e.clientY);
         joystickBase.classList.add('active');
         processJoystickMove(e.clientX, e.clientY);
     });
@@ -164,30 +176,6 @@ function initMobileControls() {
             resetJoystick();
         }
     });
-
-    // 1B. ITEM ACTION BUTTON (PLASMA BAZOOKA)
-    if (btnUseItem) {
-        btnUseItem.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            btnUseItem.classList.add('firing');
-            if (typeof ItemSystem !== 'undefined') {
-                ItemSystem.useEquippedItem();
-            }
-            if (navigator.vibrate) navigator.vibrate(30);
-        }, { passive: false });
-
-        btnUseItem.addEventListener('touchend', () => {
-            btnUseItem.classList.remove('firing');
-        });
-
-        btnUseItem.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (typeof ItemSystem !== 'undefined') {
-                ItemSystem.useEquippedItem();
-            }
-        });
-    }
 
     // 2. JUMP BUTTON
     if (btnJump) {
@@ -217,28 +205,6 @@ function initMobileControls() {
         });
     }
 
-    // 3. SPRINT BUTTON (TOGGLE OR HOLD)
-    if (btnSprint) {
-        let lastSprintTouchTime = 0;
-        btnSprint.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            lastSprintTouchTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            isMobileSprintActive = !isMobileSprintActive;
-            keys.shift = isMobileSprintActive;
-            btnSprint.classList.toggle('active', isMobileSprintActive);
-            if (navigator.vibrate) navigator.vibrate(15);
-        }, { passive: false });
-
-        btnSprint.addEventListener('click', (e) => {
-            e.preventDefault();
-            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            if (now - lastSprintTouchTime < 450) return; // Sudah diproses oleh touchstart
-            isMobileSprintActive = !isMobileSprintActive;
-            keys.shift = isMobileSprintActive;
-            btnSprint.classList.toggle('active', isMobileSprintActive);
-        });
-    }
-
     // 4. PUNCH BUTTON (COMBO ATTACK)
     if (btnPunch) {
         let lastPunchTap = 0;
@@ -253,7 +219,10 @@ function initMobileControls() {
 
             btnPunch.classList.add('active');
             setTimeout(() => { btnPunch.classList.remove('active'); }, 140);
-            if (typeof triggerWolfPunch === 'function') {
+            // Tanpa tombol tembak terpisah: selama senjata dipegang, tombol kotak menembak
+            if (typeof ItemSystem !== 'undefined' && ItemSystem.equippedItem) {
+                ItemSystem.useEquippedItem();
+            } else if (typeof triggerWolfPunch === 'function') {
                 triggerWolfPunch();
             }
             if (navigator.vibrate) navigator.vibrate(22);
@@ -344,7 +313,41 @@ function initMobileControls() {
     }
 }
 
+// Harus dipanggil langsung dari klik pemain: browser menolak fullscreen di luar gestur.
+// iPhone tidak mendukung keduanya, jadi petunjuk "putar perangkat" menjadi cadangan.
+async function enterMobileGameView() {
+    if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
+    try {
+        const root = document.documentElement;
+        if (!document.fullscreenElement && root.requestFullscreen) {
+            await root.requestFullscreen({ navigationUI: 'hide' });
+        }
+        if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock('landscape');
+        }
+    } catch (err) { /* browser menolak: pemain memutar perangkat sendiri */ }
+}
+window.enterMobileGameView = enterMobileGameView;
+
+function exitMobileGameView() {
+    if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
+    if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (err) { /* tidak didukung */ }
+    }
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+window.exitMobileGameView = exitMobileGameView;
+
+function ensureRotateHint() {
+    if (document.getElementById('rotate-device-hint')) return;
+    const hint = document.createElement('div');
+    hint.id = 'rotate-device-hint';
+    hint.textContent = 'Putar perangkat ke posisi mendatar untuk bermain';
+    document.body.appendChild(hint);
+}
+
 function showMobileControls() {
+    ensureRotateHint();
     const controlsContainer = document.getElementById('mobile-play-controls');
     if (controlsContainer && isTouchDevice()) {
         controlsContainer.style.display = 'block';
@@ -358,10 +361,7 @@ function hideMobileControls() {
     }
     mobileJoystickForward = 0;
     mobileJoystickTurn = 0;
-    isMobileSprintActive = false;
     keys.shift = false;
-    const btnSprint = document.getElementById('btn-mobile-sprint');
-    if (btnSprint) btnSprint.classList.remove('active');
     const btnShield = document.getElementById('btn-mobile-shield');
     if (btnShield) btnShield.classList.remove('active');
     if (typeof stopWolfBlock === 'function') stopWolfBlock();

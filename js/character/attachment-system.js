@@ -36,7 +36,7 @@
 
         _meshoptPromise = new Promise((resolve) => {
             const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js';
+            script.src = window.PANDORA_VENDOR_PATH ? (window.PANDORA_VENDOR_PATH + 'meshopt_decoder.js') : 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js';
             script.onload = () => {
                 const loadedDec = getDecoder();
                 if (loadedDec && loadedDec.ready && typeof loadedDec.ready.then === 'function') {
@@ -54,7 +54,41 @@
         return _meshoptPromise;
     }
 
+    // Model hasil generator AI bisa berisi jutaan segitiga dan digambar beberapa kali per frame.
+    // Diperkecil saat dimuat supaya aksesori tidak menghabiskan GPU.
+    const ATTACHMENT_MAX_TRIANGLES = 15000;
+    const ATTACHMENT_SHADOW_MAX_TRIANGLES = 8000;
+
+    function geometryTriangles(geometry) {
+        if (!geometry) return 0;
+        return (geometry.index ? geometry.index.count : geometry.attributes.position.count) / 3;
+    }
+
+    function simplifyHeavyGeometry(mesh) {
+        const simplifier = window.MeshoptSimplifier;
+        const geometry = mesh.geometry;
+        if (!simplifier || !simplifier.supported || !geometry || !geometry.index || geometryTriangles(geometry) <= ATTACHMENT_MAX_TRIANGLES) return;
+
+        const position = geometry.attributes.position;
+        const positions = new Float32Array(position.count * 3);
+        for (let i = 0; i < position.count; i++) {
+            positions[i * 3] = position.getX(i);
+            positions[i * 3 + 1] = position.getY(i);
+            positions[i * 3 + 2] = position.getZ(i);
+        }
+        const before = geometryTriangles(geometry);
+        const indices = new Uint32Array(geometry.index.array);
+        const [result] = simplifier.simplify(indices, positions, 3, ATTACHMENT_MAX_TRIANGLES * 3, 0.05, ['LockBorder']);
+        let finalIndices = result;
+        if (finalIndices.length / 3 > ATTACHMENT_MAX_TRIANGLES * 1.5 && simplifier.simplifySloppy) {
+            finalIndices = simplifier.simplifySloppy(finalIndices, positions, 3, ATTACHMENT_MAX_TRIANGLES * 3, 0.2)[0];
+        }
+        geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(finalIndices), 1));
+        console.log('[AttachmentSystem] Model disederhanakan: ' + before + ' -> ' + (finalIndices.length / 3) + ' segitiga');
+    }
+
     async function getGLTFLoader() {
+        if (window.MeshoptSimplifier && window.MeshoptSimplifier.ready) await window.MeshoptSimplifier.ready;
         if (!_gltfLoader && typeof THREE !== 'undefined' && THREE.GLTFLoader) {
             _gltfLoader = new THREE.GLTFLoader();
         }
@@ -69,7 +103,7 @@
         // Pasang DRACOLoader jika tersedia
         if (typeof THREE.DRACOLoader !== 'undefined' && !_gltfLoader.dracoLoader) {
             const draco = new THREE.DRACOLoader();
-            draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.3/');
+            draco.setDecoderPath(window.PANDORA_VENDOR_PATH ? (window.PANDORA_VENDOR_PATH + 'draco/') : 'https://www.gstatic.com/draco/versioned/decoders/1.4.3/');
             _gltfLoader.setDRACOLoader(draco);
         }
 
@@ -354,7 +388,16 @@
          * @param {string} fileType 'glb' | 'fbx'
          * @returns {Promise<THREE.Object3D>}
          */
-        async load3DModelFromUrl(fileUrl, fileType) {
+        // Jumlah model yang masih dimuat. Mengurai dan menyederhanakan model menghentikan frame,
+        // jadi layar pemuatan stage menunggu sampai angka ini nol.
+        pendingModelLoads: 0,
+
+        load3DModelFromUrl(fileUrl, fileType) {
+            this.pendingModelLoads++;
+            return this.loadModelFile(fileUrl, fileType).finally(() => { this.pendingModelLoads--; });
+        },
+
+        async loadModelFile(fileUrl, fileType) {
             const cacheKey = (fileUrl || '').trim();
             if (_modelCache.has(cacheKey)) {
                 const cached = _modelCache.get(cacheKey);
@@ -408,7 +451,8 @@
             if (!obj) return;
             obj.traverse((child) => {
                 if (child.isMesh) {
-                    child.castShadow = true;
+                    simplifyHeavyGeometry(child);
+                    child.castShadow = geometryTriangles(child.geometry) <= ATTACHMENT_SHADOW_MAX_TRIANGLES;
                     child.receiveShadow = true;
                     child.frustumCulled = false;
                     if (child.material) {

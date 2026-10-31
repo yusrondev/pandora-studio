@@ -12,6 +12,21 @@ const FOX_PALETTES = [
     { color: 0xeab308, hex: '#eab308', label: 'Kuning' }
 ];
 
+function cinematicActorData(f, overrides) {
+    return Object.assign({
+        id: f.id,
+        name: f.name,
+        species: f.species,
+        movementMode: f.movementMode,
+        idlePose: f.idlePose,
+        moveClip: f.moveClip || '',
+        clipLoop: f.clipLoop !== false,
+        endRole: f.endRole || 'stay',
+        heading: f.heading,
+        waypoints: JSON.parse(JSON.stringify(f.waypoints || []))
+    }, overrides || {});
+}
+
 const CinematicManager = {
     // Camera Waypoints state
     waypoints: [],
@@ -1033,10 +1048,10 @@ const CinematicManager = {
         const palette = FOX_PALETTES[0];
         const fox = {
             id: 'fox_1',
-            name: 'Rubah 1',
+            name: 'Aktor 1',
             species: 'red',
-            movementMode: 'trot',
-            idlePose: 'alert',
+            movementMode: 'walk',
+            idlePose: 'idle',
             heading: 0,
             waypoints: [],
             curve: null,
@@ -1057,19 +1072,12 @@ const CinematicManager = {
             fox.pathGroup.name = `CinematicFoxPathGroup_${fox.id}`;
             if (scene) scene.add(fox.pathGroup);
         }
-        if (!fox.model) {
-            if (idx === 0 && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
-                fox.model = wolfCharacter;
-            } else if (typeof createWolfCharacterModel === 'function') {
-                fox.model = createWolfCharacterModel(fox.species || 'red');
-                if (scene) scene.add(fox.model.root);
-                if (idx === 0 && (typeof wolfCharacter === 'undefined' || !wolfCharacter)) {
-                    wolfCharacter = fox.model;
-                }
-            }
+        // Model baru dibuat saat track aktor aktif, supaya editor tidak memuat karakter yang belum dipakai
+        if (!fox.model && this.isFoxEnabled) {
+            fox.model = CinematicActors.createModel(fox.species || 'red');
         }
         if (fox.model && fox.model.root) {
-            fox.model.root.visible = this.isFoxEnabled || (idx === 0 && typeof isPlayMode !== 'undefined' && isPlayMode);
+            fox.model.root.visible = this.isFoxEnabled;
         }
         if (fox.pathGroup) {
             fox.pathGroup.visible = this.isFoxEnabled;
@@ -1120,10 +1128,8 @@ const CinematicManager = {
             this.renderTimelineLanePips();
             this.updateFoxPlayback(this.progress * this.duration, 0.016, 0, false);
         } else {
-            this.foxes.forEach((fox, idx) => {
-                if (idx > 0 || (typeof isPlayMode === 'undefined' || !isPlayMode)) {
-                    if (fox.model && fox.model.root) fox.model.root.visible = false;
-                }
+            this.foxes.forEach((fox) => {
+                if (fox.model && fox.model.root) fox.model.root.visible = false;
                 if (fox.pathGroup) fox.pathGroup.visible = false;
             });
             if (this.foxPreviewMarker) this.foxPreviewMarker.visible = false;
@@ -1188,16 +1194,14 @@ const CinematicManager = {
         const idx = this.foxes.length;
         const palette = FOX_PALETTES[idx % FOX_PALETTES.length];
 
-        // Pilih spesies variatif otomatis jika tidak ditentukan
-        const speciesKeys = ['red', 'fennec', 'arctic', 'silver', 'swift', 'corsac', 'darwin'];
-        const chosenSpecies = speciesKey || speciesKeys[idx % speciesKeys.length];
+        const chosenSpecies = CinematicActors.resolveSpecies(speciesKey || this.getActiveFox().species);
 
         const newFox = {
             id: 'fox_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-            name: `Rubah ${idx + 1}`,
+            name: `Aktor ${idx + 1}`,
             species: chosenSpecies,
-            movementMode: 'trot',
-            idlePose: 'alert',
+            movementMode: 'walk',
+            idlePose: 'idle',
             heading: 0,
             waypoints: [],
             curve: null,
@@ -1251,11 +1255,7 @@ const CinematicManager = {
                 scene.remove(fox.pathGroup);
             }
             if (fox.model && fox.model.root && scene) {
-                if (idx > 0) {
-                    scene.remove(fox.model.root);
-                } else {
-                    fox.model.root.visible = false;
-                }
+                scene.remove(fox.model.root);
             }
         }
 
@@ -1264,10 +1264,6 @@ const CinematicManager = {
             this.activeFoxIndex = this.foxes.length - 1;
         }
 
-        // Re-link wolfCharacter ke fox 0
-        if (this.foxes[0] && this.foxes[0].model && typeof wolfCharacter !== 'undefined') {
-            wolfCharacter = this.foxes[0].model;
-        }
 
         this.renderFoxSelectorUI();
         this.syncActiveFoxControlsUI();
@@ -1295,14 +1291,8 @@ const CinematicManager = {
             const oldRot = fox.model.root.rotation.y;
             const wasVis = fox.model.root.visible;
 
-            if (this.activeFoxIndex === 0 && typeof switchFoxSpecies === 'function') {
-                switchFoxSpecies(speciesKey);
-                fox.model = wolfCharacter;
-            } else if (typeof createWolfCharacterModel === 'function') {
-                scene.remove(fox.model.root);
-                fox.model = createWolfCharacterModel(speciesKey);
-                scene.add(fox.model.root);
-            }
+            scene.remove(fox.model.root);
+            fox.model = CinematicActors.createModel(speciesKey);
 
             if (fox.model && fox.model.root) {
                 fox.model.root.position.copy(oldPos);
@@ -1762,111 +1752,7 @@ const CinematicManager = {
 
     updateSingleFoxPlayback(fox, timeSeconds, dt = 0.016, elapsed = 0, isPlaying = false, foxIdx = 0) {
         if (!fox || !fox.model || !fox.model.root || !fox.model.root.visible) return;
-
-        // KETIKA WAYPOINT CUMAN 1: Diam di tempat & jalankan pose idle
-        if (fox.waypoints.length === 1) {
-            const wp1 = fox.waypoints[0];
-            const gy = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(wp1.x, wp1.z) : wp1.y;
-            fox.model.root.position.set(wp1.x, gy, wp1.z);
-            fox.model.root.rotation.y = fox.heading || 0;
-            this.applyFoxPose(fox.model, fox.idlePose || 'alert', dt, elapsed, foxIdx * 1.5);
-            return;
-        }
-
-        if (!fox.curve) return;
-        const pathLength = fox.curve.getLength();
-        if (pathLength < 0.1) return;
-
-        const { speed: naturalSpeed, huntRatio } = this.getFoxNaturalSpeedForFox(fox);
-        const distanceTraveled = Math.max(0, timeSeconds * naturalSpeed);
-
-        let u = 0;
-        let isMoving = false;
-        let currentSpeed = 0;
-
-        if (this.isLooping) {
-            u = (distanceTraveled % pathLength) / pathLength;
-            isMoving = isPlaying;
-            currentSpeed = isPlaying ? naturalSpeed : 0;
-        } else {
-            if (distanceTraveled < pathLength) {
-                u = distanceTraveled / pathLength;
-                isMoving = isPlaying;
-                currentSpeed = isPlaying ? naturalSpeed : 0;
-            } else {
-                u = 1.0;
-                isMoving = false;
-                currentSpeed = 0;
-            }
-        }
-
-        u = THREE.MathUtils.clamp(u, 0.0, 1.0);
-
-        const pt = fox.curve.getPointAt(u);
-        const groundY = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(pt.x, pt.z) : pt.y;
-        fox.model.root.position.set(pt.x, groundY, pt.z);
-
-        // Orientasi arah hadap tangen kurva
-        let turnRate = 0;
-        const deltaU = 0.008;
-        let uNext = Math.min(1.0, u + deltaU);
-        let uPrev = Math.max(0.0, u - deltaU);
-
-        if (u >= 0.999 && !this.isLooping) {
-            uNext = 1.0;
-            uPrev = Math.max(0.0, 1.0 - deltaU * 2);
-        } else if (u <= 0.001) {
-            uPrev = 0.0;
-            uNext = Math.min(1.0, deltaU * 2);
-        }
-
-        const ptPrev = fox.curve.getPointAt(uPrev);
-        const ptNext = fox.curve.getPointAt(uNext);
-        const dir = new THREE.Vector3().subVectors(ptNext, ptPrev);
-        dir.y = 0;
-
-        if (dir.lengthSq() > 0.00001) {
-            dir.normalize();
-            const angle = Math.atan2(dir.z, -dir.x);
-            fox.model.root.rotation.y = angle;
-
-            if (isMoving && uNext < 1.0 - deltaU) {
-                const ptFarNext = fox.curve.getPointAt(Math.min(1.0, uNext + deltaU));
-                const dirNext = new THREE.Vector3().subVectors(ptFarNext, ptNext);
-                dirNext.y = 0;
-                if (dirNext.lengthSq() > 0.00001) {
-                    dirNext.normalize();
-                    const nextAngle = Math.atan2(dirNext.z, -dirNext.x);
-                    let angleDiff = (nextAngle - angle) % (Math.PI * 2);
-                    if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-                    if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-                    const dtStep = Math.max(0.001, (deltaU * pathLength) / naturalSpeed);
-                    turnRate = THREE.MathUtils.clamp(angleDiff / dtStep, -3.5, 3.5);
-                }
-            }
-        }
-
-        // Animasi pergerakan artikulasi biologis rubah
-        if (fox.model === wolfCharacter && typeof updateWolfLocomotionAnimation === 'function') {
-            updateWolfLocomotionAnimation(
-                dt,
-                elapsed || performance.now() * 0.001,
-                currentSpeed,
-                turnRate,
-                isMoving ? huntRatio : 0,
-                true,
-                0
-            );
-        } else {
-            this.applyFoxLocomotionToCharacter(
-                fox.model,
-                dt,
-                (elapsed || performance.now() * 0.001) + foxIdx * 0.7,
-                currentSpeed,
-                turnRate,
-                isMoving ? huntRatio : 0
-            );
-        }
+        CinematicActors.apply(fox, fox.model, timeSeconds, dt, isPlaying);
     },
 
     updateFoxPlayback(timeSeconds, dt = 0.016, elapsed = 0, isPlaying = false) {
@@ -2094,15 +1980,7 @@ const CinematicManager = {
                     subtitles: [],
                     isFoxEnabled: this.isFoxEnabled,
                     activeFoxIndex: 0,
-                    foxes: (this.foxes && this.foxes.length > 0) ? this.foxes.map(f => ({
-                        id: f.id,
-                        name: f.name,
-                        species: f.species,
-                        movementMode: f.movementMode,
-                        idlePose: f.idlePose,
-                        heading: f.heading,
-                        waypoints: JSON.parse(JSON.stringify(f.waypoints || []))
-                    })) : [],
+                    foxes: (this.foxes && this.foxes.length > 0) ? this.foxes.map(f => cinematicActorData(f)) : [],
                     environment: this.getEnvironmentSnapshot(),
                     treesSnapshot: this.getTreesSnapshot(),
                     waypoints: []
@@ -2130,15 +2008,8 @@ const CinematicManager = {
         cur.subtitles = JSON.parse(JSON.stringify(this.subtitles || []));
         cur.isFoxEnabled = this.isFoxEnabled;
         cur.activeFoxIndex = this.activeFoxIndex;
-        cur.foxes = this.foxes.map(f => ({
-            id: f.id,
-            name: f.name,
-            species: f.species,
-            movementMode: f.movementMode,
-            idlePose: f.idlePose,
-            heading: f.heading,
-            waypoints: JSON.parse(JSON.stringify(f.waypoints || []))
-        }));
+        cur.foxes = this.foxes.map(f => cinematicActorData(f));
+        cur.titleCard = this.titleCard ? JSON.parse(JSON.stringify(this.titleCard)) : null;
         cur.environment = this.getEnvironmentSnapshot();
         cur.treesSnapshot = this.getTreesSnapshot();
         cur.waypoints = JSON.parse(JSON.stringify(this.waypoints || []));
@@ -2182,15 +2053,7 @@ const CinematicManager = {
                         z: endPos.z
                     }] : [];
 
-                    nextScene.foxes.push({
-                        id: cf.id,
-                        name: cf.name,
-                        species: cf.species,
-                        movementMode: cf.movementMode,
-                        idlePose: cf.idlePose,
-                        heading: endHeading,
-                        waypoints: newWps
-                    });
+                    nextScene.foxes.push(cinematicActorData(cf, { heading: endHeading, waypoints: newWps }));
                 } else {
                     // Rubah sudah ada di nextScene.
                     // Jika di nextScene rubah ini belum memiliki jalur pergerakan (0 atau 1 titik statis),
@@ -2228,6 +2091,7 @@ const CinematicManager = {
         this.isLetterboxActive = sc.isLetterboxActive !== undefined ? sc.isLetterboxActive : true;
         this.isSubtitlesEnabled = sc.isSubtitlesEnabled !== undefined ? sc.isSubtitlesEnabled : true;
         this.subtitles = Array.isArray(sc.subtitles) ? JSON.parse(JSON.stringify(sc.subtitles)) : [];
+        this.titleCard = sc.titleCard || null;
         this.selectedSubtitleIndex = this.subtitles.length > 0 ? 0 : -1;
         this.isFoxEnabled = !!sc.isFoxEnabled;
         this.waypoints = JSON.parse(JSON.stringify(sc.waypoints || []));
@@ -2236,7 +2100,7 @@ const CinematicManager = {
         if (sc.foxes && Array.isArray(sc.foxes) && sc.foxes.length > 0) {
             // Bersihkan model rubah tambahan (idx > 0) dan pathGroups lama dari 3D scene
             this.foxes.forEach((f, fIdx) => {
-                if (fIdx > 0 && f.model && f.model.root && scene) {
+                if (f.model && f.model.root && scene) {
                     scene.remove(f.model.root);
                 }
                 if (f.pathGroup && scene) {
@@ -2251,7 +2115,10 @@ const CinematicManager = {
                     name: sf.name || `Rubah ${fIdx + 1}`,
                     species: sf.species || 'red',
                     movementMode: sf.movementMode || 'trot',
-                    idlePose: sf.idlePose || 'alert',
+                    idlePose: sf.idlePose || 'idle',
+                    moveClip: sf.moveClip || '',
+                    clipLoop: sf.clipLoop !== false,
+                    endRole: sf.endRole || 'stay',
                     heading: sf.heading || 0,
                     waypoints: JSON.parse(JSON.stringify(sf.waypoints || [])),
                     curve: null,
@@ -2389,15 +2256,7 @@ const CinematicManager = {
                     z: pz
                 }];
             }
-            return {
-                id: f.id,
-                name: f.name,
-                species: f.species,
-                movementMode: f.movementMode,
-                idlePose: f.idlePose,
-                heading: newHeading,
-                waypoints: newWaypoints
-            };
+            return cinematicActorData(f, { heading: newHeading, waypoints: newWaypoints });
         });
 
         const newScene = {
@@ -2599,6 +2458,7 @@ const CinematicManager = {
         }
 
         document.body.classList.remove('cinematic-mode-active');
+        CinematicFX.clear();
 
         // Tampilkan kembali penanda di editor saat pause
         if (this.pathGroup) this.pathGroup.visible = true;
@@ -2656,6 +2516,7 @@ const CinematicManager = {
 
         this.setLetterboxActive(false);
         this.updateSubtitleOverlay(-1);
+        CinematicFX.clear();
         const dofOverlay = document.getElementById('cinematic-dof-overlay');
         if (dofOverlay) {
             dofOverlay.classList.remove('active');
@@ -2849,6 +2710,8 @@ const CinematicManager = {
 
         // 2. Fokus ke Karakter Rubah (wolfCharacter)
         if (this.focusMode === 'character') {
+            const actor = this.isFoxEnabled && this.foxes.find(f => f.model && f.model.root && f.model.root.visible);
+            if (actor) return actor.model.root.position.clone().add(new THREE.Vector3(0, 1.5, 0));
             if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
                 return wolfCharacter.root.position.clone().add(new THREE.Vector3(0, 0.75, 0));
             }
@@ -2901,6 +2764,7 @@ const CinematicManager = {
 
     setLetterboxActive(active) {
         this.isLetterboxActive = active;
+        CinematicFX.setBars(active && this.isPlaying);
         const body = document.body;
         if (active && this.isPlaying) body.classList.add('cinematic-mode-active');
         else body.classList.remove('cinematic-mode-active');
@@ -2995,20 +2859,9 @@ const CinematicManager = {
 
     updateIdleFox(dt, elapsed) {
         if (!this.isFoxEnabled || !this.foxes) return;
-
-        this.foxes.forEach((fox, idx) => {
+        this.foxes.forEach((fox) => {
             if (!fox || !fox.model || !fox.model.root || !fox.model.root.visible) return;
-
-            // Saat mengatur waypoint cuma 1, kunci posisi rubah tepat di titik #1 tersebut
-            if (fox.waypoints && fox.waypoints.length === 1) {
-                const wp1 = fox.waypoints[0];
-                const gy = typeof getTerrainHeightFast === 'function' ? getTerrainHeightFast(wp1.x, wp1.z) : wp1.y;
-                fox.model.root.position.set(wp1.x, gy, wp1.z);
-                fox.model.root.rotation.y = fox.heading || 0;
-            }
-
-            // Jalankan pose animasi idle (alert waspada / sit duduk / sleep tidur)
-            this.applyFoxPose(fox.model, fox.idlePose || 'alert', dt, elapsed, idx * 1.5);
+            CinematicActors.apply(fox, fox.model, this.progress * this.duration, dt, false);
         });
     },
 
@@ -3499,32 +3352,10 @@ const CinematicManager = {
     },
 
     updateSubtitleOverlay(currentTimeSeconds) {
-        const overlay = document.getElementById('cinematic-subtitle-overlay');
-        const contentBox = document.getElementById('cinematic-subtitle-content');
-        if (!overlay || !contentBox) return;
-
-        if (!this.isSubtitlesEnabled || !this.subtitles || this.subtitles.length === 0 || currentTimeSeconds < 0) {
-            overlay.classList.remove('visible');
-            return;
-        }
-
-        // Cari subtitle yang aktif pada detik currentTimeSeconds
-        const activeSub = this.subtitles.find(s => currentTimeSeconds >= s.startTime && currentTimeSeconds <= s.endTime);
-
-        if (activeSub && activeSub.text && activeSub.text.trim()) {
-            const style = activeSub.style || 'capsule';
-            const position = activeSub.position || 'bottom';
-
-            overlay.className = `cinematic-subtitle-overlay sub-pos-${position} sub-style-${style} visible`;
-
-            let html = '';
-            if (activeSub.speaker && activeSub.speaker.trim()) {
-                html += `<span class="cinematic-subtitle-speaker">${this.escapeHtml(activeSub.speaker)}:</span> `;
-            }
-            html += `<span class="cinematic-subtitle-text">${this.escapeHtml(activeSub.text)}</span>`;
-            contentBox.innerHTML = html;
-        } else {
-            overlay.classList.remove('visible');
+        CinematicFX.syncSubtitles(this.subtitles, this.isSubtitlesEnabled, currentTimeSeconds);
+        if (this.isPlaying && currentTimeSeconds >= 0) {
+            const sc = this.scenes[this.activeSceneIndex];
+            CinematicFX.syncTitle(sc ? sc.id : 'preview', this.titleCard, currentTimeSeconds);
         }
     },
 

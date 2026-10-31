@@ -8,6 +8,9 @@ const sliderElevation = document.getElementById('slider-elevation');
 const valAzimuth = document.getElementById('val-azimuth');
 const valElevation = document.getElementById('val-elevation');
 
+const sunBasePosition = new THREE.Vector3();
+const sunBaseTarget = new THREE.Vector3();
+
 function updateSunPosition() {
     const azimuthDeg = parseFloat(sliderAzimuth.value);
     const elevationDeg = parseFloat(sliderElevation.value);
@@ -23,6 +26,8 @@ function updateSunPosition() {
     const y = distance * Math.sin(elevationRad);
     const z = distance * Math.cos(elevationRad) * Math.cos(azimuthRad);
 
+    sunBasePosition.set(x, y, z);
+    sunBaseTarget.set(-x * 0.25, 0, -z * 0.25);
     sunLight.position.set(x, y, z);
     sunLight.target.position.set(-x * 0.25, 0, -z * 0.25);
     sunLight.target.updateMatrixWorld();

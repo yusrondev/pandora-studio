@@ -404,6 +404,12 @@ function cancelAllSelections() {
     if (window.isItemBoxSpawnerActive && window.itemBoxManagerInstance) {
         window.itemBoxManagerInstance.toggleSpawnerMode(false);
     }
+    if (window.isPortalPlacementActive && typeof PortalManager !== 'undefined') {
+        PortalManager.togglePlacement(false);
+    }
+    if (window.isTriggerPlacementActive && typeof TriggerManager !== 'undefined') {
+        TriggerManager.togglePlacement(false);
+    }
 
     if (typeof brushReticleGroup !== 'undefined') {
         brushReticleGroup.visible = false;

@@ -324,6 +324,12 @@ class FoxAIAgent {
             this.model.triggerDeath();
         }
 
+        const deathMode = (this.fox && this.fox.deathMode) || 'fade';
+        if (typeof CinematicPlayer !== 'undefined') CinematicPlayer.onEnemyKilled(this, deathMode);
+        if (deathMode === 'fade') this.startDeathFade();
+    }
+
+    startDeathFade() {
         // Mulai animasi fadeout material halus setelah tereliminasi
         this.isFadingOut = true;
         this.fadeTimer = 0.0;

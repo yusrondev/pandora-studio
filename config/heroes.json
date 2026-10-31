@@ -1,6 +1,6 @@
 {
     "success": true,
-    "updatedAt": "2026-10-31T03:59:58+00:00",
+    "updatedAt": "2026-10-31T06:43:28+00:00",
     "general": {
         "basePath": "hero\/general\/",
         "files": [
@@ -196,11 +196,13 @@
             "yOffset": 0.05,
             "files": [
                 "idle.fbx",
+                "jump-withrun.fbx",
                 "run.fbx"
             ],
             "slots": {
                 "idle": "idle.fbx",
-                "run": "run.fbx"
+                "run": "run.fbx",
+                "jump": "jump-withrun.fbx"
             },
             "extraClips": []
         },

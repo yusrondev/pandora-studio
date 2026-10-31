@@ -16,17 +16,22 @@ const camera = new THREE.PerspectiveCamera(45, initW / initH, 0.1, 1000);
 camera.position.set(0, 16, 32);
 
 const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth <= 1024);
-const maxDPR = isMobileDevice ? 1.25 : 1.75;
+const startGraphics = PandoraSettings.preset();
+const maxDPR = isMobileDevice ? Math.min(1.0, startGraphics.maxDpr) : startGraphics.maxDpr;
+const initialDPR = Math.min(window.devicePixelRatio || 1, maxDPR);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+const renderer = new THREE.WebGLRenderer({ antialias: startGraphics.antialias, powerPreference: startGraphics.gpu });
 renderer.setSize(initW, initH);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDPR));
+renderer.setPixelRatio(initialDPR);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMappingExposure = 1.0;
 
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+// Peta bayangan diperbarui berkala oleh render loop, bukan setiap render
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
 
 viewportContainer.appendChild(renderer.domElement);
 
@@ -60,8 +65,8 @@ controls.maxDistance = 160.0;
 const sunLight = new THREE.DirectionalLight(0xfff8ee, 1.45);
 sunLight.position.set(-25, 12, 25);
 sunLight.castShadow = true;
-sunLight.shadow.mapSize.width = isMobileDevice ? 2048 : 4096;
-sunLight.shadow.mapSize.height = isMobileDevice ? 2048 : 4096;
+sunLight.shadow.mapSize.width = isMobileDevice ? Math.min(1024, startGraphics.shadowSize) : startGraphics.shadowSize;
+sunLight.shadow.mapSize.height = isMobileDevice ? Math.min(1024, startGraphics.shadowSize) : startGraphics.shadowSize;
 sunLight.shadow.camera.near = 0.5;
 sunLight.shadow.camera.far = 120;
 

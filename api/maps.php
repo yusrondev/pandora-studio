@@ -84,6 +84,8 @@ if ($method === 'GET') {
                     'updatedAt' => $data['updatedAt'] ?? date('c', filemtime($file)),
                     'treeCount' => isset($data['trees']) ? count($data['trees']) : ($data['meta']['treeCount'] ?? 0),
                     'grassCount' => isset($data['activeGrass']) ? count($data['activeGrass']) : ($data['meta']['grassCount'] ?? 0),
+                    'character' => $data['character'] ?? null,
+                    'portalCount' => isset($data['portals']) ? count($data['portals']) : 0,
                     'fileSize' => filesize($file)
                 ];
             } else {

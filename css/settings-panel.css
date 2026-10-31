@@ -1,0 +1,198 @@
+/* Panel pengaturan, layar judul, dan penghitung FPS. Kontrol sendiri, tanpa widget bawaan browser. */
+#pset-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000002;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+}
+
+.pset-panel {
+    width: 500px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    display: flex;
+    flex-direction: column;
+    background: #2b2b2b;
+    border: 1px solid #111;
+    border-radius: 5px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65);
+    color: #d6d6d6;
+    overflow: hidden;
+}
+
+.pset-head {
+    height: 28px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 0 11px;
+    background: #1f1f1f;
+    font-size: 12px;
+}
+.pset-head span { font-size: 12px; }
+
+.pset-close {
+    width: 22px;
+    height: 20px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: #aaa;
+    font-size: 15px;
+    line-height: 18px;
+    cursor: default;
+}
+.pset-close:hover { background: #a03232; color: #fff; }
+
+.pset-body { padding: 4px 12px 10px; overflow-y: auto; }
+
+.pset-section {
+    height: 24px;
+    margin: 6px -6px 7px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    background: #3d3d3d;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.pset-row {
+    display: grid;
+    grid-template-columns: 112px 1fr;
+    align-items: center;
+    column-gap: 10px;
+    min-height: 24px;
+    margin-bottom: 4px;
+}
+
+.pset-label { text-align: right; color: #a6a6a6; font-size: 11px; }
+
+.pset-seg { display: flex; gap: 1px; min-width: 0; }
+.pset-seg button {
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    padding: 0 3px;
+    background: #545454;
+    border: none;
+    color: #e0e0e0;
+    font-size: 11px;
+    cursor: default;
+}
+.pset-seg button:first-child { border-radius: 3px 0 0 3px; }
+.pset-seg button:last-child { border-radius: 0 3px 3px 0; }
+.pset-seg button:hover { background: #656565; }
+.pset-seg button.active { background: #4772b3; color: #fff; }
+
+.pset-check {
+    position: relative;
+    width: 15px;
+    height: 15px;
+    padding: 0;
+    background: #545454;
+    border: 1px solid #2c2c2c;
+    border-radius: 3px;
+    cursor: default;
+}
+.pset-check:hover { background: #656565; }
+.pset-check.on { background: #4772b3; border-color: #2f4f80; }
+.pset-check.on::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 3px;
+    height: 7px;
+    border: solid #fff;
+    border-width: 0 1.6px 1.6px 0;
+    transform: rotate(40deg);
+}
+
+.pset-hint { margin: 6px 0 0 122px; color: #8d8d8d; font-size: 11px; line-height: 1.35; min-height: 0; }
+.pset-hint:empty { display: none; }
+
+.pset-foot {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
+    padding: 8px 12px;
+    background: #262626;
+}
+
+.pset-action {
+    min-width: 84px;
+    height: 24px;
+    padding: 0 12px;
+    background: #545454;
+    border: 1px solid #2c2c2c;
+    border-radius: 3px;
+    color: #e6e6e6;
+    font-size: 12px;
+    cursor: default;
+}
+.pset-action:hover { background: #656565; }
+.pset-action.primary { background: #4772b3; border-color: #2f4f80; color: #fff; }
+.pset-action.primary:hover { background: #5680c2; }
+
+#pset-fps {
+    position: fixed;
+    top: 8px;
+    left: 10px;
+    z-index: 2000001;
+    padding: 2px 7px;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 3px;
+    color: #9fe39a;
+    font: 12px Consolas, 'Courier New', monospace;
+    pointer-events: none;
+}
+
+/* Layar judul game */
+#game-title-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 999998;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-left: 9vw;
+    background: linear-gradient(90deg, #0a0b0d 0%, #14161a 55%, #1c1f25 100%);
+    color: #ece7db;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+}
+
+#game-title-screen h1 {
+    margin: 0 0 38px;
+    font: 700 clamp(38px, 5.4vw, 74px) 'Pandora Title', Georgia, serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.game-menu { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+
+.game-menu button {
+    min-width: 230px;
+    height: 40px;
+    padding: 0 16px;
+    background: transparent;
+    border: none;
+    border-left: 2px solid transparent;
+    color: #b8b3a8;
+    font: 500 21px 'Pandora Serif', Georgia, serif;
+    letter-spacing: 0.08em;
+    text-align: left;
+    cursor: default;
+}
+.game-menu button:hover { border-left-color: #d8a24a; background: linear-gradient(90deg, rgba(216, 162, 74, 0.16), transparent); color: #fff; }

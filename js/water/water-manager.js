@@ -89,37 +89,54 @@ function getWaterDepthTarget(width, height) {
     return waterDepthTarget;
 }
 
+// Pass kedalaman dibuat murah: setengah resolusi, tiap beberapa frame, tanpa objek
+// transparan, tanpa bayangan, dan dengan material polos tanpa perhitungan warna.
+const waterDepthMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
+let waterDepthFrame = 0;
+
 function renderWaterDepthPass(renderer, scene, camera) {
     const isWaterActive = (waterMesh && waterMesh.visible && hasAnyWaterDrawn);
     const isOuterActive = (outerOceanMesh && outerOceanMesh.visible && isOuterOceanEnabled);
     if (!isWaterActive && !isOuterActive) return;
-    
+
     renderer.getDrawingBufferSize(_drawingBufferSize);
     const width = Math.floor(_drawingBufferSize.x);
     const height = Math.floor(_drawingBufferSize.y);
     if (width <= 0 || height <= 0) return;
 
-    const target = getWaterDepthTarget(width, height);
+    if (waterMat && waterMat.uniforms && waterMat.uniforms.uResolution) {
+        waterMat.uniforms.uResolution.value.set(width, height);
+    }
+    waterDepthFrame++;
+    if (waterDepthTarget && waterDepthFrame % PandoraSettings.preset().waterDepthEvery !== 0) return;
 
-    const prevWaterVisible = waterMesh ? waterMesh.visible : false;
-    const prevOuterVisible = outerOceanMesh ? outerOceanMesh.visible : false;
-    const prevCliffVisible = islandCliffMesh ? islandCliffMesh.visible : false;
-    if (waterMesh) waterMesh.visible = false;
-    if (outerOceanMesh) outerOceanMesh.visible = false;
-    if (islandCliffMesh) islandCliffMesh.visible = false;
+    const target = getWaterDepthTarget(Math.max(1, width >> 1), Math.max(1, height >> 1));
+
+    const hidden = [waterMesh, outerOceanMesh, islandCliffMesh,
+        (typeof cloudGroup !== 'undefined') ? cloudGroup : null,
+        (typeof instancedGrassMesh !== 'undefined') ? instancedGrassMesh : null,
+        (typeof fallingLeavesMesh !== 'undefined') ? fallingLeavesMesh : null
+    ].filter(Boolean);
+    const wasVisible = hidden.map(obj => obj.visible);
+    hidden.forEach(obj => { obj.visible = false; });
+
+    const prevOverride = scene.overrideMaterial;
+    const prevShadowUpdate = renderer.shadowMap.needsUpdate;
+    scene.overrideMaterial = waterDepthMaterial;
+    renderer.shadowMap.needsUpdate = false;
 
     const prevTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
     renderer.render(scene, camera);
     renderer.setRenderTarget(prevTarget);
 
-    if (waterMesh) waterMesh.visible = prevWaterVisible;
-    if (outerOceanMesh) outerOceanMesh.visible = prevOuterVisible;
-    if (islandCliffMesh) islandCliffMesh.visible = prevCliffVisible;
+    scene.overrideMaterial = prevOverride;
+    renderer.shadowMap.needsUpdate = prevShadowUpdate;
+    hidden.forEach((obj, i) => { obj.visible = wasVisible[i]; });
 
     if (waterMat && waterMat.uniforms) {
         if (waterMat.uniforms.uSceneDepth) waterMat.uniforms.uSceneDepth.value = target.depthTexture;
-        if (waterMat.uniforms.uResolution) waterMat.uniforms.uResolution.value.set(width, height);
+        
         if (waterMat.uniforms.uCameraNear) waterMat.uniforms.uCameraNear.value = camera.near;
         if (waterMat.uniforms.uCameraFar)  waterMat.uniforms.uCameraFar.value = camera.far;
     }

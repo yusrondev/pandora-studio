@@ -330,8 +330,13 @@
     const APPS = {
         studio: {
             menus: {
-                File: [cmd('Simpan Map', 'btn-save-map', 'Ctrl S'), cmd('Ganti Nama Map', 'btn-edit-map'), SEP, cmd('Hapus Map', 'btn-delete-map')],
-                Edit: [cmd('Undo', 'btn-undo', 'Ctrl Z'), cmd('Redo', 'btn-redo', 'Ctrl Y')],
+                File: [cmd('Simpan Map', 'btn-save-map', 'Ctrl S'), cmd('Ganti Nama Map', 'btn-edit-map'), cmd('Stage Baru', 'btn-stage-new'), SEP, cmd('Generate Game', 'btn-open-generate'), SEP, cmd('Hapus Map', 'btn-delete-map')],
+                Edit: [
+                    cmd('Undo', 'btn-undo', 'Ctrl Z'),
+                    cmd('Redo', 'btn-redo', 'Ctrl Y'),
+                    SEP,
+                    { label: 'Pengaturan FPS & Grafis', run: () => window.SettingsPanel.open(), isDisabled: () => false, isChecked: () => false }
+                ],
                 View: [
                     cmd('Inspector', 'btn-toggle-left-sidebar', 'I'),
                     cmd('Layers', 'btn-toggle-right-sidebar', 'L'),

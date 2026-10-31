@@ -67,6 +67,8 @@ function isSpawnerToolActive() {
     return brushSelects.some(sel => sel && sel.value !== 'none') ||
         !!window.isItemBoxSpawnerActive ||
         !!window.isPlayerSpawnModeActive ||
+        !!window.isPortalPlacementActive ||
+        !!window.isTriggerPlacementActive ||
         (typeof CinematicManager !== 'undefined' && (CinematicManager.isDrawingMode || CinematicManager.isDrawingFoxMode));
 }
 window.isSpawnerToolActive = isSpawnerToolActive;
@@ -581,6 +583,26 @@ function handleCanvasPointerDown(e) {
             }
         }
 
+        // Seleksi trigger
+        if (!toolActive && typeof TriggerManager !== 'undefined') {
+            const pickedTrigger = TriggerManager.pickFromRay(raycaster);
+            if (pickedTrigger) {
+                TriggerPanel.select(pickedTrigger.id);
+                if (e.stopPropagation) e.stopPropagation();
+                return;
+            }
+        }
+
+        // Seleksi portal
+        if (!toolActive && typeof PortalManager !== 'undefined') {
+            const pickedPortal = PortalManager.pickFromRay(raycaster);
+            if (pickedPortal) {
+                PortalPanel.select(pickedPortal.id);
+                if (e.stopPropagation) e.stopPropagation();
+                return;
+            }
+        }
+
         // Prioritaskan Seleksi Pohon jika mengklik tepat pada Pohon yang sudah ada di scene
         if (!toolActive && typeof treesList !== 'undefined' && treesList.length > 0) {
             const treeHits = raycaster.intersectObjects(treesList, true);
@@ -653,6 +675,24 @@ function handleCanvasPointerDown(e) {
             if (window.isPlayerSpawnModeActive && window.PlayerSpawnManager) {
                 window.PlayerSpawnManager.setSpawnPosition(hitPoint.x, hitPoint.z);
                 window.PlayerSpawnManager.togglePlacementMode(false);
+                if (e.stopPropagation) e.stopPropagation();
+                return;
+            }
+
+            // Mode Trigger: Klik kiri = letakkan area trigger lalu keluar dari mode
+            if (window.isTriggerPlacementActive) {
+                const newTrigger = TriggerManager.create({ x: Math.round(hitPoint.x * 10) / 10, z: Math.round(hitPoint.z * 10) / 10 });
+                TriggerManager.togglePlacement(false);
+                TriggerPanel.select(newTrigger.id);
+                if (e.stopPropagation) e.stopPropagation();
+                return;
+            }
+
+            // Mode Portal: Klik kiri = letakkan portal lalu keluar dari mode
+            if (window.isPortalPlacementActive) {
+                const newPortal = PortalManager.create({ x: Math.round(hitPoint.x * 10) / 10, z: Math.round(hitPoint.z * 10) / 10 });
+                PortalManager.togglePlacement(false);
+                PortalPanel.select(newPortal.id);
                 if (e.stopPropagation) e.stopPropagation();
                 return;
             }

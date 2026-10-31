@@ -122,7 +122,18 @@
         /**
          * Mengambil ArrayBuffer dari cache atau download jika belum ada
          */
-        async getAssetBuffer(url) {
+        // Unduhan latar dan pemuatan model bisa meminta file yang sama bersamaan
+        inflight: new Map(),
+
+        getAssetBuffer(url) {
+            if (!this.inflight.has(url)) {
+                const request = this.readAssetBuffer(url).finally(() => this.inflight.delete(url));
+                this.inflight.set(url, request);
+            }
+            return this.inflight.get(url);
+        },
+
+        async readAssetBuffer(url) {
             // 1. Cek Cache API
             let buffer = await cacheApiGet(url);
             if (buffer && buffer.byteLength > 0) {
@@ -155,15 +166,13 @@
             const responseClone = response.clone();
             const freshBuffer = await response.arrayBuffer();
 
-            // Simpan ke Cache API dan IndexedDB secara asynchronous
-            (async () => {
-                try {
-                    await cacheApiSet(url, responseClone);
-                } catch (_) {}
-                try {
-                    await idbSet(url, freshBuffer);
-                } catch (_) {}
-            })();
+            // Selesai ditulis sebelum kembali, supaya pembacaan berikutnya tidak mengunduh ulang
+            try {
+                await cacheApiSet(url, responseClone);
+            } catch (_) {}
+            try {
+                await idbSet(url, freshBuffer);
+            } catch (_) {}
 
             return freshBuffer;
         },

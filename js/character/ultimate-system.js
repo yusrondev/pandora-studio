@@ -1,14 +1,22 @@
 /* =========================================================
-   ULTIMATE: energi 3 orb, menu L1, dan jurus Bunshin
+   ULTIMATE: energi 3 orb, menu L1, jurus Bunshin, dan Rage Mode
    L1 memperlambat waktu dan mendekatkan kamera, lalu pemain memilih jurus dari menu.
    Bunshin adalah salinan karakter pemain yang mengikuti dan menyerang musuh di sekitarnya.
    ========================================================= */
 const ULTIMATE_MAX_ORBS = 3;
 const ULTIMATE_REGEN_SECONDS = 45;  // Waktu mengisi satu orb, jauh lebih lambat dari stamina
 const ULTIMATE_MENU_TIMESCALE = 0.06;
-const BUNSHIN_COST = 1;
+const BUNSHIN_COST = 2;
 const BUNSHIN_PER_CAST = 2;
-const BUNSHIN_MAX = 6;              // Energi penuh = 3 kali panggil. Melewati batas, yang tertua digantikan
+const BUNSHIN_MAX = 6;              // Melewati batas, yang tertua digantikan
+const RAGE_COST = 1;
+const RAGE_SECONDS = 7;
+const RAGE_INTRO_TIMESCALE = 0.15;  // Sekeliling melambat selama animasi rage
+const RAGE_ATTACK_SPEED = 2;
+const FLAME_PER_HAND = 280;
+const FLAME_MIN_SIZE = 0.09;
+const FLAME_SIZE_RANGE = 0.13;
+const FLAME_EMBER_CHANCE = 0.06;   // Sebagian kecil menjadi bara yang terbang lebih tinggi
 const BUNSHIN_HP_FRACTION = 0.5;
 const BUNSHIN_DAMAGE_SCALE = 0.8;
 const BUNSHIN_LIFETIME = 45;        // Detik, supaya energi tetap punya arti
@@ -56,12 +64,57 @@ const FOG_FRAGMENT = `
     }
 `;
 
+const FLAME_VERTEX = `
+    attribute vec3 aData; // umur 0-1, ukuran, acak (ukuran negatif = pendar)
+    uniform float uPixelScale;
+    varying float vLife;
+    varying float vSeed;
+    varying float vGlow;
+    void main() {
+        vLife = aData.x;
+        vSeed = aData.z;
+        vGlow = aData.y < 0.0 ? 1.0 : 0.0;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        float grow = vGlow > 0.5 ? 1.0 : 1.0 - vLife * 0.65;
+        gl_PointSize = aData.x >= 1.0 ? 0.0 : abs(aData.y) * grow * uPixelScale / max(0.1, -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
+    }
+`;
+
+const FLAME_FRAGMENT = `
+    uniform sampler2D uMap;
+    varying float vLife;
+    varying float vSeed;
+    varying float vGlow;
+    void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        if (vGlow > 0.5) {
+            float glow = 1.0 - smoothstep(0.0, 0.5, length(c));
+            glow *= glow;
+            gl_FragColor = vec4(vec3(1.0, 0.45, 0.08) * glow * 0.55, glow * 0.18);
+            return;
+        }
+        // Satu partikel hanya titik lembut. Bentuk lidah api muncul dari ratusan partikel yang bertumpuk.
+        float soft = pow(max(0.0, 1.0 - length(c) * 2.0), 1.5);
+        if (soft <= 0.003) discard;
+        vec3 color = mix(vec3(1.0, 0.93, 0.62), vec3(1.0, 0.55, 0.08), smoothstep(0.0, 0.35, vLife));
+        color = mix(color, vec3(0.75, 0.12, 0.02), smoothstep(0.35, 0.8, vLife));
+        float alpha = soft * smoothstep(0.0, 0.06, vLife) * (1.0 - smoothstep(0.55, 1.0, vLife));
+        // Alfa rendah: tumpukan partikel makin terang seperti cahaya, tanpa memutihkan latar yang terang
+        gl_FragColor = vec4(color * alpha * 0.9, alpha * 0.28);
+    }
+`;
+
 const PandoraUltimate = {
     orbs: ULTIMATE_MAX_ORBS,
     regen: 0,
     menuOpen: false,
     selected: 0,
     jutsuClip: null,
+    rageClip: null,
+    ragePhase: null,    // null, 'intro' (animasi), atau 'active'
+    rageTimer: 0,
+    flames: null,
     bunshins: [],
     bursts: [],
     pool: [],
@@ -71,7 +124,8 @@ const PandoraUltimate = {
     elements: null,
 
     options: [
-        { id: 'bunshin', label: 'Bunshin', cost: BUNSHIN_COST, run() { PandoraUltimate.summonBunshin(); } }
+        { id: 'bunshin', label: 'Bunshin', cost: BUNSHIN_COST, run() { PandoraUltimate.summonBunshin(); } },
+        { id: 'rage', label: 'Rage Mode', cost: RAGE_COST, run() { PandoraUltimate.startRage(); }, blocked() { return PandoraUltimate.ragePhase ? 'Rage Mode sedang aktif' : ''; } }
     ],
 
     // ---------- Persiapan: dilakukan di balik layar pemuatan supaya L1 tidak tersendat ----------
@@ -93,6 +147,15 @@ const PandoraUltimate = {
                 console.warn('[Ultimate] Pose jutsu gagal dimuat:', err);
             }
         }
+        if (!this.rageClip) {
+            try {
+                const loaded = await PandoraAssetCache.loadFBX(getGeneralHeroBasePath() + 'rage-mode.fbx');
+                this.rageClip = loaded.animations[0] || null;
+            } catch (err) {
+                console.warn('[Ultimate] Animasi rage gagal dimuat:', err);
+            }
+        }
+        this.buildFlames();
         this.pool.forEach(model => scene.remove(model.root));
         this.pool = [];
         for (let i = 0; i < BUNSHIN_MAX; i++) {
@@ -153,6 +216,190 @@ const PandoraUltimate = {
         const burst = { points, material, age: 0 };
         this.bursts.push(burst);
         return burst;
+    },
+
+    // ---------- Api di kedua tangan ----------
+    // Partikel hidup di koordinat dunia, jadi api tertinggal di belakang tangan saat berlari
+    buildFlames() {
+        if (this.flames) return;
+        const count = (FLAME_PER_HAND + 1) * 2;
+        const positions = new Float32Array(count * 3);
+        const data = new Float32Array(count * 3);
+        const velocities = new Float32Array(count * 3);
+        const lifetimes = new Float32Array(count);
+        for (let i = 0; i < count; i++) data[i * 3] = 1;
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('aData', new THREE.BufferAttribute(data, 3));
+        const material = new THREE.ShaderMaterial({
+            vertexShader: FLAME_VERTEX,
+            fragmentShader: FLAME_FRAGMENT,
+            uniforms: { uPixelScale: this.pixelScale, uMap: { value: this.fogTexture } },
+            transparent: true,
+            depthWrite: false,
+            toneMapped: false,
+            blending: THREE.CustomBlending,
+            blendSrc: THREE.OneFactor,
+            blendDst: THREE.OneMinusSrcAlphaFactor
+        });
+        const points = new THREE.Points(geometry, material);
+        points.frustumCulled = false;
+        points.renderOrder = 6;
+        points.visible = false;
+        scene.add(points);
+        this.flames = {
+            points, positions, data, velocities, lifetimes, count, emitting: false, time: 0,
+            hands: [{ bone: null, current: new THREE.Vector3(), last: new THREE.Vector3() }, { bone: null, current: new THREE.Vector3(), last: new THREE.Vector3() }]
+        };
+    },
+
+    startFlames() {
+        const flames = this.flames;
+        if (!flames) return;
+        const resolver = window.PandoraHitboxSystem;
+        ['RightHand', 'LeftHand'].forEach((name, i) => {
+            const hand = flames.hands[i];
+            hand.bone = resolver && resolver.resolveBone ? resolver.resolveBone(wolfCharacter, name) : null;
+            if (hand.bone) {
+                hand.bone.getWorldPosition(hand.current);
+                hand.last.copy(hand.current);
+            }
+        });
+        for (let i = 0; i < flames.count; i++) {
+            const hand = flames.hands[i % 2];
+            flames.positions.set([hand.current.x, hand.current.y, hand.current.z], i * 3);
+            flames.lifetimes[i] = 0.25 + Math.random() * 0.35;
+            flames.data[i * 3] = Math.random();
+            flames.data[i * 3 + 1] = FLAME_MIN_SIZE + Math.random() * FLAME_SIZE_RANGE;
+            flames.data[i * 3 + 2] = Math.random();
+        }
+        flames.emitting = true;
+        flames.points.visible = true;
+    },
+
+    updateFlames(realDelta) {
+        const flames = this.flames;
+        if (!flames || !flames.points.visible) return;
+        flames.time += realDelta;
+        flames.hands.forEach((hand) => {
+            if (!hand.bone) return;
+            hand.last.copy(hand.current);
+            hand.bone.getWorldPosition(hand.current);
+        });
+        const { positions, data, velocities, lifetimes, count } = flames;
+        const glowStart = count - 2;
+        let alive = false;
+        for (let i = 0; i < count; i++) {
+            const hand = flames.hands[i % 2];
+            const p = i * 3;
+            // Dua partikel terakhir adalah pendar lembut yang menempel di tangan
+            if (i >= glowStart) {
+                positions[p] = hand.current.x;
+                positions[p + 1] = hand.current.y;
+                positions[p + 2] = hand.current.z;
+                data[p] = flames.emitting && hand.bone ? 0.5 : 1;
+                data[p + 1] = -1.25 - Math.sin(flames.time * 17 + i) * 0.12;
+                continue;
+            }
+            data[p] += realDelta / lifetimes[i];
+            if (data[p] >= 1) {
+                if (!flames.emitting || !hand.bone) {
+                    data[p] = 1;
+                    continue;
+                }
+                // Lahir di sepanjang lintasan tangan frame ini agar tidak terputus saat bergerak cepat
+                const along = Math.random();
+                const offsetX = (Math.random() + Math.random() - 1) * 0.09;
+                const offsetY = (Math.random() + Math.random() - 1) * 0.07;
+                const offsetZ = (Math.random() + Math.random() - 1) * 0.09;
+                const ember = Math.random() < FLAME_EMBER_CHANCE;
+                positions[p] = hand.last.x + (hand.current.x - hand.last.x) * along + offsetX;
+                positions[p + 1] = hand.last.y + (hand.current.y - hand.last.y) * along + offsetY;
+                positions[p + 2] = hand.last.z + (hand.current.z - hand.last.z) * along + offsetZ;
+                // Bergerak menuju sumbu saat naik, sehingga api meruncing ke atas
+                velocities[p] = -offsetX * 2.2 + (ember ? (Math.random() - 0.5) * 0.7 : 0);
+                velocities[p + 1] = 0.5 + Math.random() * 0.6;
+                velocities[p + 2] = -offsetZ * 2.2 + (ember ? (Math.random() - 0.5) * 0.7 : 0);
+                lifetimes[i] = ember ? 0.7 + Math.random() * 0.5 : 0.25 + Math.random() * 0.35;
+                data[p] = 0;
+                data[p + 1] = ember ? 0.035 : FLAME_MIN_SIZE + Math.random() * FLAME_SIZE_RANGE;
+                data[p + 2] = Math.random();
+            }
+            alive = true;
+            const sway = Math.sin(flames.time * 11 + data[p + 2] * 40) * (0.15 + data[p] * 0.5);
+            velocities[p + 1] += 2.4 * realDelta;
+            positions[p] += (velocities[p] + sway) * realDelta;
+            positions[p + 1] += velocities[p + 1] * realDelta;
+            positions[p + 2] += (velocities[p + 2] - sway) * realDelta;
+        }
+        flames.points.geometry.attributes.position.needsUpdate = true;
+        flames.points.geometry.attributes.aData.needsUpdate = true;
+        if (!alive && !flames.emitting) flames.points.visible = false;
+    },
+
+    // ---------- Rage Mode ----------
+    startRage() {
+        if (!wolfCharacter || PlayerHealthState.isDead) return;
+        this.ragePhase = 'intro';
+        this.rageTimer = 0;
+        wolfCharacter.rageActive = true;
+        FoxStaminaState.unlimited = true;
+        document.body.classList.add('rage-mode');
+        this.startFlames();
+        if (this.rageClip && wolfCharacter.mixer) {
+            window.PandoraUltimateCasting = true;
+            if (wolfCharacter.castAction) wolfCharacter.castAction.stop();
+            const target = wolfCharacter.modelMesh || wolfCharacter.meshContainer || wolfCharacter.root;
+            const clip = sanitizeAnimationClipForModel(this.rageClip, target);
+            const action = wolfCharacter.mixer.clipAction(clip);
+            action.reset();
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            action.timeScale = 1 / RAGE_INTRO_TIMESCALE;
+            action.play();
+            wolfCharacter.castAction = action;
+            wolfCharacter.castTarget = 1;
+            this.rageTimer = clip.duration;
+            window.PandoraTimeScale = RAGE_INTRO_TIMESCALE;
+        }
+    },
+
+    beginRagePower() {
+        this.ragePhase = 'active';
+        this.rageTimer = RAGE_SECONDS;
+        window.PandoraUltimateCasting = this.menuOpen;
+        wolfCharacter.castTarget = 0;
+        wolfCharacter.attackSpeedBoost = RAGE_ATTACK_SPEED;
+        window.PandoraTimeScale = 1;
+    },
+
+    endRage() {
+        if (!this.ragePhase) return;
+        if (this.ragePhase === 'intro') {
+            window.PandoraUltimateCasting = false;
+            window.PandoraTimeScale = 1;
+            if (wolfCharacter) wolfCharacter.castTarget = 0;
+        }
+        this.ragePhase = null;
+        if (wolfCharacter) {
+            wolfCharacter.rageActive = false;
+            wolfCharacter.attackSpeedBoost = 1;
+        }
+        FoxStaminaState.unlimited = false;
+        document.body.classList.remove('rage-mode');
+        if (this.flames) this.flames.emitting = false;
+    },
+
+    updateRage(dt, realDelta) {
+        if (!this.ragePhase) return;
+        if (PlayerHealthState.isDead) {
+            this.endRage();
+            return;
+        }
+        this.rageTimer -= this.ragePhase === 'intro' ? realDelta : dt;
+        if (this.rageTimer > 0) return;
+        if (this.ragePhase === 'intro') this.beginRagePower();
+        else this.endRage();
     },
 
     spawnFog(position) {
@@ -216,6 +463,10 @@ const PandoraUltimate = {
         });
         document.body.appendChild(menu);
 
+        const rageOverlay = document.createElement('div');
+        rageOverlay.id = 'rage-overlay';
+        document.body.appendChild(rageOverlay);
+
         this.elements = { orbs, button, menu, list: menu.querySelector('.ultimate-list'), hint: menu.querySelector('.ultimate-hint') };
         this.renderOrbs();
     },
@@ -226,7 +477,7 @@ const PandoraUltimate = {
         this.options.forEach((option, i) => {
             const row = document.createElement('button');
             row.type = 'button';
-            row.className = 'ultimate-option' + (i === this.selected ? ' selected' : '') + (this.orbs < option.cost ? ' disabled' : '');
+            row.className = 'ultimate-option' + (i === this.selected ? ' selected' : '') + (this.unavailableReason(option) ? ' disabled' : '');
             const name = document.createElement('span');
             name.textContent = option.label;
             const cost = document.createElement('em');
@@ -235,10 +486,21 @@ const PandoraUltimate = {
             row.addEventListener('click', () => {
                 this.selected = i;
                 this.closeMenu(true);
+                if (this.menuOpen) this.renderMenu();
             });
             list.appendChild(row);
         });
-        hint.textContent = this.orbs < this.options[this.selected].cost ? 'Energi tidak cukup' : '';
+        hint.textContent = this.unavailableReason(this.options[this.selected]);
+    },
+
+    unavailableReason(option) {
+        if (this.orbs < option.cost) return 'Energi tidak cukup';
+        return option.blocked ? option.blocked() : '';
+    },
+
+    moveSelection(step) {
+        this.selected = (this.selected + step + this.options.length) % this.options.length;
+        this.renderMenu();
     },
 
     toggleMenu() {
@@ -250,6 +512,7 @@ const PandoraUltimate = {
         if (typeof isPlayMode === 'undefined' || !isPlayMode || !wolfCharacter || PlayerHealthState.isDead) return;
         if (window.PandoraGamePaused || (window.PandoraStageFlow && PandoraStageFlow.isTransitioning)) return;
         if (typeof CinematicPlayer !== 'undefined' && CinematicPlayer.active) return;
+        if (this.ragePhase === 'intro') return;
         this.menuOpen = true;
         window.PandoraUltimateCasting = true;
         window.PandoraTimeScale = ULTIMATE_MENU_TIMESCALE;
@@ -264,7 +527,7 @@ const PandoraUltimate = {
     closeMenu(confirmed) {
         if (!this.menuOpen) return;
         const option = this.options[this.selected];
-        if (confirmed && this.orbs < option.cost) return;
+        if (confirmed && this.unavailableReason(option)) return;
         this.menuOpen = false;
         window.PandoraUltimateCasting = false;
         window.PandoraTimeScale = 1;
@@ -505,6 +768,7 @@ const PandoraUltimate = {
             if (PlayerHealthState.isDead || !BossKillCam.active) this.closeMenu(false);
             else window.PandoraTimeScale = ULTIMATE_MENU_TIMESCALE;
         }
+        this.updateRage(dt, realDelta);
         if (this.orbs < ULTIMATE_MAX_ORBS && !this.menuOpen) {
             this.regen += dt / ULTIMATE_REGEN_SECONDS;
             if (this.regen >= 1) {
@@ -526,6 +790,7 @@ const PandoraUltimate = {
     // Play Mode dimulai atau berhenti: bunshin hilang; energi hanya penuh lagi saat uji ulang di Studio
     resetForPlay() {
         if (this.menuOpen) this.closeMenu(false);
+        this.endRage();
         this.bunshins.forEach(ally => this.release(ally));
         this.bunshins = [];
         if (!window.PANDORA_RUNTIME) {
@@ -543,6 +808,10 @@ window.addEventListener('keydown', (event) => {
         PandoraUltimate.toggleMenu();
     } else if (PandoraUltimate.menuOpen && event.code === 'Enter') {
         PandoraUltimate.closeMenu(true);
+        if (PandoraUltimate.menuOpen) PandoraUltimate.renderMenu();
+    } else if (PandoraUltimate.menuOpen && (event.code === 'ArrowUp' || event.code === 'ArrowDown')) {
+        event.preventDefault();
+        PandoraUltimate.moveSelection(event.code === 'ArrowUp' ? -1 : 1);
     } else if (PandoraUltimate.menuOpen && event.code === 'Escape') {
         event.stopImmediatePropagation();
         PandoraUltimate.closeMenu(false);

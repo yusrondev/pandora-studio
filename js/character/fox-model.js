@@ -119,14 +119,15 @@ window.sanitizeAnimationClipForModel = sanitizeAnimationClipForModel;
  * @returns {number} Pengali kecepatan (default 1.0)
  */
 function getCharacterAttackSpeedMultiplier(instance, animKey) {
+    const boost = (instance && instance.attackSpeedBoost) || 1; // Rage Mode
     if (typeof window !== 'undefined' && window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.getAnimationConfig === 'function') {
         const charKey = (instance && (instance.speciesKey || instance.charKey || (instance.userData && (instance.userData.speciesKey || instance.userData.charKey)))) || 'hero';
         const cfg = window.PandoraHitboxSystem.getAnimationConfig(charKey, animKey);
         if (cfg && typeof cfg.speed === 'number' && cfg.speed > 0) {
-            return cfg.speed;
+            return cfg.speed * boost;
         }
     }
-    return 1.0;
+    return boost;
 }
 window.getCharacterAttackSpeedMultiplier = getCharacterAttackSpeedMultiplier;
 
@@ -1454,6 +1455,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 this.onBlockHit(attackerPos);
                 return;
             }
+            // Rage Mode: damage tetap masuk, tetapi tubuh tidak tersentak
+            if (this.rageActive) return;
             // Super-Armor Animasi: Saat mengeksekusi flyingPunch (Run + Punch) atau flyingKick,
             // jangan menginterupsi / membatalkan animasi walaupun Fox tetap menerima damage HP dari AI enemy
             if (this.isFlyingPunch || this.isFlyingKick) {
@@ -2127,7 +2130,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
             };
 
             const cfg = STRIKE_CONFIGS[attackKey] || { minTime: 0.30, maxTime: 0.52, reach: 1.70, minDot: 0.20 };
-            const currentAttackTime = this.isPunching ? this.punchTimer : this.kickTimer;
+            // Jendela waktu ditulis untuk kecepatan normal
+            const currentAttackTime = (this.isPunching ? this.punchTimer : this.kickTimer) * (this.attackSpeedBoost || 1);
 
             // Sebelum kepalan tangan atau kaki mendarat di sasaran, JANGAN memicu animasi hit!
             if (currentAttackTime < cfg.minTime || currentAttackTime > cfg.maxTime) return;

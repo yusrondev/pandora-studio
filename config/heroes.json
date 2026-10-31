@@ -1,6 +1,6 @@
 {
     "success": true,
-    "updatedAt": "2026-10-31T13:33:45+00:00",
+    "updatedAt": "2026-10-31T14:14:53+00:00",
     "general": {
         "basePath": "hero\/general\/",
         "files": [
@@ -11,6 +11,7 @@
             "dead\/dead1.fbx",
             "dead\/dead2.fbx",
             "jutsu.fbx",
+            "rage-mode.fbx",
             "run.fbx",
             "taking\/hit1.fbx",
             "taking\/hit2.fbx",

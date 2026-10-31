@@ -720,3 +720,16 @@ body.play-mode-active:not(.cinematic-playing):not(.boss-kill-cam) #btn-ultimate 
     background: radial-gradient(circle at 35% 30%, #cfe6ff, #3d97ff 55%, #1760c9);
 }
 .ultimate-hint { min-height: 18px; margin-top: 12px; color: #ffb4a8; font: 500 13px 'Inter', 'Segoe UI', sans-serif; text-shadow: 0 1px 2px #000; }
+
+/* Rage Mode: layar agak kuning dengan denyut energi, lebih pekat di tepi */
+#rage-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9980;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(255, 214, 64, 0.1) 30%, rgba(255, 170, 20, 0.42) 100%);
+    transition: opacity 0.4s ease-out;
+}
+body.rage-mode #rage-overlay { opacity: 1; animation: rage-overlay-pulse 0.7s ease-in-out infinite alternate; }
+@keyframes rage-overlay-pulse { from { opacity: 0.72; } to { opacity: 1; } }

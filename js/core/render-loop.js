@@ -221,6 +221,11 @@ function animate() {
         }
     }
 
+    // Api Rage Mode mengikuti tulang tangan yang sudah final untuk frame ini
+    if (typeof PandoraUltimate !== 'undefined') {
+        PandoraUltimate.updateFlames(realDelta);
+    }
+
     // UPDATE COMBAT HUD (Floating HP & Boss Bar) tepat setelah posisi kamera dan karakter sudah final
     // Meniadakan jeda 1-frame latency yang membuat HP bar dan nametag bergetar saat kamera digerakkan
     if (typeof CombatHUD !== 'undefined' && CombatHUD.update) {

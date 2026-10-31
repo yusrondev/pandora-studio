@@ -202,7 +202,7 @@ const FoxStaminaState = {
      * Cek apakah stamina mencukupi untuk melakukan aksi (harus > 15% kapasitas maksimal)
      */
     canPerformAction() {
-        if (this.ignoreDrain) return true;
+        if (this.ignoreDrain || this.unlimited) return true;
         return (this.current / this.max) > 0.15;
     },
 
@@ -224,6 +224,12 @@ const FoxStaminaState = {
         if (isPlayerBlocking) {
             this.updateHUD();
             return false;
+        }
+
+        // Rage Mode: stamina tidak berkurang dan lari selalu boleh
+        if (this.unlimited) {
+            this.updateHUD();
+            return !!(isSprintRequested && isMovingForward);
         }
 
         let canSprint = false;
@@ -277,7 +283,7 @@ const FoxStaminaState = {
      * @param {number} amount Jumlah stamina yang dikonsumsi
      */
     consume(amount = 10) {
-        if (this.ignoreDrain) return;
+        if (this.ignoreDrain || this.unlimited) return;
         if (amount <= 0) return;
         this.current = Math.max(0, this.current - amount);
         if (this.current <= 0) {

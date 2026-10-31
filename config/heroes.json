@@ -1,6 +1,6 @@
 {
     "success": true,
-    "updatedAt": "2026-10-31T10:43:06+00:00",
+    "updatedAt": "2026-10-31T13:33:45+00:00",
     "general": {
         "basePath": "hero\/general\/",
         "files": [
@@ -10,6 +10,7 @@
             "combat\/punch\/flying-punch.fbx",
             "dead\/dead1.fbx",
             "dead\/dead2.fbx",
+            "jutsu.fbx",
             "run.fbx",
             "taking\/hit1.fbx",
             "taking\/hit2.fbx",

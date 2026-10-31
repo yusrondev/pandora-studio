@@ -40,36 +40,6 @@ function updateAdaptiveResolution(now, frameLimit) {
     }
 }
 
-// Build game: FPS yang lama rendah menurunkan preset sekali langkah, selama pemain belum memilih sendiri
-const AUTO_QUALITY_WINDOW_MS = 5000;
-const AUTO_QUALITY_MIN_FPS = 24;
-const AUTO_QUALITY_MAX_GAP_MS = 500;
-const AUTO_QUALITY_ORDER = ['ultra', 'high', 'medium', 'low'];
-let autoQualitySince = 0;
-let autoQualityFrames = 0;
-
-let autoQualityLastFrame = 0;
-
-function updateAutoQuality(now) {
-    // Tab tersembunyi atau jeda sesaat bukan tanda perangkat lemah: mulai hitung lagi
-    if (document.hidden || now - autoQualityLastFrame > AUTO_QUALITY_MAX_GAP_MS) {
-        autoQualitySince = 0;
-        autoQualityFrames = 0;
-    }
-    autoQualityLastFrame = now;
-    if (!autoQualitySince) autoQualitySince = now;
-    autoQualityFrames++;
-    if (now - autoQualitySince < AUTO_QUALITY_WINDOW_MS) return;
-    const fps = autoQualityFrames * 1000 / (now - autoQualitySince);
-    autoQualitySince = now;
-    autoQualityFrames = 0;
-    const next = AUTO_QUALITY_ORDER[AUTO_QUALITY_ORDER.indexOf(PandoraSettings.values.graphics) + 1];
-    if (fps < AUTO_QUALITY_MIN_FPS && next) {
-        PandoraSettings.values.graphics = next;
-        applyGraphicsPreset();
-    }
-}
-
 function updateShadowSchedule(isGameplay) {
     const every = isGameplay ? PandoraSettings.preset().shadowEvery : SHADOW_UPDATE_EVERY_EDITOR;
     if (frameCounter % every !== 0) return;
@@ -126,13 +96,10 @@ function animate() {
 
     if (window.PandoraGamePaused) {
         clock.getDelta();
-        autoQualitySince = 0;
-        autoQualityFrames = 0;
         // Saat stage disiapkan di balik menu judul, menggambar hanya memboroskan baterai
         if (!window.PandoraRenderHold) renderer.render(scene, camera);
         return;
     }
-    if (window.PANDORA_RUNTIME && isGameplay && settings.autoQuality) updateAutoQuality(frameNow);
     updateShadowSchedule(isGameplay);
 
     // Panggil getDelta() terlebih dahulu sebelum getElapsedTime agar delta bernilai valid (>0)
@@ -222,6 +189,9 @@ function animate() {
 
     if (window.PandoraImportedObjects) {
         PandoraImportedObjects.update(delta);
+    }
+    if (typeof PandoraUltimate !== 'undefined') {
+        PandoraUltimate.update(delta, realDelta);
     }
 
     if (typeof PortalManager !== 'undefined') {

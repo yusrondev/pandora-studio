@@ -177,15 +177,10 @@ function initMobileControls() {
     if (btnJump) {
         let pressedAt = 0;
         let lastTouchTime = 0;
-        let labelTimer = 0;
-        // Label baru berganti setelah terbukti ditahan, supaya tidak berkedip saat sekadar mengetuk
-        const caption = btnJump.querySelector('.pad-caption');
         const press = () => {
             pressedAt = performance.now();
             keys.shift = true;
             btnJump.classList.add('active');
-            clearTimeout(labelTimer);
-            labelTimer = setTimeout(() => { if (caption) caption.textContent = 'LARI'; }, SPRINT_TAP_MS);
             if (navigator.vibrate) navigator.vibrate(15);
         };
         const release = (canJump) => {
@@ -193,8 +188,6 @@ function initMobileControls() {
             const heldFor = performance.now() - pressedAt;
             pressedAt = 0;
             btnJump.classList.remove('active');
-            clearTimeout(labelTimer);
-            if (caption) caption.textContent = 'LONCAT';
             // Lompat lebih dulu: keys.shift masih aktif saat dibaca, jadi lompat lari tetap bisa dari ketukan
             if (canJump && heldFor < SPRINT_TAP_MS && typeof triggerWolfJump === 'function') {
                 triggerWolfJump();

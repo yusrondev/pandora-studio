@@ -440,7 +440,7 @@ $gameScripts = [
     'js/character/fox-stats.js', 'js/character/fox-physics.js', 'js/character/fox-spawner.js',
     'js/items/plasma-weapon.js', 'js/items/item-box-manager.js', 'js/items/item-system.js', 'js/character/fox-ai.js',
     'js/character/combat-hud.js', 'js/character/mobile-controls.js', 'js/character/player-spawn.js',
-    'js/character/play-mode.js', 'js/core/render-loop.js', 'js/environment/portal-manager.js', 'js/environment/trigger-manager.js',
+    'js/character/play-mode.js', 'js/character/ultimate-system.js', 'js/core/render-loop.js', 'js/environment/portal-manager.js', 'js/environment/trigger-manager.js',
     'js/core/stage-loader.js', 'js/runtime/game-runtime.js'
 ];
 $gameStyles = ['css/base.css', 'css/icons.css', 'css/play-hud.css', 'css/items.css', 'css/cinematic-fx.css', 'css/settings-panel.css', 'css/mobile-controls.css', 'css/game-runtime.css'];

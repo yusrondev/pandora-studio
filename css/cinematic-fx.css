@@ -94,6 +94,8 @@
 
 /* HUD permainan disembunyikan selama cinematic */
 body.boss-kill-cam #player-combat-hud,
+body.boss-kill-cam #stamina-gauge,
+body.cinematic-playing #stamina-gauge,
 body.boss-kill-cam #boss-health-bar-container,
 body.boss-kill-cam #floating-hp-container,
 body.boss-kill-cam #fox-stats-hud,

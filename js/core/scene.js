@@ -17,7 +17,7 @@ camera.position.set(0, 16, 32);
 
 const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth <= 1024);
 const startGraphics = PandoraSettings.preset();
-const maxDPR = isMobileDevice ? Math.min(1.0, startGraphics.maxDpr) : startGraphics.maxDpr;
+const maxDPR = startGraphics.maxDpr;
 const initialDPR = Math.min(window.devicePixelRatio || 1, maxDPR);
 
 const renderer = new THREE.WebGLRenderer({ antialias: startGraphics.antialias, powerPreference: startGraphics.gpu });
@@ -65,8 +65,8 @@ controls.maxDistance = 160.0;
 const sunLight = new THREE.DirectionalLight(0xfff8ee, 1.45);
 sunLight.position.set(-25, 12, 25);
 sunLight.castShadow = true;
-sunLight.shadow.mapSize.width = isMobileDevice ? Math.min(1024, startGraphics.shadowSize) : startGraphics.shadowSize;
-sunLight.shadow.mapSize.height = isMobileDevice ? Math.min(1024, startGraphics.shadowSize) : startGraphics.shadowSize;
+sunLight.shadow.mapSize.width = startGraphics.shadowSize;
+sunLight.shadow.mapSize.height = startGraphics.shadowSize;
 sunLight.shadow.camera.near = 0.5;
 sunLight.shadow.camera.far = 120;
 

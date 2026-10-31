@@ -88,6 +88,10 @@ const PlayerHealthState = {
 
         const pct = Math.max(0, Math.min(100, (this.current / this.max) * 100));
         fill.style.width = pct.toFixed(1) + '%';
+        const percent = document.getElementById('player-hp-percent');
+        // Masih hidup tidak pernah terbaca 0%
+        if (percent) percent.textContent = (this.current > 0 ? Math.max(1, Math.round(pct)) : 0) + '%';
+        if (fill.parentElement.parentElement) fill.parentElement.parentElement.classList.toggle('low', pct <= 30);
         if (ghost) {
             setTimeout(() => {
                 if (ghost) ghost.style.width = pct.toFixed(1) + '%';
@@ -96,6 +100,93 @@ const PlayerHealthState = {
     }
 };
 window.PlayerHealthState = PlayerHealthState;
+
+// ---------- Busur stamina ----------
+// Isi emas yang tegas, dengan ekor komet merah yang memudar di atas ujungnya pada bagian yang baru terpakai.
+// Posisinya tetap di layar, tidak dihitung dari posisi karakter tiap frame, jadi tidak bergetar saat FPS turun.
+const STAMINA_ARC_SPAN = 52;      // Derajat dari sumbu datar ke tiap ujung busur
+const STAMINA_ARC_RADIUS = 40;    // Dalam viewBox 100
+const STAMINA_COMET_DEGREES = 42; // Panjang ekor komet
+const StaminaGauge = {
+    el: null,
+    fill: null,
+    comet: null,
+    tip: null,
+    gradient: null,
+    length: 0,
+    lastPct: -1,
+
+    polar(deg) {
+        const rad = deg * Math.PI / 180;
+        return [50 + Math.cos(rad) * STAMINA_ARC_RADIUS, 50 - Math.sin(rad) * STAMINA_ARC_RADIUS];
+    },
+
+    build() {
+        this.el = document.createElement('div');
+        this.el.id = 'stamina-gauge';
+        const [x1, y1] = this.polar(-STAMINA_ARC_SPAN);
+        const [x2, y2] = this.polar(STAMINA_ARC_SPAN);
+        const d = `M ${x1} ${y1} A ${STAMINA_ARC_RADIUS} ${STAMINA_ARC_RADIUS} 0 0 0 ${x2} ${y2}`;
+        this.length = STAMINA_ARC_RADIUS * STAMINA_ARC_SPAN * 2 * Math.PI / 180;
+        this.el.innerHTML = `<svg viewBox="0 0 100 100">
+            <defs>
+                <linearGradient id="stamina-comet" gradientUnits="userSpaceOnUse">
+                    <stop class="stamina-comet-stop" offset="0" stop-opacity="0.95"></stop>
+                    <stop class="stamina-comet-stop" offset="1" stop-opacity="0"></stop>
+                </linearGradient>
+            </defs>
+            <path class="stamina-track" d="${d}"></path>
+            <path class="stamina-comet" d="${d}" stroke="url(#stamina-comet)"></path>
+            <path class="stamina-fill" d="${d}"></path>
+            <line class="stamina-tip"></line>
+        </svg>`;
+        this.fill = this.el.querySelector('.stamina-fill');
+        this.comet = this.el.querySelector('.stamina-comet');
+        this.tip = this.el.querySelector('.stamina-tip');
+        this.gradient = this.el.querySelector('#stamina-comet');
+        document.body.appendChild(this.el);
+    },
+
+    render(ratio) {
+        const filled = this.length * ratio;
+        const span = STAMINA_ARC_SPAN * 2;
+        const tipDeg = -STAMINA_ARC_SPAN + span * ratio;
+        const cometDeg = Math.min(STAMINA_ARC_SPAN, tipDeg + STAMINA_COMET_DEGREES);
+        const cometLength = this.length * (cometDeg - tipDeg) / span;
+        this.fill.style.strokeDasharray = `${filled.toFixed(2)} 300`;
+        this.comet.style.strokeDasharray = `0 ${filled.toFixed(2)} ${cometLength.toFixed(2)} 300`;
+
+        const [tipX, tipY] = this.polar(tipDeg);
+        const [endX, endY] = this.polar(tipDeg + STAMINA_COMET_DEGREES);
+        this.gradient.setAttribute('x1', tipX);
+        this.gradient.setAttribute('y1', tipY);
+        this.gradient.setAttribute('x2', endX);
+        this.gradient.setAttribute('y2', endY);
+
+        // Takik kecil melintang di ujung isi
+        const rad = tipDeg * Math.PI / 180;
+        const dx = Math.cos(rad) * 3.6;
+        const dy = -Math.sin(rad) * 3.6;
+        this.tip.setAttribute('x1', tipX - dx);
+        this.tip.setAttribute('y1', tipY - dy);
+        this.tip.setAttribute('x2', tipX + dx);
+        this.tip.setAttribute('y2', tipY + dy);
+    },
+
+    update() {
+        if (!this.el) this.build();
+        const playing = typeof isPlayMode !== 'undefined' && isPlayMode && !PlayerHealthState.isDead;
+        const ratio = Math.max(0, Math.min(1, FoxStaminaState.current / FoxStaminaState.max));
+        const sprinting = typeof keys !== 'undefined' && keys.shift;
+        this.el.classList.toggle('visible', !!(playing && (ratio < 0.995 || sprinting)));
+
+        const pct = Math.round(ratio * 200) / 2;
+        if (pct === this.lastPct) return;
+        this.lastPct = pct;
+        this.render(pct / 100);
+        this.el.classList.toggle('critical', ratio <= 0.15);
+    }
+};
 
 const CombatHUD = {
     bossContainer: null,
@@ -200,16 +291,8 @@ const CombatHUD = {
             ? wolfCharacter.root.position
             : null;
 
-        // 1. UPDATE PLAYER STAMINA BAR (KUNING / MERAH KRITIS <= 15%)
-        if (typeof FoxStaminaState !== 'undefined') {
-            const staminaFill = document.getElementById('player-stamina-bar-fill');
-            if (staminaFill) {
-                const sPct = Math.max(0, Math.min(100, (FoxStaminaState.current / FoxStaminaState.max) * 100));
-                staminaFill.style.width = sPct.toFixed(1) + '%';
-                const isCritical = (FoxStaminaState.current / FoxStaminaState.max) <= 0.15;
-                staminaFill.classList.toggle('critical', isCritical);
-            }
-        }
+        // 1. KAPSUL STAMINA
+        if (typeof FoxStaminaState !== 'undefined') StaminaGauge.update();
 
         // 2. DETEKSI BOSS & UPDATE BAR BOSS TENGAH ATAS
         // Boss aktif ditentukan fox-physics agar bar dan kamera selalu sepakat soal radius

@@ -1,6 +1,7 @@
 
 let lastKickTriggerTime = 0;
 function triggerWolfKick() {
+    if (window.PandoraUltimateCasting) return;
     // Satu klik fisik bisa memicu pointerdown + mousedown + contextmenu sekaligus:
     // hanya event pertama dalam 40ms yang dihitung agar jumlah klik untuk combo akurat.
     const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
@@ -16,6 +17,7 @@ window.triggerWolfKick = triggerWolfKick;
 
 let lastPunchTriggerTime = 0;
 function triggerWolfPunch() {
+    if (window.PandoraUltimateCasting) return;
     // Debounce 40ms agar pointerdown + mousedown fisik dihitung tepat 1x klik per input
     const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     if (now - lastPunchTriggerTime < 40) return;
@@ -29,6 +31,7 @@ function triggerWolfPunch() {
 window.triggerWolfPunch = triggerWolfPunch;
 
 function startWolfBlock() {
+    if (window.PandoraUltimateCasting) return;
     const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
     if (char && typeof char.startBlock === 'function') {
         char.startBlock();
@@ -452,6 +455,7 @@ function startPlayMode() {
         window.itemBoxManagerInstance.init();
         window.itemBoxManagerInstance.resetForPlay();
     }
+    if (window.PandoraUltimate) PandoraUltimate.resetForPlay();
 
     if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.prewarm === 'function') {
         window.plasmaWeaponInstance.prewarm(renderer, scene, camera);
@@ -506,6 +510,7 @@ function stopPlayMode() {
     if (window.itemBoxManagerInstance && window.itemBoxManagerInstance.isInitialized) {
         window.itemBoxManagerInstance.resetForPlay();
     }
+    if (window.PandoraUltimate) PandoraUltimate.resetForPlay();
     if (typeof ItemSystem !== 'undefined') {
         ItemSystem.reset();
     }

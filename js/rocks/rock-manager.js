@@ -222,7 +222,51 @@ function clearAllRocks() {
         rocksGroup.remove(rocksList[i]);
     }
     rocksList.length = 0;
+    clearRockChunks();
     updateRockCountUI();
+}
+
+// Build: batu tidak bisa disunting, jadi ratusan mesh digabung menjadi instancing per petak.
+// rocksList tetap dipakai untuk tabrakan, hanya tidak lagi digambar satu per satu.
+const ROCK_CHUNK_SIZE = 32;
+const rockChunks = [];
+
+function clearRockChunks() {
+    rockChunks.splice(0).forEach((mesh) => {
+        rocksGroup.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.dispose();
+    });
+}
+
+function bakeRocksForRuntime() {
+    clearRockChunks();
+    const cells = new Map();
+    rocksList.forEach((rock) => {
+        const key = rock.geometry.uuid + ':' + Math.floor(rock.position.x / ROCK_CHUNK_SIZE) + ':' + Math.floor(rock.position.z / ROCK_CHUNK_SIZE);
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(rock);
+        rocksGroup.remove(rock);
+    });
+    cells.forEach((rocks) => {
+        const geometry = rocks[0].geometry.clone();
+        if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+        const local = geometry.boundingSphere.clone();
+        const box = new THREE.Box3();
+        const rockBox = new THREE.Box3();
+        const sphere = new THREE.Sphere();
+        const mesh = new THREE.InstancedMesh(geometry, rockMaterial, rocks.length);
+        rocks.forEach((rock, i) => {
+            rock.updateMatrixWorld(true);
+            mesh.setMatrixAt(i, rock.matrixWorld);
+            box.union(sphere.copy(local).applyMatrix4(rock.matrixWorld).getBoundingBox(rockBox));
+        });
+        geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        rocksGroup.add(mesh);
+        rockChunks.push(mesh);
+    });
 }
 
 // 7. RECREATE ROCK (UNTUK UNDO/REDO & LOAD MAP)

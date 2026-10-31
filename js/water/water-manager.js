@@ -117,6 +117,7 @@ function renderWaterDepthPass(renderer, scene, camera) {
     const hidden = [waterMesh, outerOceanMesh, islandCliffMesh,
         (typeof cloudGroup !== 'undefined') ? cloudGroup : null,
         (typeof instancedGrassMesh !== 'undefined') ? instancedGrassMesh : null,
+        (typeof grassChunksGroup !== 'undefined') ? grassChunksGroup : null,
         (typeof fallingLeavesMesh !== 'undefined') ? fallingLeavesMesh : null
     ].filter(Boolean);
     const wasVisible = hidden.map(obj => obj.visible);

@@ -214,6 +214,7 @@ function applyMapDataToScene(mapData) {
     if (Array.isArray(mapData.rocks) && typeof recreateRock === 'function') {
         mapData.rocks.forEach(rData => recreateRock(rData));
     }
+    if (window.PANDORA_RUNTIME) bakeRocksForRuntime();
 
     // 6. Terapkan Bunga (Flowers)
     if (typeof clearAllFlowers === 'function') {

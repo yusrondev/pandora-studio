@@ -441,6 +441,59 @@ function rebuildGrassTransforms() {
     // Di build urutan rumput sudah diacak, jadi cukup menggambar bagian awal; helai skala 0 tetap memakan GPU
     instancedGrassMesh.count = window.PANDORA_RUNTIME ? Math.round(activeCount * grassFraction) : activeCount;
     instancedGrassMesh.instanceMatrix.needsUpdate = true;
+    if (window.PANDORA_RUNTIME) rebuildGrassChunks();
+}
+
+// Build: rumput digambar per petak agar petak di luar pandangan kamera tidak menyita GPU.
+// instancedGrassMesh tetap menjadi sumber data; meshnya sendiri tidak digambar.
+const GRASS_CHUNK_SIZE = 24;
+const GRASS_CHUNK_SWAY = 1.5; // Ruang untuk tinggi dan goyangan helai
+const grassChunksGroup = new THREE.Group();
+grassChunksGroup.name = 'grassChunks';
+scene.add(grassChunksGroup);
+
+function rebuildGrassChunks() {
+    grassChunksGroup.children.slice().forEach((mesh) => {
+        grassChunksGroup.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.dispose();
+    });
+    instancedGrassMesh.visible = false;
+
+    const count = instancedGrassMesh.count;
+    const matrices = instancedGrassMesh.instanceMatrix.array;
+    const colors = instancedGrassMesh.geometry.attributes.instanceColor.array;
+    const cells = new Map();
+    for (let i = 0; i < count; i++) {
+        const key = Math.floor(matrices[i * 16 + 12] / GRASS_CHUNK_SIZE) + ':' + Math.floor(matrices[i * 16 + 14] / GRASS_CHUNK_SIZE);
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(i);
+    }
+
+    const source = instancedGrassMesh.geometry;
+    cells.forEach((indices) => {
+        const geometry = new THREE.BufferGeometry();
+        if (source.index) geometry.setIndex(source.index.clone());
+        Object.keys(source.attributes).forEach((name) => {
+            if (name !== 'instanceColor') geometry.setAttribute(name, source.attributes[name].clone());
+        });
+        const chunkColors = new Float32Array(indices.length * 3);
+        const mesh = new THREE.InstancedMesh(geometry, instancedGrassMesh.material, indices.length);
+        mesh.receiveShadow = true;
+        const box = new THREE.Box3();
+        const point = new THREE.Vector3();
+        indices.forEach((index, slot) => {
+            for (let c = 0; c < 16; c++) mesh.instanceMatrix.array[slot * 16 + c] = matrices[index * 16 + c];
+            chunkColors[slot * 3] = colors[index * 3];
+            chunkColors[slot * 3 + 1] = colors[index * 3 + 1];
+            chunkColors[slot * 3 + 2] = colors[index * 3 + 2];
+            box.expandByPoint(point.set(matrices[index * 16 + 12], matrices[index * 16 + 13], matrices[index * 16 + 14]));
+        });
+        geometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(chunkColors, 3));
+        geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+        geometry.boundingSphere.radius += GRASS_CHUNK_SWAY;
+        grassChunksGroup.add(mesh);
+    });
 }
 
 function updateTreesAndGrassPositions() {

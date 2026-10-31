@@ -1164,3 +1164,81 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
     font-family: 'JetBrains Mono', monospace;
 }
 
+/* Stamina kini busur di dekat karakter (StaminaGauge di combat-hud.js) */
+.player-bar-wrapper.stamina-wrapper { display: none; }
+
+/* Persen di tengah bar: tanpa bayangan lembut agar tetap tajam di layar ponsel */
+.player-hp-percent {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font: 700 10px/1 'Inter', 'Segoe UI', sans-serif;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9), 0 -1px 0 rgba(0, 0, 0, 0.55), 1px 0 0 rgba(0, 0, 0, 0.55), -1px 0 0 rgba(0, 0, 0, 0.55);
+}
+
+/* Karakter berada sekitar tengah layar, jadi busur ini selalu terasa di sampingnya */
+#stamina-gauge {
+    --stamina-size: clamp(72px, 24vh, 124px);
+    position: fixed;
+    /* Garis busur ada di 90% lebar kotak, jadi jaraknya dihitung dari sana */
+    left: calc(50% + clamp(38px, 6vw, 70px) - var(--stamina-size) * 0.9);
+    top: 58%;
+    z-index: 9990;
+    width: var(--stamina-size);
+    height: var(--stamina-size);
+    margin-top: calc(var(--stamina-size) / -2);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
+}
+#stamina-gauge.visible { opacity: 1; transition-duration: 0.12s; }
+#stamina-gauge svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.stamina-track, .stamina-comet, .stamina-fill { fill: none; stroke-linecap: butt; }
+.stamina-track { stroke: rgba(0, 0, 0, 0.3); stroke-width: 6.5; stroke-linecap: round; }
+.stamina-comet { stroke-width: 4; }
+.stamina-comet-stop { stop-color: #d9402b; }
+.stamina-fill { stroke: #ffb71c; stroke-width: 4.6; }
+.stamina-tip { stroke: #fff4c8; stroke-width: 1.6; stroke-linecap: round; }
+#stamina-gauge.critical .stamina-fill { stroke: #ff4d3d; }
+#stamina-gauge.critical { animation: stamina-gauge-pulse 0.55s ease-in-out infinite alternate; }
+@keyframes stamina-gauge-pulse { from { opacity: 1; } to { opacity: 0.55; } }
+
+/* Layar pemuatan saat pindah stage lewat portal */
+.stage-travel {
+    display: flex;
+    flex-direction: column;
+    width: min(420px, 62vw);
+    gap: 9px;
+}
+.stage-travel-bar {
+    position: relative;
+    height: 3px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.16);
+}
+.stage-travel-bar i { display: block; width: 0; height: 100%; background: #e6e2d6; transition: width 0.2s linear; }
+.stage-travel-bar b {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 22%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+    will-change: transform;
+    animation: stage-travel-shine 1.5s ease-in-out infinite;
+}
+@keyframes stage-travel-shine { from { transform: translateX(-100%); } to { transform: translateX(460%); } }
+.stage-travel-meta {
+    display: flex;
+    justify-content: space-between;
+    color: #c9c5b8;
+    font: 500 11px 'Inter', 'Segoe UI', sans-serif;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}

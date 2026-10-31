@@ -9,6 +9,8 @@ const PICKUP_TYPES = {
     heal: { label: 'Heal', color: 0x18e860, hot: 0xd8ffe6, fraction: 0.35, chime: [523.25, 659.25, 783.99, 1046.5] },
     stamina: { label: 'Stamina', color: 0xff8a12, hot: 0xfff0c9, fraction: 0.6, chime: [659.25, 880, 1174.66, 1318.51] }
 };
+// Orb energi ultimate: langsung menambah satu orb, tidak terisi bertahap
+PICKUP_TYPES.mana = { label: 'Mana', color: 0x2f8cff, hot: 0xd6ecff, fraction: 0, chime: [587.33, 880, 1174.66, 1760] };
 const PICKUP_RESTORE_SECONDS = 0.7;
 const PICKUP_MIN_SPACING = 1.0;
 const PICKUP_AURA_SPRITES = 5;
@@ -229,6 +231,8 @@ class ItemBoxManager {
         const stamina = document.getElementById('val-pickup-stamina-count');
         if (heal) heal.innerText = count('heal');
         if (stamina) stamina.innerText = count('stamina');
+        const mana = document.getElementById('val-pickup-mana-count');
+        if (mana) mana.innerText = count('mana');
     }
 
     setActiveType(type) {
@@ -521,7 +525,7 @@ class ItemBoxManager {
         this.burst.group.visible = true;
         this.burst.time = 0;
 
-        const wrapper = document.querySelector(type === 'heal' ? '.hp-wrapper' : '.stamina-wrapper');
+        const wrapper = document.querySelector(type === 'heal' ? '.hp-wrapper' : (type === 'mana' ? '#player-mana-orbs' : '#stamina-gauge'));
         if (wrapper) {
             wrapper.classList.remove('bar-restored');
             void wrapper.offsetWidth;
@@ -577,6 +581,7 @@ class ItemBoxManager {
     }
 
     needsRestore(type) {
+        if (type === 'mana') return window.PandoraUltimate && PandoraUltimate.orbs < ULTIMATE_MAX_ORBS;
         const state = type === 'heal' ? PlayerHealthState : FoxStaminaState;
         return state.current < state.max;
     }
@@ -585,9 +590,13 @@ class ItemBoxManager {
         box.isActive = false;
         box.group.visible = false;
         if (window.PANDORA_RUNTIME && !box.isDrop) this.collectedKeys.add(box.key);
-        const state = box.type === 'heal' ? PlayerHealthState : FoxStaminaState;
-        const amount = state.max * box.fraction;
-        this.restores.push({ type: box.type, total: amount, left: amount });
+        if (box.type === 'mana') {
+            PandoraUltimate.addOrbs(1);
+        } else {
+            const state = box.type === 'heal' ? PlayerHealthState : FoxStaminaState;
+            const amount = state.max * box.fraction;
+            this.restores.push({ type: box.type, total: amount, left: amount });
+        }
         this.playCollectSound(box.type);
         this.startEffects(box.type);
     }

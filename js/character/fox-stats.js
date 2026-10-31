@@ -202,6 +202,7 @@ const FoxStaminaState = {
      * Cek apakah stamina mencukupi untuk melakukan aksi (harus > 15% kapasitas maksimal)
      */
     canPerformAction() {
+        if (this.ignoreDrain) return true;
         return (this.current / this.max) > 0.15;
     },
 
@@ -276,6 +277,7 @@ const FoxStaminaState = {
      * @param {number} amount Jumlah stamina yang dikonsumsi
      */
     consume(amount = 10) {
+        if (this.ignoreDrain) return;
         if (amount <= 0) return;
         this.current = Math.max(0, this.current - amount);
         if (this.current <= 0) {

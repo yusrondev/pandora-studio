@@ -1521,6 +1521,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
          * Mendeteksi apakah pemain sedang aktif berlari (sprint) dengan kombinasi tombol/analog + arah
          */
         isSprintingState() {
+            // Serangan terbang bunshin tidak boleh mengikuti tombol lari pemain
+            if (this.isAlly) return false;
             const isShift = (typeof keys !== 'undefined' && keys.shift) || (typeof isMobileSprintActive !== 'undefined' && isMobileSprintActive);
             const inputMag = (typeof window.currentFoxInputMag === 'number') ? window.currentFoxInputMag : 0;
             const hasMoveKey = (typeof keys !== 'undefined') && !!(keys.w || keys.s || keys.a || keys.d);
@@ -1730,7 +1732,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                             const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
                             const dispWorld = deltaZ * (this.baseScale || 1.85);
                             this.root.position.addScaledVector(fwd, dispWorld);
-                            if (typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
+                            if (!this.isAlly && typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
                             if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, dispWorld);
                         }
                     }
@@ -1944,7 +1946,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                             const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
                             const dispWorld = deltaZ * (this.baseScale || 1.85);
                             this.root.position.addScaledVector(fwd, dispWorld);
-                            if (typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
+                            if (!this.isAlly && typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
                             if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, dispWorld);
                         }
                     }
@@ -2146,7 +2148,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                         toEnemy.normalize();
                         if (fwd.dot(toEnemy) >= cfg.minDot) {
                             hitAny = true;
-                            const strikeDamage = (attackKey === 'flyingKick') ? 45 : (attackKey === 'flyingPunch' ? 40 : (attackKey && attackKey.startsWith('kick') ? 30 : 25));
+                            const strikeDamage = Math.round(((attackKey === 'flyingKick') ? 45 : (attackKey === 'flyingPunch' ? 40 : (attackKey && attackKey.startsWith('kick') ? 30 : 25))) * (this.damageScale || 1));
                             const isCrit = (attackKey === 'flyingKick' || attackKey === 'flyingPunch' || attackKey === 'kick3' || attackKey === 'punch3');
                             const hitWorldPos = new THREE.Vector3(ePos.x, ePos.y + 0.95, ePos.z);
                             if (item.ai && typeof item.ai.takeDamage === 'function') {
@@ -2297,7 +2299,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                         const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
                         const dispWorld = Math.min(deltaZ * (this.baseScale || 1.85), Math.max(0, distToLockedEnemy - 0.88));
                         this.root.position.addScaledVector(fwd, dispWorld);
-                        if (typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
+                        if (!this.isAlly && typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
                         if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, dispWorld);
                     };
 
@@ -2311,7 +2313,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                         const leapSpeed = 5.2;
                         const disp = Math.min(leapSpeed * dt, Math.max(0, distToLockedEnemy - 0.90));
                         this.root.position.addScaledVector(fwd, disp);
-                        if (typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, disp);
+                        if (!this.isAlly && typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, disp);
                         if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, disp);
                     }
 
@@ -2421,7 +2423,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                         const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
                         const dispWorld = Math.min(deltaZ * (this.baseScale || 1.85), Math.max(0, distToLockedEnemy - 0.88));
                         this.root.position.addScaledVector(fwd, dispWorld);
-                        if (typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
+                        if (!this.isAlly && typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
                         if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, dispWorld);
                     };
 
@@ -2435,7 +2437,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                         const leapSpeed = 2.6;
                         const disp = Math.min(leapSpeed * dt, Math.max(0, distToLockedEnemy - 0.90));
                         this.root.position.addScaledVector(fwd, disp);
-                        if (typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, disp);
+                        if (!this.isAlly && typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, disp);
                         if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, disp);
                     }
 
@@ -2478,7 +2480,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                         const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
                         const dispWorld = deltaZ * (this.baseScale || 1.85);
                         this.root.position.addScaledVector(fwd, dispWorld);
-                        if (typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
+                        if (!this.isAlly && typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
                         if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, dispWorld);
                     };
 
@@ -2768,6 +2770,23 @@ function createWolfCharacterModel(speciesKey = 'red') {
             if (this.actions.run) {
                 const runPace = Math.max(0.70, Math.min(1.6, absSpeed / 5.2));
                 this.actions.run.timeScale = runPace;
+            }
+
+            // Pose jutsu menimpa semua animasi lain selama menu L1 terbuka
+            if (this.castAction) {
+                const realDt = dt / (window.PandoraTimeScale || 1);
+                this.castWeight = THREE.MathUtils.lerp(this.castWeight || 0, this.castTarget || 0, Math.min(1.0, 14.0 * realDt));
+                const others = 1 - this.castWeight;
+                for (const key of Object.keys(this.actions)) {
+                    if (this.actions[key] && this.actions[key].getEffectiveWeight) {
+                        this.actions[key].setEffectiveWeight(this.actions[key].getEffectiveWeight() * others);
+                    }
+                }
+                this.castAction.setEffectiveWeight(this.castWeight);
+                if (!this.castTarget && this.castWeight < 0.01) {
+                    this.castAction.stop();
+                    this.castAction = null;
+                }
             }
 
             // Step the Three.js AnimationMixer
@@ -3527,6 +3546,9 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
             } else if (this.isPunching) {
                 this.punchTimer += dt;
 
+                const strikesAlly = Boolean(this.allyTarget && window.PandoraUltimate);
+                if (strikesAlly) PandoraUltimate.enemyStrike(this);
+
                 // Melee strike impact window: HANYA periksa setelah animasi pukulan benar-benar mengayun
                 let usedBoneHitbox = false;
                 const pKey = this.activePunchKey || 'punch1';
@@ -3534,14 +3556,14 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
                 const speedMult = getCharacterAttackSpeedMultiplier(this, pKey);
                 const minSwingTime = 0.20 / speedMult;
 
-                if (this.punchTimer >= minSwingTime && typeof window !== 'undefined' && window.PandoraHitboxSystem) {
+                if (!strikesAlly && this.punchTimer >= minSwingTime && typeof window !== 'undefined' && window.PandoraHitboxSystem) {
                     const animCfg = window.PandoraHitboxSystem.getAnimationConfig(cKey, pKey);
                     if (animCfg && Array.isArray(animCfg.hitboxes) && animCfg.hitboxes.some(h => h.enabled !== false)) {
                         usedBoneHitbox = true;
                         window.PandoraHitboxSystem.checkEnemyMeleeStrike(this);
                     }
                 }
-                if (!usedBoneHitbox && !this.strikeProcessed && this.punchTimer >= (0.26 / speedMult)) {
+                if (!strikesAlly && !usedBoneHitbox && !this.strikeProcessed && this.punchTimer >= (0.26 / speedMult)) {
                     const pKey = this.activePunchKey || 'punch1';
                     // Konfigurasi pukulan presisi fisik Enemy (jangkauan reach diskalakan dinamis mengikuti ukuran tubuh enemy)
                     const ENEMY_PUNCH_CONFIGS = {

@@ -439,6 +439,7 @@
                     <div class="player-bar-ghost hp-ghost" id="player-hp-bar-ghost" style="width: 100%;"></div>
                     <div class="player-bar-fill hp-fill" id="player-hp-bar-fill" style="width: 100%;"></div>
                 </div>
+                <span id="player-hp-percent" class="player-hp-percent">100%</span>
             </div>
 
             <!-- Stamina Bar (Kuning) - Bar Biru dihilangkan sementara -->
@@ -522,16 +523,16 @@
         <div class="mobile-action-buttons">
 
             <!-- Shield Button (Tangkisan / Pertahanan Karakter) -->
-            <button type="button" id="btn-mobile-shield" class="mobile-action-btn mobile-shield-btn" title="Shield / Block (Q)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><circle cx="12" cy="12" r="8"/></svg><span class="pad-caption">GUARD</span></button>
+            <button type="button" id="btn-mobile-shield" class="mobile-action-btn mobile-shield-btn" title="Shield / Block (Q)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><circle cx="12" cy="12" r="8"/></svg></button>
 
             <!-- Kick Button (Tendangan Melee) -->
-            <button type="button" id="btn-mobile-kick" class="mobile-action-btn mobile-kick-btn" title="Kick (Tendangan)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 4 21 20 3 20"/></svg><span class="pad-caption">TENDANG</span></button>
+            <button type="button" id="btn-mobile-kick" class="mobile-action-btn mobile-kick-btn" title="Kick (Tendangan)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 4 21 20 3 20"/></svg></button>
 
             <!-- Jump Button (Lompat) -->
-            <button type="button" id="btn-mobile-jump" class="mobile-action-btn mobile-jump-btn" title="Tahan untuk lari, ketuk untuk lompat"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg><span class="pad-caption">LONCAT</span></button>
+            <button type="button" id="btn-mobile-jump" class="mobile-action-btn mobile-jump-btn" title="Tahan untuk lari, ketuk untuk lompat"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg></button>
 
             <!-- Main Punch Button (Pukulan Combo Utama - Ukuran Paling Menonjol) -->
-            <button type="button" id="btn-mobile-punch" class="mobile-action-btn mobile-punch-btn" title="Punch Attack (Pukulan Combo)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><rect x="4.5" y="4.5" width="15" height="15"/></svg><span class="pad-caption">PUKUL</span></button>
+            <button type="button" id="btn-mobile-punch" class="mobile-action-btn mobile-punch-btn" title="Punch Attack (Pukulan Combo)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><rect x="4.5" y="4.5" width="15" height="15"/></svg></button>
         </div>
     </div>
 
@@ -3041,11 +3042,16 @@
                             <span>Stamina di Map</span>
                             <span id="val-pickup-stamina-count" class="val-badge">0</span>
                         </label>
+                        <label>
+                            <span>Mana di Map</span>
+                            <span id="val-pickup-mana-count" class="val-badge">0</span>
+                        </label>
                     </div>
 
                     <div class="pickup-type-switch">
                         <button type="button" class="pickup-type-btn" data-pickup-type="heal" title="Cahaya hijau: memulihkan HP"><i class="pickup-dot heal"></i>Heal</button>
                         <button type="button" class="pickup-type-btn" data-pickup-type="stamina" title="Cahaya oranye: memulihkan stamina"><i class="pickup-dot stamina"></i>Stamina</button>
+                        <button type="button" class="pickup-type-btn" data-pickup-type="mana" title="Cahaya biru: menambah 1 orb energi ultimate"><i class="pickup-dot mana"></i>Mana</button>
                     </div>
 
                     <!-- Interactive Click-to-Place Mode Toggle Button -->
@@ -3219,6 +3225,7 @@
     <script src="js/environment/portal-manager.js"></script>
     <script src="js/environment/trigger-manager.js"></script>
     <script src="js/character/play-mode.js"></script>
+    <script src="js/character/ultimate-system.js"></script>
     <script src="js/core/render-loop.js"></script>
     <script src="js/editor/ui-handlers.js"></script>
     <script src="js/core/stage-loader.js"></script>

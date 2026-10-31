@@ -7,6 +7,9 @@ const KILL_CAM_IN = 0.45;
 const KILL_CAM_HOLD = 1.5;
 const KILL_CAM_OUT = 0.5;
 const KILL_CAM_DISTANCE = 3.4;
+const KILL_CAM_HOLD_DISTANCE = 4.4; // Menu L1: seluruh tubuh dan pose jutsu terlihat
+const KILL_CAM_HOLD_SIDE_ANGLE = 0.5;  // Menu L1: dari belakang, bergeser ke sisi kanan pemain
+const KILL_CAM_HOLD_FOCUS_RIGHT = 0.8; // Titik pandang digeser ke kanan agar arah depan pemain tetap terlihat
 const KILL_CAM_HEIGHT = 0.75;
 const KILL_CAM_FOV = 30;
 const KILL_CAM_SIDE_ANGLE = 0.6;   // Radian dari sumbu pemain-boss, agar pemain tidak menutupi boss
@@ -14,6 +17,7 @@ const KILL_CAM_ORBIT = 0.22;       // Radian putaran pelan selama kamera aktif
 const KILL_CAM_FOCUS_START = 1.25; // Tinggi titik fokus: dari dada, turun mengikuti tubuh yang rebah
 const KILL_CAM_FOCUS_END = 0.6;
 const KILL_CAM_BASE_SCALE = 1.85;
+const KILL_CAM_HOLD_FOCUS = 0.95;
 const BOKEH_MAX_RADIUS = 0.02;     // Terhadap tinggi layar
 const BOKEH_FOCUS_BAND = 1.3;      // Jarak dari titik fokus yang tetap tajam
 const BOKEH_FAR_RAMP = 7.0;
@@ -26,6 +30,7 @@ const BossKillCam = {
     startPos: new THREE.Vector3(),
     startFov: 45,
     sideDir: new THREE.Vector3(),
+    holdRight: new THREE.Vector3(),
     orbitSign: 1,
     target: null,
     quad: null,
@@ -47,12 +52,37 @@ const BossKillCam = {
         this.startPos.copy(camera.position);
         this.startFov = camera.fov;
         this.agent = agent;
+        this.holdMode = false;
         this.time = 0;
         this.active = true;
         document.body.classList.add('boss-kill-cam');
     },
 
+    // Kamera menahan posisi dekat sampai release(), dipakai menu L1
+    startHold(character) {
+        const yaw = character.root.rotation.y;
+        const backX = -Math.sin(yaw), backZ = -Math.cos(yaw);
+        this.holdRight.set(-Math.cos(yaw), 0, Math.sin(yaw));
+        const cos = Math.cos(KILL_CAM_HOLD_SIDE_ANGLE), sin = Math.sin(KILL_CAM_HOLD_SIDE_ANGLE);
+        this.sideDir.set(backX * cos + this.holdRight.x * sin, 0, backZ * cos + this.holdRight.z * sin);
+        this.orbitSign = 1;
+        this.startPos.copy(camera.position);
+        this.startFov = camera.fov;
+        this.agent = character;
+        this.time = 0;
+        this.holdMode = true;
+        this.active = true;
+        document.body.classList.add('boss-kill-cam');
+    },
+
+    release() {
+        if (!this.holdMode) return;
+        this.holdMode = false;
+        this.time = Math.max(this.time, KILL_CAM_IN + KILL_CAM_HOLD);
+    },
+
     stop() {
+        this.holdMode = false;
         this.active = false;
         this.agent = null;
         document.body.classList.remove('boss-kill-cam');
@@ -81,6 +111,7 @@ const BossKillCam = {
             return;
         }
         this.time += realDelta;
+        if (this.holdMode) this.time = Math.min(this.time, KILL_CAM_IN);
 
         this.saved.position.copy(camera.position);
         this.saved.quaternion.copy(camera.quaternion);
@@ -90,14 +121,16 @@ const BossKillCam = {
         const progress = Math.min(1, this.time / total);
         const blend = this.blendAt(this.time);
         const boss = this.agent.root.position;
-        const focusHeight = THREE.MathUtils.lerp(KILL_CAM_FOCUS_START, KILL_CAM_FOCUS_END, progress) * this.scaleFactor();
+        const focusHeight = (this.holdMode ? KILL_CAM_HOLD_FOCUS : THREE.MathUtils.lerp(KILL_CAM_FOCUS_START, KILL_CAM_FOCUS_END, progress)) * this.scaleFactor();
         const focus = new THREE.Vector3(boss.x, boss.y + focusHeight, boss.z);
+        if (this.holdMode) focus.addScaledVector(this.holdRight, KILL_CAM_HOLD_FOCUS_RIGHT);
 
         const orbit = this.sideDir.clone().applyAxisAngle(THREE.Object3D.DefaultUp, this.orbitSign * KILL_CAM_ORBIT * progress);
+        const distance = this.holdMode ? KILL_CAM_HOLD_DISTANCE : KILL_CAM_DISTANCE;
         const close = new THREE.Vector3(
-            boss.x + orbit.x * KILL_CAM_DISTANCE,
+            boss.x + orbit.x * distance,
             boss.y + focusHeight + KILL_CAM_HEIGHT,
-            boss.z + orbit.z * KILL_CAM_DISTANCE
+            boss.z + orbit.z * distance
         );
         if (typeof getTerrainHeightFast === 'function') {
             close.y = Math.max(close.y, getTerrainHeightFast(close.x, close.z) + 0.5);
@@ -175,7 +208,7 @@ const BossKillCam = {
                 }
             `,
             fragmentShader: `
-                #define TAPS 40
+                #define TAPS ${navigator.maxTouchPoints > 0 ? 20 : 40}
                 uniform sampler2D tColor;
                 uniform sampler2D tDepth;
                 uniform float uNear, uFar, uFocus, uAmount, uRadius, uAspect, uBand, uFarRamp, uNearRamp;

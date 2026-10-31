@@ -71,19 +71,6 @@
 
 .pad-symbol { width: 25px; height: 25px; display: block; pointer-events: none; }
 
-.pad-caption {
-    position: absolute;
-    left: 50%;
-    bottom: -14px;
-    transform: translateX(-50%);
-    font: 600 8.5px/1 'Inter', 'Segoe UI', sans-serif;
-    letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.62);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
-    white-space: nowrap;
-    pointer-events: none;
-}
-
 #btn-mobile-shield, #btn-mobile-punch, #btn-mobile-kick, #btn-mobile-jump {
     width: 60px !important;
     height: 60px !important;
@@ -121,13 +108,51 @@
 body.play-mode-active:not(.cinematic-playing) #btn-game-pause.touch { display: flex; }
 #btn-game-pause i { display: block; width: 3px; height: 13px; background: rgba(255, 255, 255, 0.85); }
 
-/* Layar pendek (ponsel mendatar): bar HP pindah ke atas agar tidak menimpa joystick */
-@media (max-height: 500px) {
+/* HUD ponsel: bar boss di atas tengah dan bar pemain di bawah tengah, sejajar di sumbu yang sama
+   dan di antara kedua ibu jari, sehingga tidak tertutup tangan dan tidak menimpa area pertarungan. */
+@media (max-height: 500px), (pointer: coarse) {
+    /* Dipusatkan tanpa transform: translate setengah piksel membuat teks di dalamnya buram */
     #player-combat-hud {
-        top: max(10px, env(safe-area-inset-top)) !important;
-        bottom: auto !important;
-        left: 14px !important;
+        top: auto !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: max(14px, env(safe-area-inset-bottom)) !important;
+        justify-content: center;
     }
+    #player-combat-hud .player-bars-column { width: 170px; }
+    #player-combat-hud .hp-wrapper { width: 100% !important; height: 15px !important; }
+    #player-combat-hud .hp-track {
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        border-radius: 2px;
+        transform: none;
+    }
+    #player-combat-hud .hp-ghost { background: rgba(255, 255, 255, 0.55); opacity: 1; }
+    #player-combat-hud .hp-fill { background: #5fd38d; }
+    #player-combat-hud .hp-wrapper.low .hp-fill { background: #e0564a; }
+
+    #boss-health-bar-container {
+        top: max(10px, env(safe-area-inset-top)) !important;
+        width: clamp(170px, 34vw, 340px) !important;
+        gap: 4px;
+    }
+    #boss-health-bar-container .boss-bar-meta { margin: 0; }
+    #boss-health-bar-container .boss-name-text {
+        font-size: 10px !important;
+        font-weight: 600;
+        letter-spacing: 3px !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+    }
+    #boss-health-bar-container .boss-bar-frame { filter: none; }
+    #boss-health-bar-container .boss-bar-track {
+        height: 3px !important;
+        background: rgba(0, 0, 0, 0.42);
+        border: 0;
+        border-radius: 1px;
+        box-shadow: none;
+    }
+    #boss-health-bar-container .boss-bar-ghost { background: rgba(255, 255, 255, 0.55); opacity: 1; }
+    #boss-health-bar-container .boss-bar-fill { background: #d9483b; box-shadow: none; }
 }
 
 /* Ponsel tegak saat bermain: minta diputar (dipakai juga jika browser menolak mengunci orientasi) */

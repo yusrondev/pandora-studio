@@ -1040,9 +1040,10 @@
 
                 if (multiHit.triggeredNewHit) {
                     hitAny = true;
-                    const strikeDamage = typeof animCfg.damage === 'number'
+                    const baseDamage = typeof animCfg.damage === 'number'
                         ? animCfg.damage
                         : ((attackKey === 'flyingKick') ? 45 : (attackKey === 'flyingPunch' ? 40 : (attackKey.startsWith('kick') ? 30 : 25)));
+                    const strikeDamage = Math.round(baseDamage * (heroInstance.damageScale || 1));
 
                     const isCrit = (attackKey === 'flyingKick' || attackKey === 'flyingPunch' || attackKey === 'kick3' || attackKey === 'punch3');
                     const hitWorldPos = (evalRes.bestHit && evalRes.bestHit.worldCenter)
@@ -1083,6 +1084,7 @@
          * Mengembalikan true jika hitbox tangan Enemy benar-benar menyentuh Hurtbox Player.
          */
         checkEnemyMeleeStrike(enemyInstance) {
+            if (enemyInstance && enemyInstance.allyTarget) return false; // Ditangani PandoraUltimate.enemyStrike
             if (!enemyInstance || !enemyInstance.isPunching) return false;
             const attackKey = enemyInstance.activePunchKey || 'punch1';
             const charKey = normalizeCharKey(enemyInstance.charKey || enemyInstance.speciesKey || 'enemy-foxtree');

@@ -2,35 +2,40 @@
    PENGATURAN FPS & GRAFIS (Studio dan game hasil generate)
    Dimuat sebelum scene.js karena renderer membaca nilainya saat dibuat.
    ========================================================= */
+// Ponsel: nama dan isi preset tetap, tetapi resolusi dan pembaruan bayangan Tinggi dibuat lebih ringan agar tidak cepat panas
+const PANDORA_IS_PHONE = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 const GRAPHICS_PRESETS = {
     low:    { label: 'Rendah', maxDpr: 0.85, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.35, grassFraction: 0.4,  waterDepthEvery: 6, antialias: false, gpu: 'default' },
     medium: { label: 'Sedang', maxDpr: 1.0,  shadowSize: 1024, shadowEvery: 3, cloudFraction: 0.65, grassFraction: 0.7,  waterDepthEvery: 4, antialias: false, gpu: 'default' },
-    high:   { label: 'Tinggi', maxDpr: 1.5,  shadowSize: 2048, shadowEvery: 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
+    high:   { label: 'Tinggi', maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
     ultra:  { label: 'Ultra',  maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 1, antialias: true,  gpu: 'high-performance' }
 };
 const FPS_LIMIT_OPTIONS = [30, 60, 90, 120, 144, 0]; // 0 = tanpa batas
 const EDITOR_FPS_OPTIONS = [30, 60];
 
 const PandoraSettings = {
-    storageKey: window.PANDORA_RUNTIME ? 'pandora.settings.game' : 'pandora.settings.studio',
-    values: { graphics: 'high', fpsLimit: 60, editorFps: 60, dynamicResolution: false, showFps: false, autoQuality: true },
+    // Nama baru: simpanan lama bisa berisi preset turunan otomatis dari versi sebelumnya
+    storageKey: window.PANDORA_RUNTIME ? 'pandora.settings.game.v2' : 'pandora.settings.studio.v2',
+    values: { graphics: 'high', fpsLimit: 60, editorFps: 60, dynamicResolution: false, showFps: false },
     listeners: [],
 
     load() {
-        this.values.graphics = this.devicePreset();
+        let stored = null;
         try {
-            const stored = JSON.parse(localStorage.getItem(this.storageKey) || 'null');
-            if (stored) Object.assign(this.values, stored);
+            stored = JSON.parse(localStorage.getItem(this.storageKey) || 'null');
+            localStorage.removeItem('pandora.settings.game');
+            localStorage.removeItem('pandora.settings.studio');
         } catch (err) { /* memakai nilai bawaan */ }
+        if (stored) Object.assign(this.values, stored);
         if (!GRAPHICS_PRESETS[this.values.graphics]) this.values.graphics = 'high';
+        // Pembukaan pertama: nilai bawaan (Tinggi, 60 FPS) ditulis sebagai pilihan yang tersimpan
+        if (!stored) this.persist();
     },
 
-    // Bawaan pertama kali: ponsel tidak sanggup preset tinggi, dan Safari iOS menutup tab yang boros memori
-    devicePreset() {
-        const touchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
-        if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && !touchMac) return 'high';
-        const weak = (navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-        return weak ? 'low' : 'medium';
+    persist() {
+        try {
+            localStorage.setItem(this.storageKey, JSON.stringify(this.values));
+        } catch (err) { /* tetap berlaku untuk sesi ini */ }
     },
 
     preset() {
@@ -39,10 +44,7 @@ const PandoraSettings = {
 
     set(key, value) {
         this.values[key] = value;
-        if (key === 'graphics') this.values.autoQuality = false;
-        try {
-            localStorage.setItem(this.storageKey, JSON.stringify(this.values));
-        } catch (err) { /* tetap berlaku untuk sesi ini */ }
+        this.persist();
         this.listeners.forEach(fn => fn(key, value));
     },
 

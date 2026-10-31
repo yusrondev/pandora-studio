@@ -923,7 +923,7 @@ function updateWolfPhysics(dt, elapsed) {
     // Kunci kontrol saat sedang melompat di tempat (stationary jump) atau saat combat/terkena hit/shield
     const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && wolfCharacter.isStationaryJump);
     const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit || wolfCharacter.isBlocking));
-    const isMovementLocked = isPlayerInCombat || isStationaryJumping;
+    const isMovementLocked = isPlayerInCombat || isStationaryJumping || !!window.PandoraUltimateCasting;
 
     // Vektor arah pandangan kamera pada bidang horizontal (XZ ground plane)
     let camFwd;
@@ -1629,6 +1629,7 @@ function updateWolfPhysics(dt, elapsed) {
         }
 
         // Jump diperbolehkan meskipun sedang memukul atau menendang (jump akan meng-cancel aksi tersebut)
+        if (window.PandoraUltimateCasting) keys.space = false;
         if (keys.space && isGrounded && !(wolfCharacter && wolfCharacter.isJumping)) {
             const hasWalkRunInput = Boolean(keys.w || keys.s || (typeof mobileJoystickForward !== 'undefined' && Math.abs(mobileJoystickForward) > 0.18));
             const isSprinting = (huntBlend > 0.4 && Math.abs(currentSpeed) > 1.8);

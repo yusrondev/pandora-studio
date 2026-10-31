@@ -600,10 +600,12 @@ class FoxAIAgent {
             return;
         }
 
-        // Posisi Player saat Play Mode
-        const playerPos = (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root)
-            ? wolfCharacter.root.position
-            : null;
+        // Posisi Player saat Play Mode, atau bunshin jika bunshin lebih dekat
+        const allyTarget = window.PandoraUltimate ? PandoraUltimate.pickEnemyTarget(this) : null;
+        if (this.model) this.model.allyTarget = allyTarget;
+        const playerPos = allyTarget
+            ? allyTarget.root.position
+            : ((typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) ? wolfCharacter.root.position : null);
         const distToPlayer = playerPos ? this.root.position.distanceTo(playerPos) : 999;
         const hasLOS = playerPos ? this.canSeePlayer(playerPos) : false;
 

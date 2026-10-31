@@ -218,13 +218,14 @@ const PandoraStageFlow = {
     },
 
     // Terapkan stage lalu masuk Play Mode. spawn opsional menimpa spawn default stage.
-    async enterStage(stageId, spawn) {
+    async enterStage(stageId, spawn, onBuilding) {
         const stage = await this.fetchStage(stageId);
         if (!stage) {
             console.warn('[StageFlow] Stage tidak ditemukan:', stageId);
             return false;
         }
         stage._skipHistory = true;
+        if (onBuilding) await onBuilding(stage);
 
         this.isTransitioning = true;
         if (typeof isPlayMode !== 'undefined' && isPlayMode) stopPlayMode();
@@ -246,6 +247,8 @@ const PandoraStageFlow = {
     // dikirim ke GPU sekarang. Tanpa ini permainan tersendat saat musuh atau area baru pertama kali terlihat.
     async prepareStage(onProgress) {
         const deadline = performance.now() + STAGE_READY_TIMEOUT_MS;
+        // Bunshin, pose, dan kabut disiapkan sekarang supaya L1 tidak tersendat saat bertarung
+        if (window.PandoraUltimate && wolfCharacter) await PandoraUltimate.prepare();
         const total = () => spawnedFoxesList.length + 1;
         const loaded = () => spawnedFoxesList.filter(f => f.model && f.model.mixer).length + (wolfCharacter && wolfCharacter.mixer ? 1 : 0);
         while (loaded() < total() && performance.now() < deadline) {
@@ -256,6 +259,11 @@ const PandoraStageFlow = {
             + (window.PandoraImportedObjects ? PandoraImportedObjects.pending : 0);
         while (modelsLoading() > 0 && performance.now() < deadline) {
             await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        if (onProgress) {
+            onProgress(1);
+            // Beri kesempatan layar menggambar sebelum kompilasi shader yang berat
+            await new Promise(resolve => setTimeout(resolve, 30));
         }
         // Collision objek impor dibangun sekarang, bukan saat pertama kali disentuh pemain
         if (window.PandoraGLBCollision && window.importedObjectsList) {
@@ -294,6 +302,30 @@ const PandoraStageFlow = {
         this.isTransitioning = false;
     },
 
+    // Tampil di dalam lapisan hitam, jadi ikut memudar bersamanya
+    showTravelLoader() {
+        const box = document.createElement('div');
+        box.className = 'stage-travel';
+        box.innerHTML = '<div class="stage-travel-bar"><i></i><b></b></div><div class="stage-travel-meta"><span></span><span></span></div>';
+        this._fadeEl.appendChild(box);
+        const fill = box.querySelector('i');
+        const [label, percent] = box.querySelectorAll('span');
+        const paint = () => new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+        let shown = 0;
+        return {
+            update(value, text) {
+                shown = Math.max(shown, value);
+                fill.style.width = (shown * 100).toFixed(1) + '%';
+                percent.textContent = Math.round(shown * 100) + '%';
+                if (text) label.textContent = text;
+            },
+            paint,
+            remove() {
+                box.remove();
+            }
+        };
+    },
+
     async travelThroughPortal(portal) {
         if (this.isTransitioning) return;
         this.isTransitioning = true;
@@ -305,15 +337,29 @@ const PandoraStageFlow = {
             ? { x: portal.spawnX, z: portal.spawnZ, rotY: THREE.MathUtils.degToRad(portal.spawnRotY || 0) }
             : null;
         window.PandoraGamePaused = true;
+        const loader = this.showTravelLoader();
+        loader.update(0.05, 'Membaca stage');
+        await loader.paint();
         // Galat saat pindah tidak boleh meninggalkan pemain di layar hitam yang terkunci
         try {
-            if (await this.enterStage(portal.targetStageId, spawn)) await this.prepareStage();
+            const entered = await this.enterStage(portal.targetStageId, spawn, async (stage) => {
+                loader.update(0.25, 'Membangun ' + (stage.name || 'stage'));
+                await loader.paint();
+            });
+            if (entered) {
+                loader.update(0.45, 'Memuat karakter dan objek');
+                await loader.paint();
+                await this.prepareStage(progress => loader.update(0.45 + progress * 0.45));
+                loader.update(1, 'Siap');
+                await loader.paint();
+            }
         } catch (err) {
             console.error('[StageFlow] Gagal pindah stage:', err);
         } finally {
             window.PandoraGamePaused = false;
             this.isTransitioning = false;
             await this._fade(false);
+            loader.remove();
         }
     },
 

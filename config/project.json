@@ -1,10 +1,8 @@
 {
-    "name": "FoxNew",
+    "name": "Pandoraas",
     "startStageId": "lembah-suram",
     "stageOrder": [
         "lembah-suram",
-        "training-camp",
-        "default-sanctuary",
         "padang-rumput"
     ],
     "allowedDomains": ""

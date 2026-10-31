@@ -54,6 +54,49 @@ function getGeneralHeroBasePath() {
     return 'hero/general/';
 }
 
+/**
+ * Membersihkan track animasi (AnimationClip) agar HANYA menyertakan tulang/sendi yang nyata ada pada model 3D target.
+ * Mencegah bug fatal Three.js: bila track animasi berisi tulang yang tidak ada pada rig karakter
+ * (misalnya mixamorigLeftHandThumb* pada karakter 3 jari buatan Tripo AI seperti FoxTree, Noxis, Tharon, dll),
+ * Three.js PropertyBinding secara default akan mengaitkan track tersebut ke ROOT MODEL, sehingga rotasi jempol
+ * langsung memutar badan karakter ~50°-90° dan membuatnya 'doyong' (miring/roboh ke lantai).
+ */
+function sanitizeAnimationClipForModel(clip, rootModel) {
+    if (!clip || !rootModel) return clip;
+    const existingNodeNames = new Set();
+    rootModel.traverse(c => {
+        if (c.name) existingNodeNames.add(c.name);
+    });
+    const cloned = clip.clone();
+    if (typeof THREE !== 'undefined' && THREE.PropertyBinding && typeof THREE.PropertyBinding.parseTrackName === 'function') {
+        cloned.tracks = cloned.tracks.filter(t => {
+            const parsed = THREE.PropertyBinding.parseTrackName(t.name);
+            if (!parsed.nodeName) return false;
+            return existingNodeNames.has(parsed.nodeName);
+        });
+    }
+    return cloned;
+}
+window.sanitizeAnimationClipForModel = sanitizeAnimationClipForModel;
+
+/**
+ * Mengambil multiplier kecepatan animasi serangan karakter dari konfigurasi Hitbox System
+ * @param {Object} instance - Objek karakter (hero, enemy, dynamic hero)
+ * @param {string} animKey - Key animasi (misal punch1, punch2, kick1, flyingKick, dll)
+ * @returns {number} Pengali kecepatan (default 1.0)
+ */
+function getCharacterAttackSpeedMultiplier(instance, animKey) {
+    if (typeof window !== 'undefined' && window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.getAnimationConfig === 'function') {
+        const charKey = (instance && (instance.speciesKey || instance.charKey || (instance.userData && (instance.userData.speciesKey || instance.userData.charKey)))) || 'hero';
+        const cfg = window.PandoraHitboxSystem.getAnimationConfig(charKey, animKey);
+        if (cfg && typeof cfg.speed === 'number' && cfg.speed > 0) {
+            return cfg.speed;
+        }
+    }
+    return 1.0;
+}
+window.getCharacterAttackSpeedMultiplier = getCharacterAttackSpeedMultiplier;
+
 // Global Asset Manager for Taking Damage Reactions (hero/general/taking/hit1.fbx, hit2.fbx)
 window.GeneralTakingAssetManager = {
     isLoaded: false,
@@ -125,10 +168,12 @@ window.GeneralTakingAssetManager = {
 
     setupInstance(instance) {
         if (!instance || !instance.mixer) return;
+        const targetModel = instance.modelMesh || instance.meshContainer || instance.root;
         ['hit1', 'hit2'].forEach(hitKey => {
             const clip = this.clips[hitKey];
             if (clip && (!instance.actions || !instance.actions[hitKey])) {
-                const act = instance.mixer.clipAction(clip);
+                const sanitized = sanitizeAnimationClipForModel(clip, targetModel);
+                const act = instance.mixer.clipAction(sanitized);
                 act.setLoop(THREE.LoopOnce, 1);
                 act.clampWhenFinished = true;
                 act.setEffectiveWeight(0.0);
@@ -227,10 +272,12 @@ window.GeneralDeadAssetManager = {
 
     setupInstance(instance) {
         if (!instance || !instance.mixer) return;
+        const targetModel = instance.modelMesh || instance.meshContainer || instance.root;
         ['dead1', 'dead2'].forEach(deadKey => {
             const clip = this.clips[deadKey];
             if (clip && (!instance.actions || !instance.actions[deadKey])) {
-                const act = instance.mixer.clipAction(clip);
+                const sanitized = sanitizeAnimationClipForModel(clip, targetModel);
+                const act = instance.mixer.clipAction(sanitized);
                 act.setLoop(THREE.LoopOnce, 1);
                 act.clampWhenFinished = true;
                 act.setEffectiveWeight(0.0);
@@ -302,8 +349,10 @@ window.GeneralBlockAssetManager = {
 
     setupInstance(instance) {
         if (!instance || !instance.mixer) return;
+        const targetModel = instance.modelMesh || instance.meshContainer || instance.root;
         if (this.clip && (!instance.actions || !instance.actions.block)) {
-            const act = instance.mixer.clipAction(this.clip);
+            const sanitized = sanitizeAnimationClipForModel(this.clip, targetModel);
+            const act = instance.mixer.clipAction(sanitized);
             act.setLoop(THREE.LoopRepeat);
             act.clampWhenFinished = true;
             act.setEffectiveWeight(0.0);
@@ -345,7 +394,7 @@ const HERO_CHARACTER_CONFIG = {
         block: 'block.fbx'
     },
     baseScale: 1.85, // Ukuran proporsional pahlawan (~1.81m), gagah dan seimbang dengan dunia Pandora
-    yOffset: 0.0,    // Kaki menapak tanah secara natural di y = 0
+    yOffset: 0.05,   // Elevasi kaki (5cm) agar menapak kokoh di atas tanah/grid saat idle & berjalan tanpa tenggelam
     facingDirection: new THREE.Vector3(0, 0, 1) // Karakter menghadap +Z
 };
 
@@ -458,11 +507,11 @@ window.HeroAssetManager = {
                                 const newMat = new THREE.MeshLambertMaterial({
                                     map: m.map || null,
                                     color: m.color ? m.color : new THREE.Color(0xffffff),
-                                    emissive: new THREE.Color(0x222222), // Soft ambient lift so black suit folds and belt are clearly visible
+                                    emissive: new THREE.Color(0x000000), // Tone Mixamo murni: hitam pekat tanpa pudar
                                     skinning: true
                                 });
                                 if (newMat.map) {
-                                    newMat.map.encoding = THREE.LinearEncoding;
+                                    newMat.map.encoding = THREE.sRGBEncoding;
                                 }
                                 return newMat;
                             };
@@ -857,7 +906,8 @@ window.HeroAssetManager = {
                         m.metalness = 0.0;
                         if (m.shininess !== undefined) m.shininess = 0;
                         if (m.specular) m.specular.set(0x000000);
-                        if (m.emissive) m.emissive.set(0x222222);
+                        if (m.emissive) m.emissive.set(0x000000);
+                        if (m.map) m.map.encoding = THREE.sRGBEncoding;
                         m.transparent = false;
                         m.opacity = 1.0;
                     });
@@ -997,6 +1047,12 @@ window.HeroAssetManager = {
         }
 
         instance.isLoaded = true;
+
+        // Auto-Pasang Objek 3D Attachment (Pedang, Perisai, Sayap, dll) ke Tulang Karakter
+        if (typeof window !== 'undefined' && window.PandoraAttachmentSystem && typeof window.PandoraAttachmentSystem.applyAttachmentsToCharacter === 'function') {
+            window.PandoraAttachmentSystem.applyAttachmentsToCharacter(instance, instance.speciesKey || instance.charKey || 'red');
+        }
+
         if (typeof instance.onLoaded === 'function') {
             instance.onLoaded(instance);
         }
@@ -1066,9 +1122,11 @@ function autoLockToNearestEnemy(playerRoot, maxRange = 6.5) {
 
         // Bonus stickiness bila target ini adalah target yang sedang diserang dan masih dekat (< 3.8m)
         const stickinessBonus = (item === curTarget && dist <= 3.8) ? -1.25 : 0.0;
+        // Prioritas tinggi untuk Boss saat berada di arena pertempuran
+        const bossBonus = item.isBoss ? -2.5 : 0.0;
 
         // FORMULA SKOR: Jarak terdekat + HP bar terkecil + sedikit preferensi arah depan (360 derajat aktif!)
-        const score = (dist * 1.0) + (hpRatio * 1.1) - (dot * 0.25) + stickinessBonus;
+        const score = (dist * 1.0) + (hpRatio * 1.1) - (dot * 0.25) + stickinessBonus + bossBonus;
 
         if (score < bestScore) {
             bestScore = score;
@@ -1096,9 +1154,6 @@ window.autoLockToNearestEnemy = autoLockToNearestEnemy;
  * Aliased as createWolfCharacterModel for seamless backwards-compatibility.
  */
 function createWolfCharacterModel(speciesKey = 'red') {
-    if (speciesKey === 'foxtree' || speciesKey === 'enemy-foxtree') {
-        return createEnemyFoxTreeModel();
-    }
     const foxRoot = new THREE.Group();
     foxRoot.name = 'HeroCharacterRoot';
 
@@ -1537,9 +1592,10 @@ function createWolfCharacterModel(speciesKey = 'red') {
             }
 
             const clip = action.getClip();
-            const rate = 1.45;
+            const speedMult = getCharacterAttackSpeedMultiplier(this, 'flyingKick');
+            const rate = 1.45 * speedMult;
             action.timeScale = rate;
-            this.kickDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.92;
+            this.kickDuration = (clip && clip.duration) ? (clip.duration / rate) : (0.92 / speedMult);
 
             action.reset();
             if (typeof action.stopFading === 'function') action.stopFading();
@@ -1592,9 +1648,10 @@ function createWolfCharacterModel(speciesKey = 'red') {
             }
 
             const clip = action.getClip();
-            const rate = 1.70; // Kecepatan tendangan cepat, tajam, dan responsif
+            const speedMult = getCharacterAttackSpeedMultiplier(this, kickKey);
+            const rate = 1.70 * speedMult; // Kecepatan tendangan tajam dan responsif sesuai setting kecepatan karakter
             action.timeScale = rate;
-            this.kickDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.88;
+            this.kickDuration = (clip && clip.duration) ? (clip.duration / rate) : (0.88 / speedMult);
 
             action.reset();
             if (typeof action.stopFading === 'function') action.stopFading();
@@ -1751,9 +1808,10 @@ function createWolfCharacterModel(speciesKey = 'red') {
             }
 
             const clip = action.getClip();
-            const rate = 1.40;
+            const speedMult = getCharacterAttackSpeedMultiplier(this, 'flyingPunch');
+            const rate = 1.40 * speedMult;
             action.timeScale = rate;
-            this.punchDuration = (clip && clip.duration) ? (clip.duration / rate) : 1.90;
+            this.punchDuration = (clip && clip.duration) ? (clip.duration / rate) : (1.90 / speedMult);
 
             action.reset();
             if (typeof action.stopFading === 'function') action.stopFading();
@@ -1806,9 +1864,11 @@ function createWolfCharacterModel(speciesKey = 'red') {
 
             const clip = action.getClip();
             const rates = { punch1: 2.0, punch2: 1.5, punch3: 1.25 };
-            const rate = rates[punchKey] || 1.6;
+            const baseRate = rates[punchKey] || 1.6;
+            const speedMult = getCharacterAttackSpeedMultiplier(this, punchKey);
+            const rate = baseRate * speedMult;
             action.timeScale = rate;
-            this.punchDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.88;
+            this.punchDuration = (clip && clip.duration) ? (clip.duration / rate) : (0.88 / speedMult);
 
             action.reset();
             if (typeof action.stopFading === 'function') action.stopFading();
@@ -2012,19 +2072,19 @@ function createWolfCharacterModel(speciesKey = 'red') {
             if (this.strikeProcessed) return;
 
             const STRIKE_CONFIGS = {
-                // Pukulan: tangan lurus/mendarat di tengah siklus animasi
-                punch1: { minTime: 0.35, maxTime: 0.50, reach: 1.20, minDot: 0.50 },
-                punch2: { minTime: 0.28, maxTime: 0.42, reach: 1.20, minDot: 0.45 },
-                punch3: { minTime: 0.45, maxTime: 0.62, reach: 1.25, minDot: 0.40 },
-                flyingPunch: { minTime: 0.22, maxTime: 0.60, reach: 1.60, minDot: 0.28 },
-                // Tendangan: kaki terangkat dan melurus mendarat di sasaran
-                kick1:  { minTime: 0.38, maxTime: 0.52, reach: 1.28, minDot: 0.50 },
-                kick2:  { minTime: 0.42, maxTime: 0.58, reach: 1.30, minDot: 0.35 },
-                kick3:  { minTime: 0.40, maxTime: 0.56, reach: 1.32, minDot: 0.35 },
-                flyingKick: { minTime: 0.22, maxTime: 0.65, reach: 1.65, minDot: 0.28 }
+                // Pukulan: jangkauan natural humanoid (~1.70m) dengan sudut hadap toleran agar tidak miss saat berhadapan
+                punch1: { minTime: 0.30, maxTime: 0.52, reach: 1.70, minDot: 0.20 },
+                punch2: { minTime: 0.25, maxTime: 0.45, reach: 1.70, minDot: 0.20 },
+                punch3: { minTime: 0.38, maxTime: 0.65, reach: 1.80, minDot: 0.18 },
+                flyingPunch: { minTime: 0.20, maxTime: 0.65, reach: 2.15, minDot: 0.15 },
+                // Tendangan: jangkauan langkah & kaki melurus (~1.85m - 2.2m)
+                kick1:  { minTime: 0.32, maxTime: 0.55, reach: 1.85, minDot: 0.20 },
+                kick2:  { minTime: 0.35, maxTime: 0.60, reach: 1.85, minDot: 0.18 },
+                kick3:  { minTime: 0.35, maxTime: 0.60, reach: 1.95, minDot: 0.18 },
+                flyingKick: { minTime: 0.20, maxTime: 0.68, reach: 2.25, minDot: 0.15 }
             };
 
-            const cfg = STRIKE_CONFIGS[attackKey] || { minTime: 0.35, maxTime: 0.50, reach: 1.22, minDot: 0.45 };
+            const cfg = STRIKE_CONFIGS[attackKey] || { minTime: 0.30, maxTime: 0.52, reach: 1.70, minDot: 0.20 };
             const currentAttackTime = this.isPunching ? this.punchTimer : this.kickTimer;
 
             // Sebelum kepalan tangan atau kaki mendarat di sasaran, JANGAN memicu animasi hit!
@@ -2622,6 +2682,22 @@ function createWolfCharacterModel(speciesKey = 'red') {
             }
 
             // Interpolate action weights smoothly
+            // Safety guard: jika total targetWeights locomotion 0 atau actions.idle tidak ada, pertahankan animasi yang tersedia agar tidak pernah kolaps ke T-pose (bind-pose)
+            let totalLocoWeight = 0;
+            for (const key in this.targetWeights) {
+                totalLocoWeight += (this.targetWeights[key] || 0);
+            }
+            if (totalLocoWeight <= 0.001) {
+                if (this.actions.idle) {
+                    this.targetWeights.idle = 1.0;
+                } else {
+                    const anyActKey = Object.keys(this.actions)[0];
+                    if (anyActKey && this.targetWeights[anyActKey] !== undefined) {
+                        this.targetWeights[anyActKey] = 1.0;
+                    }
+                }
+            }
+
             const blendSpeed = this.isTakingHit ? 35.0 : (this.isBlocking ? 28.0 : ((this.isKicking || this.isPunching) ? 28.0 : (isMoving ? 18.0 : (isGrounded ? 12.0 : 16.0))));
             for (const key of ['idle', 'idle2', 'idle3', 'walk', 'backward', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'hit1', 'hit2', 'block']) {
                 if (this.actions[key]) {
@@ -2658,6 +2734,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
 
             // Step the Three.js AnimationMixer
             this.mixer.update(dt);
+            if (this.modelMesh) this.modelMesh.rotation.set(0, 0, 0);
 
             // Evaluasi ulang tabrakan 3D Bone Hitbox tepat setelah pose tulang diperbarui oleh mixer
             if (this.isPunching || this.isKicking) {
@@ -2788,11 +2865,11 @@ function getEnemyFoxTreeBasePath() {
         for (let i = 0; i < scripts.length; i++) {
             const src = scripts[i].src;
             if (src && src.includes('fox-model.js')) {
-                return src.replace(/js\/character\/fox-model\.js(\?.*)?$/, 'hero/enemy-foxtree/');
+                return src.replace(/js\/character\/fox-model\.js(\?.*)?$/, 'hero/foxtree/');
             }
         }
     }
-    return 'hero/enemy-foxtree/';
+    return 'hero/foxtree/';
 }
 
 const ENEMY_FOXTREE_CONFIG = {
@@ -2800,13 +2877,13 @@ const ENEMY_FOXTREE_CONFIG = {
         return getEnemyFoxTreeBasePath();
     },
     files: {
-        idle: 'Idle.fbx',
+        idle: 'idle.fbx',
         punch1: 'combat/punch/punch1.fbx',
         punch2: 'combat/punch/punch2.fbx',
         punch3: 'combat/punch/punch3.fbx'
     },
     baseScale: 1.85,
-    yOffset: 0.0,
+    yOffset: 0.05,
     facingDirection: new THREE.Vector3(0, 0, 1)
 };
 
@@ -2857,10 +2934,10 @@ window.EnemyFoxTreeAssetManager = {
                                 const newMat = new THREE.MeshLambertMaterial({
                                     map: m.map || null,
                                     color: m.color ? m.color : new THREE.Color(0xffffff),
-                                    emissive: new THREE.Color(0x222222),
+                                    emissive: new THREE.Color(0x000000),
                                     skinning: true
                                 });
-                                if (newMat.map) newMat.map.encoding = THREE.LinearEncoding;
+                                if (newMat.map) newMat.map.encoding = THREE.sRGBEncoding;
                                 return newMat;
                             };
                             if (Array.isArray(child.material)) {
@@ -2998,7 +3075,8 @@ window.EnemyFoxTreeAssetManager = {
                     mats.forEach(m => {
                         m.roughness = 1.0;
                         m.metalness = 0.0;
-                        if (m.emissive) m.emissive.set(0x222222);
+                        if (m.emissive) m.emissive.set(0x000000);
+                        if (m.map) m.map.encoding = THREE.sRGBEncoding;
                         m.transparent = false;
                         m.opacity = 1.0;
                     });
@@ -3027,21 +3105,21 @@ window.EnemyFoxTreeAssetManager = {
         }
 
         if (this.clips.idle) {
-            const idleAction = mixer.clipAction(this.clips.idle);
+            const idleAction = mixer.clipAction(sanitizeAnimationClipForModel(this.clips.idle, modelClone));
             idleAction.setEffectiveWeight(1.0);
             idleAction.play();
             instance.actions.idle = idleAction;
         }
 
         if (this.clips.walk) {
-            const walkAction = mixer.clipAction(this.clips.walk);
+            const walkAction = mixer.clipAction(sanitizeAnimationClipForModel(this.clips.walk, modelClone));
             walkAction.setEffectiveWeight(0.0);
             walkAction.play();
             instance.actions.walk = walkAction;
         }
 
         if (this.clips.run) {
-            const runAction = mixer.clipAction(this.clips.run);
+            const runAction = mixer.clipAction(sanitizeAnimationClipForModel(this.clips.run, modelClone));
             runAction.setEffectiveWeight(0.0);
             runAction.play();
             instance.actions.run = runAction;
@@ -3049,7 +3127,7 @@ window.EnemyFoxTreeAssetManager = {
 
         ['punch1', 'punch2', 'punch3'].forEach(k => {
             if (this.clips[k]) {
-                const punchAction = mixer.clipAction(this.clips[k]);
+                const punchAction = mixer.clipAction(sanitizeAnimationClipForModel(this.clips[k], modelClone));
                 punchAction.setLoop(THREE.LoopOnce, 1);
                 punchAction.clampWhenFinished = true;
                 punchAction.setEffectiveWeight(0.0);
@@ -3323,8 +3401,11 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
             if (action) {
                 action.reset();
                 if (typeof action.stopFading === 'function') action.stopFading();
-                action.timeScale = punchKey === 'punch1' ? 1.8 : (punchKey === 'punch2' ? 1.5 : 1.25);
-                this.punchDuration = Math.max(0.45, (action.getClip().duration / action.timeScale));
+                const baseRate = punchKey === 'punch1' ? 1.8 : (punchKey === 'punch2' ? 1.5 : 1.25);
+                const speedMult = getCharacterAttackSpeedMultiplier(this, punchKey);
+                const rate = baseRate * speedMult;
+                action.timeScale = rate;
+                this.punchDuration = Math.max(0.25, (action.getClip().duration / rate));
                 action.enabled = true;
                 action.setEffectiveWeight(1.0);
                 action.play();
@@ -3337,8 +3418,18 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
             this.targetWeights.punch3 = (punchKey === 'punch3') ? 1.0 : 0.0;
             this.targetWeights.idle = 0.0;
             this.targetWeights.walk = 0.0;
+            this.targetWeights.run = 0.0;
             this.targetWeights.hit1 = 0.0;
             this.targetWeights.hit2 = 0.0;
+
+            // Segera alihkan bobot animasi agar gerakan pukulan langsung memotong animasi jalan/lari
+            this.currentWeights[punchKey] = 0.85;
+            this.currentWeights.walk = 0.0;
+            this.currentWeights.run = 0.0;
+            this.currentWeights.idle = 0.0;
+            if (this.actions.walk) this.actions.walk.setEffectiveWeight(0.0);
+            if (this.actions.run) this.actions.run.setEffectiveWeight(0.0);
+            if (this.actions.idle) this.actions.idle.setEffectiveWeight(0.0);
         },
 
         cancelPunch() {
@@ -3397,29 +3488,33 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
             } else if (this.isPunching) {
                 this.punchTimer += dt;
 
-                // Melee strike impact window: cek apakah Hitbox 3D tulang tangan enemy mengenai Hurtbox player (mendukung multi-hit!)
+                // Melee strike impact window: HANYA periksa setelah animasi pukulan benar-benar mengayun
                 let usedBoneHitbox = false;
-                if (typeof window !== 'undefined' && window.PandoraHitboxSystem) {
-                    const pKey = this.activePunchKey || 'punch1';
-                    const cKey = this.charKey || 'enemy-foxtree';
+                const pKey = this.activePunchKey || 'punch1';
+                const cKey = this.charKey || 'enemy-foxtree';
+                const speedMult = getCharacterAttackSpeedMultiplier(this, pKey);
+                const minSwingTime = 0.20 / speedMult;
+
+                if (this.punchTimer >= minSwingTime && typeof window !== 'undefined' && window.PandoraHitboxSystem) {
                     const animCfg = window.PandoraHitboxSystem.getAnimationConfig(cKey, pKey);
                     if (animCfg && Array.isArray(animCfg.hitboxes) && animCfg.hitboxes.some(h => h.enabled !== false)) {
                         usedBoneHitbox = true;
                         window.PandoraHitboxSystem.checkEnemyMeleeStrike(this);
                     }
                 }
-                if (!usedBoneHitbox && !this.strikeProcessed) {
+                if (!usedBoneHitbox && !this.strikeProcessed && this.punchTimer >= (0.26 / speedMult)) {
                     const pKey = this.activePunchKey || 'punch1';
-                    // Konfigurasi pukulan presisi fisik: kepalan tangan 3D harus benar-benar menyentuh tubuh lawan
-                    // (reach: 1.25m - 1.30m setara dengan Hero Red agar tidak ada phantom hit / kena angin)
+                    // Konfigurasi pukulan presisi fisik Enemy (jangkauan reach diskalakan dinamis mengikuti ukuran tubuh enemy)
                     const ENEMY_PUNCH_CONFIGS = {
-                        punch1: { minTime: 0.28, maxTime: 0.44, reach: 1.25, minDot: 0.40 },
-                        punch2: { minTime: 0.28, maxTime: 0.44, reach: 1.25, minDot: 0.40 },
-                        punch3: { minTime: 0.40, maxTime: 0.58, reach: 1.30, minDot: 0.35 }
+                        punch1: { minTime: 0.22, maxTime: 0.52, reach: 1.85, minDot: 0.15 },
+                        punch2: { minTime: 0.22, maxTime: 0.52, reach: 1.85, minDot: 0.15 },
+                        punch3: { minTime: 0.30, maxTime: 0.65, reach: 2.10, minDot: 0.12 }
                     };
-                    const cfg = ENEMY_PUNCH_CONFIGS[pKey] || { minTime: 0.28, maxTime: 0.44, reach: 1.25, minDot: 0.40 };
+                    const baseCfg = ENEMY_PUNCH_CONFIGS[pKey] || { minTime: 0.22, maxTime: 0.52, reach: 1.85, minDot: 0.15 };
+                    const enemyScaleFactor = (this.root && this.root.scale && this.root.scale.x > 0) ? (this.root.scale.x / 1.85) : 1.0;
+                    const effectiveReach = baseCfg.reach * Math.max(1.0, enemyScaleFactor);
 
-                    if (this.punchTimer >= cfg.minTime && this.punchTimer <= cfg.maxTime) {
+                    if (this.punchTimer >= baseCfg.minTime && this.punchTimer <= baseCfg.maxTime) {
                         const isPlayerDead = Boolean(
                             (typeof PlayerHealthState !== 'undefined' && PlayerHealthState.isDead) ||
                             (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.isDead)
@@ -3431,12 +3526,12 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
                             const pPos = wolfCharacter.root.position;
                             // Jarak horizontal murni (mengabaikan fluktuasi elevasi tanah kecil)
                             const distToPlayer = Math.hypot(this.root.position.x - pPos.x, this.root.position.z - pPos.z);
-                            if (distToPlayer <= cfg.reach) {
+                            if (distToPlayer <= effectiveReach) {
                                 const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
                                 const toP = new THREE.Vector3().subVectors(pPos, this.root.position).setY(0);
                                 if (toP.lengthSq() > 0.001) {
                                     toP.normalize();
-                                    if (fwd.dot(toP) >= cfg.minDot) {
+                                    if (fwd.dot(toP) >= baseCfg.minDot) {
                                         this.strikeProcessed = true;
                                         if (typeof PlayerHealthState !== 'undefined') {
                                             const cfgDmg = (typeof window.ENEMY_COMBAT_CONFIG !== 'undefined')
@@ -3572,9 +3667,10 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
             }
 
             this.mixer.update(dt);
+            if (this.modelMesh) this.modelMesh.rotation.set(0, 0, 0);
 
-            // Evaluasi ulang 3D Bone Hitbox tepat setelah pose tulang enemy diperbarui oleh mixer
-            if (this.isPunching && !this.strikeProcessed && typeof window !== 'undefined' && window.PandoraHitboxSystem) {
+            // Evaluasi ulang 3D Bone Hitbox tepat setelah pose tulang enemy diperbarui oleh mixer (min 0.22 detik)
+            if (this.isPunching && this.punchTimer >= 0.22 && !this.strikeProcessed && typeof window !== 'undefined' && window.PandoraHitboxSystem) {
                 window.PandoraHitboxSystem.checkEnemyMeleeStrike(this);
             }
         },
@@ -3758,10 +3854,10 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                                         const newMat = new THREE.MeshLambertMaterial({
                                             map: m.map || null,
                                             color: m.color ? m.color : new THREE.Color(0xffffff),
-                                            emissive: new THREE.Color(0x222222),
+                                            emissive: new THREE.Color(0x000000), // Tone Mixamo murni
                                             skinning: true
                                         });
-                                        if (newMat.map) newMat.map.encoding = THREE.LinearEncoding;
+                                        if (newMat.map) newMat.map.encoding = THREE.sRGBEncoding;
                                         return newMat;
                                     };
                                     if (Array.isArray(child.material)) {
@@ -3816,7 +3912,22 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                             }
                         }
 
-                        // 3. Pastikan HeroAssetManager & General AssetManagers siap untuk menyediakan fallback animasi kombat/lokomosi
+                        // Fallback cerdas jika animasi idle belum ditemukan di file idle utama:
+                        // Coba pinjam animasi dari idle2, idle3, atau animasi lokomosi yang berhasil dimuat di folder ini
+                        if (!this.clips.idle) {
+                            const localCandidates = ['idle2', 'idle3', 'walk', 'run'];
+                            for (const cKey of localCandidates) {
+                                if (this.clips[cKey]) {
+                                    const borrowed = this.clips[cKey].clone();
+                                    borrowed.name = 'idle';
+                                    this.clips.idle = borrowed;
+                                    console.log('[PandoraHeroRegistry] Karakter "' + this.id + '" meminjam animasi ' + cKey + ' sebagai idle.');
+                                    break;
+                                }
+                            }
+                        }
+
+                        // 3. Pastikan HeroAssetManager & General AssetManagers siap untuk menyediakan fallback animasi kombat/lokomosi/idle
                         if (window.HeroAssetManager && !window.HeroAssetManager.isLoaded) {
                             try {
                                 await window.HeroAssetManager.load();
@@ -3824,7 +3935,7 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                         }
 
                         const heroClips = (window.HeroAssetManager && window.HeroAssetManager.clips) ? window.HeroAssetManager.clips : {};
-                        const fallbackSlots = ['walk', 'backward', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'block'];
+                        const fallbackSlots = ['idle', 'idle2', 'idle3', 'walk', 'backward', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'block'];
                         fallbackSlots.forEach(fKey => {
                             if (!this.clips[fKey] && heroClips[fKey]) {
                                 const cloned = heroClips[fKey].clone();
@@ -3861,7 +3972,10 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                     modelClone = this.baseModel.clone(true);
                 }
 
-                const yOff = (this.meta && typeof this.meta.yOffset === 'number') ? this.meta.yOffset : 0.0;
+                // Ground Alignment presisi:
+                // Seluruh rig humanoid Mixamo standar (Red, Red Mature, Tharon, dll) telah terkalibrasi
+                // menapak tanah secara natural pada y = 0. Gunakan meta.yOffset jika ditentukan oleh user.
+                const yOff = (this.meta && typeof this.meta.yOffset === 'number' && this.meta.yOffset !== 0) ? this.meta.yOffset : 0.05;
                 modelClone.position.set(0, yOff, 0);
 
                 modelClone.traverse(child => {
@@ -3881,7 +3995,8 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                                 m.metalness = 0.0;
                                 if (m.shininess !== undefined) m.shininess = 0;
                                 if (m.specular) m.specular.set(0x000000);
-                                if (m.emissive) m.emissive.set(0x222222);
+                                if (m.emissive) m.emissive.set(0x000000);
+                                if (m.map) m.map.encoding = THREE.sRGBEncoding;
                                 m.transparent = false;
                                 m.opacity = 1.0;
                             });
@@ -3899,7 +4014,8 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                 // Pasang klip lokomosi & idle (LoopRepeat)
                 ['idle', 'idle2', 'idle3', 'walk', 'backward', 'run', 'block'].forEach(k => {
                     if (this.clips[k]) {
-                        const act = mixer.clipAction(this.clips[k]);
+                        const sanitized = sanitizeAnimationClipForModel(this.clips[k], modelClone);
+                        const act = mixer.clipAction(sanitized);
                         act.setEffectiveWeight(k === 'idle' ? 1.0 : 0.0);
                         act.play();
                         instance.actions[k] = act;
@@ -3909,7 +4025,8 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                 // Pasang klip aksi kombat & lompat (LoopOnce)
                 ['jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'hit1', 'hit2', 'dead1', 'dead2'].forEach(k => {
                     if (this.clips[k]) {
-                        const act = mixer.clipAction(this.clips[k]);
+                        const sanitized = sanitizeAnimationClipForModel(this.clips[k], modelClone);
+                        const act = mixer.clipAction(sanitized);
                         act.setLoop(THREE.LoopOnce, 1);
                         act.clampWhenFinished = true;
                         act.setEffectiveWeight(0.0);
@@ -3921,7 +4038,8 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                 // Pasang klip ekstra kustom jika ada
                 Object.keys(this.clips).forEach(k => {
                     if (this.clips[k] && !instance.actions[k]) {
-                        const act = mixer.clipAction(this.clips[k]);
+                        const sanitized = sanitizeAnimationClipForModel(this.clips[k], modelClone);
+                        const act = mixer.clipAction(sanitized);
                         act.setLoop(THREE.LoopOnce, 1);
                         act.clampWhenFinished = true;
                         act.setEffectiveWeight(0.0);
@@ -3932,6 +4050,18 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
 
                 if (instance.actions.kick1) instance.actions.kick = instance.actions.kick1;
                 if (instance.actions.punch1) instance.actions.punch = instance.actions.punch1;
+
+                // Jaminan mutlak: action idle selalu ada & aktif agar karakter tidak pernah kolaps ke T-pose bind-pose
+                if (!instance.actions.idle) {
+                    const fallbackKey = instance.actions.idle2 ? 'idle2' : (instance.actions.idle3 ? 'idle3' : (instance.actions.walk ? 'walk' : Object.keys(instance.actions)[0]));
+                    if (fallbackKey && instance.actions[fallbackKey]) {
+                        instance.actions.idle = instance.actions[fallbackKey];
+                    }
+                }
+                if (instance.actions.idle) {
+                    instance.actions.idle.play();
+                    instance.actions.idle.setEffectiveWeight(1.0);
+                }
 
                 // Attach General Taking / Dead / Block jika belum ada dari folder karakter sendiri
                 if (window.GeneralTakingAssetManager) {
@@ -3964,6 +4094,12 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                 }
 
                 instance.isLoaded = true;
+
+                // Auto-Pasang Objek 3D Attachment (Pedang, Perisai, Sayap, dll) ke Tulang Karakter
+                if (typeof window !== 'undefined' && window.PandoraAttachmentSystem && typeof window.PandoraAttachmentSystem.applyAttachmentsToCharacter === 'function') {
+                    window.PandoraAttachmentSystem.applyAttachmentsToCharacter(instance, instance.speciesKey || instance.charKey || this.id);
+                }
+
                 if (typeof instance.onLoaded === 'function') {
                     instance.onLoaded(instance);
                 }
@@ -3983,7 +4119,7 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
             badge: '🦊',
             basePath: 'hero/red/',
             baseScale: 1.85,
-            yOffset: 0.0,
+            yOffset: 0.05,
             files: ['idle.fbx', 'idle2.fbx', 'idle3.fbx', 'jump-normal.fbx', 'Jump-withrun.fbx', 'combat/kick/kick1.fbx', 'combat/kick/kick2.fbx', 'combat/kick/kick3.fbx', 'combat/punch/punch1.fbx', 'combat/punch/punch2.fbx', 'combat/punch/punch3.fbx'],
             slots: {
                 idle: 'idle.fbx',
@@ -4009,7 +4145,7 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
             badge: '👹',
             basePath: 'hero/enemy-foxtree/',
             baseScale: 1.85,
-            yOffset: 0.0,
+            yOffset: 0.05,
             files: ['Idle.fbx', 'combat/punch/punch1.fbx', 'combat/punch/punch2.fbx', 'combat/punch/punch3.fbx'],
             slots: {
                 idle: 'Idle.fbx',
@@ -4028,7 +4164,7 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
             badge: '⚔️',
             basePath: 'hero/tharon/',
             baseScale: 1.85,
-            yOffset: 0.0,
+            yOffset: 0.05,
             files: ['idle.fbx', 'idle2.fbx'],
             slots: {
                 idle: 'idle.fbx',
@@ -4081,7 +4217,7 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                 badge: '⚔️',
                 basePath: 'hero/' + key + '/',
                 baseScale: 1.85,
-                yOffset: 0.0,
+                yOffset: 0.05,
                 files: ['idle.fbx'],
                 slots: { idle: 'idle.fbx' },
                 extraClips: {}
@@ -4096,15 +4232,61 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
             if (idLower === 'red') {
                 return window.HeroAssetManager;
             }
-            if (idLower === 'enemy-foxtree') {
-                return window.EnemyFoxTreeAssetManager;
-            }
             if (!this.assetManagers[meta.id]) {
                 this.assetManagers[meta.id] = createDynamicHeroFolderAssetManager(meta);
             } else {
                 this.assetManagers[meta.id].meta = meta;
             }
             return this.assetManagers[meta.id];
+        },
+
+        async purgeAllCache() {
+            console.log('[PandoraHeroRegistry] Memulai pembersihan total cache karakter & asset FBX...');
+            this.isSynced = false;
+            this.syncPromise = null;
+
+            // 1. Reset seluruh asset manager karakter dinamis
+            Object.keys(this.assetManagers).forEach(k => {
+                const mgr = this.assetManagers[k];
+                if (mgr) {
+                    mgr.isLoaded = false;
+                    mgr.isLoading = false;
+                    mgr.loadPromise = null;
+                    mgr.baseModel = null;
+                    mgr.clips = {};
+                    mgr.instancesPending = [];
+                }
+            });
+
+            // 2. Reset asset manager bawaan utama
+            const builtInManagers = [
+                window.HeroAssetManager,
+                window.EnemyFoxTreeAssetManager,
+                window.GeneralTakingAssetManager,
+                window.GeneralDeadAssetManager,
+                window.GeneralBlockAssetManager
+            ];
+            builtInManagers.forEach(mgr => {
+                if (mgr) {
+                    mgr.isLoaded = false;
+                    mgr.isLoading = false;
+                    mgr.loadPromise = null;
+                    mgr.baseModel = null;
+                    mgr.clips = {};
+                    mgr.instancesPending = [];
+                }
+            });
+
+            // 3. Bersihkan cache browser (Cache API & IndexedDB) jika tersedia
+            if (window.PandoraAssetCache && typeof window.PandoraAssetCache.clear === 'function') {
+                try {
+                    await window.PandoraAssetCache.clear();
+                } catch (eCache) {
+                    console.warn('[PandoraHeroRegistry] Catatan clear asset cache:', eCache);
+                }
+            }
+
+            console.log('[PandoraHeroRegistry] Seluruh cache karakter & asset FBX berhasil dikosongkan.');
         },
 
         async sync(forceReload = false) {
@@ -4144,7 +4326,7 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
 
                     // Pastikan setiap karakter terdaftar di PandoraHitboxSystem & memiliki AssetManager
                     this.characters.forEach(c => {
-                        if (c.id.toLowerCase() !== 'red' && c.id.toLowerCase() !== 'enemy-foxtree') {
+                        if (c.id.toLowerCase() !== 'red') {
                             if (!this.assetManagers[c.id]) {
                                 this.assetManagers[c.id] = createDynamicHeroFolderAssetManager(c);
                             } else {
@@ -4210,6 +4392,17 @@ window.preloadAllGameAssets = function(onComplete) {
                     window.wolfCharacter.root.visible = false; // Siap seketika untuk demo mode
                 }
             }
+        }
+        // Prefetch seluruh karakter lain yang terdaftar di background agar instan saat beralih di Demo Mode
+        if (window.PandoraHeroRegistry && Array.isArray(window.PandoraHeroRegistry.characters)) {
+            window.PandoraHeroRegistry.characters.forEach(c => {
+                if (c.id !== 'red') {
+                    const mgr = window.PandoraHeroRegistry.getAssetManager(c.id);
+                    if (mgr && typeof mgr.load === 'function' && !mgr.isLoaded && !mgr.isLoading) {
+                        mgr.load().catch(() => {});
+                    }
+                }
+            });
         }
         const isCached = Boolean(window.PandoraAssetCache && window.PandoraAssetCache.stats.cacheHits > 0);
         updateUI(isCached ? 'Semua Asset Siap Digunakan! ⚡ (Loaded from Cache)' : 'Semua Asset Siap Digunakan!', 100);

@@ -579,6 +579,7 @@ setupSpawnerCardGrid('fog-picker-grid', 'select-fog-brush');
 
 // Tab switcher between Rumput, Jalan, Air, Bebatuan, Bunga, Pakis, Semak, Kupu-kupu, dan Kabut in Brush accordion
 const tabBrushGrass = document.getElementById('btn-tab-brush-grass');
+const tabBrushTree = document.getElementById('btn-tab-brush-tree');
 const tabBrushRoad = document.getElementById('btn-tab-brush-road');
 const tabBrushWater = document.getElementById('btn-tab-brush-water');
 const tabBrushRock = document.getElementById('btn-tab-brush-rock');
@@ -589,6 +590,7 @@ const tabBrushButterfly = document.getElementById('btn-tab-brush-butterfly');
 const tabBrushFog = document.getElementById('btn-tab-brush-fog');
 
 const subpanelBrushGrass = document.getElementById('subpanel-brush-grass');
+const subpanelBrushTree = document.getElementById('subpanel-brush-tree');
 const subpanelBrushRoad = document.getElementById('subpanel-brush-road');
 const subpanelBrushWater = document.getElementById('subpanel-brush-water');
 const subpanelBrushRock = document.getElementById('subpanel-brush-rock');
@@ -600,6 +602,7 @@ const subpanelBrushFog = document.getElementById('subpanel-brush-fog');
 
 const allBrushTabs = [
     { btn: tabBrushGrass, panel: subpanelBrushGrass },
+    { btn: tabBrushTree, panel: subpanelBrushTree },
     { btn: tabBrushRoad, panel: subpanelBrushRoad },
     { btn: tabBrushWater, panel: subpanelBrushWater },
     { btn: tabBrushRock, panel: subpanelBrushRock },
@@ -793,6 +796,7 @@ function initToolbarOverflowManager() {
 
     // Candidate elements that can overflow (in priority order: rightmost first)
     const candidateIds = [
+        'btn-toggle-battle-mode',
         'btn-toggle-fullscreen',
         'toolbar-group-leaves',
         'toolbar-group-wind',
@@ -837,7 +841,8 @@ function initToolbarOverflowManager() {
         'btn-redo': 8,
         'btn-undo': 9,
         'btn-reset-camera': 10,
-        'btn-hand-mode': 11
+        'btn-hand-mode': 11,
+        'btn-toggle-battle-mode': 12
     };
 
     function sortOverflowContent() {

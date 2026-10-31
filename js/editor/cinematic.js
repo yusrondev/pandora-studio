@@ -4159,7 +4159,7 @@ const CinematicManager = {
             if (this.isPlaying) return;
 
             // A. Interaksi Seleksi & Drag Bebas Waypoint Kamera & Height Handle (HARUS KLIK TEPAT PADA MESH KOTAK KAMERA ATAU HANDLE TINGGI)
-            if (!this.isDrawingMode && !this.isDrawingFoxMode && this.pathGroup && this.pathGroup.visible) {
+            if (!this.isDrawingMode && !this.isDrawingFoxMode && this.pathGroup && this.pathGroup.visible && !(window.isSpawnerToolActive && window.isSpawnerToolActive())) {
                 const hits = raycaster.intersectObjects(this.pathGroup.children, true);
                 let hitHeightHandle = null;
                 let hitCameraMesh = null;

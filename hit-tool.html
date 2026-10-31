@@ -4,103 +4,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pandora 3D — Hit Tool & Combat Hitbox Studio</title>
+    <title>Pandora 3D - Hit Tool</title>
     <link rel="icon" href="data:,">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/hit-tool.css">
+    <link rel="stylesheet" href="css/desktop-shell.css">
+    <script src="js/editor/desktop-shell.js"></script>
 </head>
 
-<body class="hit-tool-body">
+<body class="hit-tool-body" data-app="hittool">
     <!-- TOP HEADER TOOLBAR -->
     <header class="ht-header">
         <div class="ht-header-left">
             <a href="index.html" class="ht-btn" title="Kembali ke Halaman Utama Map Editor">
-                <span>⬅ Map Editor</span>
+                <span>Map Editor</span>
             </a>
 
             <div class="ht-brand">
-                <span>🎯 PANDORA HIT TOOL</span>
+                <span>PANDORA HIT TOOL</span>
                 <span class="ht-brand-badge">3D COLLIDER</span>
+            </div>
+
+            <!-- MODE SWITCHER TABS: HITBOX STUDIO VS 3D ATTACHMENT MANAGER -->
+            <div class="ht-mode-tabs" id="ht-mode-tabs" title="Pilih Mode Kerja">
+                <button type="button" class="ht-mode-tab active" id="tab-mode-hitbox" title="Studio Hitbox, Hurtbox, dan Animasi Serangan">
+                    <span>Hitbox Studio</span>
+                </button>
+                <button type="button" class="ht-mode-tab" id="tab-mode-attachment" title="Character Manager: Pose T-Pose & Pasang Objek 3D (Pedang, Perisai, Sayap, dll) dengan Gizmo XYZ">
+                    <span>3D Attachment (T-Pose)</span>
+                </button>
             </div>
 
             <!-- CHARACTER SWITCHER (Auto-Sync dari folder hero/*) -->
             <div class="ht-char-switch" id="ht-char-switch-container" title="Pilih Karakter dari folder hero/* yang Akan Diatur Hitbox-nya" style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
-                <button type="button" class="ht-char-btn active" data-char="hero" id="btn-char-hero">🦊 Red Fox</button>
-                <button type="button" class="ht-char-btn" data-char="enemy-foxtree" id="btn-char-enemy">👹 FoxTree</button>
-                <button type="button" class="ht-char-btn" data-char="tharon" id="btn-char-tharon">⚔️ Tharon</button>
+                <button type="button" class="ht-char-btn active" data-char="hero" id="btn-char-hero">Red Fox</button>
+                <button type="button" class="ht-char-btn" data-char="enemy-foxtree" id="btn-char-enemy">FoxTree</button>
+                <button type="button" class="ht-char-btn" data-char="tharon" id="btn-char-tharon">Tharon</button>
             </div>
-            <button type="button" id="btn-ht-sync-heroes" class="ht-btn" style="height:26px; padding:0 8px; font-size:10.5px;" title="Scan ulang folder hero/* secara otomatis">
-                <span>🔄 Sync Hero</span>
+            <button type="button" id="btn-ht-sync-heroes" class="ht-btn ht-btn-resync" style="height:28px; padding:0 10px; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:5px; cursor:pointer;" title="Re-Sync Ulang Semua Karakter, Objek 3D & Reset Cache Browser/Server (FBX, GLB, Hitbox, Attachment)">
+                <span>Re-Sync</span>
             </button>
         </div>
 
         <div class="ht-header-center">
-            <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; color:#d4d4d8;" title="Tampilkan bola sendi tulang di 3D Viewport (bisa diklik langsung untuk pasang hitbox)">
-                <input type="checkbox" id="chk-show-bones" checked style="accent-color:#38bdf8; cursor:pointer;">
-                <span>Titik Sendi (Bone Dots)</span>
+            <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; " title="Tampilkan bola sendi tulang di 3D Viewport (bisa diklik langsung untuk pasang hitbox)">
+                <input type="checkbox" id="chk-show-bones" checked style="cursor:pointer;">
+                <span>Bone Dots</span>
             </label>
 
-            <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; color:#d4d4d8;" title="Aktifkan Gizmo 3D untuk menggeser Offset Hitbox langsung di layar">
-                <input type="checkbox" id="chk-show-gizmo" checked style="accent-color:#38bdf8; cursor:pointer;">
-                <span>3D Gizmo Geser</span>
+            <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; " title="Aktifkan Gizmo 3D untuk menggeser Offset Hitbox langsung di layar">
+                <input type="checkbox" id="chk-show-gizmo" checked style="cursor:pointer;">
+                <span>Gizmo</span>
             </label>
 
-            <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; color:#fca5a5;" title="Jika dicentang, wireframe Hitbox & Hurtbox juga akan ditampilkan saat Play Mode di index.html">
-                <input type="checkbox" id="chk-debug-playmode" style="accent-color:#ef4444; cursor:pointer;">
-                <span>👁️ Tampilkan di Play Mode</span>
+            <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; " title="Jika dicentang, wireframe Hitbox & Hurtbox juga akan ditampilkan saat Play Mode di index.html">
+                <input type="checkbox" id="chk-debug-playmode" style="cursor:pointer;">
+                <span>Debug Play Mode</span>
             </label>
         </div>
 
         <div class="ht-header-right">
             <button type="button" id="btn-reset-camera-ht" class="ht-btn" title="Reset Sudut Kamera 3D">
-                <span>🎥 Reset Kamera</span>
+                <span>Reset View</span>
             </button>
             <button type="button" id="btn-reset-anim-ht" class="ht-btn ht-btn-danger" title="Reset Hitbox Animasi Ini ke Default">
-                <span>🔄 Reset Animasi</span>
+                <span>Reset Animasi</span>
             </button>
             <button type="button" id="btn-save-hitboxes" class="ht-btn ht-btn-primary" title="Simpan Konfigurasi Hitbox agar Langsung Dipakai Saat Play Mode">
-                <span>💾 Simpan ke Game</span>
+                <span>Simpan</span>
             </button>
         </div>
     </header>
 
-    <!-- LEFT SIDEBAR: ANIMATION SELECTOR & BODY PART PICKER -->
+    <!-- LEFT SIDEBAR: ANIMATION SELECTOR & BODY PART PICKER / 3D ATTACHMENT LIST -->
     <aside class="ht-sidebar-left">
         <div class="ht-panel-header">
-            <span>1. Pilih Animasi & Area Tubuh</span>
-            <span id="badge-active-char" style="color:#f87171; font-size:10px;">HERO</span>
+            <span id="lbl-left-panel-title">Animasi &amp; Area Tubuh</span>
+            <span id="badge-active-char" style="font-size:10px;">HERO</span>
         </div>
 
         <div class="ht-panel-scroll">
-            <!-- SECTION: PILIH ANIMASI -->
-            <div class="ht-section">
-                <div class="ht-section-title">
-                    <span>🎬 Daftar Gerakan / Animasi</span>
-                    <span style="font-size:10px; color:#9ca3af;" id="lbl-anim-count">8 Combat</span>
+            <!-- MODE 1: HITBOX STUDIO LEFT PANEL -->
+            <div id="panel-left-hitbox">
+                <!-- SECTION: PILIH ANIMASI -->
+                <div class="ht-section">
+                    <div class="ht-section-title">
+                        <span>Animasi</span>
+                        <span style="font-size:10px; " id="lbl-anim-count">8 Combat</span>
+                    </div>
+                    <div id="ht-anim-list" class="ht-anim-grid"></div>
                 </div>
-                <div id="ht-anim-list" class="ht-anim-grid"></div>
+
+                <!-- SECTION: QUICK PICKER BAGIAN TUBUH (KAKI, TANGAN, DLL) -->
+                <div class="ht-section">
+                    <div class="ht-section-title">
+                        <span>Bagian Tubuh</span>
+                    </div>
+                    <div id="ht-bone-picker-container"></div>
+                </div>
+
+                <!-- SECTION: DAFTAR HITBOX AKTIF PADA ANIMASI INI -->
+                <div class="ht-section">
+                    <div class="ht-section-title">
+                        <span>Hitbox Aktif</span>
+                        <button type="button" id="btn-add-custom-hitbox" class="ht-btn" style="height:22px; padding:0 7px; font-size:10px;">+ Tambah</button>
+                    </div>
+                    <div id="ht-active-hitbox-list" class="ht-hitbox-list"></div>
+                </div>
             </div>
 
-            <!-- SECTION: QUICK PICKER BAGIAN TUBUH (KAKI, TANGAN, DLL) -->
-            <div class="ht-section">
-                <div class="ht-section-title">
-                    <span>🦴 Pasang Hitbox di Bagian Tubuh</span>
-                </div>
-                <div style="font-size:10.5px; color:#9ca3af; margin-bottom:6px; line-height:1.4;">
-                    Klik bagian tubuh di bawah (atau klik titik biru pada karakter 3D) untuk memasang/memilih area penghasil damage pada animasi ini:
-                </div>
-                <div id="ht-bone-picker-container"></div>
-            </div>
+            <!-- MODE 2: 3D ATTACHMENT MANAGER LEFT PANEL -->
+            <div id="panel-left-attachment" style="display:none;">
+                <div class="ht-section">
+                    <div class="ht-section-title">
+                        <span>Tambah Model 3D</span>
+                    </div>
 
-            <!-- SECTION: DAFTAR HITBOX AKTIF PADA ANIMASI INI -->
-            <div class="ht-section">
-                <div class="ht-section-title">
-                    <span>🔴 Hitbox Aktif di Animasi Ini</span>
-                    <button type="button" id="btn-add-custom-hitbox" class="ht-btn" style="height:22px; padding:0 7px; font-size:10px;">+ Tambah</button>
+                    <!-- Hidden file picker -->
+                    <input type="file" id="input-att-file-picker" accept=".glb,.gltf,.fbx" style="display:none;">
+
+                    <!-- Upload Button & Dropzone -->
+                    <button type="button" id="btn-trigger-upload-att" class="ht-btn ht-btn-primary" style="width:100%; height:32px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:6px;">
+                        <span>Upload File 3D</span>
+                    </button>
+
+                    <div id="dropzone-att-file" style="margin-top:8px; padding:12px 8px; border:2px dashed #3f3f46; border-radius:6px; text-align:center; font-size:10.5px; cursor:pointer; background:rgba(255,255,255,0.02); transition:all 0.2s;" title="Klik atau tarik file 3D ke area ini">
+                        <span>Tarik file .glb / .fbx ke sini</span>
+                    </div>
+
+                    <!-- Manual Path / URL input -->
+                    <div style="margin-top:10px; padding-top:8px; border-top:1px solid #27272a;">
+                        <div class="ht-control-label" style="margin-bottom:4px;">
+                            <span>Atau input Path / URL File 3D:</span>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            <input type="text" id="input-att-url" class="ht-input" placeholder="contoh: assets/attachments/sword.glb" style="font-size:11px;">
+                            <button type="button" id="btn-load-att-url" class="ht-btn" style="white-space:nowrap; padding:0 10px;">+ Muat</button>
+                        </div>
+                    </div>
+
+                    <!-- Upload Status Feedback -->
+                    <div id="att-upload-status" style="display:none; margin-top:8px; font-size:10.5px; padding:5px 8px; border-radius:4px;"></div>
                 </div>
-                <div id="ht-active-hitbox-list" class="ht-hitbox-list"></div>
+
+                <!-- SECTION: LIBRARY MODEL 3D TERSIMPAN (REUSABLE SIDEBAR) -->
+                <div class="ht-section">
+                    <div class="ht-section-title">
+                        <span>Library</span>
+                        <button type="button" id="btn-refresh-att-library" class="ht-btn" style="height:20px; padding:0 6px; font-size:9.5px;" title="Pindai ulang berkas 3D yang ada di server">Refresh</button>
+                    </div>
+                    <div id="ht-attachment-library-list" class="ht-att-list" style="max-height:220px; overflow-y:auto; padding-right:2px;">
+                        <!-- Diisi dinamis oleh JS -->
+                    </div>
+                </div>
+
+                <div class="ht-section">
+                    <div class="ht-section-title">
+                        <span>Terpasang</span>
+                        <span id="lbl-att-count" style="font-size:10px; ">0 Objek</span>
+                    </div>
+                    <div id="ht-attachment-list" class="ht-att-list">
+                        <!-- Diisi dinamis oleh JS -->
+                    </div>
+                </div>
             </div>
         </div>
     </aside>
@@ -110,231 +178,429 @@
         <!-- TOP FLOATING HUD IN VIEWPORT -->
         <div class="ht-viewport-hud-top">
             <div id="ht-contact-banner" class="ht-status-pill">
-                <span id="ht-contact-icon">⚪</span>
+                <span id="ht-contact-icon" class="ht-state-dot"></span>
                 <span id="ht-contact-text">Memuat Model Karakter 3D...</span>
             </div>
 
             <!-- TARGET DUMMY CONTROLS -->
             <div class="ht-dummy-controls-bar">
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-weight:600; color:#34d399;">
-                    <input type="checkbox" id="chk-enable-dummy" checked style="accent-color:#10b981; cursor:pointer;">
-                    <span>🎯 Target Dummy Lawan</span>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-weight:600; ">
+                    <input type="checkbox" id="chk-enable-dummy" checked style="cursor:pointer;">
+                    <span>Dummy</span>
                 </label>
 
                 <div style="display:flex; align-items:center; gap:5px;" title="Atur Jarak Berdiri Dummy Lawan di Depan Karakter">
-                    <span style="color:#9ca3af; font-size:10.5px;">Jarak:</span>
-                    <input type="range" id="slider-dummy-dist" min="0.50" max="2.60" step="0.02" value="1.05" style="width:85px; accent-color:#10b981; cursor:pointer;">
+                    <span style="font-size:10.5px;">Jarak:</span>
+                    <input type="range" id="slider-dummy-dist" min="0.50" max="2.60" step="0.02" value="1.05" style="width:85px; cursor:pointer;">
                     <span id="val-dummy-dist" class="ht-val-badge">1.05m</span>
                 </div>
 
                 <div style="display:flex; align-items:center; gap:5px;" title="Atur Sudut Posisi Dummy Lawan">
-                    <span style="color:#9ca3af; font-size:10.5px;">Sudut:</span>
-                    <input type="range" id="slider-dummy-angle" min="-75" max="75" step="5" value="0" style="width:65px; accent-color:#10b981; cursor:pointer;">
+                    <span style="font-size:10.5px;">Sudut:</span>
+                    <input type="range" id="slider-dummy-angle" min="-75" max="75" step="5" value="0" style="width:65px; cursor:pointer;">
                     <span id="val-dummy-angle" class="ht-val-badge">0°</span>
                 </div>
 
-                <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:10.5px; color:#d4d4d8;" title="Dummy otomatis memainkan animasi terkena hit tepat saat bola Hitbox Merah menyentuh Hurtbox Hijau">
-                    <input type="checkbox" id="chk-dummy-react" checked style="accent-color:#f59e0b; cursor:pointer;">
-                    <span>Auto-Reaksi Hit</span>
+                <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:10.5px; " title="Dummy otomatis memainkan animasi terkena hit tepat saat bola Hitbox Merah menyentuh Hurtbox Hijau">
+                    <input type="checkbox" id="chk-dummy-react" checked style="cursor:pointer;">
+                    <span>Auto-Reaksi</span>
                 </label>
             </div>
         </div>
 
         <!-- BOTTOM LEGEND IN VIEWPORT -->
         <div class="ht-viewport-legend">
-            <span><i class="legend-dot" style="background:#ef4444;"></i>Hitbox Serangan (Kaki/Tangan)</span>
-            <span><i class="legend-dot" style="background:#facc15;"></i>KENA! (Menyentuh Lawan)</span>
-            <span><i class="legend-dot" style="background:#10b981;"></i>Hurtbox Badan Lawan</span>
-            <span><i class="legend-dot" style="background:#38bdf8;"></i>Sendi Tulang (Klik untuk pilih)</span>
+            <span><i class="legend-dot" style="background:#ef4444;"></i>Hitbox</span>
+            <span><i class="legend-dot" style="background:#facc15;"></i>Kena</span>
+            <span><i class="legend-dot" style="background:#10b981;"></i>Hurtbox</span>
+            <span><i class="legend-dot" style="background:#38bdf8;"></i>Bone</span>
         </div>
     </main>
 
-    <!-- RIGHT SIDEBAR: HITBOX & HURTBOX INSPECTOR -->
+    <!-- RIGHT SIDEBAR: HITBOX & HURTBOX INSPECTOR / 3D ATTACHMENT INSPECTOR -->
     <aside class="ht-sidebar-right">
         <div class="ht-panel-header">
-            <span>2. Inspector Area Hitbox</span>
-            <span id="badge-selected-bone" style="color:#38bdf8; font-size:10px;">-</span>
+            <span id="lbl-right-panel-title">Inspector</span>
+            <span id="badge-selected-bone" style="font-size:10px;">-</span>
         </div>
 
         <div class="ht-panel-scroll">
-            <!-- SELECTED HITBOX PROPERTIES -->
-            <div class="ht-section" id="section-hitbox-inspector">
-                <div class="ht-section-title">
-                    <span>🎯 Properti Hitbox Terpilih</span>
-                    <label style="display:flex; align-items:center; gap:4px; font-size:10px; cursor:pointer;">
-                        <input type="checkbox" id="chk-hb-enabled" checked style="accent-color:#ef4444;">
-                        <span>Aktif</span>
+            <!-- MODE 1: HITBOX STUDIO RIGHT PANEL -->
+            <div id="panel-right-hitbox">
+                <!-- SELECTED HITBOX PROPERTIES -->
+                <div class="ht-section" id="section-hitbox-inspector">
+                    <div class="ht-section-title">
+                        <span>Hitbox</span>
+                        <label style="display:flex; align-items:center; gap:4px; font-size:10px; cursor:pointer;">
+                            <input type="checkbox" id="chk-hb-enabled" checked>
+                            <span>Aktif</span>
+                        </label>
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Nama</span>
+                        </div>
+                        <input type="text" id="input-hb-name" class="ht-input" placeholder="Misal: Kepalan Tangan Kanan">
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Bone</span>
+                        </div>
+                        <select id="select-hb-bone" class="ht-select"></select>
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Radius</span>
+                            <span id="val-hb-radius" class="ht-val-badge">0.28 m</span>
+                        </div>
+                        <input type="range" id="slider-hb-radius" class="ht-slider" min="0.06" max="0.80" step="0.01" value="0.28">
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Offset X</span>
+                            <span id="val-hb-off-x" class="ht-val-badge">0.00 m</span>
+                        </div>
+                        <input type="range" id="slider-hb-off-x" class="ht-slider" min="-0.50" max="0.50" step="0.01" value="0.00">
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Y</span>
+                            <span id="val-hb-off-y" class="ht-val-badge">0.06 m</span>
+                        </div>
+                        <input type="range" id="slider-hb-off-y" class="ht-slider" min="-0.50" max="0.50" step="0.01" value="0.06">
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Z</span>
+                            <span id="val-hb-off-z" class="ht-val-badge">0.04 m</span>
+                        </div>
+                        <input type="range" id="slider-hb-off-z" class="ht-slider" min="-0.50" max="0.50" step="0.01" value="0.04">
+                    </div>
+
+                    <div style="display:flex; gap:6px; margin-top:6px;">
+                        <button type="button" id="btn-zero-offset" class="ht-btn" style="flex:1;" title="Kembalikan posisi hitbox tepat ke titik tengah tulang">
+                            <span>Pusatkan</span>
+                        </button>
+                        <button type="button" id="btn-delete-hitbox" class="ht-btn ht-btn-danger" title="Hapus Hitbox Ini">
+                            <span>Hapus</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ANIMATION SPEED, DAMAGE & ACTIVE PHASE GATE -->
+                <div class="ht-section">
+                    <div class="ht-section-title">
+                        <span>Kecepatan, Damage & Fase</span>
+                    </div>
+
+                    <!-- PENGATUR KECEPATAN ANIMASI (SPEED MULTIPLIER) -->
+                    <div class="ht-control-row" style="margin-bottom:10px; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+                        <div class="ht-control-label" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <span style="font-weight:600; ">Kecepatan</span>
+                            <span id="val-anim-speed" class="ht-val-badge" style=" font-weight:700;">1.00x</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <input type="range" id="slider-anim-speed" class="ht-slider" min="0.20" max="3.00" step="0.05" value="1.00" style="flex:1; " title="Geser slider untuk menambah/mengurangi kecepatan animasi">
+                            <input type="number" id="num-anim-speed" class="ht-input" min="0.10" max="5.00" step="0.05" value="1.00" style="width:64px; height:24px; padding:2px 4px; font-size:11px; text-align:center; font-weight:700;" title="Ketik angka pengali kecepatan">
+                        </div>
+                        <div style="display:flex; gap:3px; margin-top:6px; flex-wrap:wrap;">
+                            <button type="button" class="ht-btn btn-quick-speed" data-speed="0.5" style="flex:1; font-size:9.5px; padding:2px 0;" title="0.5x Slow Motion">0.5x</button>
+                            <button type="button" class="ht-btn btn-quick-speed" data-speed="0.8" style="flex:1; font-size:9.5px; padding:2px 0;" title="0.8x Agak Lambat">0.8x</button>
+                            <button type="button" class="ht-btn btn-quick-speed active" data-speed="1.0" style="flex:1; font-size:9.5px; padding:2px 0;" title="1.0x Normal FBX">1.0x Normal</button>
+                            <button type="button" class="ht-btn btn-quick-speed" data-speed="1.25" style="flex:1; font-size:9.5px; padding:2px 0;" title="1.25x Lincah">1.25x</button>
+                            <button type="button" class="ht-btn btn-quick-speed" data-speed="1.5" style="flex:1; font-size:9.5px; padding:2px 0;" title="1.5x Cepat / Kilat">1.5x</button>
+                            <button type="button" class="ht-btn btn-quick-speed" data-speed="2.0" style="flex:1; font-size:9.5px; padding:2px 0;" title="2.0x Super Cepat">2.0x</button>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:8px; margin-bottom:8px;">
+                        <div style="flex:1;">
+                            <div class="ht-control-label" style="margin-bottom:3px;"><span>Damage Hit</span></div>
+                            <input type="number" id="input-anim-damage" class="ht-input" min="1" max="500" step="1" value="25">
+                        </div>
+                        <div style="flex:1;">
+                            <div class="ht-control-label" style="margin-bottom:3px;"><span>Knockback (m)</span></div>
+                            <input type="number" id="input-anim-knockback" class="ht-input" min="0" max="2.0" step="0.02" value="0.22">
+                        </div>
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Mulai Aktif</span>
+                            <span id="val-active-start" class="ht-val-badge">12%</span>
+                        </div>
+                        <input type="range" id="slider-active-start" class="ht-slider" min="0" max="95" step="1" value="12">
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Selesai Aktif</span>
+                            <span id="val-active-end" class="ht-val-badge">86%</span>
+                        </div>
+                        <input type="range" id="slider-active-end" class="ht-slider" min="5" max="100" step="1" value="86">
+                    </div>
+
+                    <div style="display:flex; gap:4px; margin-top:4px;">
+                        <button type="button" id="btn-set-start-now" class="ht-btn" style="flex:1; font-size:10px;" title="Jadikan posisi frame sekarang sebagai titik mulai aktif">Set Mulai</button>
+                        <button type="button" id="btn-set-end-now" class="ht-btn" style="flex:1; font-size:10px;" title="Jadikan posisi frame sekarang sebagai titik akhir aktif">Set Selesai</button>
+                        <button type="button" id="btn-set-full-window" class="ht-btn" style="font-size:10px;" title="Aktifkan sepanjang 0% - 100% animasi">Full 100%</button>
+                    </div>
+                </div>
+
+                <!-- TARGET BODY HURTBOX CONFIG -->
+                <div class="ht-section">
+                    <div class="ht-section-title">
+                        <span>Hurtbox</span>
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Radius</span>
+                            <span id="val-hurt-radius" class="ht-val-badge">0.44 m</span>
+                        </div>
+                        <input type="range" id="slider-hurt-radius" class="ht-slider" min="0.20" max="0.90" step="0.01" value="0.44">
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span>Tinggi</span>
+                            <span id="val-hurt-height" class="ht-val-badge">1.76 m</span>
+                        </div>
+                        <input type="range" id="slider-hurt-height" class="ht-slider" min="0.80" max="2.30" step="0.02" value="1.76">
+                    </div>
+
+                    <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; cursor:pointer; margin-top:4px;">
+                        <input type="checkbox" id="chk-hurt-bones" checked style="cursor:pointer;">
+                        <span>Presisi Tulang Badan</span>
                     </label>
                 </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Nama Label Hitbox</span>
-                    </div>
-                    <input type="text" id="input-hb-name" class="ht-input" placeholder="Misal: Kepalan Tangan Kanan">
-                </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Bagian Tubuh / Tulang (Bone)</span>
-                    </div>
-                    <select id="select-hb-bone" class="ht-select"></select>
-                </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Radius Area Kena (Ukuran Bola Hitbox)</span>
-                        <span id="val-hb-radius" class="ht-val-badge">0.28 m</span>
-                    </div>
-                    <input type="range" id="slider-hb-radius" class="ht-slider" min="0.06" max="0.80" step="0.01" value="0.28">
-                </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Offset Lokal X (Kiri / Kanan Tulang)</span>
-                        <span id="val-hb-off-x" class="ht-val-badge">0.00 m</span>
-                    </div>
-                    <input type="range" id="slider-hb-off-x" class="ht-slider" min="-0.50" max="0.50" step="0.01" value="0.00">
-                </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Offset Lokal Y (Sepanjang Tulang)</span>
-                        <span id="val-hb-off-y" class="ht-val-badge">0.06 m</span>
-                    </div>
-                    <input type="range" id="slider-hb-off-y" class="ht-slider" min="-0.50" max="0.50" step="0.01" value="0.06">
-                </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Offset Lokal Z (Maju / Mundur Tulang)</span>
-                        <span id="val-hb-off-z" class="ht-val-badge">0.04 m</span>
-                    </div>
-                    <input type="range" id="slider-hb-off-z" class="ht-slider" min="-0.50" max="0.50" step="0.01" value="0.04">
-                </div>
-
-                <div style="display:flex; gap:6px; margin-top:6px;">
-                    <button type="button" id="btn-zero-offset" class="ht-btn" style="flex:1;" title="Kembalikan posisi hitbox tepat ke titik tengah tulang">
-                        <span>🎯 Pusatkan di Tulang (0,0,0)</span>
-                    </button>
-                    <button type="button" id="btn-delete-hitbox" class="ht-btn ht-btn-danger" title="Hapus Hitbox Ini">
-                        <span>🗑️ Hapus</span>
-                    </button>
-                </div>
             </div>
 
-            <!-- ANIMATION DAMAGE & ACTIVE PHASE GATE -->
-            <div class="ht-section">
-                <div class="ht-section-title">
-                    <span>⚡ Damage & Fase Aktif Gerakan</span>
-                </div>
-
-                <div style="display:flex; gap:8px; margin-bottom:8px;">
-                    <div style="flex:1;">
-                        <div class="ht-control-label" style="margin-bottom:3px;"><span>Damage Hit</span></div>
-                        <input type="number" id="input-anim-damage" class="ht-input" min="1" max="500" step="1" value="25">
+            <!-- MODE 2: 3D ATTACHMENT MANAGER RIGHT PANEL -->
+            <div id="panel-right-attachment" style="display:none;">
+                <div class="ht-section" id="section-att-inspector">
+                    <div class="ht-section-title">
+                        <span>Objek 3D</span>
+                        <label style="display:flex; align-items:center; gap:4px; font-size:10px; cursor:pointer;">
+                            <input type="checkbox" id="chk-att-visible" checked>
+                            <span>Tampak</span>
+                        </label>
                     </div>
-                    <div style="flex:1;">
-                        <div class="ht-control-label" style="margin-bottom:3px;"><span>Knockback (m)</span></div>
-                        <input type="number" id="input-anim-knockback" class="ht-input" min="0" max="2.0" step="0.02" value="0.22">
+
+                    <!-- GIZMO MODE SELECTOR -->
+                    <div class="ht-gizmo-bar">
+                        <button type="button" class="ht-gizmo-btn active" id="btn-gizmo-translate" title="Geser Posisi XYZ (Hotkey: W)">
+                            <span>Geser</span>
+                        </button>
+                        <button type="button" class="ht-gizmo-btn" id="btn-gizmo-rotate" title="Putar Sudut Rotasi (Hotkey: E)">
+                            <span>Putar</span>
+                        </button>
+                        <button type="button" class="ht-gizmo-btn" id="btn-gizmo-scale" title="Ubah Skala / Ukuran (Hotkey: R)">
+                            <span>⤢ Skala</span>
+                        </button>
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label"><span>Nama</span></div>
+                        <input type="text" id="input-att-name" class="ht-input" placeholder="Misal: Katana Kanan">
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>Socket Bone</span>
+                            <span id="lbl-bone-hint" style="font-size:9.5px; font-weight:600;">Arahkan kursor untuk lihat titik</span>
+                        </div>
+                        <select id="select-att-bone" class="ht-select"></select>
+                        <!-- Quick Visual Bone Chips (Hover untuk melihat titik lokasi tulang di 3D) -->
+                        <div id="ht-att-bone-chips" style="display:flex; flex-wrap:wrap; gap:3px; margin-top:5px; max-height:82px; overflow-y:auto; padding:3px; background:rgba(0,0,0,0.25); border-radius:4px;"></div>
+                    </div>
+
+                    <div class="ht-control-row">
+                        <div class="ht-control-label"><span>File Sumber</span></div>
+                        <div id="lbl-att-source-info" style="font-size:10px; padding:6px 8px; border-radius:4px; word-break:break-all;">-</div>
+                    </div>
+
+                    <!-- 3D POSITION XYZ -->
+                    <div class="ht-control-row" style="margin-top:10px;">
+                        <div class="ht-control-label">
+                            <span style="font-weight:700;">Posisi</span>
+                        </div>
+                        <div class="ht-xyz-group">
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label x">X</span>
+                                <input type="number" id="num-att-pos-x" class="ht-xyz-input" step="0.01" value="0.00">
+                            </div>
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label y">Y</span>
+                                <input type="number" id="num-att-pos-y" class="ht-xyz-input" step="0.01" value="0.00">
+                            </div>
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label z">Z</span>
+                                <input type="number" id="num-att-pos-z" class="ht-xyz-input" step="0.01" value="0.00">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3D ROTATION XYZ (DEGREES) -->
+                    <div class="ht-control-row">
+                        <div class="ht-control-label">
+                            <span style="font-weight:700;">Rotasi</span>
+                        </div>
+                        <div class="ht-xyz-group">
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label x">X°</span>
+                                <input type="number" id="num-att-rot-x" class="ht-xyz-input" step="5" value="0">
+                            </div>
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label y">Y°</span>
+                                <input type="number" id="num-att-rot-y" class="ht-xyz-input" step="5" value="0">
+                            </div>
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label z">Z°</span>
+                                <input type="number" id="num-att-rot-z" class="ht-xyz-input" step="5" value="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3D SCALE XYZ & OVERALL SCALE -->
+                    <div class="ht-control-row">
+                        <div class="ht-control-label" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:700;">⤢ Skala</span>
+                        </div>
+
+                        <!-- 1 Field Skala Keseluruhan (Merubah Semua Nilai Sumbu Sekaligus) -->
+                        <div style="margin-bottom:8px; padding:6px 8px; background:rgba(56, 189, 248, 0.08); border:1px solid rgba(56, 189, 248, 0.3); border-radius:5px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:4px;">
+                                    <span></span> Semua Sumbu
+                                </span>
+                                <span style="font-size:9.5px; ">Ubah XYZ serentak</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <input type="number" id="num-att-scale-all" class="ht-xyz-input" step="0.05" min="0.01" max="20" value="1.00" style="flex:1; height:28px; font-size:12px; font-weight:700; text-align:center;" title="Ubah angka ini untuk menskalakan X, Y, dan Z sekaligus secara serentak">
+                                <span style="font-size:11px; font-weight:700;">x</span>
+                            </div>
+                        </div>
+
+                        <div class="ht-control-label" style="margin-bottom:4px;">
+                            <span style="font-size:10px; ">Per Sumbu</span>
+                        </div>
+                        <div class="ht-xyz-group">
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label x">X</span>
+                                <input type="number" id="num-att-scale-x" class="ht-xyz-input" step="0.05" min="0.01" max="20" value="1.00">
+                            </div>
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label y">Y</span>
+                                <input type="number" id="num-att-scale-y" class="ht-xyz-input" step="0.05" min="0.01" max="20" value="1.00">
+                            </div>
+                            <div class="ht-xyz-col">
+                                <span class="ht-xyz-label z">Z</span>
+                                <input type="number" id="num-att-scale-z" class="ht-xyz-input" step="0.05" min="0.01" max="20" value="1.00">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RESET & UTILITY BUTTONS -->
+                    <div style="display:flex; flex-direction:column; gap:5px; margin-top:8px;">
+                        <div style="display:flex; gap:5px;">
+                            <button type="button" id="btn-att-reset-pos" class="ht-btn" style="flex:1; font-size:10.5px;">Posisi</button>
+                            <button type="button" id="btn-att-reset-rot" class="ht-btn" style="flex:1; font-size:10.5px;">Rotasi</button>
+                            <button type="button" id="btn-att-reset-scale" class="ht-btn" style="flex:1; font-size:10.5px;">⤢ Skala</button>
+                        </div>
+                        <button type="button" id="btn-delete-attachment" class="ht-btn ht-btn-danger" style="margin-top:4px;">
+                            <span>Hapus Objek</span>
+                        </button>
                     </div>
                 </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Mulai Aktif (% Gerakan)</span>
-                        <span id="val-active-start" class="ht-val-badge">12%</span>
-                    </div>
-                    <input type="range" id="slider-active-start" class="ht-slider" min="0" max="95" step="1" value="12">
-                </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Selesai Aktif (% Gerakan)</span>
-                        <span id="val-active-end" class="ht-val-badge">86%</span>
-                    </div>
-                    <input type="range" id="slider-active-end" class="ht-slider" min="5" max="100" step="1" value="86">
-                </div>
-
-                <div style="display:flex; gap:4px; margin-top:4px;">
-                    <button type="button" id="btn-set-start-now" class="ht-btn" style="flex:1; font-size:10px;" title="Jadikan posisi frame sekarang sebagai titik mulai aktif">Set Start Frame Ini</button>
-                    <button type="button" id="btn-set-end-now" class="ht-btn" style="flex:1; font-size:10px;" title="Jadikan posisi frame sekarang sebagai titik akhir aktif">Set End Frame Ini</button>
-                    <button type="button" id="btn-set-full-window" class="ht-btn" style="font-size:10px;" title="Aktifkan sepanjang 0% - 100% animasi">Full 100%</button>
-                </div>
-            </div>
-
-            <!-- TARGET BODY HURTBOX CONFIG -->
-            <div class="ht-section">
-                <div class="ht-section-title">
-                    <span style="color:#34d399;">🛡️ Area Badan Penerima Hit (Hurtbox)</span>
-                </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Radius Badan Target</span>
-                        <span id="val-hurt-radius" class="ht-val-badge">0.44 m</span>
-                    </div>
-                    <input type="range" id="slider-hurt-radius" class="ht-slider" style="accent-color:#10b981;" min="0.20" max="0.90" step="0.01" value="0.44">
-                </div>
-
-                <div class="ht-control-row">
-                    <div class="ht-control-label">
-                        <span>Tinggi Badan Target</span>
-                        <span id="val-hurt-height" class="ht-val-badge">1.76 m</span>
-                    </div>
-                    <input type="range" id="slider-hurt-height" class="ht-slider" style="accent-color:#10b981;" min="0.80" max="2.30" step="0.02" value="1.76">
-                </div>
-
-                <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#d4d4d8; cursor:pointer; margin-top:4px;">
-                    <input type="checkbox" id="chk-hurt-bones" checked style="accent-color:#10b981; cursor:pointer;">
-                    <span>Deteksi Presisi Tulang Badan (Kepala, Dada, Pinggul)</span>
-                </label>
             </div>
         </div>
     </aside>
 
     <!-- BOTTOM TIMELINE & SCRUBBER DOCK -->
     <footer class="ht-bottom-dock">
-        <div class="ht-timeline-top">
-            <div class="ht-transport-group">
-                <button type="button" id="btn-tl-prev-frame" class="ht-btn" title="Mundur 1 Frame (Panah Kiri)">⏮ -1 Frame</button>
-                <button type="button" id="btn-tl-play" class="ht-btn active" style="min-width:92px;" title="Play / Pause Animasi (Space)">⏸ Pause</button>
-                <button type="button" id="btn-tl-next-frame" class="ht-btn" title="Maju 1 Frame (Panah Kanan)">+1 Frame ⏭</button>
-                <button type="button" id="btn-tl-loop" class="ht-btn active" title="Loop Animasi">🔁 Loop</button>
+        <!-- MODE 1: TIMELINE KONTROL ANIMASI COMBAT -->
+        <div id="dock-combat-timeline">
+            <div class="ht-timeline-top">
+                <div class="ht-transport-group">
+                    <button type="button" id="btn-tl-prev-frame" class="ht-btn" title="Mundur 1 Frame (Panah Kiri)"><svg class="bl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 5 9 12 19 19" fill="currentColor" stroke="none"/><line x1="6" y1="5" x2="6" y2="19"/></svg></button>
+                    <button type="button" id="btn-tl-play" class="ht-btn active" title="Play / Pause Animasi (Space)"><svg class="bl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none"/></svg></button>
+                    <button type="button" id="btn-tl-next-frame" class="ht-btn" title="Maju 1 Frame (Panah Kanan)"><svg class="bl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 5 15 12 5 19" fill="currentColor" stroke="none"/><line x1="18" y1="5" x2="18" y2="19"/></svg></button>
+                    <button type="button" id="btn-tl-loop" class="ht-btn active" title="Loop Animasi"><svg class="bl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 2 21 6 17 10"/><path d="M3 12V9a3 3 0 0 1 3-3h15"/><polyline points="7 22 3 18 7 14"/><path d="M21 12v3a3 3 0 0 1-3 3H3"/></svg></button>
 
-                <select id="select-tl-speed" class="ht-select" style="width:110px; height:28px;" title="Kecepatan Putar (Gunakan 0.25x untuk Cek Akurasi Kontak)">
-                    <option value="0.1">0.1x (Ultra Slow)</option>
-                    <option value="0.25">0.25x (Slow-Mo)</option>
-                    <option value="0.5">0.5x (Setengah)</option>
-                    <option value="1.0" selected>1.0x (Normal)</option>
-                    <option value="1.5">1.5x (Cepat)</option>
-                </select>
+                    <select id="select-tl-speed" class="ht-select" style="width:110px; height:28px;" title="Kecepatan Putar (Gunakan 0.25x untuk Cek Akurasi Kontak)">
+                        <option value="0.1">0.1x (Ultra Slow)</option>
+                        <option value="0.25">0.25x (Slow-Mo)</option>
+                        <option value="0.5">0.5x (Setengah)</option>
+                        <option value="1.0" selected>1.0x (Normal)</option>
+                        <option value="1.5">1.5x (Cepat)</option>
+                    </select>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span id="ht-distance-readout" style="font-family:'JetBrains Mono',monospace; font-size:11px; ">
+                        Jarak Hitbox ke Musuh: <strong>0.00m</strong>
+                    </span>
+                    <span id="ht-timecode-display" class="ht-timecode">0.00s / 0.00s (0%) | Frame 0 / 0</span>
+                </div>
             </div>
 
-            <div style="display:flex; align-items:center; gap:10px;">
-                <span id="ht-distance-readout" style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#d4d4d8;">
-                    Jarak Hitbox ke Musuh: <strong style="color:#38bdf8;">0.00m</strong>
-                </span>
-                <span id="ht-timecode-display" class="ht-timecode">0.00s / 0.00s (0%) | Frame 0 / 0</span>
+            <div class="ht-timeline-track-wrap">
+                <div id="ht-active-window-bar" class="ht-active-window-bar" style="left: 12%; width: 74%;"></div>
+                <input type="range" id="slider-timeline-scrub" class="ht-scrubber-input" min="0" max="1000" step="1" value="0">
             </div>
         </div>
 
-        <div class="ht-timeline-track-wrap">
-            <div id="ht-active-window-bar" class="ht-active-window-bar" style="left: 12%; width: 74%;"></div>
-            <input type="range" id="slider-timeline-scrub" class="ht-scrubber-input" min="0" max="1000" step="1" value="0">
+        <!-- MODE 2: T-POSE ATTACHMENT MANAGER DOCK BANNER -->
+        <div id="dock-attachment-banner" style="display:none; padding:8px 16px; border-top:1px solid #2e2e38; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:18px;"></span>
+                <div>
+                    <div style="font-size:12px; font-weight:700; ">Mode 3D Attachment & Character Manager</div>
+                    <div style="font-size:10px; ">Atur posisi objek 3D di T-Pose. Uji pada variasi animasi untuk melihat objek bergerak mengikuti tulang.</div>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <!-- TOGGLE HIDE/SHOW TITIK SENDI TULANG (BONE DOTS) -->
+                <button type="button" id="btn-toggle-att-bones" class="ht-btn" style="height:28px; padding:0 10px; font-size:11px;" title="Sembunyikan atau tampilkan bulatan biru penanda tulang di layar">
+                    <span id="lbl-toggle-att-bones">Sembunyikan Bone</span>
+                </button>
+
+                <!-- DROPDOWN TEST SAMPLE ANIMASI VARIATIF -->
+                <div style="display:flex; align-items:center; gap:6px; padding:2px 8px; border-radius:5px;">
+                    <span style="font-size:11px; font-weight:600;">Animasi Uji</span>
+                    <select id="sel-attachment-test-anim" class="ht-select" style="height:24px; padding:0 6px; font-size:11px; font-weight:600; border-radius:4px;">
+                        <!-- Diisi dinamis oleh JS -->
+                    </select>
+                </div>
+
+                <button type="button" id="btn-att-reset-tpose" class="ht-btn" style="height:28px; padding:0 10px; font-size:11px; font-weight:600;" title="Kembalikan karakter ke pose T-Pose murni untuk mengatur objek dengan Gizmo">
+                    <span>T-Pose</span>
+                </button>
+            </div>
         </div>
     </footer>
 
-    <div id="ht-toast" class="ht-toast">✅ Konfigurasi Hitbox Berhasil Disimpan!</div>
+    <div id="ht-toast" class="ht-toast">Konfigurasi Berhasil Disimpan!</div>
 
     <!-- THREE.JS & PANDORA CHARACTER ASSETS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
     <script src="js/core/asset-cache.js"></script>
+    <script src="js/character/attachment-system.js"></script>
     <script src="js/character/hitbox-system.js"></script>
     <script src="js/character/fox-model.js"></script>
     <script src="js/editor/hit-tool.js"></script>

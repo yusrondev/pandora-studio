@@ -650,7 +650,7 @@ function updateAllSpawnedFoxesAnimation(delta = 0.016, elapsedTime = 0) {
         if (typeof fox.model.updateAnimation === 'function') {
             fox.model.updateAnimation(delta, 0);
         } else if (fox.model.mixer) {
-            fox.model.mixer.update(delta);
+            fox.model.mixer.update(delta); if (fox.model && fox.model.modelMesh) fox.model.modelMesh.rotation.set(0, 0, 0);
         } else {
             applyFoxPose(fox.model, fox.pose, elapsedTime + fox.animOffset);
         }
@@ -720,10 +720,12 @@ function updateFoxInspectorUI() {
     }
 
     // Skala
-    if (sliderScale && valScale) {
-        const sc = fox.scaleMultiplier || 1.0;
-        sliderScale.value = sc.toFixed(2);
-        valScale.innerText = `${sc.toFixed(2)}x`;
+    const numScale = document.getElementById('num-fox-scale');
+    if (sliderScale || valScale || numScale) {
+        const sc = (typeof fox.scaleMultiplier === 'number') ? fox.scaleMultiplier : 1.0;
+        if (sliderScale) sliderScale.value = sc;
+        if (numScale) numScale.value = sc.toFixed(2);
+        if (valScale) valScale.innerText = `${sc.toFixed(2)}x`;
     }
 
     // Posisi X & Z
@@ -919,20 +921,39 @@ function initFoxSpawnerUI() {
     }
 
     const sliderScale = document.getElementById('slider-fox-scale');
+    const numScale = document.getElementById('num-fox-scale');
     const valScale = document.getElementById('val-fox-scale');
-    if (sliderScale) {
-        sliderScale.addEventListener('input', () => {
-            if (selectedFoxIndex >= 0 && spawnedFoxesList[selectedFoxIndex]) {
-                const fox = spawnedFoxesList[selectedFoxIndex];
-                const sc = parseFloat(sliderScale.value) || 1.0;
-                fox.scaleMultiplier = sc;
-                const base = fox.model.baseScale || 0.58;
-                fox.root.scale.set(base * sc, base * sc, base * sc);
-                if (valScale) valScale.innerText = `${sc.toFixed(2)}x`;
-                if (typeof SelectionOutlineManager !== 'undefined') SelectionOutlineManager.updateBounds();
+
+    function applySelectedFoxScale(newVal) {
+        if (selectedFoxIndex >= 0 && spawnedFoxesList[selectedFoxIndex]) {
+            const fox = spawnedFoxesList[selectedFoxIndex];
+            const sc = Math.max(0.1, parseFloat(newVal) || 1.0);
+            fox.scaleMultiplier = sc;
+            const base = (fox.model && typeof fox.model.baseScale === 'number') ? fox.model.baseScale : (fox.baseScale || 1.85);
+            fox.root.scale.set(base * sc, base * sc, base * sc);
+            if (fox.root.userData) fox.root.userData.customScale = sc;
+            if (sliderScale && document.activeElement !== sliderScale) sliderScale.value = sc;
+            if (numScale && document.activeElement !== numScale) numScale.value = sc.toFixed(2);
+            if (valScale) valScale.innerText = `${sc.toFixed(2)}x`;
+            if (typeof SelectionOutlineManager !== 'undefined') SelectionOutlineManager.updateBounds();
+            if (typeof updateHitboxFromModel === 'function' && fox.selectionHitbox) {
+                updateHitboxFromModel(fox.selectionHitbox, fox.model);
             }
-        });
+        }
     }
+
+    if (sliderScale) {
+        sliderScale.addEventListener('input', () => applySelectedFoxScale(sliderScale.value));
+    }
+    if (numScale) {
+        numScale.addEventListener('input', () => applySelectedFoxScale(numScale.value));
+    }
+    document.querySelectorAll('.btn-fox-scale-preset').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const sc = parseFloat(btn.dataset.scale) || 1.0;
+            applySelectedFoxScale(sc);
+        });
+    });
 
     const sliderPosX = document.getElementById('slider-fox-pos-x');
     const valPosX = document.getElementById('val-fox-pos-x');
@@ -1001,6 +1022,8 @@ function initFoxSpawnerUI() {
         selectPlayerHero.addEventListener('change', () => {
             const heroKey = selectPlayerHero.value || 'red';
             window.currentFoxSpeciesKey = heroKey;
+            const selPlayCharacter = document.getElementById('select-play-character');
+            if (selPlayCharacter) selPlayCharacter.value = heroKey;
             if (typeof switchFoxSpecies === 'function') {
                 switchFoxSpecies(heroKey);
             }
@@ -1127,28 +1150,24 @@ function initFoxSpawnerUI() {
             }
         }
 
-        // 5. Update Floating Species Bar (#fox-species-bar) saat Play Mode
-        const speciesBar = document.getElementById('fox-species-bar');
-        if (speciesBar) {
-            const battleBtn = document.getElementById('btn-toggle-battle-mode');
-            speciesBar.querySelectorAll('.btn-species-pill[data-species]').forEach(b => b.remove());
-            const activeHero = (typeof currentFoxSpeciesKey !== 'undefined' && currentFoxSpeciesKey) ? currentFoxSpeciesKey : 'red';
-            characters.forEach((c, idx) => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'btn-species-pill' + (c.id === activeHero ? ' active' : '');
-                btn.dataset.species = c.id;
-                btn.title = c.name + ' (hero/' + c.folder + ') - Tekan ' + (idx + 1);
-                btn.innerHTML = '<span class="species-label">' + (c.badge || '') + ' ' + c.name + '</span>';
-                if (battleBtn && battleBtn.parentNode === speciesBar) {
-                    speciesBar.insertBefore(btn, battleBtn);
-                } else {
-                    speciesBar.appendChild(btn);
-                }
+        // 5. Update pemilih karakter di toolbar
+        const selPlayCharacter = document.getElementById('select-play-character');
+        if (selPlayCharacter) {
+            const activeHero = (selPlayerHero && selPlayerHero.value)
+                || (typeof currentFoxSpeciesKey !== 'undefined' && currentFoxSpeciesKey)
+                || 'red';
+            selPlayCharacter.innerHTML = '';
+            characters.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = c.name;
+                selPlayCharacter.appendChild(opt);
             });
+            selPlayCharacter.value = activeHero;
         }
     }
 
+    window.renderDynamicHeroSpawnerUI = renderDynamicHeroSpawnerUI;
     if (window.PandoraHeroRegistry) {
         renderDynamicHeroSpawnerUI(window.PandoraHeroRegistry.characters);
         window.PandoraHeroRegistry.onSync(renderDynamicHeroSpawnerUI);
@@ -1159,13 +1178,23 @@ function initFoxSpawnerUI() {
         btnSyncHero.addEventListener('click', async () => {
             if (!window.PandoraHeroRegistry) return;
             btnSyncHero.disabled = true;
-            btnSyncHero.innerText = '⏳ Sync...';
-            const chars = await window.PandoraHeroRegistry.sync(true);
-            btnSyncHero.disabled = false;
-            btnSyncHero.innerText = '🔄 Sync Hero';
-            if (typeof PandoraToast !== 'undefined' && PandoraToast.show) {
-                const names = chars.map(c => c.name).join(', ');
-                PandoraToast.show('✅ Folder Hero disinkronkan: ' + names, 'success');
+            btnSyncHero.innerText = '⏳ Resetting Cache & Syncing...';
+            try {
+                if (window.PandoraAttachmentSystem) {
+                    window.PandoraAttachmentSystem.clearCache();
+                    await window.PandoraAttachmentSystem.loadConfig(true);
+                }
+                await window.PandoraHeroRegistry.purgeAllCache();
+                const chars = await window.PandoraHeroRegistry.sync(true);
+                if (typeof PandoraToast !== 'undefined' && PandoraToast.show) {
+                    const names = chars.map(c => c.name).join(', ');
+                    PandoraToast.show('✅ Re-Sync Sukses: Cache Dikosongkan & ' + chars.length + ' Karakter Disinkronkan (' + names + ')', 'success');
+                }
+            } catch (errSync) {
+                console.error('[FoxSpawner] Error sync hero:', errSync);
+            } finally {
+                btnSyncHero.disabled = false;
+                btnSyncHero.innerText = '🔄 Re-Sync (Reset Cache)';
             }
         });
     }

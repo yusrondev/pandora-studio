@@ -106,7 +106,7 @@ class GLBImporterManager {
                     (typeof selectRoadBrush !== 'undefined' && selectRoadBrush.value !== 'none') ||
                     (typeof selectTreeMode !== 'undefined' && selectTreeMode.value !== 'none')
                 );
-                if (isAnyBrushActive) return;
+                if (isAnyBrushActive || (window.isSpawnerToolActive && window.isSpawnerToolActive())) return;
 
                 const rect = renderer.domElement.getBoundingClientRect();
                 this.mousePos.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;

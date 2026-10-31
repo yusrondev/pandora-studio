@@ -52,14 +52,21 @@
             { key: 'flyingPunch', label: 'Flying Punch (Sprint + Punch)', type: 'combat', defaultDamage: 40 },
             { key: 'kick1', label: 'Kick 1 (Tendangan 1)', type: 'combat', defaultDamage: 30 },
             { key: 'kick2', label: 'Kick 2 (Tendangan 2)', type: 'combat', defaultDamage: 30 },
-            { key: 'kick3', label: 'Kick 3 (Tendangan 3 / Maju)', type: 'combat', defaultDamage: 35 },
+            { key: 'kick3', label: 'Kick 3 (Tendangan 3 / Spin Maju)', type: 'combat', defaultDamage: 35 },
             { key: 'flyingKick', label: 'Flying Kick (Sprint + Kick)', type: 'combat', defaultDamage: 45 },
             { key: 'idle', label: 'Idle (Berdiri Santai)', type: 'preview', defaultDamage: 0 },
-            { key: 'walk', label: 'Walk (Berjalan)', type: 'preview', defaultDamage: 0 },
-            { key: 'run', label: 'Run (Berlari)', type: 'preview', defaultDamage: 0 },
+            { key: 'idle2', label: 'Idle 2 (Variasi Santai 2)', type: 'preview', defaultDamage: 0 },
+            { key: 'idle3', label: 'Idle 3 (Variasi Santai 3)', type: 'preview', defaultDamage: 0 },
+            { key: 'walk', label: 'Walk (Berjalan Maju)', type: 'preview', defaultDamage: 0 },
+            { key: 'backward', label: 'Backward (Berjalan Mundur)', type: 'preview', defaultDamage: 0 },
+            { key: 'run', label: 'Run (Berlari Cepat)', type: 'preview', defaultDamage: 0 },
+            { key: 'jump', label: 'Jump Sprint (Lompat Lari)', type: 'preview', defaultDamage: 0 },
+            { key: 'jumpNormal', label: 'Jump Normal (Lompat di Tempat)', type: 'preview', defaultDamage: 0 },
             { key: 'block', label: 'Block / Shield (Bertahan)', type: 'preview', defaultDamage: 0 },
             { key: 'hit1', label: 'Taking Hit 1 (Terkena Pukul 1)', type: 'preview', defaultDamage: 0 },
-            { key: 'hit2', label: 'Taking Hit 2 (Terkena Pukul 2)', type: 'preview', defaultDamage: 0 }
+            { key: 'hit2', label: 'Taking Hit 2 (Terkena Pukul 2)', type: 'preview', defaultDamage: 0 },
+            { key: 'dead1', label: 'Dead 1 (Tumbang 1)', type: 'preview', defaultDamage: 0 },
+            { key: 'dead2', label: 'Dead 2 (Tumbang 2)', type: 'preview', defaultDamage: 0 }
         ],
         'enemy-foxtree': [
             { key: 'punch1', label: 'Enemy Punch 1 (Pukulan 1)', type: 'combat', defaultDamage: 15 },
@@ -69,7 +76,9 @@
             { key: 'walk', label: 'Enemy Walk (Berjalan)', type: 'preview', defaultDamage: 0 },
             { key: 'run', label: 'Enemy Run (Mengejar)', type: 'preview', defaultDamage: 0 },
             { key: 'hit1', label: 'Enemy Hit 1 (Terkena Pukul 1)', type: 'preview', defaultDamage: 0 },
-            { key: 'hit2', label: 'Enemy Hit 2 (Terkena Pukul 2)', type: 'preview', defaultDamage: 0 }
+            { key: 'hit2', label: 'Enemy Hit 2 (Terkena Pukul 2)', type: 'preview', defaultDamage: 0 },
+            { key: 'dead1', label: 'Enemy Dead 1 (Tumbang 1)', type: 'preview', defaultDamage: 0 },
+            { key: 'dead2', label: 'Enemy Dead 2 (Tumbang 2)', type: 'preview', defaultDamage: 0 }
         ]
     };
 
@@ -95,6 +104,7 @@
             },
             animations: {
                 punch1: {
+                    speed: 1.0,
                     damage: p12Dmg,
                     knockback: 0.22,
                     activeStartPct: 0.12,
@@ -114,6 +124,7 @@
                     ]
                 },
                 punch2: {
+                    speed: 1.0,
                     damage: p12Dmg,
                     knockback: 0.22,
                     activeStartPct: 0.10,
@@ -133,6 +144,7 @@
                     ]
                 },
                 punch3: {
+                    speed: 1.0,
                     damage: p3Dmg,
                     knockback: 0.28,
                     activeStartPct: 0.14,
@@ -369,12 +381,17 @@
                 { key: 'flyingKick', label: 'Flying Kick (Sprint + Kick)', type: 'combat', defaultDamage: 45 },
                 { key: 'idle', label: 'Idle (Berdiri Santai)', type: 'preview', defaultDamage: 0 },
                 { key: 'idle2', label: 'Idle 2 (Variasi Idle 2)', type: 'preview', defaultDamage: 0 },
-                { key: 'walk', label: 'Walk (Berjalan)', type: 'preview', defaultDamage: 0 },
+                { key: 'idle3', label: 'Idle 3 (Variasi Idle 3)', type: 'preview', defaultDamage: 0 },
+                { key: 'walk', label: 'Walk (Berjalan Maju)', type: 'preview', defaultDamage: 0 },
                 { key: 'backward', label: 'Backward (Jalan Mundur)', type: 'preview', defaultDamage: 0 },
-                { key: 'run', label: 'Run (Berlari)', type: 'preview', defaultDamage: 0 },
+                { key: 'run', label: 'Run (Berlari Cepat)', type: 'preview', defaultDamage: 0 },
+                { key: 'jump', label: 'Jump Sprint (Lompat Lari)', type: 'preview', defaultDamage: 0 },
+                { key: 'jumpNormal', label: 'Jump Normal (Lompat di Tempat)', type: 'preview', defaultDamage: 0 },
                 { key: 'block', label: 'Block / Shield (Bertahan)', type: 'preview', defaultDamage: 0 },
                 { key: 'hit1', label: 'Taking Hit 1 (Terkena Pukul 1)', type: 'preview', defaultDamage: 0 },
-                { key: 'hit2', label: 'Taking Hit 2 (Terkena Pukul 2)', type: 'preview', defaultDamage: 0 }
+                { key: 'hit2', label: 'Taking Hit 2 (Terkena Pukul 2)', type: 'preview', defaultDamage: 0 },
+                { key: 'dead1', label: 'Dead 1 (Tumbang 1)', type: 'preview', defaultDamage: 0 },
+                { key: 'dead2', label: 'Dead 2 (Tumbang 2)', type: 'preview', defaultDamage: 0 }
             ];
 
             // Tambahkan klip ekstra kustom jika ada di PandoraHeroRegistry
@@ -429,6 +446,7 @@
                         const incAnim = incChar.animations[animKey];
                         if (incAnim && Array.isArray(incAnim.hitboxes)) {
                             this.config.characters[charKey].animations[animKey] = {
+                                speed: (typeof incAnim.speed === 'number' && incAnim.speed > 0) ? incAnim.speed : (typeof incAnim.playbackSpeed === 'number' && incAnim.playbackSpeed > 0 ? incAnim.playbackSpeed : 1.0),
                                 damage: typeof incAnim.damage === 'number' ? incAnim.damage : 25,
                                 knockback: typeof incAnim.knockback === 'number' ? incAnim.knockback : 0.22,
                                 activeStartPct: typeof incAnim.activeStartPct === 'number' ? incAnim.activeStartPct : 0.10,
@@ -512,6 +530,7 @@
                     );
                 } else {
                     this.config.characters[cKey].animations[animKey] = {
+                        speed: 1.0,
                         damage: 25,
                         knockback: 0.22,
                         activeStartPct: 0.10,
@@ -544,12 +563,15 @@
             if (!charCfg) return null;
             if (!charCfg.animations[animKey]) {
                 charCfg.animations[animKey] = {
+                    speed: 1.0,
                     damage: 25,
                     knockback: 0.22,
                     activeStartPct: 0.10,
                     activeEndPct: 0.88,
                     hitboxes: []
                 };
+            } else if (typeof charCfg.animations[animKey].speed !== 'number' || charCfg.animations[animKey].speed <= 0) {
+                charCfg.animations[animKey].speed = 1.0;
             }
             return charCfg.animations[animKey];
         },
@@ -658,16 +680,20 @@
                 };
             }
 
-            // Fallback ke root jika bone belum termuat
+            // Fallback ke root jika bone spesifik belum termuat / tidak ada pada rig karakter
             if (instance && instance.root) {
                 instance.root.getWorldPosition(_boneWorldPos);
                 center.copy(_boneWorldPos);
+                // Hitbox diproyeksikan ke arah depan pandang karakter sejauh jangkauan tangan memukul (~0.62m)
+                const rotY = instance.root.rotation ? instance.root.rotation.y : 0;
+                center.x += Math.sin(rotY) * 0.62;
+                center.z += Math.cos(rotY) * 0.62;
                 center.y += 1.0 + (Number(hb.offsetY) || 0);
                 return {
                     valid: true,
                     bone: null,
                     center: center,
-                    radius: Math.max(0.04, Number(hb.radius) || 0.25)
+                    radius: Math.max(0.04, Number(hb.radius) || 0.28)
                 };
             }
 
@@ -1044,8 +1070,17 @@
          * Mengembalikan true jika hitbox tangan Enemy benar-benar menyentuh Hurtbox Player.
          */
         checkEnemyMeleeStrike(enemyInstance) {
-            if (!enemyInstance) return false;
+            if (!enemyInstance || !enemyInstance.isPunching) return false;
             const attackKey = enemyInstance.activePunchKey || 'punch1';
+            const charKey = normalizeCharKey(enemyInstance.charKey || enemyInstance.speciesKey || 'enemy-foxtree');
+            const animCfg = this.getAnimationConfig(charKey, attackKey);
+            const animSpeed = (animCfg && typeof animCfg.speed === 'number' && animCfg.speed > 0) ? animCfg.speed : 1.0;
+
+            // JAMINAN KONSISTENSI PUKULAN: Jangan memicu damage sebelum animasi mengayun maju (disesuaikan dengan kecepatan pukulan)
+            const punchTimer = (typeof enemyInstance.punchTimer === 'number') ? enemyInstance.punchTimer : 0;
+            if (punchTimer < (0.20 / animSpeed)) {
+                return false;
+            }
 
             const isPlayerDead = Boolean(
                 (typeof PlayerHealthState !== 'undefined' && PlayerHealthState.isDead) ||
@@ -1061,10 +1096,9 @@
                 return false;
             }
 
-            const enemyCharKey = normalizeCharKey(enemyInstance.charKey || enemyInstance.speciesKey || 'enemy-foxtree');
+            const enemyCharKey = charKey;
             const heroCharKey = normalizeCharKey(wolfCharacter.charKey || wolfCharacter.speciesKey || 'hero');
 
-            const animCfg = this.getAnimationConfig(enemyCharKey, attackKey);
             if (!animCfg || !Array.isArray(animCfg.hitboxes) || animCfg.hitboxes.length === 0) {
                 return false;
             }
@@ -1072,20 +1106,26 @@
             let progressPct = 0.5;
             const action = enemyInstance.actions ? enemyInstance.actions[attackKey] : null;
             if (action && action.getClip && action.getClip() && action.getClip().duration > 0.001) {
+                // Pastikan animasi aksi pukulan benar-benar sedang tampil di layar (bobot action >= 0.25)
+                if (typeof action.getEffectiveWeight === 'function' && action.getEffectiveWeight() < 0.25) {
+                    return false;
+                }
                 progressPct = THREE.MathUtils.clamp(action.time / action.getClip().duration, 0, 1);
             } else {
                 const dur = enemyInstance.punchDuration || 0.80;
                 progressPct = THREE.MathUtils.clamp(enemyInstance.punchTimer / dur, 0, 1);
             }
 
-            const startPct = typeof animCfg.activeStartPct === 'number' ? animCfg.activeStartPct : 0.10;
-            const endPct = typeof animCfg.activeEndPct === 'number' ? animCfg.activeEndPct : 0.88;
+            // Ambang batas aktif: Pukulan fisik baru mendarat saat tangan mengayun maju (minimal 26% progress)
+            const configuredStart = (typeof animCfg.activeStartPct === 'number') ? animCfg.activeStartPct : 0.28;
+            const startPct = Math.max(0.26, configuredStart);
+            const endPct = typeof animCfg.activeEndPct === 'number' ? animCfg.activeEndPct : 0.85;
             if (progressPct < startPct || progressPct > endPct) {
                 return false;
             }
 
-            // Broadphase
-            if (enemyInstance.root.position.distanceToSquared(wolfCharacter.root.position) > 9.0) {
+            // Broadphase (toleran terhadap Boss & Enemy raksasa hingga jarak 6 meter)
+            if (enemyInstance.root.position.distanceToSquared(wolfCharacter.root.position) > 36.0) {
                 return false;
             }
 

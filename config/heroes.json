@@ -1,6 +1,6 @@
 {
     "success": true,
-    "updatedAt": "2026-10-28T17:22:10+00:00",
+    "updatedAt": "2026-10-31T03:59:58+00:00",
     "general": {
         "basePath": "hero\/general\/",
         "files": [
@@ -38,7 +38,7 @@
             "badge": "🦊",
             "basePath": "hero\/red\/",
             "baseScale": 1.85,
-            "yOffset": 0,
+            "yOffset": 0.05,
             "files": [
                 "Backflip.fbx",
                 "combat\/kick\/kick1.fbx",
@@ -71,30 +71,6 @@
             }
         },
         {
-            "id": "enemy-foxtree",
-            "folder": "enemy-foxtree",
-            "spawnerKey": "foxtree",
-            "hitToolKey": "enemy-foxtree",
-            "name": "FoxTree",
-            "badge": "👹",
-            "basePath": "hero\/enemy-foxtree\/",
-            "baseScale": 1.85,
-            "yOffset": 0,
-            "files": [
-                "combat\/punch\/punch1.fbx",
-                "combat\/punch\/punch2.fbx",
-                "combat\/punch\/punch3.fbx",
-                "Idle.fbx"
-            ],
-            "slots": {
-                "idle": "Idle.fbx",
-                "punch1": "combat\/punch\/punch1.fbx",
-                "punch2": "combat\/punch\/punch2.fbx",
-                "punch3": "combat\/punch\/punch3.fbx"
-            },
-            "extraClips": []
-        },
-        {
             "id": "tharon",
             "folder": "tharon",
             "spawnerKey": "tharon",
@@ -103,7 +79,7 @@
             "badge": "⚔️",
             "basePath": "hero\/tharon\/",
             "baseScale": 1.85,
-            "yOffset": 0,
+            "yOffset": 0.05,
             "files": [
                 "idle.fbx",
                 "idle2.fbx"
@@ -111,6 +87,36 @@
             "slots": {
                 "idle": "idle.fbx",
                 "idle2": "idle2.fbx"
+            },
+            "extraClips": []
+        },
+        {
+            "id": "foxtree",
+            "folder": "foxtree",
+            "spawnerKey": "foxtree",
+            "hitToolKey": "foxtree",
+            "name": "FoxTree",
+            "badge": "⚔️",
+            "basePath": "hero\/foxtree\/",
+            "baseScale": 1.85,
+            "yOffset": 0.05,
+            "files": [
+                "combat\/punch\/punch1.fbx",
+                "combat\/punch\/punch2.fbx",
+                "idle.fbx",
+                "idle2.fbx",
+                "idle3.fbx",
+                "run.fbx",
+                "walk.fbx"
+            ],
+            "slots": {
+                "idle": "idle.fbx",
+                "idle2": "idle2.fbx",
+                "idle3": "idle3.fbx",
+                "walk": "walk.fbx",
+                "run": "run.fbx",
+                "punch1": "combat\/punch\/punch1.fbx",
+                "punch2": "combat\/punch\/punch2.fbx"
             },
             "extraClips": []
         },
@@ -123,7 +129,7 @@
             "badge": "⚔️",
             "basePath": "hero\/jax\/",
             "baseScale": 1.85,
-            "yOffset": 0,
+            "yOffset": 0.05,
             "files": [
                 "combat\/punch\/punch1.fbx",
                 "idle.fbx"
@@ -143,7 +149,7 @@
             "badge": "⚔️",
             "basePath": "hero\/mozai\/",
             "baseScale": 1.85,
-            "yOffset": 0,
+            "yOffset": 0.05,
             "files": [
                 "idle.fbx"
             ],
@@ -161,7 +167,7 @@
             "badge": "⚔️",
             "basePath": "hero\/noxis\/",
             "baseScale": 1.85,
-            "yOffset": 0,
+            "yOffset": 0.05,
             "files": [
                 "combat\/punch\/punch1.fbx",
                 "combat\/punch\/punch2.fbx",
@@ -179,6 +185,26 @@
             "extraClips": []
         },
         {
+            "id": "red-mature",
+            "folder": "red-mature",
+            "spawnerKey": "red-mature",
+            "hitToolKey": "red-mature",
+            "name": "Red Mature",
+            "badge": "⚔️",
+            "basePath": "hero\/red-mature\/",
+            "baseScale": 1.85,
+            "yOffset": 0.05,
+            "files": [
+                "idle.fbx",
+                "run.fbx"
+            ],
+            "slots": {
+                "idle": "idle.fbx",
+                "run": "run.fbx"
+            },
+            "extraClips": []
+        },
+        {
             "id": "taurus",
             "folder": "taurus",
             "spawnerKey": "taurus",
@@ -187,7 +213,7 @@
             "badge": "⚔️",
             "basePath": "hero\/taurus\/",
             "baseScale": 1.85,
-            "yOffset": 0,
+            "yOffset": 0.05,
             "files": [
                 "combat\/punch\/punch1.fbx",
                 "idle.fbx"

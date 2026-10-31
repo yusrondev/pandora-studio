@@ -22,6 +22,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "hi
 renderer.setSize(initW, initH);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDPR));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMappingExposure = 1.0;
 
 renderer.shadowMap.enabled = true;
@@ -56,7 +57,7 @@ controls.minDistance = 1.0;
 controls.maxDistance = 160.0;
 
 
-const sunLight = new THREE.DirectionalLight(0xfffae6, 2.1);
+const sunLight = new THREE.DirectionalLight(0xfff8ee, 1.45);
 sunLight.position.set(-25, 12, 25);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = isMobileDevice ? 2048 : 4096;
@@ -74,7 +75,12 @@ sunLight.shadow.normalBias = 0.04;
 
 scene.add(sunLight);
 
-const ambientLight = new THREE.AmbientLight(0x7397c0, 0.85);
+// Pencahayaan seimbang khas Mixamo: Hemisphere Light (langit netral lembut + tanah gelap berbobot)
+const hemiLight = new THREE.HemisphereLight(0xedf4fc, 0x33333e, 0.65);
+hemiLight.position.set(0, 25, 0);
+scene.add(hemiLight);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.20);
 scene.add(ambientLight);
 
 const foliageMaterialsList = [];

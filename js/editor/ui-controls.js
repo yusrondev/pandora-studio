@@ -472,12 +472,26 @@ sliderLeafFall.addEventListener('input', () => {
     leafFallRate = parseFloat(sliderLeafFall.value);
 });
 
+// Pohon terpilih: tampilkan tab Pohon di Brush sekali per perubahan seleksi,
+// agar slider transformasi yang sedang dipakai tidak terus memaksa pindah tab.
+let lastRevealedTree = null;
+function revealTreeInspector() {
+    const tab = document.getElementById('btn-tab-brush-tree');
+    if (tab && !tab.classList.contains('active')) tab.click();
+    const inspector = document.getElementById('accordion-tree-inspector');
+    if (inspector) inspector.classList.remove('collapsed');
+    const brushPanel = document.getElementById('accordion-brush');
+    if (brushPanel) brushPanel.classList.remove('collapsed');
+}
+
 function updateEditorUI() {
     const selTreeIdx = (typeof window.selectedTreeIndex !== 'undefined') ? window.selectedTreeIndex : (typeof selectedTreeIndex !== 'undefined' ? selectedTreeIndex : -1);
     const selRockIdx = (typeof window.selectedRockIndex !== 'undefined') ? window.selectedRockIndex : (typeof selectedRockIndex !== 'undefined' ? selectedRockIndex : -1);
     const targetTree = (typeof treesList !== 'undefined' && selTreeIdx >= 0) ? treesList[selTreeIdx] : null;
     const currentRocks = (typeof rocksList !== 'undefined' && Array.isArray(rocksList)) ? rocksList : [];
     const targetRock = (selRockIdx >= 0) ? currentRocks[selRockIdx] : null;
+
+    if (!targetTree) lastRevealedTree = null;
 
     if (!targetTree && !targetRock) {
         if (typeof SelectionOutlineManager !== 'undefined') {
@@ -507,6 +521,11 @@ function updateEditorUI() {
 
     if (typeof SelectionOutlineManager !== 'undefined') {
         SelectionOutlineManager.selectObject(targetTree, false);
+    }
+
+    if (targetTree !== lastRevealedTree) {
+        lastRevealedTree = targetTree;
+        revealTreeInspector();
     }
 
     if (btnDeleteTree) {

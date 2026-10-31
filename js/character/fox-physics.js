@@ -117,6 +117,19 @@ let currentCamDist = 5.4;
 let isCameraOccluded = false;
 
 // ========================================================
+// AUTO ZOOM-OUT SAAT FOX TERTUTUP TERRAIN / RUMPUT
+// Saat fox occluded oleh bukit/rumput, kamera otomatis
+// mundur (zoom out) agar fox tetap terlihat di viewport.
+// ========================================================
+let _autoZoomOutActive = false;          // apakah sedang dalam mode auto zoom-out
+let _autoZoomOutDist = 0.0;             // tambahan jarak ekstra saat auto zoom-out
+let _autoZoomOccludedTimer = 0.0;       // berapa lama fox sudah occluded (debounce)
+const AUTO_ZOOM_TRIGGER_DELAY = 0.18;   // detik sebelum mulai zoom-out (menghindari false positive)
+const AUTO_ZOOM_MAX_EXTRA = 7.5;        // maksimum tambahan jarak zoom-out (meter)
+const AUTO_ZOOM_STEP_SPEED = 4.5;       // kecepatan zoom-out (m/s)
+const AUTO_ZOOM_RECOVER_SPEED = 2.2;    // kecepatan recover zoom-in (m/s)
+
+// ========================================================
 // SISTEM VISUAL EAGLE VISION OUTLINE & SILUET (ASSASSIN'S CREED)
 // ========================================================
 let eagleVisionMaterialSkinned = null;
@@ -681,6 +694,37 @@ function getCombatLockTarget(playerRoot, acquireRange = 9.5, releaseRange = 12.0
 }
 window.getCombatLockTarget = getCombatLockTarget;
 
+/**
+ * Mendeteksi musuh Boss aktif yang masih hidup di sekitar player
+ */
+function findActiveBossEnemy(playerRoot, maxRadius = 26.0) {
+    if (!playerRoot) return null;
+    if (typeof CombatHUD !== 'undefined' && CombatHUD.activeBoss) {
+        const b = CombatHUD.activeBoss;
+        if (b && b.root && b.root.visible) {
+            const isDead = (b.ai && b.ai.isDead) || (b.model && b.model.isDead) || ((b.health || 0) <= 0);
+            if (!isDead) return b;
+        }
+    }
+    const list = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList))
+        ? spawnedFoxesList
+        : ((typeof window !== 'undefined' && Array.isArray(window.spawnedFoxesList)) ? window.spawnedFoxesList : []);
+
+    for (let i = 0; i < list.length; i++) {
+        const item = list[i];
+        if (!item || !item.root || !item.root.visible || !item.isBoss) continue;
+        const isDead = (item.ai && item.ai.isDead) || (item.model && item.model.isDead) || ((item.health || 0) <= 0);
+        if (isDead) continue;
+        const dist = playerRoot.position.distanceTo(item.root.position);
+        const radius = (item.detectionRadius !== undefined) ? item.detectionRadius : 22.0;
+        if (dist <= Math.max(maxRadius, radius)) {
+            return item;
+        }
+    }
+    return null;
+}
+window.findActiveBossEnemy = findActiveBossEnemy;
+
 function updateWolfPhysics(dt, elapsed) {
     if (!wolfCharacter) return;
     dt = Math.min(dt, 0.05);
@@ -829,12 +873,7 @@ function updateWolfPhysics(dt, elapsed) {
     let targetFacingYaw = foxRoot.rotation.y;
     let moveDisplacement = new THREE.Vector3();
 
-    const isBackwardInput = (inputY < -0.20) && (Math.abs(inputY) >= Math.abs(inputX) * 0.75);
-    if (!isMovementLocked && isBackwardInput) {
-        backwardHoldTimer += dt;
-    } else if (!isBackwardInput) {
-        backwardHoldTimer = 0.0;
-    }
+    backwardHoldTimer = 0.0;
 
     if (isMovementLocked) {
         targetSpeed = 0;
@@ -842,40 +881,22 @@ function updateWolfPhysics(dt, elapsed) {
         currentTurnRate = 0;
     } else {
         // Kontrol analog bebas berbasis POV kamera (Camera-Relative):
-        // Karakter bebas bergerak dan menghadap ke segala arah mengikuti kemudi joystick di layar,
-        // posisinya tidak terpaku / tidak terpatri titik hadapnya ke musuh.
+        // Saat menekan tombol S / arah analog mundur, karakter langsung berputar balik menghadap arah lari
         if (inputMag > 0.05) {
-            if (isBackwardInput && backwardHoldTimer < 3.0) {
-                // Selama < 3 detik menahan S / analog bawah: jalan mundur (backward.fbx) tanpa memutar balik badan
-                isMovingBackward = true;
-                const backSpeed = isHunting ? Math.max(3.2, walkSpeed * 1.70) : Math.max(2.45, walkSpeed * 1.42);
-                targetSpeed = -inputMag * backSpeed;
+            isMovingBackward = false;
+            targetSpeed = inputMag * (isHunting ? huntRunSpeed : walkSpeed);
+            targetFacingYaw = Math.atan2(moveWorldDir.x, moveWorldDir.z);
 
-                const steerFwdX = camFwd.x - camRight.x * (inputX * 0.35);
-                const steerFwdZ = camFwd.z - camRight.z * (inputX * 0.35);
-                targetFacingYaw = Math.atan2(steerFwdX, steerFwdZ);
+            let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
+            if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+            if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
 
-                let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
-                if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
-                if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-                foxRoot.rotation.y += yawDiff * Math.min(1.0, stats.turnAccel * dt);
-                currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 4.0, stats.turnAccel * dt);
+            // Saat memutar balik tajam (seperti mundur / S), buat putaran langsung cepat dan responsif
+            const turnRateMultiplier = (Math.abs(yawDiff) > Math.PI * 0.50) ? 14.0 : stats.turnAccel;
+            foxRoot.rotation.y += yawDiff * Math.min(1.0, turnRateMultiplier * dt);
+            currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 6.0, stats.turnAccel * dt);
 
-                moveDisplacement.copy(moveWorldDir);
-            } else {
-                // Maju normal ATAU sudah menahan arah bawah >= 3 detik -> langsung berbalik seperti semula
-                isMovingBackward = false;
-                targetSpeed = inputMag * (isHunting ? huntRunSpeed : walkSpeed);
-                targetFacingYaw = Math.atan2(moveWorldDir.x, moveWorldDir.z);
-
-                let yawDiff = (targetFacingYaw - foxRoot.rotation.y) % (Math.PI * 2);
-                if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
-                if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-                foxRoot.rotation.y += yawDiff * Math.min(1.0, stats.turnAccel * dt);
-                currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, yawDiff * 6.0, stats.turnAccel * dt);
-
-                moveDisplacement.copy(moveWorldDir);
-            }
+            moveDisplacement.copy(moveWorldDir);
         } else {
             targetSpeed = 0;
             currentTurnRate = THREE.MathUtils.lerp(currentTurnRate, 0, stats.turnAccel * dt);
@@ -1588,26 +1609,45 @@ function updateWolfPhysics(dt, elapsed) {
         foxRoot.position.z + forward.z * (0.15 * foxScale)
     );
 
+    const activeBoss = findActiveBossEnemy(foxRoot, 26.0);
+    window.activeBossEncounter = activeBoss;
+
     // Frame musuh jika combat lock aktif
-    const activeCombatTarget = (typeof window.currentCombatLockTarget !== 'undefined' && window.currentCombatLockTarget && window.currentCombatLockTarget.root)
+    const activeCombatTarget = activeBoss || ((typeof window.currentCombatLockTarget !== 'undefined' && window.currentCombatLockTarget && window.currentCombatLockTarget.root)
         ? window.currentCombatLockTarget
-        : null;
+        : null);
 
     let currentTargetPos = playerTargetPos;
-    if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
+    if (activeBoss && activeBoss.root && activeBoss.root.visible) {
+        const bossScale = (activeBoss.baseScale || 1.85);
+        const bossHeadY = activeBoss.root.position.y + 0.95 * bossScale;
+        const bossTargetPos = new THREE.Vector3(
+            activeBoss.root.position.x,
+            bossHeadY,
+            activeBoss.root.position.z
+        );
+        // Framing sinematik kedua karakter saat menghadapi boss:
+        // Titik fokus kamera diposisikan 32% ke arah boss agar boss dan player terlihat seimbang dan megah
+        currentTargetPos = playerTargetPos.clone().lerp(bossTargetPos, 0.32);
+    } else if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
+        const distToCombatTarget = foxRoot.position.distanceTo(activeCombatTarget.root.position);
         const enemyHeadY = activeCombatTarget.root.position.y + 0.95;
         const enemyTargetPos = new THREE.Vector3(
             activeCombatTarget.root.position.x,
             enemyHeadY,
             activeCombatTarget.root.position.z
         );
-        // Lerp 25% ke arah musuh agar framing kedua karakter pas di layar dan tidak terlalu condong ke tengah
-        currentTargetPos = playerTargetPos.clone().lerp(enemyTargetPos, 0.25);
+        // Framing dinamis cerdas: saat musuh menjauh, titik fokus kamera tetap berada di dekat player
+        // (lerp factor 0.12 - 0.22) ditambah sedikit elevasi Y (+0.25m) agar Fox Player tidak terdorong
+        // ke tepi bawah layar dan tidak terhalang oleh rumput maupun HUD bottom bar!
+        const enemyLerpWeight = THREE.MathUtils.clamp(1.5 / Math.max(2.0, distToCombatTarget), 0.10, 0.22);
+        currentTargetPos = playerTargetPos.clone().lerp(enemyTargetPos, enemyLerpWeight);
+        currentTargetPos.y += THREE.MathUtils.clamp((distToCombatTarget - 3.0) * 0.05, 0.0, 0.35);
     }
 
     // Modern AAA spring-arm focus target lag:
     // Fokus kamera mengikuti rubah secara halus dengan sedikit lagging inersia natural
-    const posLagSpeed = (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) ? 10.5 : 8.5;
+    const posLagSpeed = activeBoss ? 12.0 : ((activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) ? 10.5 : 8.5);
     const posAlpha = 1.0 - Math.exp(-posLagSpeed * dt);
     controls.target.x = THREE.MathUtils.lerp(controls.target.x, currentTargetPos.x, posAlpha);
     controls.target.z = THREE.MathUtils.lerp(controls.target.z, currentTargetPos.z, posAlpha);
@@ -1683,7 +1723,60 @@ function updateWolfPhysics(dt, elapsed) {
 
     camOrbitPitch = THREE.MathUtils.clamp(camOrbitPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
 
-    if (isUserHoldingCamera) {
+    // ========================================================
+    // AUTO PITCH NUDGE SAAT FOX OCCLUDED (Terrain / Rumput)
+    // Saat fox terhalang dan sedang zoom-out, sedikit naikkan
+    // pitch kamera agar sudut pandang lebih overhead dan fox
+    // lebih mungkin terlihat dari balik terrain/rumput.
+    // ========================================================
+    if (_autoZoomOutActive && _autoZoomOutDist > 0.5 && !activeBoss) {
+        const occludedPitchTarget = THREE.MathUtils.degToRad(26.0);
+        const nudgeT = Math.min(1.0, _autoZoomOutDist / AUTO_ZOOM_MAX_EXTRA);
+        const blendedPitch = THREE.MathUtils.lerp(camOrbitPitch, occludedPitchTarget, nudgeT * 0.35);
+        camOrbitPitch = THREE.MathUtils.clamp(blendedPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
+    }
+
+    if (activeBoss && activeBoss.root && activeBoss.root.visible) {
+        // ========================================================
+        // BOSS ENCOUNTER CAMERA LOCK (MENGUNCI FOKUS PENUH KE BOSS)
+        // Kamera selalu menghadap dan mengunci arah Boss baik saat player maju, mundur (S),
+        // bergerak ke samping (strafing), menyerang ataupun menghindar.
+        // ========================================================
+        const toBossX = activeBoss.root.position.x - foxRoot.position.x;
+        const toBossZ = activeBoss.root.position.z - foxRoot.position.z;
+        const bossDist = Math.hypot(toBossX, toBossZ);
+
+        if (bossDist > 0.05) {
+            const targetYaw = Math.atan2(-toBossX, -toBossZ);
+            let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
+            if (diff < -Math.PI) diff += Math.PI * 2;
+            if (diff > Math.PI) diff -= Math.PI * 2;
+
+            if (Math.abs(diff) > Math.PI - 0.06) {
+                diff = (_lastFollowSign || 1) * (Math.PI - 0.06);
+            } else {
+                _lastFollowSign = Math.sign(diff) || 1;
+            }
+
+            // Kecepatan putaran orbit kamera untuk mengunci boss secara responsif dan bebas jitter
+            const bossChaseSpeed = isPlayerAttacking ? 11.0 : (isCharacterMoving ? 8.5 : 6.5);
+            const smoothT = 1.0 - Math.exp(-bossChaseSpeed * dt);
+            const maxBossStep = 8.5 * dt;
+            camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxBossStep, maxBossStep);
+
+            // Elevasi kamera yang pas untuk boss (sedikit lebih tinggi agar visual boss megah)
+            const targetPitch = THREE.MathUtils.degToRad(20.0);
+            camOrbitPitch = THREE.MathUtils.clamp(
+                THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-4.5 * dt)),
+                MIN_ALLOWED_PITCH,
+                MAX_ALLOWED_PITCH
+            );
+
+            // Jarak kamera dinamis agar Player dan Boss terlihat utuh tanpa clipping
+            const desiredBossDist = Math.max(5.2, Math.min(7.2, 3.8 + bossDist * 0.22));
+            userPreferredDist = THREE.MathUtils.lerp(userPreferredDist, desiredBossDist, 1.0 - Math.exp(-3.5 * dt));
+        }
+    } else if (isUserHoldingCamera) {
         // 1. SAAT USER MEMEGANG / MENGGESER KAMERA:
         // Kamera bebas dirotasi oleh user sesuai usapan jari/mouse, sudut dipertahankan
     } else if (isPlayerAttacking) {
@@ -1790,12 +1883,48 @@ function updateWolfPhysics(dt, elapsed) {
     let effectiveTargetDist = THREE.MathUtils.lerp(userTargetDist, edgeZoomDist, smoothEdge);
 
     // KETIKA COMBAT LOCK-ON AKTIF:
-    // Mundurkan kamera agar ruang pertarungan lega (framing hero & enemy tampak utuh dan luas)
+    // Mundurkan kamera secara dinamis dan organik seiring jarak kedua karakter (Auto Zoom-Out):
+    // Saat karakter menjauh, kamera otomatis zoom-out hingga 14.5 meter agar hero dan musuh
+    // tidak saling menutupi dan tetap berada dalam framing layar yang utuh & sinematik.
     if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
         const distToEnemy = foxRoot.position.distanceTo(activeCombatTarget.root.position);
-        // Base distance minimal 6.5m, bertambah dinamis seiring jarak musuh (hingga 8.8m)
-        const combatFramingDist = THREE.MathUtils.clamp(distToEnemy * 0.65 + 5.8, 6.5, 8.8);
+        const combatFramingDist = THREE.MathUtils.clamp(distToEnemy * 0.72 + 5.2, 5.8, 14.8);
         effectiveTargetDist = Math.max(effectiveTargetDist, combatFramingDist);
+    }
+
+    // ========================================================
+    // AUTO ZOOM-OUT SAAT FOX TERTUTUP TERRAIN / BUKIT / RUMPUT
+    // Saat _cachedFoxOccluded aktif (terutama oleh terrain),
+    // kamera mundur perlahan agar fox kembali terlihat.
+    // Ketika fox sudah tidak terhalang, kamera recover zoom-in.
+    // ========================================================
+    {
+        const isOccludedNow = typeof _cachedFoxOccluded !== 'undefined' && _cachedFoxOccluded;
+        if (isOccludedNow) {
+            _autoZoomOccludedTimer = Math.min(_autoZoomOccludedTimer + dt, AUTO_ZOOM_TRIGGER_DELAY + 0.05);
+        } else {
+            _autoZoomOccludedTimer = Math.max(_autoZoomOccludedTimer - dt * 1.5, 0.0);
+        }
+
+        const shouldZoomOut = _autoZoomOccludedTimer >= AUTO_ZOOM_TRIGGER_DELAY;
+
+        if (shouldZoomOut) {
+            // Mundur perlahan sampai fox terlihat atau sampai batas maksimum
+            _autoZoomOutDist = Math.min(
+                _autoZoomOutDist + AUTO_ZOOM_STEP_SPEED * dt,
+                AUTO_ZOOM_MAX_EXTRA
+            );
+            _autoZoomOutActive = true;
+        } else {
+            // Recover zoom-in perlahan saat fox sudah terlihat kembali
+            _autoZoomOutDist = Math.max(
+                _autoZoomOutDist - AUTO_ZOOM_RECOVER_SPEED * dt,
+                0.0
+            );
+            if (_autoZoomOutDist <= 0.01) _autoZoomOutActive = false;
+        }
+
+        effectiveTargetDist += _autoZoomOutDist;
     }
 
     const zoomLerpRate = 4.5;

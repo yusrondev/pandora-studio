@@ -51,6 +51,26 @@ function updateToolControlsState() {
     }
 }
 
+// True selama ada mode spawner/kuas aktif: klik kiri hanya untuk tool itu, bukan memilih objek
+function isSpawnerToolActive() {
+    const foxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
+    const brushSelects = [
+        selectTreeMode, foxSelect, selectTerrainMode, selectRoadBrush, selectGrassBrush,
+        (typeof selectWaterBrush !== 'undefined') ? selectWaterBrush : null,
+        (typeof selectRockBrush !== 'undefined') ? selectRockBrush : null,
+        (typeof selectFlowerBrush !== 'undefined') ? selectFlowerBrush : null,
+        (typeof selectFernBrush !== 'undefined') ? selectFernBrush : null,
+        (typeof selectBushBrush !== 'undefined') ? selectBushBrush : null,
+        (typeof selectButterflyBrush !== 'undefined') ? selectButterflyBrush : null,
+        (typeof selectFogBrush !== 'undefined') ? selectFogBrush : null
+    ];
+    return brushSelects.some(sel => sel && sel.value !== 'none') ||
+        !!window.isItemBoxSpawnerActive ||
+        !!window.isPlayerSpawnModeActive ||
+        (typeof CinematicManager !== 'undefined' && (CinematicManager.isDrawingMode || CinematicManager.isDrawingFoxMode));
+}
+window.isSpawnerToolActive = isSpawnerToolActive;
+
 // Menghapus rumput di radius tertentu (digunakan oleh kuas remove & klik kanan mode rumput)
 function removeGrassInRadius(hitPoint, radius) {
     if (typeof maxGrassCapacity === 'undefined' || !grassActiveStates) return false;
@@ -524,8 +544,10 @@ function handleCanvasPointerDown(e) {
     // LEFT CLICK (e.button === 0) -> SPAWN / PAINT
     // ==========================================
     if (e.button === 0) {
+        const toolActive = isSpawnerToolActive();
+
         // 0. Prioritaskan Seleksi Rubah jika pointer mengklik tepat pada Rubah yang sudah ada di scene!
-        if (typeof spawnedFoxesList !== 'undefined' && spawnedFoxesList.length > 0) {
+        if (!toolActive && typeof spawnedFoxesList !== 'undefined' && spawnedFoxesList.length > 0) {
             const foxRoots = spawnedFoxesList.map(f => f.root).filter(Boolean);
             const foxHits = raycaster.intersectObjects(foxRoots, true);
             if (foxHits.length > 0) {
@@ -560,7 +582,7 @@ function handleCanvasPointerDown(e) {
         }
 
         // Prioritaskan Seleksi Pohon jika mengklik tepat pada Pohon yang sudah ada di scene
-        if (typeof treesList !== 'undefined' && treesList.length > 0) {
+        if (!toolActive && typeof treesList !== 'undefined' && treesList.length > 0) {
             const treeHits = raycaster.intersectObjects(treesList, true);
             if (treeHits.length > 0) {
                 let rootTree = treeHits[0].object;
@@ -592,7 +614,7 @@ function handleCanvasPointerDown(e) {
         }
 
         // Prioritaskan Seleksi Bebatuan jika mengklik tepat pada Bebatuan yang sudah ada di scene
-        if (typeof rocksList !== 'undefined' && rocksList.length > 0) {
+        if (!toolActive && typeof rocksList !== 'undefined' && rocksList.length > 0) {
             const rockHits = raycaster.intersectObjects(rocksList, true);
             if (rockHits.length > 0) {
                 let rootRock = rockHits[0].object;
@@ -677,23 +699,7 @@ function handleCanvasPointerDown(e) {
         }
 
         // 3. Selection Tracker: Jika tidak ada mode brush aktif, catat titik pointerdown untuk bedakan Click vs Hold
-        const currentFoxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
-        const isBrushActive = (selectTreeMode && selectTreeMode.value !== 'none') ||
-            (currentFoxSelect && currentFoxSelect.value !== 'none') ||
-            window.isItemBoxSpawnerActive ||
-            (selectTerrainMode && selectTerrainMode.value !== 'none') ||
-            (selectRoadBrush && selectRoadBrush.value !== 'none') ||
-            (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') ||
-            (selectGrassBrush && selectGrassBrush.value !== 'none') ||
-            (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') ||
-            (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') ||
-            (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') ||
-            (typeof selectBushBrush !== 'undefined' && selectBushBrush.value !== 'none') ||
-            (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none') ||
-            (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') ||
-            (typeof CinematicManager !== 'undefined' && (CinematicManager.isDrawingMode || CinematicManager.isDrawingFoxMode));
-
-        if (!isBrushActive) {
+        if (!toolActive) {
             selectionPointerDownInfo = {
                 x: e.clientX,
                 y: e.clientY,

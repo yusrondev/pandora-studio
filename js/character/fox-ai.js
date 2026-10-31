@@ -72,6 +72,7 @@ class FoxAIAgent {
         this.attacksCompletedInBurst = 0;
         this.combatRestTimer = 0.0;     // Timer 2 detik untuk mundur & istirahat
         this.betweenPunchDelay = 0.0;   // Jeda mikro natural antar pukulan
+        this.approachDelayTimer = 1.0;  // Jeda 1 detik saat enemy mendekat sebelum melancarkan serangan pertama
         this._wasPunching = false;
 
         // Variasi Acak Gait Locomotion (Walk & Run Pacing independen dari player)
@@ -651,6 +652,7 @@ class FoxAIAgent {
             if (this.model.isTakingHit) {
                 this.targetSpeed = 0;
                 this.currentSpeed = 0;
+                this.approachDelayTimer = 1.0; // Reset jeda 1 detik setelah terkena hit
                 this.state = 'HIT_STUN';
                 return;
             }
@@ -693,6 +695,7 @@ class FoxAIAgent {
                     this.attacksCompletedInBurst = 0;
                     this.attackComboTarget = 3 + Math.floor(Math.random() * 3); // 3, 4, atau 5 serangan
                     this.betweenPunchDelay = 0.0;
+                    this.approachDelayTimer = 1.0; // Beri jeda 1 detik sebelum mendekat dan melancarkan burst baru
                     this._wasPunching = false;
                 }
                 return;
@@ -728,9 +731,12 @@ class FoxAIAgent {
                 return;
             }
 
-            // Jarak Presisi Kontak Pukulan Melee (Fist Contact Physical Range)
-            // AI hanya boleh mulai memukul jika sudah benar-benar dekat (<= 1.25m) agar tangan menyentuh badan visual
-            const PUNCH_RANGE = 1.25;
+            // Jarak Presisi Kontak Pukulan Melee (Disesuaikan secara proporsional dengan skala tubuh Enemy)
+            const enemyScale = (this.root && this.root.scale && this.root.scale.x > 0)
+                ? (this.root.scale.x / 1.85)
+                : 1.0;
+            const PUNCH_RANGE = (this.isBoss ? 2.10 : 1.45) * Math.max(0.75, enemyScale);
+            const closeStopDist = Math.max(0.65, 0.75 * enemyScale);
 
             // 1. JIKA SEDANG MELANCARKAN PUKULAN (ACTIVE PUNCH STATE):
             if (isCurrentlyPunching) {
@@ -745,25 +751,18 @@ class FoxAIAgent {
                     this.turnTowardAngle(aimAngle, dt);
                 }
 
-                // STEP-IN TRACKING RAPAT:
-                // Selama pukulan belum mendarat (wind-up), AI terus melangkah rapat mendekati tubuh Player
-                // agar kepalan tangan 3D benar-benar MENYENTUH tubuh Player (bukan memukul angin di kejauhan).
-                const strikeProcessed = Boolean(this.model && this.model.strikeProcessed);
-                if (!strikeProcessed) {
-                    if (distToPlayer > 0.95) {
-                        // Jika player melangkah santai menjauh, susul dengan lunge maju rapat (~2.2 m/s)
-                        this.targetSpeed = Math.min(this.walkSpeed * 1.35, 2.3);
-                    } else {
-                        // Jarak sudah sangat rapat menempel tubuh (~0.85m-0.95m), tahan agar tidak tembus
-                        this.targetSpeed = 0;
-                    }
+                // AI melangkah maju dengan tegas (combat lunge) saat mengayunkan pukulan
+                // untuk menutup celah jarak sehingga kepalan tangan benar-benar mendarat di tubuh Player
+                if (distToPlayer > closeStopDist && distToPlayer <= (PUNCH_RANGE + 1.2)) {
+                    this.targetSpeed = Math.min(this.walkSpeed * 1.15, 1.75 * enemyScale);
+                    this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, this.targetSpeed, Math.min(1.0, 9.0 * dt));
                 } else {
-                    // Setelah kepalan mendarat di tubuh target, redam langkah saat menarik kembali tangan
                     this.targetSpeed = 0;
+                    this.currentSpeed = 0;
                 }
 
-                // Batalkan pukulan jika player kabur sangat jauh (> 4.5m)
-                if (distToPlayer > 4.5 && typeof this.model.cancelPunch === 'function') {
+                // Batalkan pukulan jika player kabur sangat jauh (> 5.5m)
+                if (distToPlayer > (5.0 * enemyScale) && typeof this.model.cancelPunch === 'function') {
                     this.model.cancelPunch();
                     this.isPunching = false;
                     this._wasPunching = false;
@@ -771,7 +770,7 @@ class FoxAIAgent {
                 return;
             }
 
-            // 2. JIKA SUDAH MENDEKATI BADAN PLAYER DALAM JARAK SENTUH FISIK (TRIGGER PUNCH):
+            // 2. JIKA SUDAH MEMASUKI JARAK COMBAT (TRIGGER PUNCH):
             if (distToPlayer <= PUNCH_RANGE) {
                 // Hadapkan badan tepat ke arah Player
                 const toPlayer = new THREE.Vector3().subVectors(playerPos, this.root.position).setY(0);
@@ -781,13 +780,32 @@ class FoxAIAgent {
                     this.turnTowardAngle(aimAngle, dt);
                 }
 
-                // Eksekusi animasi pukulan baru
+                // JEDA 1 DETIK SAAT MENDEKAT: Enemy tidak langsung menyerang begitu tiba di depan player
+                // Melainkan berdiri siaga / melangkah santai tatap mata selama 1 detik
+                if (this.approachDelayTimer > 0) {
+                    this.approachDelayTimer -= dt;
+                    if (distToPlayer > closeStopDist) {
+                        this.targetSpeed = Math.min(this.walkSpeed * 0.35, 0.50 * enemyScale);
+                        this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, this.targetSpeed, Math.min(1.0, 5.0 * dt));
+                    } else {
+                        this.targetSpeed = 0;
+                        this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, 0, Math.min(1.0, 8.0 * dt));
+                    }
+                    this.state = 'COMBAT_PREPARE';
+                    return;
+                }
+
+                // Langkah awal saat memicu pukulan
+                if (distToPlayer > closeStopDist) {
+                    this.targetSpeed = Math.min(this.walkSpeed * 0.9, 1.2 * enemyScale);
+                } else {
+                    this.targetSpeed = 0;
+                    this.currentSpeed = 0;
+                }
                 if (typeof this.model.triggerPunch === 'function') {
                     this.model.triggerPunch();
                     this._wasPunching = true;
                     this.isPunching = true;
-                    // Lunge maju jika masih ada celah jarak
-                    this.targetSpeed = (distToPlayer > 0.95) ? Math.min(this.walkSpeed * 1.35, 2.3) : 0;
                 }
                 this.state = 'COMBAT_PUNCH';
                 return;
@@ -796,6 +814,10 @@ class FoxAIAgent {
             // 3. JIKA BERADA DI LUAR JARAK PUKUL: BERGERAK MENGEJAR PLAYER
             this.isPunching = false;
             this._wasPunching = false;
+            // Reset jeda 1 detik jika player berada di luar jangkauan pukulan
+            if (distToPlayer > (PUNCH_RANGE + 0.35)) {
+                this.approachDelayTimer = 1.0;
+            }
 
             // Update timer keputusan gaya pergerakan secara acak (walk & run)
             this.locomotionDecisionTimer -= dt;
@@ -1137,7 +1159,7 @@ class FoxAIAgent {
             if (this.model && typeof this.model.updateAnimation === 'function') {
                 this.model.updateAnimation(dt, 0);
             } else if (this.model && this.model.mixer) {
-                this.model.mixer.update(dt);
+                this.model.mixer.update(dt); if (this.model.modelMesh) this.model.modelMesh.rotation.set(0, 0, 0);
             }
             return;
         }

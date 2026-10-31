@@ -258,11 +258,20 @@ function startPlayMode() {
         brushReticleGroup.visible = false;
     }
 
-    // Inisialisasi model rubah jika belum ada
-    if (!wolfCharacter) {
-        wolfCharacter = createWolfCharacterModel();
+    // Inisialisasi atau sinkronisasi model rubah sesuai karakter yang dipilih di Player Spawn Inspector / switcher
+    const selPlayerHero = document.getElementById('select-player-hero-folder');
+    const targetSpecies = (selPlayerHero && selPlayerHero.value) || window.currentFoxSpeciesKey || currentFoxSpeciesKey || 'red';
+
+    if (!wolfCharacter || currentFoxSpeciesKey !== targetSpecies) {
+        if (wolfCharacter && wolfCharacter.root) {
+            scene.remove(wolfCharacter.root);
+        }
+        currentFoxSpeciesKey = targetSpecies;
+        wolfCharacter = createWolfCharacterModel(targetSpecies);
         scene.add(wolfCharacter.root);
     }
+    window.wolfCharacter = wolfCharacter;
+    window.currentFoxSpeciesKey = currentFoxSpeciesKey;
 
     // Spawn rubah di titik area spawn Player (atau target kamera sebagai fallback)
     let spawnX = controls.target.x || 0;
@@ -393,10 +402,6 @@ function startPlayMode() {
         if (txt) txt.innerText = 'Stop Demo';
     }
 
-    // Sembunyikan species switcher bar di Mode Demo per permintaan user
-    const speciesBar = document.getElementById('fox-species-bar');
-    if (speciesBar) speciesBar.style.display = 'none';
-
     const statsHud = document.getElementById('fox-stats-hud');
     if (statsHud) statsHud.style.display = 'none';
 
@@ -500,9 +505,6 @@ function stopPlayMode() {
         if (FoxAIManager.playerWarningBanner) FoxAIManager.playerWarningBanner.classList.remove('visible');
     }
 
-    const speciesBar = document.getElementById('fox-species-bar');
-    if (speciesBar) speciesBar.style.display = 'none';
-
     const statsHud = document.getElementById('fox-stats-hud');
     if (statsHud) statsHud.style.display = 'none';
 
@@ -584,9 +586,7 @@ function stopPlayMode() {
 
 // Fungsi Reusable Switch Karakter Spesies Rubah
 function switchFoxSpecies(speciesKey) {
-    const isHeroFolder = Boolean(window.PandoraHeroRegistry && window.PandoraHeroRegistry.getCharacterMeta(speciesKey));
-    if (!isHeroFolder && (typeof FOX_SPECIES === 'undefined' || !FOX_SPECIES[speciesKey])) return;
-
+    if (!speciesKey) return;
     let posX = 0, posY = 0, posZ = 0, rotY = 0;
     if (wolfCharacter && wolfCharacter.root) {
         posX = wolfCharacter.root.position.x;
@@ -607,22 +607,65 @@ function switchFoxSpecies(speciesKey) {
     wolfCharacter.root.visible = isPlayMode || (typeof CinematicManager !== 'undefined' && CinematicManager.isFoxEnabled);
     scene.add(wolfCharacter.root);
 
+    window.wolfCharacter = wolfCharacter;
+    window.currentFoxSpeciesKey = speciesKey;
+
+    wolfCharacter.root.traverse(child => {
+        child.visible = true;
+        if (child.isMesh) child.frustumCulled = false;
+    });
+
+    if (wolfCharacter) {
+        wolfCharacter.isDead = false;
+        wolfCharacter.isTakingHit = false;
+        wolfCharacter.isBlocking = false;
+        wolfCharacter.isBlockHeld = false;
+        wolfCharacter.blockDrainPool = 0;
+        wolfCharacter.isPunching = false;
+        wolfCharacter.isKicking = false;
+        wolfCharacter.isFlyingPunch = false;
+        wolfCharacter.isFlyingKick = false;
+        wolfCharacter.isJumping = false;
+    }
+
+    // Refresh bone cache Hitbox System untuk karakter baru
+    if (window.PandoraHitboxSystem && typeof window.PandoraHitboxSystem.ensureBoneCache === 'function') {
+        window.PandoraHitboxSystem.ensureBoneCache(wolfCharacter);
+    }
+
+    // Auto-Pasang 3D Attachment (Pedang, Perisai, Sayap, dll) sesuai konfigurasi karakter
+    if (window.PandoraAttachmentSystem && typeof window.PandoraAttachmentSystem.applyAttachmentsToCharacter === 'function') {
+        window.PandoraAttachmentSystem.applyAttachmentsToCharacter(wolfCharacter, speciesKey);
+    }
+
+    // Sinkronisasi dropdown Player Spawn Inspector jika ada
+    const selPlayerHero = document.getElementById('select-player-hero-folder');
+    if (selPlayerHero && selPlayerHero.value !== speciesKey) {
+        selPlayerHero.value = speciesKey;
+    }
+
     if (typeof ItemSystem !== 'undefined') {
         ItemSystem.onFoxSpeciesChanged(wolfCharacter);
     }
 
-    // Update tombol UI aktif
-    document.querySelectorAll('.btn-species-pill').forEach(btn => {
-        if (btn.dataset.species === speciesKey) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
+    // Sinkronkan pemilih karakter di toolbar
+    const selPlayCharacter = document.getElementById('select-play-character');
+    if (selPlayCharacter && selPlayCharacter.value !== speciesKey) {
+        selPlayCharacter.value = speciesKey;
+    }
 
     // Update stats info dan reset stamina untuk spesies baru
     if (typeof updateFoxStatsDisplay === 'function') {
         updateFoxStatsDisplay(speciesKey);
+    }
+
+    // Beri Toast konfirmasi pergantian karakter
+    if (typeof PandoraToast !== 'undefined' && PandoraToast.show) {
+        const meta = (window.PandoraHeroRegistry && typeof window.PandoraHeroRegistry.getCharacterMeta === 'function')
+            ? window.PandoraHeroRegistry.getCharacterMeta(speciesKey)
+            : null;
+        const charName = meta ? ((meta.badge || '⚔️') + ' ' + meta.name) : speciesKey;
+        PandoraToast.show('🦊 Karakter berganti ke: ' + charName, 'info');
     }
 }
 
@@ -639,11 +682,6 @@ if (btnPlayMode) {
     btnPlayMode.addEventListener('click', togglePlayMode);
 }
 
-const btnExitDemo = document.getElementById('btn-exit-demo-mode');
-if (btnExitDemo) {
-    btnExitDemo.addEventListener('click', stopPlayMode);
-}
-
 const btnToggleBattle = document.getElementById('btn-toggle-battle-mode');
 if (btnToggleBattle) {
     btnToggleBattle.addEventListener('click', (e) => {
@@ -651,8 +689,6 @@ if (btnToggleBattle) {
         if (typeof FoxAIManager !== 'undefined') {
             FoxAIManager.isBattleModeActive = !FoxAIManager.isBattleModeActive;
             btnToggleBattle.classList.toggle('active', FoxAIManager.isBattleModeActive);
-            btnToggleBattle.style.background = FoxAIManager.isBattleModeActive ? 'rgba(239, 68, 68, 0.4)' : '';
-            btnToggleBattle.style.borderColor = FoxAIManager.isBattleModeActive ? '#ef4444' : '';
             if (typeof PandoraToast !== 'undefined') {
                 PandoraToast.show(FoxAIManager.isBattleModeActive ? '⚔️ AI Plasma Battle Mode: AKTIF!' : '🕊️ AI Plasma Battle Mode: NONAKTIF', 'info');
             }
@@ -660,22 +696,38 @@ if (btnToggleBattle) {
     });
 }
 
-// Event Delegation untuk Tombol Switch Spesies Rubah
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-species-pill');
-    if (btn && btn.dataset && btn.dataset.species) {
-        switchFoxSpecies(btn.dataset.species);
-    }
-});
+// Pemilih karakter di toolbar hanya mengganti karakter; Play Demo tetap satu-satunya pemicu Play Mode.
+// startPlayMode membaca #select-player-hero-folder, jadi nilainya diteruskan ke sana.
+const selectPlayCharacter = document.getElementById('select-play-character');
+if (selectPlayCharacter) {
+    selectPlayCharacter.addEventListener('change', () => {
+        const selPlayerHero = document.getElementById('select-player-hero-folder');
+        if (!selPlayerHero || selPlayerHero.value === selectPlayCharacter.value) return;
+        selPlayerHero.value = selectPlayCharacter.value;
+        selPlayerHero.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+}
 
-// Shortcut Keyboard: 1=Red, 2=Arctic, 3=Corsac, 4=Golden/Swift, 5=Silver, 6=Darwin, ESC=Exit
+// Shortcut Keyboard saat Demo Mode:
+// Tekan angka 1-9 untuk berganti karakter secara dinamis dari PandoraHeroRegistry.characters
 window.addEventListener('keydown', (e) => {
     if (!isPlayMode) return;
-    if (e.key === '1') switchFoxSpecies('red');
-    else if (e.key === '2') switchFoxSpecies('arctic');
-    else if (e.key === '3') switchFoxSpecies('corsac');
-    else if (e.key === '4') switchFoxSpecies('swift');
-    else if (e.key === '5') switchFoxSpecies('silver');
-    else if (e.key === '6') switchFoxSpecies('darwin');
-    else if (e.key === 'Escape') stopPlayMode();
+    if (e.key === 'Escape') {
+        stopPlayMode();
+        return;
+    }
+    // Abaikan jika fokus sedang berada pada form input/textarea
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
+        return;
+    }
+    const num = parseInt(e.key, 10);
+    if (!isNaN(num) && num >= 1 && num <= 9) {
+        const chars = (window.PandoraHeroRegistry && Array.isArray(window.PandoraHeroRegistry.characters))
+            ? window.PandoraHeroRegistry.characters
+            : null;
+        if (chars && chars[num - 1]) {
+            e.preventDefault();
+            switchFoxSpecies(chars[num - 1].id);
+        }
+    }
 });

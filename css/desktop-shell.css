@@ -1,0 +1,588 @@
+/* =========================================================
+   PANDORA DESKTOP SHELL (dimuat terakhir di kedua halaman)
+   Topbar, status bar, widget, popup & tooltip ala Blender 4.x
+   ========================================================= */
+:root {
+    --bl-window: #1d1d1d;
+    --bl-area: #303030;
+    --bl-panel: #2b2b2b;
+    --bl-panel-head: #3d3d3d;
+    --bl-field: #1d1d1d;
+    --bl-widget: #545454;
+    --bl-widget-hover: #656565;
+    --bl-widget-dark: #3f3f3f;
+    --bl-line: #161616;
+    --bl-text: #d6d6d6;
+    --bl-text-dim: #a0a0a0;
+    --bl-accent: #4772b3;
+    --bl-accent-hi: #5680c2;
+    --bl-orange: #e87d0d;
+    --bl-topbar-h: 26px;
+    --bl-toolbar-h: 30px;
+    --bl-status-h: 22px;
+    --bl-gap: 2px;
+    --header-height: calc(var(--bl-topbar-h) + var(--bl-toolbar-h));
+}
+
+@media (max-width: 768px) {
+    :root { --bl-status-h: 0px; --bl-gap: 0px; }
+    #bl-statusbar { display: none !important; }
+}
+
+/* --- PERILAKU DESKTOP: tanpa kursor tangan, seleksi, glow fokus, animasi web --- */
+html, body {
+    overscroll-behavior: none;
+    background: var(--bl-window);
+}
+
+button, a, label, select, summary,
+input[type="checkbox"], input[type="color"], input[type="file"],
+[style*="cursor:pointer"], [style*="cursor: pointer"],
+.accordion-title, .layer-item, .layer-group-header, .spawner-card,
+.ht-anim-pill, .ht-bone-chip, .ht-hitbox-item, .ht-att-card, .ht-section-title {
+    cursor: default !important;
+}
+
+a { color: inherit; -webkit-user-drag: none; }
+input:not([type="range"]):not([type="checkbox"]), textarea { user-select: text; -webkit-user-select: text; }
+:focus-visible { outline: none; }
+::selection { background: var(--bl-accent); color: #fff; }
+
+body.bl-scrubbing, body.bl-scrubbing * { cursor: ew-resize !important; }
+
+#bl-topbar *, #top-toolbar *, .sidebar, .sidebar *, #viewport-container,
+.cinematic-bottom-panel, .cinematic-bottom-panel *, .toolbar-overflow-dropdown *,
+.ht-header *, .ht-sidebar-left *, .ht-sidebar-right *, .ht-bottom-dock * {
+    transition: none !important;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #555; border: 2px solid transparent; background-clip: content-box; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #6e6e6e; background-clip: content-box; border: 2px solid transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+.bl-icon { width: 14px; height: 14px; flex-shrink: 0; display: block; }
+
+/* --- TOPBAR: logo, menu, workspace tabs --- */
+#bl-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--bl-topbar-h);
+    display: flex;
+    align-items: stretch;
+    background: var(--bl-window);
+    padding-left: 4px;
+    z-index: 110;
+    white-space: nowrap;
+}
+
+.bl-topbar-logo {
+    width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bl-orange);
+}
+
+.bl-topbar-logo .bl-icon { width: 16px; height: 16px; }
+
+.bl-menubar { display: flex; align-items: center; margin-right: 10px; }
+
+.bl-menu-btn {
+    height: 22px;
+    padding: 0 8px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--bl-text);
+    font-size: 12px;
+}
+
+.bl-menu-btn:hover, .bl-menu-btn.bl-open { background: var(--bl-accent); color: #fff; }
+
+.bl-workspaces { display: flex; align-items: flex-end; gap: 1px; min-width: 0; overflow: hidden; }
+
+.bl-ws-tab, button.bl-ws-tab {
+    display: inline-flex;
+    align-items: center;
+    height: 23px;
+    padding: 0 12px;
+    background: #272727;
+    border: none;
+    border-radius: 4px 4px 0 0;
+    color: var(--bl-text-dim);
+    font-size: 12px;
+    font-weight: 400;
+    text-decoration: none;
+    box-shadow: none;
+}
+
+.bl-ws-tab:hover, button.bl-ws-tab:hover { background: #363636; color: #fff; }
+.bl-ws-tab.active, button.bl-ws-tab.active, button.bl-ws-tab.active:hover { background: var(--bl-area); color: #fff; }
+.bl-topbar-spacer { flex: 1; }
+
+/* --- STATUS BAR --- */
+#bl-statusbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--bl-status-h);
+    background: var(--bl-window);
+    color: var(--bl-text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    font-size: 11px;
+    z-index: 110;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.bl-status-left, .bl-status-right { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.bl-status-left { overflow: hidden; }
+.bl-status-right { flex-shrink: 0; padding-left: 14px; font-variant-numeric: tabular-nums; }
+.bl-hint { display: inline-flex; align-items: center; gap: 4px; }
+.bl-hint span { font-size: 11px; }
+.bl-mouse { width: 14px; height: 14px; }
+.bl-hint kbd {
+    font: inherit;
+    font-size: 10px;
+    padding: 0 4px;
+    line-height: 14px;
+    color: var(--bl-text);
+    border: 1px solid #555;
+    border-radius: 3px;
+}
+
+/* --- POPUP MENU & TOOLTIP --- */
+.bl-popup {
+    position: fixed;
+    z-index: 2000000;
+    min-width: 170px;
+    max-width: 420px;
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+    padding: 3px;
+    background: #181818;
+    border: 1px solid #0c0c0c;
+    border-radius: 4px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+
+.bl-popup-title {
+    padding: 3px 6px;
+    color: var(--bl-text-dim);
+    font-size: 11px;
+    border-bottom: 1px solid #333;
+    margin-bottom: 3px;
+}
+
+.bl-popup-sep { height: 1px; background: #333; margin: 3px 4px; }
+
+.bl-popup-item {
+    width: 100%;
+    height: 21px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px 0 2px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--bl-text);
+    font-size: 12px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.bl-popup-item:hover:not(:disabled) { background: var(--bl-accent); color: #fff; }
+.bl-popup-item.selected { background: #3a3a3a; color: #fff; }
+.bl-popup-item.selected:hover { background: var(--bl-accent); }
+.bl-popup-item:disabled { color: #666; }
+.bl-popup-check { width: 16px; display: inline-flex; justify-content: center; flex-shrink: 0; }
+.bl-popup-check .bl-icon { width: 11px; height: 11px; }
+.bl-popup-label { flex: 1; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.bl-popup-key { margin-left: 22px; color: #8f8f8f; font-size: 11px; }
+.bl-popup-item:hover:not(:disabled) .bl-popup-key { color: #e4e4e4; }
+
+.bl-tooltip {
+    position: fixed;
+    display: none;
+    z-index: 2000001;
+    max-width: 320px;
+    padding: 5px 8px;
+    background: #181818;
+    border: 1px solid #0c0c0c;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+    color: var(--bl-text);
+    font-size: 12px;
+    line-height: 1.35;
+    pointer-events: none;
+}
+
+/* --- WIDGET DASAR (berlaku di kedua halaman) --- */
+input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    flex-shrink: 0;
+    background: var(--bl-widget);
+    border: 1px solid #2c2c2c;
+    border-radius: 3px;
+    position: relative;
+}
+
+input[type="checkbox"]:hover { background: var(--bl-widget-hover); }
+input[type="checkbox"]:checked { background: var(--bl-accent); border-color: #2f4f80; }
+input[type="checkbox"]:checked:hover { background: var(--bl-accent-hi); }
+
+input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 3px;
+    height: 7px;
+    border: solid #fff;
+    border-width: 0 1.6px 1.6px 0;
+    transform: rotate(40deg);
+}
+
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; cursor: ew-resize; }
+input[type="number"]:focus { cursor: text; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0 !important;
+    border: 1px solid #2c2c2c !important;
+    border-radius: 3px !important;
+    background: none;
+}
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    background-color: var(--bl-widget-dark) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b0b0b0' stroke-width='1.3'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 6px center !important;
+    background-size: 8px 5px !important;
+    color: var(--bl-text) !important;
+    border: 1px solid #2c2c2c !important;
+    border-radius: 3px !important;
+    padding: 0 18px 0 7px !important;
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    box-shadow: none !important;
+}
+
+select:hover, select.bl-open { background-color: #505050 !important; }
+
+/* Slider jadi field terisi (seperti slider property Blender), thumb tak terlihat.
+   Scrubber timeline/cinematic dikecualikan: punya gaya playhead sendiri. */
+input[type="range"]:not(.ht-scrubber-input):not(.cinematic-timeline-slider):not(.cinematic-dock-scrubber) {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 20px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #2c2c2c;
+    border-radius: 3px;
+    outline: none;
+    background: linear-gradient(to right, var(--bl-accent) var(--bl-fill, 50%), var(--bl-widget) var(--bl-fill, 50%));
+    accent-color: auto;
+    cursor: ew-resize;
+}
+
+input[type="range"]:not(.ht-scrubber-input):not(.cinematic-timeline-slider):not(.cinematic-dock-scrubber):hover {
+    background: linear-gradient(to right, var(--bl-accent-hi) var(--bl-fill, 50%), var(--bl-widget-hover) var(--bl-fill, 50%));
+}
+
+input[type="range"]:not(.ht-scrubber-input):not(.cinematic-timeline-slider):not(.cinematic-dock-scrubber)::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 2px;
+    height: 18px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    cursor: ew-resize;
+}
+
+/* =========================================================
+   STUDIO (index.html)
+   ========================================================= */
+body[data-app="studio"] { --bg-header: var(--bl-area); --bg-panel: var(--bl-panel); --bg-panel-header: var(--bl-panel-head); }
+
+#top-toolbar {
+    top: var(--bl-topbar-h);
+    height: var(--bl-toolbar-h);
+    background: var(--bl-area);
+    border-bottom: none;
+    padding: 0 6px;
+    gap: 3px;
+}
+
+#top-toolbar .btn-compact,
+#top-toolbar .btn-icon-only {
+    height: 22px;
+    background: var(--bl-widget-dark);
+    border: 1px solid #2c2c2c;
+    border-radius: 3px;
+    color: var(--bl-text);
+    font-weight: 400;
+    box-shadow: none !important;
+}
+
+#top-toolbar .btn-icon-only { width: 24px; }
+#top-toolbar .btn-compact:hover:not(:disabled),
+#top-toolbar .btn-icon-only:hover:not(:disabled) { background: #505050; color: #fff; }
+#top-toolbar .btn-compact.active,
+#top-toolbar .btn-icon-only.active,
+#top-toolbar .btn-compact:active:not(:disabled) { background: var(--bl-accent) !important; border-color: #2f4f80 !important; color: #fff !important; }
+#top-toolbar .svg-icon { color: inherit !important; }
+
+#top-toolbar select { height: 22px !important; }
+.btn-toolbar-overflow { top: 4px; right: 6px; }
+#btn-open-hit-tool { display: none !important; } /* digantikan workspace tab */
+.divider { background: transparent; margin: 0 4px; }
+.toolbar-group label { color: var(--bl-text-dim); font-size: 11px; }
+.toolbar-group label .svg-icon { display: none; }
+.toolbar-group input[type="range"] { width: 62px !important; height: 20px !important; }
+#top-toolbar .val-badge { background: transparent; border: none; color: var(--bl-text-dim); padding: 0; font-family: inherit; font-size: 11px; min-width: 26px; }
+
+@media (min-width: 769px) {
+    #viewport-container {
+        top: calc(var(--header-height) + var(--bl-gap));
+        left: calc(var(--sidebar-left-actual-width, 285px) + var(--bl-gap));
+        right: calc(var(--sidebar-right-actual-width, 285px) + var(--bl-gap));
+        bottom: var(--bl-status-h);
+        border-radius: 4px;
+        transition: none !important;
+    }
+
+    body.cinematic-footer-open #viewport-container,
+    body:has(#cinematic-bottom-panel.visible) #viewport-container {
+        bottom: calc(var(--cinematic-bottom-height, 250px) + var(--bl-status-h) + var(--bl-gap));
+    }
+
+    body:has(#sidebar-left.collapsed) #viewport-container { left: 0; }
+    body:has(#sidebar-right.collapsed) #viewport-container { right: 0; }
+
+    .sidebar {
+        top: calc(var(--header-height) + var(--bl-gap));
+        bottom: var(--bl-status-h);
+        height: auto;
+        border-radius: 4px;
+        overflow: hidden;
+        border: none !important;
+    }
+
+    body.cinematic-footer-open .sidebar,
+    body:has(#cinematic-bottom-panel.visible) .sidebar {
+        bottom: calc(var(--cinematic-bottom-height, 250px) + var(--bl-status-h) + var(--bl-gap));
+        height: auto;
+    }
+
+    .sidebar-resizer { z-index: 105; }
+
+    .cinematic-bottom-panel {
+        bottom: var(--bl-status-h);
+        border-top: none !important;
+        border-radius: 4px;
+    }
+}
+
+body.play-mode-active #bl-topbar,
+body.play-mode-active #bl-statusbar { display: none !important; }
+
+body.play-mode-active #viewport-container { border-radius: 0; }
+
+/* Header editor (Inspector / Layers) */
+.sidebar { overflow: visible; }
+.sidebar-header {
+    height: 26px;
+    padding: 0 6px 0 8px;
+    background: var(--bl-area);
+    border-bottom: none;
+    color: var(--bl-text);
+    font-weight: 400;
+    letter-spacing: 0;
+    font-size: 12px;
+}
+.sidebar-header-title span { font-size: 12px; }
+.sidebar-header .btn-icon-only { background: transparent; border: none; }
+.sidebar-header .btn-icon-only:hover { background: #4a4a4a; }
+.header-badge { background: transparent; border: none; color: var(--bl-text-dim); font-size: 11px; }
+
+/* Properties editor: kolom tab + isi */
+.bl-props-body { flex: 1; min-height: 0; display: flex; }
+.bl-props-body .sidebar-content { min-width: 0; }
+
+.bl-props-tabs {
+    width: 30px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 0 4px 3px;
+    background: #232323;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.bl-props-tab {
+    height: 24px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px 0 0 4px;
+    color: var(--bl-text-dim);
+}
+
+.bl-props-tab .svg-icon { width: 14px; height: 14px; display: block; }
+.bl-props-tab .svg-icon svg { width: 14px; height: 14px; display: block; stroke-width: 2; }
+.bl-props-tab:hover { background: #3a3a3a; }
+.bl-props-tab.active { background: var(--bl-panel); }
+
+.accordion.bl-tab-hidden { display: none; }
+
+.sidebar-content { padding: 4px; background: var(--bl-panel); }
+
+/* Rollout panel */
+.accordion { border: none; border-radius: 3px; margin-bottom: 3px; background: #333; }
+.accordion-title, .accordion-title[style] {
+    padding: 0 6px;
+    height: 24px;
+    background: var(--bl-panel-head);
+    color: var(--bl-text) !important;
+    border-bottom: none;
+    font-weight: 400;
+    font-size: 12px;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 6px;
+}
+.accordion-title:hover { background: #474747; }
+.accordion-title-left span { font-size: 12px; }
+.accordion-title-left .svg-icon { display: none; }
+.chevron-icon { color: var(--bl-text-dim); display: inline-flex; }
+.accordion-body { background: #333; padding: 6px 8px 8px; gap: 5px; }
+
+/* Panel bersarang di dalam panel/tab (Sculpt, Transformasi Pohon & Karakter) */
+.accordion.bl-nested { margin: 6px 0 0; background: #2b2b2b; border: 1px solid #262626; }
+.accordion.bl-nested > .accordion-title { background: #383838; }
+.accordion.bl-nested > .accordion-title:hover { background: #424242; }
+.accordion.bl-nested > .accordion-body { background: #2f2f2f; }
+
+#toolbar-group-character select { height: 22px !important; }
+
+/* Baris property: label kiri, field kanan, nilai menumpang di slider */
+.control-group label { color: var(--bl-text-dim); font-weight: 400; font-size: 11px; }
+
+.control-group:has(> label .val-badge):has(> input[type="range"]) {
+    display: grid;
+    grid-template-columns: 40% 1fr;
+    column-gap: 6px;
+    row-gap: 3px;
+    align-items: center;
+}
+.control-group:has(> label .val-badge):has(> input[type="range"]) > label { display: contents; }
+.control-group:has(> label .val-badge):has(> input[type="range"]) > label > span:first-child { grid-column: 1; grid-row: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.control-group:has(> label .val-badge):has(> input[type="range"]) > input[type="range"] { grid-column: 2; grid-row: 1; width: 100%; margin: 0; }
+.control-group:has(> label .val-badge):has(> input[type="range"]) > label .val-badge {
+    grid-column: 2;
+    grid-row: 1;
+    z-index: 1;
+    justify-self: center;
+    pointer-events: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: #fff;
+    font-family: inherit;
+    font-size: 11px;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+.control-group:has(> label .val-badge):has(> input[type="range"]) > :not(label):not(input[type="range"]) { grid-column: 1 / -1; }
+
+.control-group:has(> label):has(> select) { display: grid; grid-template-columns: 40% 1fr; column-gap: 6px; align-items: center; }
+.control-group:has(> label):has(> select) > label { display: block; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bl-text-dim) !important; font-size: 11px !important; }
+.control-group:has(> label):has(> select) > select { height: 20px !important; }
+.control-group:has(> label):has(> select) > :not(label):not(select) { grid-column: 1 / -1; }
+
+/* Checkbox di kiri label, seperti property boolean Blender */
+.control-group:has(> input[type="checkbox"]) { flex-direction: row; justify-content: flex-start !important; align-items: center; gap: 6px; }
+.control-group > input[type="checkbox"] { order: -1; }
+
+.val-badge { background: var(--bl-field); border-color: #151515; }
+
+.control-group input[type="text"], .control-group input[type="number"], .control-group textarea {
+    background: var(--bl-field) !important;
+    border: 1px solid #151515 !important;
+    border-radius: 3px !important;
+    color: var(--bl-text) !important;
+    box-shadow: none !important;
+}
+
+.sidebar .btn-compact, .sidebar .btn-action, .sidebar .btn-pose-pill {
+    background: var(--bl-widget);
+    border: 1px solid #2c2c2c;
+    border-radius: 3px;
+    color: var(--bl-text);
+    font-weight: 400;
+    box-shadow: none;
+}
+.sidebar .btn-compact:hover, .sidebar .btn-action:hover { background: var(--bl-widget-hover); color: #fff; }
+.sidebar .btn-compact.active, .sidebar .btn-action.btn-primary, .sidebar .btn-pose-pill.active { background: var(--bl-accent); border-color: #2f4f80; color: #fff; }
+.sidebar .btn-action.btn-primary:hover { background: var(--bl-accent-hi); }
+
+.spawner-card { background: #3a3a3a; border-color: #2a2a2a; border-radius: 3px; }
+.spawner-card:hover { background: #474747; }
+.spawner-card.active { background: var(--bl-accent); border-color: #2f4f80; }
+.brush-mode-tabs { background: transparent; border: none; padding: 0; gap: 1px; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); }
+.brush-tab-btn { background: var(--bl-widget-dark); border: none !important; color: var(--bl-text); font-weight: 400 !important; height: 21px; border-radius: 0; }
+.brush-tab-btn:hover { background: #505050; }
+.brush-tab-btn.active { background: var(--bl-accent); }
+
+/* Outliner */
+#sidebar-right .sidebar-content { background: #282828; padding: 2px 0; }
+.layer-group { margin-bottom: 0; border-radius: 0; }
+.layer-group-header { background: transparent; border: none; border-radius: 0; height: 20px; padding: 0 6px; font-weight: 400; color: var(--bl-text); }
+.layer-group-header:hover { background: #3a3a3a; }
+.layer-group-badge { background: transparent; border: none; color: var(--bl-text-dim); font-family: inherit; }
+.layer-group-children { margin: 0 0 0 13px; padding-left: 6px; border-left: 1px solid #3f3f3f; }
+.layer-item { height: 20px; padding: 0 6px; margin: 0; border: none; border-radius: 0; font-weight: 400; }
+.layer-item:hover { background: #3a3a3a; }
+.layer-item.active { background: #33527f; }
+
+/* Dock timeline & menu overflow */
+.toolbar-overflow-dropdown { background: #181818; border-radius: 4px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6); }
+.overflow-dropdown-header { display: none; }
+
+/* Modal: dialog desktop, bukan kartu web */
+.pandora-modal-overlay { background: rgba(0, 0, 0, 0.25) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.pandora-modal-card { background: #303030 !important; border: 1px solid #111 !important; border-radius: 5px !important; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6) !important; transform: none !important; transition: none !important; }
+.pandora-modal-header { background: #262626 !important; border-bottom: 1px solid #1a1a1a !important; padding: 5px 10px !important; }
+
+/* Layar pemuatan: splash flat */
+.pandora-asset-loader { background: var(--bl-window); }
+
+/* =========================================================
+   CATATAN: gaya hit-tool.html ada di css/hit-tool.css
+   ========================================================= */

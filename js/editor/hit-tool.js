@@ -21,6 +21,14 @@
     let activeAnimKey = 'punch1';        // 'punch1', 'kick1', dll
     let selectedHitboxId = null;
 
+    // Mode Studio: 'hitbox' (Combat Collider) vs 'attachment' (Character 3D Socket Manager & T-Pose)
+    let currentStudioMode = 'hitbox';
+    let selectedAttachmentId = null;
+    let gizmoMode = 'translate';         // 'translate' | 'rotate' | 'scale'
+    let isPreviewAnimInAttachment = false;
+    let isBoneDotsVisible = true;
+    const attachmentVisualMap = new Map(); // attachment.id -> THREE.Group (Mesh Wrapper)
+
     // Transport & Timeline State
     let isPlaying = true;
     let isLooping = true;
@@ -51,10 +59,18 @@
     let hitboxVisualGroup = null;
     let hitboxMeshesMap = new Map(); // id -> { solidMesh, wireMesh }
     let hurtboxVisualGroup = null;
+    const attackRangeRings = [];
     let hurtboxCylinderMesh = null;
     let hurtboxBoneSpheres = [];
     let impactRingMesh = null;
     let impactRingAlpha = 0.0;
+
+    // Marker Sorotan Lokasi Tulang saat di-hover di Dropdown / Chip
+    let boneHighlightMarker = null;
+    let boneHighlightRingMesh = null;
+    let boneHighlightOuterMesh = null;
+    let activeHighlightedBoneNode = null;
+    let boneHighlightTimeout = null;
 
     const raycaster = new THREE.Raycaster();
     const pointerNDC = new THREE.Vector2();
@@ -64,8 +80,7 @@
         const el = document.getElementById('ht-toast');
         if (!el) return;
         el.innerText = msg;
-        el.style.background = bg;
-        el.style.color = bg === '#ef4444' ? '#fff' : '#052e16';
+        el.classList.toggle('error', bg === '#ef4444');
         el.classList.add('show');
         clearTimeout(el._timer);
         el._timer = setTimeout(() => el.classList.remove('show'), 2400);
@@ -93,7 +108,7 @@
     function initScene() {
         container = document.getElementById('ht-viewport-container');
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1b1b22);
+        scene.background = new THREE.Color(0x393939);
 
         camera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.05, 100);
         camera.position.set(2.35, 1.55, 2.25);
@@ -101,6 +116,9 @@
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(container.clientWidth, container.clientHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         container.appendChild(renderer.domElement);
@@ -161,6 +179,7 @@
             const ring = new THREE.Mesh(ringGeo, ringMat);
             ring.position.y = 0.004;
             scene.add(ring);
+            attackRangeRings.push(ring);
         });
 
         // Visual Groups untuk Hitbox, Hurtbox, dan Bone Dots
@@ -235,6 +254,48 @@
             boneDotMeshes.push({ boneKey: bEntry.key, mesh: dotMesh });
         });
 
+        // Marker Sorotan Tulang (Muncul di 3D saat user memilih atau meng-hover pilihan tulang)
+        boneHighlightMarker = new THREE.Group();
+        boneHighlightMarker.name = 'BoneHighlightMarker';
+        boneHighlightMarker.visible = false;
+
+        const bhmCoreGeo = new THREE.SphereGeometry(0.045, 16, 16);
+        const bhmCoreMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.95,
+            depthTest: false
+        });
+        const bhmCore = new THREE.Mesh(bhmCoreGeo, bhmCoreMat);
+        bhmCore.renderOrder = 99998;
+        boneHighlightMarker.add(bhmCore);
+
+        const bhmRingGeo = new THREE.RingGeometry(0.07, 0.10, 32);
+        const bhmRingMat = new THREE.MeshBasicMaterial({
+            color: 0x00f0ff,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.90,
+            depthTest: false
+        });
+        boneHighlightRingMesh = new THREE.Mesh(bhmRingGeo, bhmRingMat);
+        boneHighlightRingMesh.renderOrder = 99999;
+        boneHighlightMarker.add(boneHighlightRingMesh);
+
+        const bhmOuterGeo = new THREE.RingGeometry(0.12, 0.14, 32);
+        const bhmOuterMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.50,
+            depthTest: false
+        });
+        boneHighlightOuterMesh = new THREE.Mesh(bhmOuterGeo, bhmOuterMat);
+        boneHighlightOuterMesh.renderOrder = 99999;
+        boneHighlightMarker.add(boneHighlightOuterMesh);
+
+        scene.add(boneHighlightMarker);
+
         // 3D TransformControls Gizmo untuk menggeser Offset Hitbox secara langsung
         gizmoAnchor = new THREE.Object3D();
         scene.add(gizmoAnchor);
@@ -248,10 +309,52 @@
         transformControl.addEventListener('dragging-changed', (event) => {
             orbitControls.enabled = !event.value;
             isDraggingGizmo = event.value;
+            if (event.value) {
+                hideBoneLocationIndicator();
+            }
+            if (!event.value && currentStudioMode === 'attachment') {
+                // Pastikan input-input terisi nilai posisi/rotasi/skala terbaru setelah drag gizmo selesai
+                syncAttachmentInspectorFromSelected(true);
+            }
         });
 
         transformControl.addEventListener('change', () => {
-            if (!isDraggingGizmo || !selectedHitboxId) return;
+            if (!isDraggingGizmo) return;
+
+            // KASUS 1: MODE ATTACHMENT (Menggeser, Memutar, atau Scaling Objek 3D)
+            if (currentStudioMode === 'attachment') {
+                if (!selectedAttachmentId) return;
+                const wrapper = attachmentVisualMap.get(selectedAttachmentId);
+                const attList = (window.PandoraAttachmentSystem && window.PandoraAttachmentSystem.getCharacterAttachments)
+                    ? window.PandoraAttachmentSystem.getCharacterAttachments(activeCharKey)
+                    : null;
+                const att = attList ? attList.find(a => a.id === selectedAttachmentId) : null;
+                if (!wrapper || !att) return;
+
+                // Sinkronkan data objek dari transform visual Three.js
+                att.position = [
+                    Number(wrapper.position.x.toFixed(3)),
+                    Number(wrapper.position.y.toFixed(3)),
+                    Number(wrapper.position.z.toFixed(3))
+                ];
+                att.rotation = [
+                    Number(THREE.MathUtils.radToDeg(wrapper.rotation.x).toFixed(1)),
+                    Number(THREE.MathUtils.radToDeg(wrapper.rotation.y).toFixed(1)),
+                    Number(THREE.MathUtils.radToDeg(wrapper.rotation.z).toFixed(1))
+                ];
+                att.scale = [
+                    Number(wrapper.scale.x.toFixed(3)),
+                    Number(wrapper.scale.y.toFixed(3)),
+                    Number(wrapper.scale.z.toFixed(3))
+                ];
+
+                // PENTING: Update input inspector secara real-time agar input box tidak usang (mencegah reset ke 0,0,0)
+                syncAttachmentInspectorFromSelected(true);
+                return;
+            }
+
+            // KASUS 2: MODE HITBOX (Menggeser Offset Hitbox Bola Serangan)
+            if (!selectedHitboxId) return;
             const hb = getSelectedHitboxObj();
             const attacker = getAttackerInstance();
             if (!hb || !attacker) return;
@@ -332,9 +435,9 @@
         const chars = (window.PandoraHeroRegistry && Array.isArray(window.PandoraHeroRegistry.characters) && window.PandoraHeroRegistry.characters.length > 0)
             ? window.PandoraHeroRegistry.characters
             : [
-                { id: 'red', hitToolKey: 'hero', name: 'Red Fox', icon: '🦊' },
-                { id: 'enemy-foxtree', hitToolKey: 'enemy-foxtree', name: 'FoxTree', icon: '👹' },
-                { id: 'tharon', hitToolKey: 'tharon', name: 'Tharon', icon: '⚔️' }
+                { id: 'red', hitToolKey: 'hero', name: 'Red Fox', icon: '' },
+                { id: 'enemy-foxtree', hitToolKey: 'enemy-foxtree', name: 'FoxTree', icon: '' },
+                { id: 'tharon', hitToolKey: 'tharon', name: 'Tharon', icon: '' }
             ];
 
         containerEl.innerHTML = '';
@@ -344,7 +447,7 @@
             btn.type = 'button';
             btn.className = 'ht-char-btn' + (cKey === activeCharKey ? ' active' : '');
             btn.dataset.char = cKey;
-            btn.innerHTML = (c.icon || '🦸') + ' ' + (c.name || c.id);
+            btn.textContent = c.name || c.id;
             btn.title = 'Atur Hitbox & Animasi untuk folder ' + (c.folder || ('hero/' + c.id));
             btn.addEventListener('click', async () => {
                 activeCharKey = cKey;
@@ -358,9 +461,18 @@
                 selectedHitboxId = (cfg && cfg.hitboxes && cfg.hitboxes.length > 0) ? cfg.hitboxes[0].id : null;
 
                 applyCharacterPositionsAndRoles();
-                playSelectedAnimationOnAttacker(true);
-                playIdleOnDummy();
-                renderAllUI();
+
+                if (currentStudioMode === 'attachment') {
+                    applyTPoseToActiveCharacter();
+                    selectedAttachmentId = null;
+                    populateAttachmentTestAnimations();
+                    renderAttachmentUI();
+                    renderAttachmentLibraryUI();
+                } else {
+                    playSelectedAnimationOnAttacker(true);
+                    playIdleOnDummy();
+                    renderAllUI();
+                }
             });
             containerEl.appendChild(btn);
         });
@@ -394,9 +506,9 @@
         const chars = (window.PandoraHeroRegistry && window.PandoraHeroRegistry.characters.length > 0)
             ? window.PandoraHeroRegistry.characters
             : [
-                { id: 'red', hitToolKey: 'hero', name: 'Red Fox', icon: '🦊' },
-                { id: 'enemy-foxtree', hitToolKey: 'enemy-foxtree', name: 'FoxTree', icon: '👹' },
-                { id: 'tharon', hitToolKey: 'tharon', name: 'Tharon', icon: '⚔️' }
+                { id: 'red', hitToolKey: 'hero', name: 'Red Fox', icon: '' },
+                { id: 'enemy-foxtree', hitToolKey: 'enemy-foxtree', name: 'FoxTree', icon: '' },
+                { id: 'tharon', hitToolKey: 'tharon', name: 'Tharon', icon: '' }
             ];
 
         for (const c of chars) {
@@ -412,6 +524,9 @@
         playSelectedAnimationOnAttacker(true);
         playIdleOnDummy();
         renderAllUI();
+
+        // Masuk lewat hit-tool.html#attachment: mode sudah aktif sebelum karakter selesai dimuat
+        if (currentStudioMode === 'attachment') setStudioMode('attachment');
     }
 
     function applyCharacterPositionsAndRoles() {
@@ -465,7 +580,9 @@
             targetAction.setEffectiveWeight(1.0);
             targetAction.setLoop(THREE.LoopRepeat, Infinity);
             targetAction.clampWhenFinished = false;
-            targetAction.timeScale = 1.0;
+            const animCfg = getCurrentAnimConfig();
+            const animSpeed = (animCfg && typeof animCfg.speed === 'number' && animCfg.speed > 0) ? animCfg.speed : 1.0;
+            targetAction.timeScale = animSpeed;
             if (resetTime) {
                 targetAction.reset();
             }
@@ -565,7 +682,7 @@
             selectedHitboxId = existingOnBone.id;
             existingOnBone.enabled = true;
             renderAllUI();
-            showToast(`🎯 Area Hitbox aktif di: ${cleanLabel}`);
+            showToast(`Area Hitbox aktif di: ${cleanLabel}`);
             return;
         }
 
@@ -577,7 +694,7 @@
             currentSelected.name = `Hitbox ${cleanLabel}`;
             currentSelected.enabled = true;
             renderAllUI();
-            showToast(`🎯 Hitbox dipindahkan ke: ${cleanLabel} (${boneKey})`);
+            showToast(`Hitbox dipindahkan ke: ${cleanLabel} (${boneKey})`);
             return;
         }
 
@@ -597,7 +714,7 @@
         cfg.hitboxes.push(newHb);
         selectedHitboxId = newHb.id;
         renderAllUI();
-        showToast(`✅ Hitbox baru ditambahkan di: ${cleanLabel}`);
+        showToast(`Hitbox baru ditambahkan di: ${cleanLabel}`);
     }
 
     function deleteSelectedHitbox() {
@@ -615,17 +732,57 @@
             }
             selectedHitboxId = cfg.hitboxes.length > 0 ? cfg.hitboxes[0].id : null;
             renderAllUI();
-            showToast(`🗑️ Hitbox dihapus`, '#ef4444');
+            showToast(`Hitbox dihapus`, '#ef4444');
         }
     }
 
     function onViewportPointerDown(e) {
+        // Hilangkan indikator titik tulang saat user berinteraksi dengan canvas / viewport
+        hideBoneLocationIndicator();
+
         if (e.button !== 0 || isDraggingGizmo) return;
         const rect = renderer.domElement.getBoundingClientRect();
         pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
         raycaster.setFromCamera(pointerNDC, camera);
+
+        // KASUS KHUSUS: MODE 3D ATTACHMENT MANAGER (Pilih Objek 3D di Layar atau Klik Titik Sendi)
+        if (currentStudioMode === 'attachment') {
+            const visualWrappers = Array.from(attachmentVisualMap.values());
+            if (visualWrappers.length > 0) {
+                const hits = raycaster.intersectObjects(visualWrappers, true);
+                if (hits.length > 0) {
+                    let cur = hits[0].object;
+                    while (cur && cur.parent && !cur.userData.attachmentId) {
+                        cur = cur.parent;
+                    }
+                    if (cur && cur.userData.attachmentId) {
+                        selectAttachment(cur.userData.attachmentId);
+                        return;
+                    }
+                }
+            }
+
+            // Cek jika user mengklik titik sendi tulang (Bone Dots) langsung di tubuh karakter 3D
+            if (boneDotsGroup && boneDotsGroup.visible) {
+                const dotObjects = boneDotMeshes.map(d => d.mesh);
+                const dotHits = raycaster.intersectObjects(dotObjects, false);
+                if (dotHits.length > 0) {
+                    const bKey = dotHits[0].object.userData.boneKey;
+                    if (bKey) {
+                        const selectBone = document.getElementById('select-att-bone');
+                        if (selectBone) {
+                            selectBone.value = bKey;
+                            selectBone.dispatchEvent(new Event('change'));
+                        }
+                        hideBoneLocationIndicator();
+                        return;
+                    }
+                }
+            }
+            return;
+        }
 
         // 1. Cek klik pada bola Hitbox yang sudah ada
         const hbMeshes = [];
@@ -669,7 +826,7 @@
 
         if (charBadge) {
             const meta = window.PandoraHeroRegistry ? window.PandoraHeroRegistry.getCharacterMeta(activeCharKey) : null;
-            charBadge.innerText = meta ? ((meta.icon || '🦸') + ' ' + meta.name.toUpperCase()) : activeCharKey.toUpperCase();
+            charBadge.innerText = meta ? meta.name : activeCharKey;
         }
 
         const anims = HS.getCharacterAnimations(activeCharKey) || [];
@@ -681,12 +838,17 @@
             const hbCount = (animCfg && Array.isArray(animCfg.hitboxes))
                 ? animCfg.hitboxes.filter(h => h.enabled !== false).length
                 : 0;
+            const animSpeed = (animCfg && typeof animCfg.speed === 'number' && animCfg.speed > 0) ? animCfg.speed : 1.0;
+            const speedBadge = (animSpeed !== 1.0)
+                ? `<span style="font-size:9.5px; font-weight:700; color:#fbbf24; background:rgba(245,158,11,0.2); padding:1px 4px; border-radius:3px; margin-left:auto; margin-right:4px;">${animSpeed.toFixed(animSpeed % 1 === 0 ? 1 : 2)}x</span>`
+                : '';
 
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'ht-anim-pill' + (item.key === activeAnimKey ? ' active' : '');
             btn.innerHTML = `
                 <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.label.split('(')[0].trim()}</span>
+                ${speedBadge}
                 <span class="hb-count-badge" style="${hbCount === 0 ? 'opacity:0.4; color:#9ca3af;' : ''}">${hbCount} HB</span>
             `;
             btn.title = item.label;
@@ -727,7 +889,7 @@
                 btn.type = 'button';
                 const hasHb = activeBonesSet.has(b.key);
                 btn.className = 'ht-bone-chip' + (hasHb ? ' has-hitbox' : '');
-                btn.innerText = b.label.split('(')[0].trim();
+                btn.innerText = window.blStripEmoji(b.label.split('(')[0]);
                 btn.title = `${b.label} — Klik untuk pasang/pilih Hitbox di bagian ini`;
                 btn.addEventListener('click', () => addOrSelectHitboxForBone(b.key));
                 grid.appendChild(btn);
@@ -790,6 +952,22 @@
 
         const animCfg = getCurrentAnimConfig();
         if (animCfg) {
+            // Sync Kecepatan Animasi (Speed)
+            const curSpeed = (typeof animCfg.speed === 'number' && animCfg.speed > 0) ? animCfg.speed : 1.0;
+            const speedSlider = document.getElementById('slider-anim-speed');
+            const speedNum = document.getElementById('num-anim-speed');
+            const speedVal = document.getElementById('val-anim-speed');
+            if (speedSlider) speedSlider.value = curSpeed.toFixed(2);
+            if (speedNum && document.activeElement !== speedNum) speedNum.value = curSpeed.toFixed(2);
+            if (speedVal) speedVal.innerText = `${curSpeed.toFixed(2)}x`;
+
+            // Highlight tombol preset speed
+            const quickSpeedBtns = document.querySelectorAll('.btn-quick-speed');
+            quickSpeedBtns.forEach(b => {
+                const bVal = parseFloat(b.dataset.speed);
+                b.classList.toggle('active', Math.abs(bVal - curSpeed) < 0.03);
+            });
+
             const dmgInput = document.getElementById('input-anim-damage');
             const kbInput = document.getElementById('input-anim-knockback');
             const startSlider = document.getElementById('slider-active-start');
@@ -872,6 +1050,971 @@
     }
 
     // ===================================================================
+    // 5B. SISTEM 3D ATTACHMENT & T-POSE SOCKET MANAGER
+    // ===================================================================
+    function setStudioMode(mode) {
+        currentStudioMode = mode;
+        const btnHitbox = document.getElementById('tab-mode-hitbox');
+        const btnAttachment = document.getElementById('tab-mode-attachment');
+        const panelLeftHitbox = document.getElementById('panel-left-hitbox');
+        const panelLeftAttachment = document.getElementById('panel-left-attachment');
+        const panelRightHitbox = document.getElementById('panel-right-hitbox');
+        const panelRightAttachment = document.getElementById('panel-right-attachment');
+        const dockCombat = document.getElementById('dock-combat-timeline');
+        const dockAttachment = document.getElementById('dock-attachment-banner');
+        const titleLeft = document.getElementById('lbl-left-panel-title');
+        const titleRight = document.getElementById('lbl-right-panel-title');
+
+        if (mode === 'attachment') {
+            if (btnHitbox) btnHitbox.classList.remove('active');
+            if (btnAttachment) btnAttachment.classList.add('active');
+            if (panelLeftHitbox) panelLeftHitbox.style.display = 'none';
+            if (panelLeftAttachment) panelLeftAttachment.style.display = 'block';
+            if (panelRightHitbox) panelRightHitbox.style.display = 'none';
+            if (panelRightAttachment) panelRightAttachment.style.display = 'block';
+            if (dockCombat) dockCombat.style.display = 'none';
+            if (dockAttachment) dockAttachment.style.display = 'flex';
+            if (titleLeft) titleLeft.innerText = 'Objek 3D & Attachment';
+            if (titleRight) titleRight.innerText = 'Inspector';
+
+            hideCombatVisualsForAttachment();
+            const legend = document.querySelector('.ht-viewport-legend');
+            if (legend) legend.style.display = 'none';
+            setBoneDotsVisible(isBoneDotsVisible);
+
+            // Sembunyikan cincin kuning impact dan banner hit combat atas
+            if (impactRingMesh) {
+                impactRingMesh.visible = false;
+                impactRingMesh.material.opacity = 0;
+            }
+            impactRingAlpha = 0;
+            dummyHitTriggeredInCycle = false;
+
+            const topHud = document.querySelector('.ht-viewport-hud-top');
+            if (topHud) topHud.style.display = 'none';
+
+            // Kunci karakter ke pose T-Pose murni
+            applyTPoseToActiveCharacter();
+            setGizmoMode(gizmoMode || 'translate');
+            populateAttachmentTestAnimations();
+            renderAttachmentUI();
+            renderAttachmentLibraryUI();
+            showToast('Mode 3D Attachment Aktif: Pasang & Atur Objek dengan Sumbu XYZ', '#0284c7');
+        } else {
+            if (btnHitbox) btnHitbox.classList.add('active');
+            if (btnAttachment) btnAttachment.classList.remove('active');
+            if (panelLeftHitbox) panelLeftHitbox.style.display = 'block';
+            if (panelLeftAttachment) panelLeftAttachment.style.display = 'none';
+            if (panelRightHitbox) panelRightHitbox.style.display = 'block';
+            if (panelRightAttachment) panelRightAttachment.style.display = 'none';
+            if (dockCombat) dockCombat.style.display = 'block';
+            if (dockAttachment) dockAttachment.style.display = 'none';
+            if (titleLeft) titleLeft.innerText = 'Animasi & Area Tubuh';
+            if (titleRight) titleRight.innerText = 'Inspector';
+
+            const topHud = document.querySelector('.ht-viewport-hud-top');
+            if (topHud) topHud.style.display = 'flex';
+
+            const chkDummy = document.getElementById('chk-enable-dummy');
+            const dummy = getDummyInstance();
+            if (dummy && dummy.root) dummy.root.visible = (!chkDummy || chkDummy.checked);
+            if (hurtboxVisualGroup) hurtboxVisualGroup.visible = dummyEnabled;
+            if (hurtboxCylinderMesh) hurtboxCylinderMesh.visible = true;
+            attackRangeRings.forEach(ring => { ring.visible = true; });
+            const legend = document.querySelector('.ht-viewport-legend');
+            if (legend) legend.style.display = '';
+            setBoneDotsVisible(isBoneDotsVisible);
+
+            // Lepaskan gizmo dari attachment jika masih menempel
+            if (transformControl && transformControl.object && transformControl.object !== gizmoAnchor) {
+                transformControl.detach();
+                transformControl.attach(gizmoAnchor);
+            }
+
+            // Kembalikan animasi combat normal & posisikan kembali ke tanah (y = 0)
+            restoreCombatAnimation();
+
+            // Pasang kembali attachment gameplay normal di karakter jika ada
+            const attacker = getAttackerInstance();
+            if (attacker && window.PandoraAttachmentSystem && typeof window.PandoraAttachmentSystem.applyAttachmentsToCharacter === 'function') {
+                window.PandoraAttachmentSystem.applyAttachmentsToCharacter(attacker, activeCharKey);
+            }
+
+            renderAllUI();
+        }
+    }
+
+    function applyTPoseToActiveCharacter() {
+        const attacker = getAttackerInstance();
+        if (!attacker) return;
+        if (attacker.mixer) {
+            attacker.mixer.stopAllAction();
+        }
+        const model = attacker.modelMesh || attacker.meshContainer || attacker.root;
+        if (model) {
+            model.traverse(child => {
+                if (child.isSkinnedMesh && child.skeleton) {
+                    child.skeleton.pose();
+                }
+            });
+        }
+        if (attacker.root) {
+            // Anti-tenggelam saat T-Pose:
+            // Pada bind-pose Mixamo, hips berada di origin (0,0,0) dan kaki di y = -0.490m.
+            // Dengan skala Red Fox (1.85), kaki berada di y = -0.906m di bawah grid.
+            // Naikkan root ke y = 0.906 agar telapak kaki pas menapak di lantai grid (y = 0).
+            attacker.root.position.set(0, 0.906, 0);
+            attacker.root.updateMatrixWorld(true);
+        }
+        isPreviewAnimInAttachment = false;
+        const selAnim = document.getElementById('sel-attachment-test-anim');
+        if (selAnim) selAnim.value = '';
+    }
+
+    function restoreCombatAnimation() {
+        const attacker = getAttackerInstance();
+        if (attacker && attacker.root) {
+            // Kembalikan ke posisi normal di atas tanah saat animasi berjalan
+            attacker.root.position.set(0, 0, 0);
+            attacker.root.updateMatrixWorld(true);
+        }
+        playSelectedAnimationOnAttacker(true);
+        if (dummyEnabled) playIdleOnDummy();
+    }
+
+    function setGizmoMode(mode) {
+        gizmoMode = mode;
+        if (transformControl) {
+            transformControl.setMode(mode);
+            transformControl.setSpace('local');
+        }
+        const bTrans = document.getElementById('btn-gizmo-translate');
+        const bRot = document.getElementById('btn-gizmo-rotate');
+        const bScale = document.getElementById('btn-gizmo-scale');
+        if (bTrans) bTrans.classList.toggle('active', mode === 'translate');
+        if (bRot) bRot.classList.toggle('active', mode === 'rotate');
+        if (bScale) bScale.classList.toggle('active', mode === 'scale');
+    }
+
+    function showBoneLocationIndicator(boneKey) {
+        if (!boneKey || !boneHighlightMarker) return;
+        const attacker = getAttackerInstance();
+        if (!attacker) return;
+        const AS = window.PandoraAttachmentSystem;
+        const bone = AS ? AS.resolveBone(attacker, boneKey) : null;
+        if (!bone) return;
+
+        activeHighlightedBoneNode = bone;
+        bone.updateWorldMatrix(true, false);
+        bone.getWorldPosition(boneHighlightMarker.position);
+        boneHighlightMarker.visible = true;
+
+        const lblHint = document.getElementById('lbl-bone-hint');
+        if (lblHint) {
+            lblHint.innerText = `Lokasi: ${boneKey}`;
+            lblHint.style.color = '#38bdf8';
+        }
+
+        if (boneHighlightTimeout) clearTimeout(boneHighlightTimeout);
+        boneHighlightTimeout = setTimeout(() => {
+            if (lblHint) {
+                lblHint.innerText = 'Arahkan kursor untuk lihat titik';
+                lblHint.style.color = '#9ca3af';
+            }
+        }, 4500);
+    }
+
+    function hideBoneLocationIndicator() {
+        if (boneHighlightMarker) {
+            boneHighlightMarker.visible = false;
+        }
+        activeHighlightedBoneNode = null;
+        if (boneHighlightTimeout) {
+            clearTimeout(boneHighlightTimeout);
+            boneHighlightTimeout = null;
+        }
+        const lblHint = document.getElementById('lbl-bone-hint');
+        if (lblHint) {
+            lblHint.innerText = 'Arahkan kursor untuk lihat titik';
+            lblHint.style.color = '#9ca3af';
+        }
+    }
+
+    function setBoneDotsVisible(visible) {
+        isBoneDotsVisible = !!visible;
+        if (boneDotsGroup) {
+            boneDotsGroup.visible = isBoneDotsVisible;
+        }
+        const chkBones = document.getElementById('chk-show-bones');
+        if (chkBones) chkBones.checked = isBoneDotsVisible;
+
+        const lblBtn = document.getElementById('lbl-toggle-att-bones');
+        if (lblBtn) {
+            lblBtn.innerText = isBoneDotsVisible ? 'Sembunyikan Bone' : 'Tampilkan Bone';
+        }
+        const btn = document.getElementById('btn-toggle-att-bones');
+        if (btn) {
+            btn.classList.toggle('active', !isBoneDotsVisible);
+            btn.classList.toggle('active', !isBoneDotsVisible);
+            btn.style.borderColor = isBoneDotsVisible ? '#3f3f46' : '#38bdf8';
+        }
+    }
+
+    // Mode attachment fokus pada karakter aktif: dummy, hitbox & hurtbox selalu disembunyikan.
+    // Dipanggil tiap frame karena ganti/muat karakter dapat memunculkannya kembali.
+    function hideCombatVisualsForAttachment() {
+        const dummy = getDummyInstance();
+        if (dummy && dummy.root && dummy !== getAttackerInstance()) dummy.root.visible = false;
+        hitboxMeshesMap.forEach(v => { v.solidMesh.visible = false; v.wireMesh.visible = false; });
+        if (hurtboxVisualGroup) hurtboxVisualGroup.visible = false;
+        if (impactRingMesh) impactRingMesh.visible = false;
+        attackRangeRings.forEach(ring => { ring.visible = false; });
+    }
+
+    function populateAttachmentTestAnimations() {
+        const sel = document.getElementById('sel-attachment-test-anim');
+        if (!sel) return;
+
+        const anims = HS.getCharacterAnimations(activeCharKey) || [];
+        sel.innerHTML = '<option value="">-- Pilih Animasi untuk Tes Gerak --</option>';
+
+        anims.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.key;
+            opt.innerText = a.label || a.key;
+            sel.appendChild(opt);
+        });
+    }
+
+    function playAttachmentTestAnimation(animKey) {
+        if (!animKey) {
+            applyTPoseToActiveCharacter();
+            return;
+        }
+        const attacker = getAttackerInstance();
+        if (!attacker) return;
+
+        // Reset posisi root ke tanah (y = 0) saat animasi jalan
+        if (attacker.root) {
+            attacker.root.position.set(0, 0, 0);
+            attacker.root.updateMatrixWorld(true);
+        }
+        isPreviewAnimInAttachment = true;
+
+        if (attacker.mixer && attacker.actions) {
+            // Hentikan action lain
+            Object.keys(attacker.actions).forEach(k => {
+                const act = attacker.actions[k];
+                if (act && k !== animKey) act.setEffectiveWeight(0.0);
+            });
+
+            const targetAction = attacker.actions[animKey];
+            if (targetAction) {
+                targetAction.enabled = true;
+                targetAction.setEffectiveWeight(1.0);
+                targetAction.setLoop(THREE.LoopRepeat, Infinity);
+                targetAction.reset();
+                targetAction.play();
+                showToast(`Menguji animasi: ${animKey}`, '#38bdf8');
+            } else {
+                // Fallback jika clip spesifik tidak ada (misal run/walk)
+                const fallback = attacker.actions['walk'] || attacker.actions['run'] || attacker.actions['punch1'] || attacker.actions['idle'];
+                if (fallback) {
+                    fallback.enabled = true;
+                    fallback.setEffectiveWeight(1.0);
+                    fallback.setLoop(THREE.LoopRepeat, Infinity);
+                    fallback.reset();
+                    fallback.play();
+                    showToast(`Menguji animasi: ${fallback.getClip ? fallback.getClip().name : animKey}`, '#38bdf8');
+                }
+            }
+        }
+    }
+
+    // ===== PREVIEW LIBRARY =====
+    // Satu renderer offscreen, satu model per giliran. Hasil JPEG disimpan di localStorage
+    // (dikunci ukuran berkas), jadi model berat hanya perlu dimuat sekali.
+    const libThumbMemory = new Map();
+    let libThumbQueue = Promise.resolve();
+    let libThumbPending = 0;
+    let libThumbRenderer = null;
+
+    function renderLibraryThumb(model) {
+        if (!libThumbRenderer) {
+            libThumbRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+            libThumbRenderer.setSize(112, 112);
+            libThumbRenderer.outputEncoding = THREE.sRGBEncoding;
+        }
+        const thumbScene = new THREE.Scene();
+        thumbScene.background = new THREE.Color(0x2b2b2b);
+        thumbScene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.1));
+        const key = new THREE.DirectionalLight(0xffffff, 1.2);
+        key.position.set(2, 3, 2.5);
+        thumbScene.add(key);
+        thumbScene.add(model);
+
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const radius = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, 0.001);
+        const cam = new THREE.PerspectiveCamera(30, 1, radius * 0.05, radius * 20);
+        const distance = radius / Math.sin(THREE.MathUtils.degToRad(15));
+        cam.position.copy(center).add(new THREE.Vector3(0.6, 0.45, 0.8).normalize().multiplyScalar(distance));
+        cam.lookAt(center);
+
+        libThumbRenderer.render(thumbScene, cam);
+        return libThumbRenderer.domElement.toDataURL('image/jpeg', 0.82);
+    }
+
+    function getLibraryThumb(file) {
+        const url = file.fileUrl;
+        if (libThumbMemory.has(url)) return libThumbMemory.get(url);
+
+        const storeKey = 'pandora.libThumb.' + url;
+        const version = String(file.size || '');
+        try {
+            const stored = JSON.parse(localStorage.getItem(storeKey) || 'null');
+            if (stored && stored.version === version && stored.data) {
+                const ready = Promise.resolve(stored.data);
+                libThumbMemory.set(url, ready);
+                return ready;
+            }
+        } catch (err) { /* cache opsional */ }
+
+        libThumbPending++;
+        const job = libThumbQueue.then(async () => {
+            const model = await window.PandoraAttachmentSystem.load3DModelFromUrl(url, file.fileType);
+            const data = renderLibraryThumb(model);
+            try {
+                localStorage.setItem(storeKey, JSON.stringify({ version, data }));
+            } catch (err) { /* cache opsional */ }
+            return data;
+        }).finally(() => {
+            libThumbPending--;
+            // Lepas context WebGL kedua setelah antrean habis (browser membatasi jumlahnya)
+            if (libThumbPending === 0 && libThumbRenderer) {
+                libThumbRenderer.dispose();
+                libThumbRenderer.forceContextLoss();
+                libThumbRenderer = null;
+            }
+        });
+        libThumbQueue = job.catch(() => {});
+        libThumbMemory.set(url, job);
+        return job;
+    }
+
+    async function renderAttachmentLibraryUI() {
+        const libContainer = document.getElementById('ht-attachment-library-list');
+        if (!libContainer) return;
+
+        libContainer.innerHTML = '<div style="font-size:10px; color:#9ca3af; padding:8px 0;">Memindai berkas di server...</div>';
+
+        if (!window.PandoraAttachmentSystem || typeof window.PandoraAttachmentSystem.fetchUploadedFiles !== 'function') {
+            libContainer.innerHTML = '<div style="font-size:10px; color:#ef4444; padding:6px 0;">Sistem attachment belum siap.</div>';
+            return;
+        }
+
+        try {
+            const files = await window.PandoraAttachmentSystem.fetchUploadedFiles();
+            if (!files || files.length === 0) {
+                libContainer.innerHTML = '<div style="font-size:10.5px; color:#71717a; padding:10px 4px; text-align:center; font-style:italic; background:#18181f; border-radius:4px; border:1px dashed #2e2e38;">Belum ada model 3D terunggah.<br>Upload file .glb/.gltf di atas.</div>';
+                return;
+            }
+
+            libContainer.innerHTML = '';
+            files.forEach(file => {
+                const card = document.createElement('div');
+                card.className = 'ht-att-card ht-lib-card';
+
+                const thumb = document.createElement('div');
+                thumb.className = 'ht-lib-thumb loading';
+                thumb.innerHTML = window.blIcon('cube');
+                getLibraryThumb(file).then((data) => {
+                    thumb.classList.remove('loading');
+                    thumb.innerHTML = '';
+                    const img = document.createElement('img');
+                    img.src = data;
+                    img.alt = '';
+                    img.draggable = false;
+                    thumb.appendChild(img);
+                }).catch(() => {
+                    thumb.classList.remove('loading');
+                    thumb.classList.add('failed');
+                });
+                card.appendChild(thumb);
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'ht-lib-info';
+
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'ht-att-card-title';
+                nameDiv.innerText = '' + (file.name || file.fileName || 'Model 3D');
+                nameDiv.title = file.fileName || file.name;
+
+                const metaDiv = document.createElement('div');
+                metaDiv.className = 'ht-att-card-sub';
+                const sizeStr = file.sizeFormatted ? file.sizeFormatted : (file.size ? (Math.round(file.size / 1024) + ' KB') : '');
+                metaDiv.innerText = `${file.fileType ? file.fileType.toUpperCase() : '3D'} ${sizeStr ? '• ' + sizeStr : ''}`;
+
+                infoDiv.appendChild(nameDiv);
+                infoDiv.appendChild(metaDiv);
+
+                const btnGroup = document.createElement('div');
+                btnGroup.className = 'ht-att-card-actions';
+
+                // Tombol Pasang Reusable
+                const btnAttach = document.createElement('button');
+                btnAttach.type = 'button';
+                btnAttach.className = 'ht-btn ht-btn-primary';
+                btnAttach.innerText = 'Pasang';
+                btnAttach.title = 'Pasang model 3D ini ke karakter yang sedang aktif';
+                btnAttach.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    addNewAttachmentFromUrl(file.fileUrl);
+                });
+
+                // Tombol Hapus Permanen dari Disk
+                const btnDelFile = document.createElement('button');
+                btnDelFile.type = 'button';
+                btnDelFile.className = 'ht-mini-icon-btn danger';
+                btnDelFile.innerHTML = window.blIcon('trash');
+                btnDelFile.title = 'Hapus berkas ini permanen dari folder assets/attachments/ project';
+                btnDelFile.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const confirmMsg = `Hapus permanen berkas 3D ini dari project?\n\nFile: ${file.fileName || file.name}\n\nPerhatian: Berkas akan dihapus dari server dan tidak dapat dikembalikan.`;
+                    if (!confirm(confirmMsg)) return;
+
+                    btnDelFile.disabled = true;
+                    btnDelFile.innerText = '...';
+                    const delRes = await window.PandoraAttachmentSystem.deleteUploadedFile(file.fileUrl);
+                    if (delRes && delRes.success) {
+                        showToast(`Berkas fisik ${file.fileName || file.name} berhasil dihapus dari project`, '#10b981');
+                        renderAttachmentLibraryUI();
+                        renderAttachmentUI();
+                    } else {
+                        btnDelFile.disabled = false;
+                        btnDelFile.innerHTML = window.blIcon('trash');
+                        showToast(`Gagal menghapus berkas: ${delRes ? delRes.message : 'Error server'}`, '#ef4444');
+                    }
+                });
+
+                btnGroup.appendChild(btnAttach);
+                btnGroup.appendChild(btnDelFile);
+
+                card.appendChild(infoDiv);
+                card.appendChild(btnGroup);
+
+                libContainer.appendChild(card);
+            });
+        } catch (err) {
+            console.warn('[Attachment Library] Error fetching files:', err);
+            libContainer.innerHTML = '<div style="font-size:10px; color:#ef4444; padding:6px 0;">Gagal memuat library berkas.</div>';
+        }
+    }
+
+    function getActiveCharacterAttachments() {
+        if (!window.PandoraAttachmentSystem || typeof window.PandoraAttachmentSystem.getCharacterAttachments !== 'function') {
+            return [];
+        }
+        return window.PandoraAttachmentSystem.getCharacterAttachments(activeCharKey);
+    }
+
+    function renderAttachmentUI() {
+        const listEl = document.getElementById('ht-attachment-list');
+        const countLbl = document.getElementById('lbl-att-count');
+        const selectBone = document.getElementById('select-att-bone');
+        const charBadge = document.getElementById('badge-active-char');
+
+        // Sinkronkan badge nama & icon karakter di panel kiri atas
+        if (charBadge) {
+            const meta = window.PandoraHeroRegistry ? window.PandoraHeroRegistry.getCharacterMeta(activeCharKey) : null;
+            charBadge.innerText = meta ? meta.name : activeCharKey;
+        }
+
+        // Isi pilihan socket bone jika belum atau jika opsi telah diperbarui
+        if (selectBone && window.PandoraAttachmentSystem) {
+            const desiredCount = window.PandoraAttachmentSystem.socketBones.length;
+            if (selectBone.options.length !== desiredCount) {
+                selectBone.innerHTML = '';
+                window.PandoraAttachmentSystem.socketBones.forEach(sb => {
+                    const opt = document.createElement('option');
+                    opt.value = sb.key;
+                    opt.innerText = sb.label;
+                    opt.addEventListener('mouseenter', () => showBoneLocationIndicator(sb.key));
+                    opt.addEventListener('mouseover', () => showBoneLocationIndicator(sb.key));
+                    opt.addEventListener('mouseleave', () => hideBoneLocationIndicator());
+                    selectBone.appendChild(opt);
+                });
+                selectBone.addEventListener('mouseleave', () => hideBoneLocationIndicator());
+                selectBone.addEventListener('blur', () => hideBoneLocationIndicator());
+            }
+        }
+
+        const attachments = getActiveCharacterAttachments();
+        if (countLbl) countLbl.innerText = `${attachments.length} Model 3D`;
+
+        // Pastikan selectedAttachmentId valid untuk karakter aktif ini
+        if (!attachments.some(a => a.id === selectedAttachmentId)) {
+            selectedAttachmentId = attachments.length > 0 ? attachments[0].id : null;
+        }
+
+        // Render Quick Bone Chips di bawah dropdown agar user bisa hover atau klik langsung
+        const chipsContainer = document.getElementById('ht-att-bone-chips');
+        if (chipsContainer && window.PandoraAttachmentSystem) {
+            chipsContainer.innerHTML = '';
+            chipsContainer.addEventListener('mouseleave', () => hideBoneLocationIndicator());
+            const currentAtt = attachments.find(a => a.id === selectedAttachmentId);
+            const activeBoneKey = currentAtt ? (currentAtt.bone || 'RightArm') : '';
+
+            window.PandoraAttachmentSystem.socketBones.forEach(sb => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'ht-btn';
+                const isActive = sb.key === activeBoneKey;
+                chip.style.cssText = `
+                    font-size: 10px;
+                    padding: 2px 6px;
+                    height: 22px;
+                    border-radius: 3px;
+                    white-space: nowrap;
+                    background: ${isActive ? '#0284c7' : '#27272a'};
+                    color: ${isActive ? '#ffffff' : '#d4d4d8'};
+                    border: 1px solid ${isActive ? '#38bdf8' : '#3f3f46'};
+                    cursor: pointer;
+                    transition: all 0.15s;
+                `;
+                let shortLabel = sb.key;
+                if (sb.key === 'RightArm') shortLabel = 'Lengan Kn (Bahu)';
+                else if (sb.key === 'RightForeArm') shortLabel = 'Lengan Bwh Kn';
+                else if (sb.key === 'RightShoulder') shortLabel = 'Bahu Kn';
+                else if (sb.key === 'RightHand') shortLabel = 'Tangan Kn';
+                else if (sb.key === 'LeftArm') shortLabel = 'Lengan Kr (Bahu)';
+                else if (sb.key === 'LeftForeArm') shortLabel = 'Lengan Bwh Kr';
+                else if (sb.key === 'LeftShoulder') shortLabel = 'Bahu Kr';
+                else if (sb.key === 'LeftHand') shortLabel = 'Tangan Kr';
+                else if (sb.key === 'Head') shortLabel = 'Kepala';
+                else if (sb.key === 'Spine2') shortLabel = 'Punggung';
+                else if (sb.key === 'Spine1') shortLabel = 'Dada';
+                else if (sb.key === 'Hips') shortLabel = 'Pinggang';
+                else if (sb.key === 'RightUpLeg') shortLabel = 'Paha Kn';
+                else if (sb.key === 'LeftUpLeg') shortLabel = 'Paha Kr';
+                else if (sb.key === 'RightLeg') shortLabel = 'Betis Kn';
+                else if (sb.key === 'LeftLeg') shortLabel = 'Betis Kr';
+                else if (sb.key === 'RightFoot') shortLabel = 'Kaki Kn';
+                else if (sb.key === 'LeftFoot') shortLabel = 'Kaki Kr';
+
+                chip.innerText = shortLabel;
+                chip.title = `${sb.label} (Klik untuk pasang ke tulang ini, Arahkan kursor untuk lihat titik di 3D)`;
+
+                // Hover: langsung sorot titik lokasi di tubuh 3D hanya saat kursor berada di atasnya
+                chip.addEventListener('mouseenter', () => {
+                    chip.style.borderColor = '#38bdf8';
+                    chip.style.background = '#0369a1';
+                    showBoneLocationIndicator(sb.key);
+                });
+                chip.addEventListener('mouseleave', () => {
+                    if (sb.key !== activeBoneKey) {
+                        chip.style.borderColor = '#3f3f46';
+                        chip.style.background = '#27272a';
+                    }
+                    hideBoneLocationIndicator();
+                });
+                chip.addEventListener('click', () => {
+                    hideBoneLocationIndicator();
+                    if (selectBone) {
+                        selectBone.value = sb.key;
+                        selectBone.dispatchEvent(new Event('change'));
+                    }
+                });
+
+                chipsContainer.appendChild(chip);
+            });
+        }
+
+        // Render Cards di Panel Kiri
+        if (listEl) {
+            listEl.innerHTML = '';
+            if (attachments.length === 0) {
+                listEl.innerHTML = `
+                    <div style="font-size:11px; color:#71717a; text-align:center; padding:20px 8px; border:1px dashed #3f3f46; border-radius:6px; line-height:1.5;">
+                        Belum ada model 3D terpasang.<br>Klik tombol <strong>Upload File 3D</strong> di atas untuk memasukkan file <code>.glb</code> atau <code>.fbx</code>!
+                    </div>
+                `;
+            } else {
+                attachments.forEach(att => {
+                    const card = document.createElement('div');
+                    card.className = 'ht-att-card' + (att.id === selectedAttachmentId ? ' active' : '');
+
+                    const ext = (att.fileType || (att.fileUrl ? att.fileUrl.split('.').pop() : '3d')).toUpperCase();
+                    const badgeColor = ext === 'FBX' ? '#f59e0b' : '#38bdf8';
+
+                    card.innerHTML = `
+                        <div class="ht-att-card-left">
+                            <span style="font-size:10px; font-weight:800; background:${badgeColor}22; color:${badgeColor}; border:1px solid ${badgeColor}66; padding:2px 5px; border-radius:3px;">${ext}</span>
+                            <div style="min-width:0;">
+                                <div class="ht-att-card-title">${att.name || att.fileName || 'Model 3D'}</div>
+                                <div class="ht-att-card-sub">Socket: <strong>${att.bone || 'RightHand'}</strong></div>
+                            </div>
+                        </div>
+                        <div class="ht-att-card-actions">
+                            <button type="button" class="ht-mini-icon-btn btn-vis" title="${att.visible !== false ? 'Sembunyikan' : 'Tampilkan'}">${window.blIcon(att.visible !== false ? 'eye' : 'eyeOff')}</button>
+                            <button type="button" class="ht-mini-icon-btn danger btn-del" title="Hapus Model 3D Ini">${window.blIcon('trash')}</button>
+                        </div>
+                    `;
+
+                    card.addEventListener('click', (e) => {
+                        if (e.target.closest('.btn-vis') || e.target.closest('.btn-del')) return;
+                        selectAttachment(att.id);
+                    });
+
+                    const btnVis = card.querySelector('.btn-vis');
+                    if (btnVis) {
+                        btnVis.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            att.visible = (att.visible === false) ? true : false;
+                            refreshAttachmentMeshesInStudio();
+                            renderAttachmentUI();
+                        });
+                    }
+
+                    const btnDel = card.querySelector('.btn-del');
+                    if (btnDel) {
+                        btnDel.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            deleteAttachment(att.id);
+                        });
+                    }
+
+                    listEl.appendChild(card);
+                });
+            }
+        }
+
+        refreshAttachmentMeshesInStudio();
+        syncAttachmentInspectorFromSelected(true);
+    }
+
+    function selectAttachment(attId) {
+        selectedAttachmentId = attId;
+        renderAttachmentUI();
+    }
+
+    /**
+     * Memproses file 3D (.glb, .gltf, .fbx) yang di-upload atau di-drop
+     */
+    async function addNewAttachmentFromFile(file) {
+        if (!file) return;
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['glb', 'gltf', 'fbx'].includes(ext)) {
+            showToast('Hanya file .glb, .gltf, atau .fbx yang didukung!', '#ef4444');
+            return;
+        }
+
+        const statusEl = document.getElementById('att-upload-status');
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.background = '#0284c722';
+            statusEl.style.color = '#38bdf8';
+            statusEl.innerText = `Memuat file ${file.name}...`;
+        }
+
+        // 1. Baca ArrayBuffer untuk preview langsung di layar tanpa jeda
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const arrayBuffer = e.target.result;
+            const newId = 'att_' + Date.now().toString(36);
+            const cleanName = file.name.replace(/\.[^/.]+$/, '');
+
+            const newAtt = {
+                id: newId,
+                name: cleanName,
+                fileName: file.name,
+                fileType: ext,
+                fileUrl: '',
+                bone: 'RightHand',
+                position: [0.0, 0.0, 0.0],
+                rotation: [0.0, 0.0, 0.0],
+                scale: [1.0, 1.0, 1.0],
+                visible: true,
+                arrayBuffer: arrayBuffer
+            };
+
+            const attList = getActiveCharacterAttachments();
+            attList.push(newAtt);
+            selectedAttachmentId = newId;
+            renderAttachmentUI();
+
+            // 2. Unggah file ke server assets/attachments/ di background
+            try {
+                if (window.PandoraAttachmentSystem && typeof window.PandoraAttachmentSystem.upload3DFile === 'function') {
+                    if (statusEl) statusEl.innerText = `Menyimpan file ${file.name} ke server...`;
+                    const upRes = await window.PandoraAttachmentSystem.upload3DFile(file);
+                    if (upRes && upRes.fileUrl) {
+                        newAtt.fileUrl = upRes.fileUrl;
+                        newAtt.fileName = upRes.savedName || file.name;
+                        if (statusEl) {
+                            statusEl.style.background = '#10b98122';
+                            statusEl.style.color = '#34d399';
+                            statusEl.innerText = `Tersimpan: ${newAtt.fileUrl}`;
+                            setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+                        }
+                        syncAttachmentInspectorFromSelected(false);
+                        renderAttachmentLibraryUI();
+                    }
+                }
+            } catch (errUpload) {
+                console.warn('[Attachment] Upload server gagal, model tetap tersimpan di memori sesi:', errUpload);
+                if (statusEl) {
+                    statusEl.style.background = '#f59e0b22';
+                    statusEl.style.color = '#fbbf24';
+                    statusEl.innerText = `ℹModel aktif di editor (Local buffer)`;
+                    setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+                }
+            }
+
+            showToast(`Model 3D berhasil dipasang: ${cleanName}`, '#10b981');
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+
+    /**
+     * Memuat model 3D dari Path / URL
+     */
+    function addNewAttachmentFromUrl(rawUrl) {
+        if (!rawUrl || !rawUrl.trim()) {
+            showToast('Masukkan path atau URL file 3D terlebih dahulu!', '#ef4444');
+            return;
+        }
+        const url = rawUrl.trim();
+        const fileName = url.split('/').pop().split('?')[0];
+        const ext = fileName.split('.').pop().toLowerCase();
+        const cleanName = fileName.replace(/\.[^/.]+$/, '') || 'Custom Model';
+
+        const newId = 'att_' + Date.now().toString(36);
+        const newAtt = {
+            id: newId,
+            name: cleanName,
+            fileName: fileName,
+            fileType: ext,
+            fileUrl: url,
+            bone: 'RightHand',
+            position: [0.0, 0.0, 0.0],
+            rotation: [0.0, 0.0, 0.0],
+            scale: [1.0, 1.0, 1.0],
+            visible: true
+        };
+
+        const attList = getActiveCharacterAttachments();
+        attList.push(newAtt);
+        selectedAttachmentId = newId;
+        renderAttachmentUI();
+        showToast(`Model 3D dimuat dari: ${fileName}`, '#38bdf8');
+    }
+
+    function deleteAttachment(attId) {
+        const attList = getActiveCharacterAttachments();
+        const idx = attList.findIndex(a => a.id === attId);
+        if (idx !== -1) {
+            const removed = attList.splice(idx, 1)[0];
+            if (attachmentVisualMap.has(attId)) {
+                const w = attachmentVisualMap.get(attId);
+                if (w && w.parent) w.parent.remove(w);
+                attachmentVisualMap.delete(attId);
+            }
+            if (selectedAttachmentId === attId) {
+                selectedAttachmentId = attList.length > 0 ? attList[0].id : null;
+            }
+            renderAttachmentUI();
+            showToast(`Dihapus: ${removed.name || 'Model 3D'}`, '#ef4444');
+        }
+    }
+
+    function refreshAttachmentMeshesInStudio() {
+        const attacker = getAttackerInstance();
+        if (!attacker) return;
+        const AS = window.PandoraAttachmentSystem;
+        if (!AS) return;
+
+        // 1. Bersihkan SEMUA objek attachment lama di model/root attacker (anti-duplikasi)
+        if (attacker.root) {
+            const oldAttachments = [];
+            attacker.root.traverse(child => {
+                if (child.name && (
+                    child.name.startsWith('SocketWrapper_') ||
+                    child.name.startsWith('Custom3D_') ||
+                    child.name.startsWith('AttachmentSocket_') ||
+                    child.name === 'AttachmentLoadingPlaceholder' ||
+                    child.userData.isAttachmentSocket ||
+                    child.userData.attachmentId
+                )) {
+                    oldAttachments.push(child);
+                }
+            });
+            oldAttachments.forEach(c => {
+                if (c && c.parent) {
+                    c.parent.remove(c);
+                }
+            });
+        }
+        if (attacker._attachedSockets && Array.isArray(attacker._attachedSockets)) {
+            attacker._attachedSockets.forEach(s => {
+                if (s && s.parent) s.parent.remove(s);
+            });
+            attacker._attachedSockets = [];
+        }
+
+        // 2. Bersihkan wrapper yang tersimpan di attachmentVisualMap
+        attachmentVisualMap.forEach((wrapper) => {
+            if (wrapper && wrapper.parent) {
+                wrapper.parent.remove(wrapper);
+            }
+        });
+        attachmentVisualMap.clear();
+
+        const attachments = getActiveCharacterAttachments();
+        let targetSelectedWrapper = null;
+
+        attachments.forEach(att => {
+            const bone = AS.resolveBone(attacker, att.bone || 'RightArm');
+            const wrapper = AS.createAttachmentMesh(att);
+            wrapper.userData.attachmentId = att.id;
+
+            if (bone) {
+                bone.add(wrapper);
+            } else if (attacker.root) {
+                attacker.root.add(wrapper);
+            }
+
+            attachmentVisualMap.set(att.id, wrapper);
+
+            if (att.id === selectedAttachmentId) {
+                targetSelectedWrapper = wrapper;
+            }
+        });
+
+        // Hubungkan TransformControls ke attachment yang sedang aktif dipilih
+        if (transformControl) {
+            if (currentStudioMode === 'attachment' && targetSelectedWrapper && targetSelectedWrapper.visible) {
+                transformControl.attach(targetSelectedWrapper);
+                transformControl.visible = true;
+                transformControl.enabled = true;
+                transformControl.setSpace('local');
+            } else if (currentStudioMode === 'attachment') {
+                transformControl.detach();
+                transformControl.visible = false;
+                transformControl.enabled = false;
+            }
+        }
+    }
+
+    function syncAttachmentInspectorFromSelected(updateInputs = true) {
+        const secInspector = document.getElementById('section-att-inspector');
+        const badgeBone = document.getElementById('badge-selected-bone');
+        const attList = getActiveCharacterAttachments();
+        const att = attList.find(a => a.id === selectedAttachmentId);
+
+        if (!att) {
+            if (secInspector) secInspector.style.opacity = '0.45';
+            if (badgeBone) badgeBone.innerText = '-';
+            return;
+        }
+
+        if (secInspector) secInspector.style.opacity = '1.0';
+        if (badgeBone) badgeBone.innerText = att.bone;
+
+        const inputName = document.getElementById('input-att-name');
+        const selectBone = document.getElementById('select-att-bone');
+        const lblSource = document.getElementById('lbl-att-source-info');
+        const chkVis = document.getElementById('chk-att-visible');
+
+        if (inputName && document.activeElement !== inputName) inputName.value = att.name || att.fileName || '';
+        if (selectBone) selectBone.value = att.bone || 'RightArm';
+        if (lblSource) {
+            const ext = (att.fileType || (att.fileUrl ? att.fileUrl.split('.').pop() : '3D')).toUpperCase();
+            const src = att.fileUrl || att.fileName || 'Memori Lokal (Buffer)';
+            lblSource.innerHTML = `<strong>[${ext}]</strong> ${src}`;
+        }
+        if (chkVis) chkVis.checked = att.visible !== false;
+
+        if (updateInputs) {
+            const pos = att.position || [0, 0, 0];
+            const rot = att.rotation || [0, 0, 0];
+            const scl = att.scale || [1, 1, 1];
+
+            const nx = document.getElementById('num-att-pos-x');
+            const ny = document.getElementById('num-att-pos-y');
+            const nz = document.getElementById('num-att-pos-z');
+            if (nx && document.activeElement !== nx) nx.value = Number(pos[0] || 0).toFixed(2);
+            if (ny && document.activeElement !== ny) ny.value = Number(pos[1] || 0).toFixed(2);
+            if (nz && document.activeElement !== nz) nz.value = Number(pos[2] || 0).toFixed(2);
+
+            const rx = document.getElementById('num-att-rot-x');
+            const ry = document.getElementById('num-att-rot-y');
+            const rz = document.getElementById('num-att-rot-z');
+            if (rx && document.activeElement !== rx) rx.value = Math.round(Number(rot[0] || 0));
+            if (ry && document.activeElement !== ry) ry.value = Math.round(Number(rot[1] || 0));
+            if (rz && document.activeElement !== rz) rz.value = Math.round(Number(rot[2] || 0));
+
+            const sx = document.getElementById('num-att-scale-x');
+            const sy = document.getElementById('num-att-scale-y');
+            const sz = document.getElementById('num-att-scale-z');
+            const sall = document.getElementById('num-att-scale-all');
+            if (sx && document.activeElement !== sx) sx.value = Number(scl[0] || 1).toFixed(2);
+            if (sy && document.activeElement !== sy) sy.value = Number(scl[1] || 1).toFixed(2);
+            if (sz && document.activeElement !== sz) sz.value = Number(scl[2] || 1).toFixed(2);
+            if (sall && document.activeElement !== sall) {
+                const avg = ((Number(scl[0] || 1) + Number(scl[1] || 1) + Number(scl[2] || 1)) / 3);
+                sall.value = avg.toFixed(2);
+            }
+        }
+    }
+
+    function applyAttachmentTransformsFromInspector() {
+        const attList = getActiveCharacterAttachments();
+        const att = attList.find(a => a.id === selectedAttachmentId);
+        const wrapper = attachmentVisualMap.get(selectedAttachmentId);
+        if (!att || !wrapper) return;
+
+        const elPosX = document.getElementById('num-att-pos-x');
+        const elPosY = document.getElementById('num-att-pos-y');
+        const elPosZ = document.getElementById('num-att-pos-z');
+        const nx = elPosX ? (parseFloat(elPosX.value) || 0) : (att.position ? att.position[0] : 0);
+        const ny = elPosY ? (parseFloat(elPosY.value) || 0) : (att.position ? att.position[1] : 0);
+        const nz = elPosZ ? (parseFloat(elPosZ.value) || 0) : (att.position ? att.position[2] : 0);
+        att.position = [nx, ny, nz];
+        wrapper.position.set(nx, ny, nz);
+
+        const elRotX = document.getElementById('num-att-rot-x');
+        const elRotY = document.getElementById('num-att-rot-y');
+        const elRotZ = document.getElementById('num-att-rot-z');
+        const rx = elRotX ? (parseFloat(elRotX.value) || 0) : (att.rotation ? att.rotation[0] : 0);
+        const ry = elRotY ? (parseFloat(elRotY.value) || 0) : (att.rotation ? att.rotation[1] : 0);
+        const rz = elRotZ ? (parseFloat(elRotZ.value) || 0) : (att.rotation ? att.rotation[2] : 0);
+        att.rotation = [rx, ry, rz];
+        wrapper.rotation.set(
+            THREE.MathUtils.degToRad(rx),
+            THREE.MathUtils.degToRad(ry),
+            THREE.MathUtils.degToRad(rz)
+        );
+
+        const elScaleX = document.getElementById('num-att-scale-x');
+        const elScaleY = document.getElementById('num-att-scale-y');
+        const elScaleZ = document.getElementById('num-att-scale-z');
+        const sx = Math.max(0.01, elScaleX ? (parseFloat(elScaleX.value) || 1) : (att.scale ? att.scale[0] : 1));
+        const sy = Math.max(0.01, elScaleY ? (parseFloat(elScaleY.value) || 1) : (att.scale ? att.scale[1] : 1));
+        const sz = Math.max(0.01, elScaleZ ? (parseFloat(elScaleZ.value) || 1) : (att.scale ? att.scale[2] : 1));
+        att.scale = [sx, sy, sz];
+        wrapper.scale.set(sx, sy, sz);
+
+        const sall = document.getElementById('num-att-scale-all');
+        if (sall && document.activeElement !== sall) {
+            sall.value = ((sx + sy + sz) / 3).toFixed(2);
+        }
+
+        wrapper.updateMatrixWorld(true);
+    }
+
+    // ===================================================================
     // 6. BINDING EVENT HANDLERS UI
     // ===================================================================
     function bindUIEvents() {
@@ -900,18 +2043,88 @@
         if (btnSyncHeroes) {
             btnSyncHeroes.addEventListener('click', async () => {
                 btnSyncHeroes.disabled = true;
-                btnSyncHeroes.innerHTML = '<span>⏳ Syncing...</span>';
-                if (window.PandoraHeroRegistry) {
-                    await window.PandoraHeroRegistry.sync(true);
-                    for (const c of window.PandoraHeroRegistry.characters) {
-                        await ensureCharacterInstanceLoaded(c);
+                btnSyncHeroes.innerHTML = '<span>Mereset Cache & Re-syncing...</span>';
+                
+                try {
+                    // 1. Bersihkan Gizmo 3D jika sedang attach
+                    if (transformControl) {
+                        try { transformControl.detach(); } catch (_) {}
                     }
+
+                    // 2. Bersihkan seluruh Cache Objek 3D Attachment (RAM & Model Cache) dan reload config
+                    if (window.PandoraAttachmentSystem) {
+                        window.PandoraAttachmentSystem.clearCache();
+                        try {
+                            await window.PandoraAttachmentSystem.loadConfig(true);
+                        } catch (eAtt) {
+                            console.warn('[HitTool] Error reload attachment config:', eAtt);
+                        }
+                    }
+
+                    // 3. Bersihkan seluruh Cache Karakter & FBX (Browser Cache API, IndexedDB, dan Memory AssetManagers)
+                    if (window.PandoraHeroRegistry) {
+                        try {
+                            await window.PandoraHeroRegistry.purgeAllCache();
+                            await window.PandoraHeroRegistry.sync(true);
+                        } catch (eH) {
+                            console.warn('[HitTool] Error reload hero registry:', eH);
+                        }
+                    }
+
+                    // 4. Reload Hitbox & Hurtbox Configuration dari server
+                    if (HS && typeof HS.loadFromServer === 'function') {
+                        try {
+                            await HS.loadFromServer();
+                        } catch (eHb) {
+                            console.warn('[HitTool] Error reload hitboxes:', eHb);
+                        }
+                    }
+
+                    // 5. Hancurkan seluruh model 3D karakter lama di studio scene
+                    Object.keys(charInstances).forEach(k => {
+                        const inst = charInstances[k];
+                        if (inst && inst.root && scene) {
+                            scene.remove(inst.root);
+                        }
+                        delete charInstances[k];
+                    });
+                    heroInstance = null;
+                    enemyInstance = null;
+
+                    // 6. Muat ulang karakter aktif saat ini secara fresh dari file FBX yang baru
+                    const currentMeta = (window.PandoraHeroRegistry && window.PandoraHeroRegistry.getCharacterMeta(activeCharKey)) || { id: activeCharKey };
+                    await ensureCharacterInstanceLoaded(currentMeta);
+
+                    // Muat juga dummy karakter lawan jika di mode combat
+                    const dummyKey = (activeCharKey === 'enemy-foxtree') ? 'hero' : 'enemy-foxtree';
+                    const dummyMeta = (window.PandoraHeroRegistry && window.PandoraHeroRegistry.getCharacterMeta(dummyKey)) || { id: dummyKey };
+                    await ensureCharacterInstanceLoaded(dummyMeta);
+
+                    applyCharacterPositionsAndRoles();
+
+                    // 7. Refresh tampilan sesuai mode yang sedang aktif
+                    if (currentStudioMode === 'attachment') {
+                        applyTPoseToActiveCharacter();
+                        refreshAttachmentMeshesInStudio();
+                        renderAttachmentUI();
+                    } else {
+                        restoreCombatAnimation();
+                        const attacker = getAttackerInstance();
+                        if (attacker && window.PandoraAttachmentSystem) {
+                            window.PandoraAttachmentSystem.applyAttachmentsToCharacter(attacker, activeCharKey);
+                        }
+                        renderAllUI();
+                    }
+
+                    renderCharacterSwitcherUI();
+                    showToast('Re-Sync Berhasil! Seluruh Karakter, Objek 3D & Cache Telah Di-refresh.', '#10b981');
+                } catch (errSync) {
+                    console.error('[HitTool] Gagal re-sync studio:', errSync);
+                    showToast('Gagal re-sync: ' + (errSync.message || 'Periksa console log'), '#ef4444');
+                } finally {
+                    btnSyncHeroes.disabled = false;
+                    btnSyncHeroes.innerHTML = '<span>Re-Sync</span>';
                 }
-                renderCharacterSwitcherUI();
-                renderAllUI();
-                btnSyncHeroes.disabled = false;
-                btnSyncHeroes.innerHTML = '<span>🔄 Sync Hero</span>';
-                showToast('🔄 Daftar karakter folder hero/* berhasil di-sync!');
             });
         }
 
@@ -919,7 +2132,7 @@
         const chkBones = document.getElementById('chk-show-bones');
         if (chkBones) {
             chkBones.addEventListener('change', () => {
-                if (boneDotsGroup) boneDotsGroup.visible = chkBones.checked;
+                setBoneDotsVisible(chkBones.checked);
             });
         }
 
@@ -937,7 +2150,7 @@
             chkDebugPlay.addEventListener('change', () => {
                 HS.setDebugPlayMode(chkDebugPlay.checked);
                 showToast(chkDebugPlay.checked
-                    ? '👁️ Visual Hitbox diaktifkan untuk Play Mode'
+                    ? 'Visual Hitbox diaktifkan untuk Play Mode'
                     : 'Visual Hitbox disembunyikan saat Play Mode');
             });
         }
@@ -1044,6 +2257,67 @@
                 addOrSelectHitboxForBone(defaultBone, true);
             });
         }
+
+        // Animation Speed (Kecepatan Tiap Gerakan Karakter)
+        const sliderAnimSpeed = document.getElementById('slider-anim-speed');
+        const numAnimSpeed = document.getElementById('num-anim-speed');
+        const valAnimSpeed = document.getElementById('val-anim-speed');
+
+        const setAnimationSpeed = (val, fromInput = false) => {
+            let s = parseFloat(val);
+            if (isNaN(s) || s <= 0.05) s = 1.0;
+            s = Number(THREE.MathUtils.clamp(s, 0.10, 5.0).toFixed(2));
+
+            const cfg = getCurrentAnimConfig();
+            if (cfg) {
+                cfg.speed = s;
+            }
+
+            if (sliderAnimSpeed && !fromInput) sliderAnimSpeed.value = s.toFixed(2);
+            if (numAnimSpeed && (!fromInput || document.activeElement !== numAnimSpeed)) numAnimSpeed.value = s.toFixed(2);
+            if (valAnimSpeed) valAnimSpeed.innerText = `${s.toFixed(2)}x`;
+
+            // Update live playback speed pada action attacker
+            const attacker = getAttackerInstance();
+            if (attacker && attacker.actions && attacker.actions[activeAnimKey]) {
+                attacker.actions[activeAnimKey].timeScale = s;
+            }
+
+            // Highlight tombol preset speed
+            const quickSpeedBtns = document.querySelectorAll('.btn-quick-speed');
+            quickSpeedBtns.forEach(b => {
+                const bVal = parseFloat(b.dataset.speed);
+                b.classList.toggle('active', Math.abs(bVal - s) < 0.03);
+            });
+
+            // Refresh pill list animasi agar badge kecepatan update
+            renderAnimationListUI();
+        };
+
+        if (sliderAnimSpeed) {
+            sliderAnimSpeed.addEventListener('input', () => {
+                setAnimationSpeed(sliderAnimSpeed.value, false);
+            });
+        }
+        if (numAnimSpeed) {
+            numAnimSpeed.addEventListener('input', () => {
+                setAnimationSpeed(numAnimSpeed.value, true);
+            });
+            numAnimSpeed.addEventListener('change', () => {
+                setAnimationSpeed(numAnimSpeed.value, false);
+            });
+        }
+
+        const quickSpeedBtns = document.querySelectorAll('.btn-quick-speed');
+        quickSpeedBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const spd = parseFloat(btn.dataset.speed);
+                if (!isNaN(spd)) {
+                    setAnimationSpeed(spd, false);
+                    showToast(`Kecepatan ${activeAnimKey}: ${spd.toFixed(1)}x`);
+                }
+            });
+        });
 
         // Animation Damage & Active Phase Window
         const inputDmg = document.getElementById('input-anim-damage');
@@ -1156,7 +2430,7 @@
                 const cfg = getCurrentAnimConfig();
                 selectedHitboxId = (cfg && cfg.hitboxes && cfg.hitboxes.length > 0) ? cfg.hitboxes[0].id : null;
                 renderAllUI();
-                showToast(`🔄 Hitbox ${activeAnimKey} di-reset ke default`);
+                showToast(`Hitbox ${activeAnimKey} di-reset ke default`);
             });
         }
 
@@ -1164,24 +2438,305 @@
         if (btnSave) {
             btnSave.addEventListener('click', async () => {
                 btnSave.disabled = true;
-                btnSave.innerHTML = '<span>⏳ Menyimpan...</span>';
+                btnSave.innerHTML = '<span>Menyimpan...</span>';
+
+                if (currentStudioMode === 'attachment') {
+                    const AS = window.PandoraAttachmentSystem;
+                    let ok = false;
+                    if (AS && typeof AS.persistConfig === 'function') {
+                        ok = await AS.persistConfig();
+                    }
+                    btnSave.disabled = false;
+                    btnSave.innerHTML = '<span>Simpan</span>';
+                    if (ok) {
+                        showToast('Objek 3D Attachment tersimpan ke config/attachments.json & siap di Game!');
+                    } else {
+                        showToast('Objek 3D Attachment tersimpan ke Browser Storage!');
+                    }
+                    return;
+                }
+
                 const res = await HS.saveConfig();
                 btnSave.disabled = false;
-                btnSave.innerHTML = '<span>💾 Simpan ke Game</span>';
+                btnSave.innerHTML = '<span>Simpan</span>';
                 if (res && res.success) {
-                    showToast('✅ Tersimpan ke config/hitboxes.json & siap di Play Mode!');
+                    showToast('Tersimpan ke config/hitboxes.json & siap di Play Mode!');
                 } else {
-                    showToast('✅ Tersimpan ke Browser Storage!');
+                    showToast('Tersimpan ke Browser Storage!');
                 }
             });
         }
+
+        // ===================================================================
+        // BINDING EVENT HANDLERS: CHARACTER 3D ATTACHMENT MANAGER
+        // ===================================================================
+        const tabHitbox = document.getElementById('tab-mode-hitbox');
+        const tabAttachment = document.getElementById('tab-mode-attachment');
+        if (tabHitbox) tabHitbox.addEventListener('click', () => setStudioMode('hitbox'));
+        if (tabAttachment) tabAttachment.addEventListener('click', () => setStudioMode('attachment'));
+
+        // Upload File 3D Picker & Dropzone
+        const filePicker = document.getElementById('input-att-file-picker');
+        const btnUploadTrigger = document.getElementById('btn-trigger-upload-att');
+        const dropzone = document.getElementById('dropzone-att-file');
+
+        if (btnUploadTrigger && filePicker) {
+            btnUploadTrigger.addEventListener('click', () => {
+                filePicker.click();
+            });
+        }
+
+        if (filePicker) {
+            filePicker.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    addNewAttachmentFromFile(e.target.files[0]);
+                    filePicker.value = '';
+                }
+            });
+        }
+
+        if (dropzone) {
+            dropzone.addEventListener('click', () => {
+                if (filePicker) filePicker.click();
+            });
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = '#38bdf8';
+                dropzone.style.background = 'rgba(56, 189, 248, 0.08)';
+            });
+            dropzone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = '#3f3f46';
+                dropzone.style.background = 'rgba(255, 255, 255, 0.02)';
+            });
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = '#3f3f46';
+                dropzone.style.background = 'rgba(255, 255, 255, 0.02)';
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    addNewAttachmentFromFile(e.dataTransfer.files[0]);
+                }
+            });
+        }
+
+        // Muat dari URL / Path
+        const btnLoadUrl = document.getElementById('btn-load-att-url');
+        const inputAttUrl = document.getElementById('input-att-url');
+        if (btnLoadUrl && inputAttUrl) {
+            btnLoadUrl.addEventListener('click', () => {
+                addNewAttachmentFromUrl(inputAttUrl.value);
+                inputAttUrl.value = '';
+            });
+            inputAttUrl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    addNewAttachmentFromUrl(inputAttUrl.value);
+                    inputAttUrl.value = '';
+                }
+            });
+        }
+
+        // Gizmo Mode Switcher (Translate W, Rotate E, Scale R)
+        const bTrans = document.getElementById('btn-gizmo-translate');
+        const bRot = document.getElementById('btn-gizmo-rotate');
+        const bScale = document.getElementById('btn-gizmo-scale');
+        if (bTrans) bTrans.addEventListener('click', () => setGizmoMode('translate'));
+        if (bRot) bRot.addEventListener('click', () => setGizmoMode('rotate'));
+        if (bScale) bScale.addEventListener('click', () => setGizmoMode('scale'));
+
+        // Input Inspector Attachment
+        const inputAttName = document.getElementById('input-att-name');
+        if (inputAttName) {
+            inputAttName.addEventListener('input', () => {
+                const attList = getActiveCharacterAttachments();
+                const att = attList.find(a => a.id === selectedAttachmentId);
+                if (att) {
+                    att.name = inputAttName.value;
+                    renderAttachmentUI();
+                }
+            });
+        }
+
+        const selectAttBone = document.getElementById('select-att-bone');
+        if (selectAttBone) {
+            selectAttBone.addEventListener('change', () => {
+                const attList = getActiveCharacterAttachments();
+                const att = attList.find(a => a.id === selectedAttachmentId);
+                if (att) {
+                    att.bone = selectAttBone.value;
+                    // Reset posisi & rotasi lokal agar objek langsung mengunci di sendi tulang baru
+                    att.position = [0, 0, 0];
+                    att.rotation = [0, 0, 0];
+                    refreshAttachmentMeshesInStudio();
+                    renderAttachmentUI();
+                    syncAttachmentInspectorFromSelected(true);
+                    hideBoneLocationIndicator(); // Sudah terpilih -> hilangkan indikator
+                    showToast(`Socket dipindah ke: ${att.bone}`);
+                }
+            });
+            selectAttBone.addEventListener('mouseleave', () => hideBoneLocationIndicator());
+            selectAttBone.addEventListener('blur', () => hideBoneLocationIndicator());
+        }
+
+        const chkAttVis = document.getElementById('chk-att-visible');
+        if (chkAttVis) {
+            chkAttVis.addEventListener('change', () => {
+                const attList = getActiveCharacterAttachments();
+                const att = attList.find(a => a.id === selectedAttachmentId);
+                if (att) {
+                    att.visible = chkAttVis.checked;
+                    refreshAttachmentMeshesInStudio();
+                    renderAttachmentUI();
+                }
+            });
+        }
+
+        // Input Number Transform XYZ (Posisi, Rotasi, Skala)
+        ['pos-x', 'pos-y', 'pos-z', 'rot-x', 'rot-y', 'rot-z', 'scale-x', 'scale-y', 'scale-z'].forEach(propKey => {
+            const el = document.getElementById('num-att-' + propKey);
+            if (el) {
+                el.addEventListener('input', () => {
+                    applyAttachmentTransformsFromInspector();
+                });
+            }
+        });
+
+        // Input Skala Keseluruhan (Merubah Semua Sumbu X, Y, Z Sekaligus)
+        const elScaleAll = document.getElementById('num-att-scale-all');
+        if (elScaleAll) {
+            elScaleAll.addEventListener('input', () => {
+                const val = Math.max(0.01, parseFloat(elScaleAll.value) || 1);
+                const sx = document.getElementById('num-att-scale-x');
+                const sy = document.getElementById('num-att-scale-y');
+                const sz = document.getElementById('num-att-scale-z');
+                if (sx) sx.value = val.toFixed(2);
+                if (sy) sy.value = val.toFixed(2);
+                if (sz) sz.value = val.toFixed(2);
+                applyAttachmentTransformsFromInspector();
+            });
+        }
+
+        // Tombol Reset Utility Attachment
+        const btnResetPos = document.getElementById('btn-att-reset-pos');
+        if (btnResetPos) {
+            btnResetPos.addEventListener('click', () => {
+                const nx = document.getElementById('num-att-pos-x');
+                const ny = document.getElementById('num-att-pos-y');
+                const nz = document.getElementById('num-att-pos-z');
+                if (nx) nx.value = '0.00';
+                if (ny) ny.value = '0.00';
+                if (nz) nz.value = '0.00';
+                applyAttachmentTransformsFromInspector();
+            });
+        }
+
+        const btnResetRot = document.getElementById('btn-att-reset-rot');
+        if (btnResetRot) {
+            btnResetRot.addEventListener('click', () => {
+                const rx = document.getElementById('num-att-rot-x');
+                const ry = document.getElementById('num-att-rot-y');
+                const rz = document.getElementById('num-att-rot-z');
+                if (rx) rx.value = '0';
+                if (ry) ry.value = '0';
+                if (rz) rz.value = '0';
+                applyAttachmentTransformsFromInspector();
+            });
+        }
+
+        const btnResetScale = document.getElementById('btn-att-reset-scale');
+        if (btnResetScale) {
+            btnResetScale.addEventListener('click', () => {
+                const sx = document.getElementById('num-att-scale-x');
+                const sy = document.getElementById('num-att-scale-y');
+                const sz = document.getElementById('num-att-scale-z');
+                const sall = document.getElementById('num-att-scale-all');
+                if (sx) sx.value = '1.00';
+                if (sy) sy.value = '1.00';
+                if (sz) sz.value = '1.00';
+                if (sall) sall.value = '1.00';
+                applyAttachmentTransformsFromInspector();
+            });
+        }
+
+        const btnDelAtt = document.getElementById('btn-delete-attachment');
+        if (btnDelAtt) {
+            btnDelAtt.addEventListener('click', () => {
+                if (selectedAttachmentId) {
+                    deleteAttachment(selectedAttachmentId);
+                }
+            });
+        }
+
+        // Tombol Refresh Library Berkas 3D Server
+        const btnRefreshLib = document.getElementById('btn-refresh-att-library');
+        if (btnRefreshLib) {
+            btnRefreshLib.addEventListener('click', () => {
+                renderAttachmentLibraryUI();
+            });
+        }
+
+        // Toggle Hide/Show Titik Sendi Tulang (Bone Dots) di Layar
+        const btnToggleAttBones = document.getElementById('btn-toggle-att-bones');
+        if (btnToggleAttBones) {
+            btnToggleAttBones.addEventListener('click', () => {
+                setBoneDotsVisible(!isBoneDotsVisible);
+            });
+        }
+
+        // Dropdown Variasi Sample Animasi untuk Uji Gerak Objek 3D
+        const selAttTestAnim = document.getElementById('sel-attachment-test-anim');
+        if (selAttTestAnim) {
+            selAttTestAnim.addEventListener('change', (e) => {
+                playAttachmentTestAnimation(e.target.value);
+            });
+        }
+
+        // Tombol Kembali ke T-Pose (Bind-Pose)
+        const btnAttResetTPose = document.getElementById('btn-att-reset-tpose');
+        if (btnAttResetTPose) {
+            btnAttResetTPose.addEventListener('click', () => {
+                applyTPoseToActiveCharacter();
+                showToast('Kembali ke T-Pose (Bind-Pose)', '#0284c7');
+            });
+        }
+
+        // Preview Gerak Animasi saat di Mode Attachment (Fallback lama)
+        const btnTestPose = document.getElementById('btn-toggle-tpose-preview');
+        if (btnTestPose) {
+            btnTestPose.addEventListener('click', () => {
+                isPreviewAnimInAttachment = !isPreviewAnimInAttachment;
+                btnTestPose.classList.toggle('active', isPreviewAnimInAttachment);
+                if (isPreviewAnimInAttachment) {
+                    btnTestPose.innerHTML = '<span>T-Pose</span>';
+                    restoreCombatAnimation();
+                } else {
+                    btnTestPose.innerHTML = '<span>Test Gerak Animasi</span>';
+                    applyTPoseToActiveCharacter();
+                }
+            });
+        }
+
+        // Shortcut Hotkeys W, E, R untuk Gizmo di Layar
+        window.addEventListener('keydown', (e) => {
+            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
+                return;
+            }
+            if (currentStudioMode === 'attachment') {
+                if (e.key === 'w' || e.key === 'W') {
+                    setGizmoMode('translate');
+                } else if (e.key === 'e' || e.key === 'E') {
+                    setGizmoMode('rotate');
+                } else if (e.key === 'r' || e.key === 'R') {
+                    setGizmoMode('scale');
+                }
+            }
+        });
 
         // Bottom Timeline Transport Controls
         const btnPlay = document.getElementById('btn-tl-play');
         const updatePlayBtnUI = () => {
             if (!btnPlay) return;
             btnPlay.classList.toggle('active', isPlaying);
-            btnPlay.innerHTML = isPlaying ? '⏸ Pause' : '▶ Play';
+            btnPlay.innerHTML = window.blIcon(isPlaying ? 'pause' : 'play');
         };
 
         if (btnPlay) {
@@ -1258,6 +2813,58 @@
         const attacker = getAttackerInstance();
         const dummy = getDummyInstance();
 
+        // Di mode attachment (T-Pose 3D Gizmo manager):
+        // Jangan jalankan timeline combat mixer ataupun evaluasi hitbox studio
+        if (currentStudioMode === 'attachment') {
+            if (isPreviewAnimInAttachment && attacker && attacker.mixer) {
+                attacker.mixer.update(dt);
+                if (attacker.modelMesh) attacker.modelMesh.rotation.set(0, 0, 0);
+                attacker.root.updateMatrixWorld(true);
+            }
+
+            hideCombatVisualsForAttachment();
+
+            // Update posisi Bone Dots pada karakter (mengikuti T-Pose maupun preview gerak)
+            if (boneDotsGroup) {
+                boneDotsGroup.visible = isBoneDotsVisible;
+                if (isBoneDotsVisible && attacker) {
+                    for (let i = 0; i < boneDotMeshes.length; i++) {
+                        const item = boneDotMeshes[i];
+                        const bNode = HS.resolveBone(attacker, item.boneKey);
+                        if (bNode) {
+                            bNode.updateWorldMatrix(true, false);
+                            bNode.getWorldPosition(item.mesh.position);
+                            item.mesh.visible = true;
+                        } else {
+                            item.mesh.visible = false;
+                        }
+                    }
+                }
+            }
+
+            // Update animasi pulsa marker sorotan tulang jika aktif
+            if (boneHighlightMarker && boneHighlightMarker.visible) {
+                const time = clock.getElapsedTime();
+                const pulse1 = 1.0 + Math.sin(time * 9) * 0.25;
+                if (boneHighlightRingMesh) {
+                    boneHighlightRingMesh.scale.set(pulse1, pulse1, pulse1);
+                    boneHighlightRingMesh.lookAt(camera.position);
+                }
+                const pulse2 = 1.0 + Math.cos(time * 7) * 0.20;
+                if (boneHighlightOuterMesh) {
+                    boneHighlightOuterMesh.scale.set(pulse2, pulse2, pulse2);
+                    boneHighlightOuterMesh.lookAt(camera.position);
+                }
+                if (activeHighlightedBoneNode) {
+                    activeHighlightedBoneNode.updateWorldMatrix(true, false);
+                    activeHighlightedBoneNode.getWorldPosition(boneHighlightMarker.position);
+                }
+            }
+
+            renderer.render(scene, camera);
+            return;
+        }
+
         // 1. Update Animasi Penyerang sesuai Timeline Scrubber
         if (attacker && attacker.mixer && attacker.actions && attacker.actions[activeAnimKey]) {
             const act = attacker.actions[activeAnimKey];
@@ -1267,7 +2874,9 @@
             }
 
             if (isPlaying) {
-                currentClipTime += dt * playbackSpeed;
+                const animCfg = getCurrentAnimConfig();
+                const animSpeed = (animCfg && typeof animCfg.speed === 'number' && animCfg.speed > 0) ? animCfg.speed : 1.0;
+                currentClipTime += dt * playbackSpeed * animSpeed;
                 if (currentClipTime >= currentClipDuration) {
                     if (isLooping) {
                         currentClipTime = currentClipTime % currentClipDuration;
@@ -1281,14 +2890,14 @@
                         const btnPlay = document.getElementById('btn-tl-play');
                         if (btnPlay) {
                             btnPlay.classList.remove('active');
-                            btnPlay.innerHTML = '▶ Play';
+                            btnPlay.innerHTML = window.blIcon('play');
                         }
                     }
                 }
             }
 
             act.time = currentClipTime;
-            attacker.mixer.update(0);
+            attacker.mixer.update(0); if (attacker && attacker.modelMesh) attacker.modelMesh.rotation.set(0, 0, 0);
             attacker.root.updateMatrixWorld(true);
         }
 
@@ -1300,7 +2909,7 @@
                     playIdleOnDummy();
                 }
             }
-            dummy.mixer.update(dt);
+            dummy.mixer.update(dt); if (dummy && dummy.modelMesh) dummy.modelMesh.rotation.set(0, 0, 0);
             dummy.root.updateMatrixWorld(true);
         }
 
@@ -1383,6 +2992,25 @@
             const s = 1.0 + (1.0 - impactRingAlpha) * 1.8;
             impactRingMesh.scale.set(s, s, s);
             impactRingMesh.lookAt(camera.position);
+        }
+
+        // Update animasi pulsa marker sorotan tulang
+        if (boneHighlightMarker && boneHighlightMarker.visible) {
+            const time = clock.getElapsedTime();
+            const pulse1 = 1.0 + Math.sin(time * 9) * 0.25;
+            if (boneHighlightRingMesh) {
+                boneHighlightRingMesh.scale.set(pulse1, pulse1, pulse1);
+                boneHighlightRingMesh.lookAt(camera.position);
+            }
+            const pulse2 = 1.0 + Math.cos(time * 7) * 0.20;
+            if (boneHighlightOuterMesh) {
+                boneHighlightOuterMesh.scale.set(pulse2, pulse2, pulse2);
+                boneHighlightOuterMesh.lookAt(camera.position);
+            }
+            if (activeHighlightedBoneNode) {
+                activeHighlightedBoneNode.updateWorldMatrix(true, false);
+                activeHighlightedBoneNode.getWorldPosition(boneHighlightMarker.position);
+            }
         }
 
         renderer.render(scene, camera);
@@ -1517,13 +3145,13 @@
         if (banner && icon && text) {
             if (evalRes.hit && evalRes.bestHit) {
                 banner.classList.add('status-hit');
-                icon.innerText = '💥';
+                icon.dataset.state = 'hit';
                 const hbName = evalRes.bestHit.hitbox.name || evalRes.bestHit.hitbox.bone;
                 const hitCountNum = Math.max(1, multiHit.hitCount || 1);
                 const totalDmg = (evalRes.damage || 25) * hitCountNum;
                 text.innerText = hitCountNum > 1
-                    ? `HIT #${hitCountNum} KENA! (${hitCountNum}x Combo Hit | ${hbName} ➔ ${evalRes.bestHit.hitPart} | Total -${totalDmg} HP)`
-                    : `HIT KENA! (${hbName} ➔ ${evalRes.bestHit.hitPart} Lawan | -${evalRes.damage} HP)`;
+                    ? `HIT #${hitCountNum} KENA! (${hitCountNum}x Combo Hit | ${hbName} → ${evalRes.bestHit.hitPart} | Total -${totalDmg} HP)`
+                    : `HIT KENA! (${hbName} → ${evalRes.bestHit.hitPart} Lawan | -${evalRes.damage} HP)`;
 
                 if (multiHit.triggeredNewHit) {
                     dummyHitTriggeredInCycle = true;
@@ -1536,10 +3164,10 @@
             } else {
                 banner.classList.remove('status-hit');
                 if (!evalRes.inActiveWindow) {
-                    icon.innerText = '⏳';
+                    icon.dataset.state = 'idle';
                     text.innerText = `Fase Ancang-ancang / Pemulihan (Di luar jam aktif % gerakan)`;
                 } else {
-                    icon.innerText = '🟢';
+                    icon.dataset.state = 'ready';
                     text.innerText = `Area Hitbox Aktif — Belum Menyentuh Badan Lawan`;
                 }
             }

@@ -70,8 +70,49 @@ body.play-mode-active canvas {
     box-shadow: none !important;
 }
 
-/* Floating Fox Species Switcher (Hidden in Demo Mode per user request) */
+/* =========================================================
+   FLOATING HERO SPECIES SWITCHER (Tampil saat Demo Mode)
+   Memungkinkan berganti karakter kapan saja (1-9 atau klik)
+   ========================================================= */
 .fox-species-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 16px rgba(56, 189, 248, 0.15);
+    pointer-events: auto;
+    user-select: none;
+    max-width: 90vw;
+    overflow-x: auto;
+    scrollbar-width: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fox-species-bar::-webkit-scrollbar {
+    display: none;
+}
+
+/* SEMBUNYIKAN TOTAL SAAT PLAY MODE DEMO AKTIF SESUAI PERMINTAAN USER */
+body.play-mode-active .fox-species-bar {
+    display: none !important;
+}
+
+/* Sembunyikan jika panel cinematic bottom terbuka di studio agar tidak tumpang tindih */
+body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
+    display: none !important;
+}
+
+.fox-species-bar .btn-species-exit {
     display: none !important;
 }
 
@@ -80,77 +121,100 @@ body.play-mode-active canvas {
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    font-weight: 400;
-    color: var(--text-muted);
+    font-weight: 600;
+    color: #94a3b8;
     padding: 0 4px;
+    white-space: nowrap;
 }
 
 .species-bar-hint kbd {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
-    padding: 1px 4px;
-    background: var(--bg-dark);
-    color: var(--text-bright);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--widget-border);
+    font-size: 10px;
+    padding: 1px 5px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #38bdf8;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.35);
 }
 
 .btn-species-pill {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    height: 22px;
-    border-radius: var(--radius-sm);
+    gap: 5px;
+    padding: 4px 10px;
+    height: 28px;
+    border-radius: 14px;
     font-size: 11px;
-    font-weight: 400;
-    background: var(--bg-button);
-    border: 1px solid var(--widget-border);
-    color: var(--text-main);
+    font-weight: 500;
+    background: rgba(30, 41, 59, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
     cursor: pointer;
     box-sizing: border-box;
-    transition: background 0.1s ease;
+    transition: all 0.15s ease;
     user-select: none;
+    white-space: nowrap;
 }
 
 .btn-species-pill:hover {
-    background: var(--bg-button-hover);
-    color: #fff;
+    background: rgba(51, 65, 85, 0.95);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #ffffff;
+    transform: translateY(-1px);
 }
 
 .btn-species-pill:active {
-    transform: none;
+    transform: translateY(0);
 }
 
 .btn-species-pill.active {
-    background: var(--accent);
-    border-color: var(--accent-hover);
-    color: #fff;
-    box-shadow: none;
-    font-weight: 500;
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    border-color: #38bdf8;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+    font-weight: 600;
+}
+
+.species-kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 1px 4px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #38bdf8;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.btn-species-pill.active .species-kbd {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.5);
 }
 
 .btn-species-exit {
     display: inline-flex;
     align-items: center;
-    padding: 2px 8px;
-    height: 22px;
-    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    height: 28px;
+    border-radius: 14px;
     font-size: 11px;
-    font-weight: 400;
-    background: var(--bg-button);
-    border: 1px solid var(--widget-border);
-    color: var(--text-main);
+    font-weight: 600;
+    background: rgba(185, 28, 28, 0.85);
+    border: 1px solid rgba(254, 202, 202, 0.4);
+    color: #ffffff;
     cursor: pointer;
-    transition: background 0.1s ease;
-    margin-left: 2px;
+    transition: all 0.15s ease;
+    margin-left: 4px;
     box-sizing: border-box;
+    white-space: nowrap;
 }
 
 .btn-species-exit:hover {
-    background: #5a3030;
-    color: #fff;
-    border-color: #703838;
+    background: rgba(220, 38, 38, 0.95);
+    border-color: #ef4444;
+    transform: translateY(-1px);
 }
 
 /* =========================================================
@@ -644,10 +708,23 @@ body.play-mode-active #btn-mobile-exit-demo {
    Compact HUD, Non-blocking, Proportional Layout
    ========================================================= */
 @media (max-width: 768px) {
-    /* Fox Stats HUD & Species Bar: completely hidden per user request */
-    .fox-stats-hud,
-    .fox-species-bar {
+    .fox-stats-hud {
         display: none !important;
+    }
+
+    body.play-mode-active .fox-species-bar {
+        display: none !important;
+    }
+
+    .fox-species-bar .species-bar-hint,
+    .fox-species-bar .btn-species-exit {
+        display: none !important;
+    }
+
+    .btn-species-pill {
+        height: 24px !important;
+        padding: 2px 7px !important;
+        font-size: 10px !important;
     }
 
     body.play-mode-active #mobile-play-controls {

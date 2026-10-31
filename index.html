@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Pandora3D - Professional Studio UI</title>
+    <title>Pandora 3D</title>
     <link rel="icon" href="data:,">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,14 +21,16 @@
     <link rel="stylesheet" href="css/cinematic.css">
     <link rel="stylesheet" href="css/items.css">
     <link rel="stylesheet" href="css/blender-inspector.css">
+    <link rel="stylesheet" href="css/desktop-shell.css">
+    <script src="js/editor/desktop-shell.js"></script>
 </head>
 
-<body>
+<body data-app="studio">
     <!-- PANDORA STARTUP ASSET PRELOADER (MEMUAT ASSET HERO RED FOX & ENEMY) -->
     <div id="pandora-asset-loader" class="pandora-asset-loader">
         <div class="loader-content">
             <div class="loader-brand">
-                <span class="loader-logo">🦊</span>
+                
                 <div class="loader-title">PANDORA STUDIO</div>
                 <div class="loader-subtitle">MEMUAT ASSET HERO & ANIMASI RED FOX</div>
             </div>
@@ -50,21 +52,6 @@
 
     <!-- TOP COMPACT TOOLBAR -->
     <header id="top-toolbar">
-        <div class="toolbar-brand">
-            <span class="svg-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path
-                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                    </path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                </svg>
-            </span>
-            <span>PANDORA</span>
-            <span class="badge-tag">3D</span>
-        </div>
-
-        <div class="divider"></div>
 
         <!-- MAP STORAGE & SELECTOR (DI KIRI PLAY DEMO) -->
         <div class="toolbar-map-group" id="toolbar-map-group">
@@ -128,6 +115,17 @@
 
         <div class="divider"></div>
 
+        <div class="toolbar-group" id="toolbar-group-character" title="Karakter yang dimainkan saat Play Demo">
+            <label><span>Karakter</span></label>
+            <select id="select-play-character" style="width:118px;">
+                <option value="red">Red Fox</option>
+            </select>
+        </div>
+
+        <button id="btn-toggle-battle-mode" class="btn-compact btn-toggle" title="Aktifkan Mode Perang AI Plasma">
+            <span>AI Battle</span>
+        </button>
+
         <button id="btn-play-mode" class="btn-compact btn-play-mode"
             title="Mainkan Demo Jelajah Map dengan Karakter Rubah (P)">
             <span class="svg-icon" id="play-mode-icon">
@@ -148,7 +146,7 @@
             <span>Spawn Area</span>
         </button>
 
-        <a href="hit-tool.html" id="btn-open-hit-tool" class="btn-compact" style="text-decoration:none; border-color:rgba(239,68,68,0.45);" title="Buka Halaman Hit Tool (Atur Hitbox Tulang Kaki/Tangan per Animasi)">
+        <a href="hit-tool.html" id="btn-open-hit-tool" class="btn-compact" style="text-decoration:none;" title="Buka Halaman Hit Tool (Atur Hitbox Tulang Kaki/Tangan per Animasi)">
             <span class="svg-icon" style="color:#ef4444;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="9"></circle>
@@ -406,35 +404,6 @@
 
         <!-- Red Damage Hit Vignette (Full Screen on Blast Hit) -->
         <div id="player-damage-vignette" class="player-damage-vignette"></div>
-    </div>
-
-    <!-- MINIMALIST FLOATING SPECIES SWITCHER (Hanya tampil saat Demo Mode) -->
-    <div id="fox-species-bar" class="fox-species-bar" style="display: none;">
-        <span class="species-bar-hint"><kbd>1-6</kbd> Species:</span>
-        <button class="btn-species-pill active" data-species="red" title="Red Fox (Vulpes vulpes) - Tekan 1">
-            <span class="species-label">Red</span>
-        </button>
-        <button class="btn-species-pill" data-species="arctic" title="Arctic Fox (Vulpes lagopus) - Tekan 2">
-            <span class="species-label">Arctic</span>
-        </button>
-        <button class="btn-species-pill" data-species="corsac" title="Corsac Fox (Vulpes corsac) - Tekan 3">
-            <span class="species-label">Corsac</span>
-        </button>
-        <button class="btn-species-pill" data-species="swift" title="Swift / Golden Fox - Tekan 4">
-            <span class="species-label">Golden</span>
-        </button>
-        <button class="btn-species-pill" data-species="silver" title="Silver Fox (Vulpes vulpes var.) - Tekan 5">
-            <span class="species-label">Silver</span>
-        </button>
-        <button class="btn-species-pill" data-species="darwin" title="Darwin Fox (Lycalopex fulvipes) - Tekan 6">
-            <span class="species-label">Darwin</span>
-        </button>
-        <button id="btn-toggle-battle-mode" class="btn-species-pill" style="border-color:#ef4444; color:#f87171;" title="Aktifkan Mode Perang AI Plasma">
-            <span class="species-label">⚔️ AI Battle</span>
-        </button>
-        <button id="btn-exit-demo-mode" class="btn-species-exit" title="Keluar Mode Demo (ESC)">
-            <span>Exit (ESC)</span>
-        </button>
     </div>
 
     <!-- BOSS HEALTH BAR (Tengah Atas - Hanya Tampil Saat di Dalam Radius Area Boss) -->
@@ -731,7 +700,7 @@
 
             <!-- Right Options & Exit -->
             <div class="cinematic-timeline-badges">
-                <button type="button" id="btn-floating-exit" class="btn-cinematic-exit" title="Close Timeline (C)">✕ Close</button>
+                <button type="button" id="btn-floating-exit" class="btn-cinematic-exit" title="Close Timeline (C)">Close</button>
             </div>
         </div>
 
@@ -747,7 +716,7 @@
                     </span>
                     <span>Cinematic Camera & Shot Tools</span>
                 </span>
-                <button type="button" id="btn-close-cinematic-overflow" class="btn-icon-only" style="width:20px; height:20px; border:none; background:transparent; color:var(--text-muted); cursor:pointer;" title="Tutup Menu">✕</button>
+                <button type="button" id="btn-close-cinematic-overflow" class="btn-icon-only" style="width:20px; height:20px; border:none; background:transparent; color:var(--text-muted); cursor:pointer;" title="Tutup Menu"></button>
             </div>
 
             <div class="cinematic-overflow-body">
@@ -1207,12 +1176,8 @@
                         <input type="checkbox" id="toggle-studio-grid" checked
                             style="cursor:pointer; accent-color:var(--accent);">
                     </div>
-                </div>
-            </div>
-
-
-            <!-- TERRAIN -->
-            <div class="accordion collapsed">
+<!-- TERRAIN -->
+            <div class="accordion bl-nested">
                 <div class="accordion-title">
                     <div class="accordion-title-left">
                         <span class="svg-icon" style="color:#10b981;">
@@ -1257,6 +1222,8 @@
                     </div>
                 </div>
             </div>
+                </div>
+            </div>
 
             <!-- BRUSH (RUMPUT, JALAN, AIR, BATU, BUNGA, KUPU-KUPU) -->
             <div class="accordion collapsed" id="accordion-brush">
@@ -1296,6 +1263,17 @@
                             </span>
                             <span>Rumput</span>
                         </button>
+                        <button type="button" class="brush-tab-btn" data-brush-tab="tree" id="btn-tab-brush-tree">
+<span class="svg-icon" style="color:#22c55e; width:13px; height:13px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M12 22v-7"></path>
+                                <path
+                                    d="M17 14c1.7 0 3-1.3 3-3a3 3 0 0 0-1.5-2.6A4 4 0 0 0 14 3.5a4 4 0 0 0-4 0 4 4 0 0 0-4.5 4.9A3 3 0 0 0 4 11c0 1.7 1.3 3 3 3h10z">
+                                </path>
+                            </svg>
+                        </span>
+<span>Pohon</span>
+</button>
                         <button type="button" class="brush-tab-btn" data-brush-tab="road" id="btn-tab-brush-road">
                             <span class="svg-icon" style="color:#d97706; width:13px; height:13px;">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1531,6 +1509,207 @@
                     </div>
 
                     <!-- SUBPANEL 2: JALAN (ROAD BRUSH) -->
+                    <div id="subpanel-brush-tree" class="brush-subpanel" style="display:none;">
+
+                    <div class="control-group">
+                        <label>Pilih Jenis Pohon (Klik untuk Tanam)</label>
+                        <select id="select-tree-mode" style="display:none;">
+                            <option value="none">Off</option>
+                            <option value="oak">Oak Tree (Hijau)</option>
+                            <option value="birch_yellow">Birch Yellow</option>
+                            <option value="birch_teal">Birch Teal</option>
+                            <option value="birch_red">Birch Autumn</option>
+                            <option value="pine">Pine Tree (Cemara)</option>
+                        </select>
+                        <div class="spawner-card-grid tree-grid" id="tree-picker-grid">
+                            <button type="button" class="spawner-card active" data-value="none"
+                                title="Matikan Mode Tanam Pohon">
+                                <div class="card-preview">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <circle cx="20" cy="20" r="13" fill="none" stroke="#64748b" stroke-width="2.5"
+                                            stroke-dasharray="4 2" />
+                                        <line x1="12" y1="28" x2="28" y2="12" stroke="#ef4444" stroke-width="2.5"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Off</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="oak"
+                                title="Oak Tree (Pohon Hijau Teduh)">
+                                <div class="card-preview oak-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M18 35 L18.8 23 L21.2 23 L22 35 Z" fill="#6d4c41" />
+                                        <circle cx="15" cy="18" r="8" fill="#15803d" />
+                                        <circle cx="25" cy="18" r="8" fill="#16a34a" />
+                                        <circle cx="20" cy="13" r="8.5" fill="#22c55e" />
+                                        <circle cx="18" cy="11" r="5" fill="#4ade80" opacity="0.8" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Oak Hijau</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="birch_yellow"
+                                title="Birch Yellow (Pohon Emas Gugur)">
+                                <div class="card-preview yellow-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
+                                        <line x1="19" y1="31" x2="21" y2="31" stroke="#334155" stroke-width="0.8" />
+                                        <line x1="19" y1="27" x2="21" y2="27" stroke="#334155" stroke-width="0.8" />
+                                        <circle cx="15" cy="17" r="8" fill="#ca8a04" />
+                                        <circle cx="25" cy="17" r="8" fill="#d97706" />
+                                        <circle cx="20" cy="12" r="8.5" fill="#eab308" />
+                                        <circle cx="18" cy="10" r="5" fill="#fef08a" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Birch Yellow</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="birch_teal"
+                                title="Birch Teal (Pohon Fantasi Cyan)">
+                                <div class="card-preview teal-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
+                                        <line x1="19" y1="30" x2="21" y2="30" stroke="#334155" stroke-width="0.8" />
+                                        <circle cx="15" cy="17" r="8" fill="#0f766e" />
+                                        <circle cx="25" cy="17" r="8" fill="#0d9488" />
+                                        <circle cx="20" cy="12" r="8.5" fill="#14b8a6" />
+                                        <circle cx="18" cy="10" r="5" fill="#5eead4" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Birch Teal</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="birch_red"
+                                title="Birch Autumn (Pohon Merah Membara)">
+                                <div class="card-preview autumn-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
+                                        <line x1="19" y1="29" x2="21" y2="29" stroke="#334155" stroke-width="0.8" />
+                                        <circle cx="15" cy="17" r="8" fill="#991b1b" />
+                                        <circle cx="25" cy="17" r="8" fill="#b91c1c" />
+                                        <circle cx="20" cy="12" r="8.5" fill="#dc2626" />
+                                        <circle cx="18" cy="10" r="5" fill="#fca5a5" opacity="0.85" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Birch Autumn</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="pine"
+                                title="Pine Tree (Pohon Cemara Salju/Genshin)">
+                                <div class="card-preview pine-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
+                                        <rect x="18.8" y="27" width="2.4" height="8" rx="0.8" fill="#451a03" />
+                                        <polygon points="20 18, 9 28, 31 28" fill="#14532d" />
+                                        <polygon points="20 12, 12 21, 28 21" fill="#15803d" />
+                                        <polygon points="20 5, 14 14, 26 14" fill="#16a34a" />
+                                        <polygon points="20 5, 17 10, 23 10" fill="#4ade80" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Pine Cemara</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="shortcut-hint">
+                        <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </span>
+                        <span>Klik kiri tanah untuk menanam pohon, klik kanan untuk menghapus pohon. Scroll mouse untuk
+                            zoom. Tekan <span class="esc-kbd">Esc</span> selesai.</span>
+                    </div>
+<!-- SELECTED TREE INSPECTOR -->
+            <div class="accordion bl-nested" id="accordion-tree-inspector">
+                <div class="accordion-title" style="color:var(--accent);">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="5 9 2 12 5 15"></polyline>
+                                <polyline points="9 5 12 2 15 5"></polyline>
+                                <polyline points="15 19 12 22 9 19"></polyline>
+                                <polyline points="19 9 22 12 19 15"></polyline>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <line x1="12" y1="2" x2="12" y2="22"></line>
+                            </svg>
+                        </span>
+                        <span>Transformasi Pohon</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div class="control-group">
+                        <label>
+                            <span>Tinggi Batang</span>
+                            <span id="val-tree-height" class="val-badge">1.0</span>
+                        </label>
+                        <input type="range" id="slider-tree-height" min="0.5" max="5.0" step="0.05" value="1.0">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Tebal Batang</span>
+                            <span id="val-tree-thickness" class="val-badge">1.0</span>
+                        </label>
+                        <input type="range" id="slider-tree-thickness" min="0.4" max="2.5" step="0.05" value="1.0">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Kelokan Batang</span>
+                            <span id="val-tree-curvature" class="val-badge">0.5</span>
+                        </label>
+                        <input type="range" id="slider-tree-curvature" min="0.0" max="1.0" step="0.05" value="0.5">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Jumlah Ranting</span>
+                            <span id="val-branch-count" class="val-badge">3</span>
+                        </label>
+                        <input type="range" id="slider-branch-count" min="1" max="6" step="1" value="3">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Jumlah Daun</span>
+                            <span id="val-leaf-count" class="val-badge">1200</span>
+                        </label>
+                        <input type="range" id="slider-leaf-count" min="300" max="3200" step="50" value="1200">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Posisi X</span>
+                            <span id="val-pos-x" class="val-badge">0.0</span>
+                        </label>
+                        <input type="range" id="slider-pos-x" min="-35" max="35" step="0.2" value="0">
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <span>Posisi Z</span>
+                            <span id="val-pos-z" class="val-badge">0.0</span>
+                        </label>
+                        <input type="range" id="slider-pos-z" min="-35" max="35" step="0.2" value="0">
+                    </div>
+                    <button id="btn-delete-tree" class="btn-action btn-danger" style="margin-top:6px;">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path
+                                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                                </path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                        </span>
+                        <span>Hapus Pohon</span>
+                    </button>
+                </div>
+            </div>
+</div>
+
                     <div id="subpanel-brush-road" class="brush-subpanel" style="display:none;">
                         <div class="control-group">
                             <label>Kuas Jalan</label>
@@ -2422,140 +2601,6 @@
                 </div>
             </div>
 
-            <!-- TREE SPAWNER -->
-            <div class="accordion collapsed">
-                <div class="accordion-title">
-                    <div class="accordion-title-left">
-                        <span class="svg-icon" style="color:#22c55e;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M12 22v-7"></path>
-                                <path
-                                    d="M17 14c1.7 0 3-1.3 3-3a3 3 0 0 0-1.5-2.6A4 4 0 0 0 14 3.5a4 4 0 0 0-4 0 4 4 0 0 0-4.5 4.9A3 3 0 0 0 4 11c0 1.7 1.3 3 3 3h10z">
-                                </path>
-                            </svg>
-                        </span>
-                        <span>Tree Spawner</span>
-                    </div>
-                    <span class="chevron-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </span>
-                </div>
-                <div class="accordion-body">
-                    <div class="control-group">
-                        <label>Pilih Jenis Pohon (Klik untuk Tanam)</label>
-                        <select id="select-tree-mode" style="display:none;">
-                            <option value="none">Off</option>
-                            <option value="oak">Oak Tree (Hijau)</option>
-                            <option value="birch_yellow">Birch Yellow</option>
-                            <option value="birch_teal">Birch Teal</option>
-                            <option value="birch_red">Birch Autumn</option>
-                            <option value="pine">Pine Tree (Cemara)</option>
-                        </select>
-                        <div class="spawner-card-grid tree-grid" id="tree-picker-grid">
-                            <button type="button" class="spawner-card active" data-value="none"
-                                title="Matikan Mode Tanam Pohon">
-                                <div class="card-preview">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <circle cx="20" cy="20" r="13" fill="none" stroke="#64748b" stroke-width="2.5"
-                                            stroke-dasharray="4 2" />
-                                        <line x1="12" y1="28" x2="28" y2="12" stroke="#ef4444" stroke-width="2.5"
-                                            stroke-linecap="round" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Off</span>
-                            </button>
-                            <button type="button" class="spawner-card" data-value="oak"
-                                title="Oak Tree (Pohon Hijau Teduh)">
-                                <div class="card-preview oak-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
-                                        <path d="M18 35 L18.8 23 L21.2 23 L22 35 Z" fill="#6d4c41" />
-                                        <circle cx="15" cy="18" r="8" fill="#15803d" />
-                                        <circle cx="25" cy="18" r="8" fill="#16a34a" />
-                                        <circle cx="20" cy="13" r="8.5" fill="#22c55e" />
-                                        <circle cx="18" cy="11" r="5" fill="#4ade80" opacity="0.8" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Oak Hijau</span>
-                            </button>
-                            <button type="button" class="spawner-card" data-value="birch_yellow"
-                                title="Birch Yellow (Pohon Emas Gugur)">
-                                <div class="card-preview yellow-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
-                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
-                                        <line x1="19" y1="31" x2="21" y2="31" stroke="#334155" stroke-width="0.8" />
-                                        <line x1="19" y1="27" x2="21" y2="27" stroke="#334155" stroke-width="0.8" />
-                                        <circle cx="15" cy="17" r="8" fill="#ca8a04" />
-                                        <circle cx="25" cy="17" r="8" fill="#d97706" />
-                                        <circle cx="20" cy="12" r="8.5" fill="#eab308" />
-                                        <circle cx="18" cy="10" r="5" fill="#fef08a" opacity="0.9" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Birch Yellow</span>
-                            </button>
-                            <button type="button" class="spawner-card" data-value="birch_teal"
-                                title="Birch Teal (Pohon Fantasi Cyan)">
-                                <div class="card-preview teal-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
-                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
-                                        <line x1="19" y1="30" x2="21" y2="30" stroke="#334155" stroke-width="0.8" />
-                                        <circle cx="15" cy="17" r="8" fill="#0f766e" />
-                                        <circle cx="25" cy="17" r="8" fill="#0d9488" />
-                                        <circle cx="20" cy="12" r="8.5" fill="#14b8a6" />
-                                        <circle cx="18" cy="10" r="5" fill="#5eead4" opacity="0.9" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Birch Teal</span>
-                            </button>
-                            <button type="button" class="spawner-card" data-value="birch_red"
-                                title="Birch Autumn (Pohon Merah Membara)">
-                                <div class="card-preview autumn-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
-                                        <path d="M18.8 35 L19.2 22 L20.8 22 L21.2 35 Z" fill="#f8fafc" />
-                                        <line x1="19" y1="29" x2="21" y2="29" stroke="#334155" stroke-width="0.8" />
-                                        <circle cx="15" cy="17" r="8" fill="#991b1b" />
-                                        <circle cx="25" cy="17" r="8" fill="#b91c1c" />
-                                        <circle cx="20" cy="12" r="8.5" fill="#dc2626" />
-                                        <circle cx="18" cy="10" r="5" fill="#fca5a5" opacity="0.85" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Birch Autumn</span>
-                            </button>
-                            <button type="button" class="spawner-card" data-value="pine"
-                                title="Pine Tree (Pohon Cemara Salju/Genshin)">
-                                <div class="card-preview pine-bg">
-                                    <svg viewBox="0 0 40 40" class="card-svg">
-                                        <ellipse cx="20" cy="35" rx="11" ry="2.2" fill="rgba(0,0,0,0.35)" />
-                                        <rect x="18.8" y="27" width="2.4" height="8" rx="0.8" fill="#451a03" />
-                                        <polygon points="20 18, 9 28, 31 28" fill="#14532d" />
-                                        <polygon points="20 12, 12 21, 28 21" fill="#15803d" />
-                                        <polygon points="20 5, 14 14, 26 14" fill="#16a34a" />
-                                        <polygon points="20 5, 17 10, 23 10" fill="#4ade80" opacity="0.9" />
-                                    </svg>
-                                </div>
-                                <span class="card-name">Pine Cemara</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="shortcut-hint">
-                        <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="12" y1="16" x2="12" y2="12"></line>
-                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                            </svg>
-                        </span>
-                        <span>Klik kiri tanah untuk menanam pohon, klik kanan untuk menghapus pohon. Scroll mouse untuk
-                            zoom. Tekan <span class="esc-kbd">Esc</span> selesai.</span>
-                    </div>
-                </div>
-            </div>
-
             <!-- PLAYER SPAWN AREA ACCORDION -->
             <div class="accordion collapsed" id="accordion-player-spawn">
                 <div class="accordion-title">
@@ -2583,11 +2628,11 @@
                     </div>
 
                     <div class="control-group" style="margin-bottom:8px;">
-                        <label style="font-size:11px; color:#34d399;">🦊 Karakter Player Utama (hero/*)</label>
+                        <label style="font-size:11px; color:#34d399;">Karakter Player Utama (hero/*)</label>
                         <select id="select-player-hero-folder" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(16,185,129,0.45); border-radius:6px; color:#f8fafc; font-size:12px;">
-                            <option value="red">🦊 Red Fox (hero/red)</option>
-                            <option value="tharon">⚔️ Tharon (hero/tharon)</option>
-                            <option value="foxtree">👹 FoxTree (hero/enemy-foxtree)</option>
+                            <option value="red">Red Fox (hero/red)</option>
+                            <option value="tharon">Tharon (hero/tharon)</option>
+                            <option value="foxtree">FoxTree (hero/enemy-foxtree)</option>
                         </select>
                     </div>
 
@@ -2617,25 +2662,25 @@
 
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;">
                         <button type="button" class="btn-compact" id="btn-player-spawn-camera" style="justify-content:center; padding:5px 4px; font-size:10.5px;" title="Pindahkan titik spawn tepat ke target kamera saat ini">
-                            <span>📍 Posisi Kamera</span>
+                            <span>Posisi Kamera</span>
                         </button>
                         <button type="button" class="btn-compact" id="btn-player-spawn-focus" style="justify-content:center; padding:5px 4px; font-size:10.5px;" title="Arahkan kamera 3D ke titik spawn">
-                            <span>👀 Lihat Spawn</span>
+                            <span>Lihat Spawn</span>
                         </button>
                     </div>
 
                     <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:6px; margin-top:6px;">
                         <button type="button" class="btn-compact" id="btn-player-spawn-pick" style="justify-content:center; padding:6px 4px; font-size:11px; border-color:#10b981; color:#34d399;" title="Klik di tanah map untuk menempatkan titik spawn">
-                            <span>🎯 Klik Map untuk Pindah</span>
+                            <span>Klik Map untuk Pindah</span>
                         </button>
                         <button type="button" class="btn-compact" id="btn-player-spawn-reset" style="justify-content:center; padding:6px 4px; font-size:11px;" title="Reset titik spawn ke tengah map (0, 0)">
-                            <span>🔄 Reset</span>
+                            <span>Reset</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- FOX SPAWNER -->
+            <!-- SPAWNER CHARACTER -->
             <div class="accordion collapsed" id="accordion-fox-spawner">
                 <div class="accordion-title">
                     <div class="accordion-title-left">
@@ -2647,7 +2692,7 @@
                                 <polyline points="16 9 18 3 14 6"></polyline>
                             </svg>
                         </span>
-                        <span>Fox Spawner</span>
+                        <span>Spawner Character</span>
                     </div>
                     <span class="chevron-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -2658,7 +2703,7 @@
                 <div class="accordion-body">
                     <div class="control-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:6px 10px; background:rgba(15,23,42,0.6); border:1px solid rgba(251,146,60,0.3); border-radius:8px;">
                         <label style="margin:0; font-weight:600; font-size:12px; color:#f8fafc; cursor:pointer;" for="chk-spawner-fox-boss">
-                            <span>👹 Spawn Sebagai Boss</span>
+                            <span>Spawn Sebagai Boss</span>
                         </label>
                         <input type="checkbox" id="chk-spawner-fox-boss" style="width:18px; height:18px; accent-color:#f97316; cursor:pointer;">
                     </div>
@@ -2681,9 +2726,9 @@
                     <div class="control-group">
                         <label>Perintah AI Enemy (Saat Play Mode)</label>
                         <select id="select-spawner-fox-ai" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
-                            <option value="combat">⚔️ Aggressive Melee (Kejar & Pukul Player)</option>
-                            <option value="wander">🦊 Free Roam / Patroli</option>
-                            <option value="passive">🧍 Standby (Idle Saja)</option>
+                            <option value="combat">Aggressive Melee (Kejar & Pukul Player)</option>
+                            <option value="wander">Free Roam / Patroli</option>
+                            <option value="passive">Standby (Idle Saja)</option>
                         </select>
                     </div>
 
@@ -2699,10 +2744,10 @@
                         <label style="margin:0;">Pilih Karakter (Otomatis dari <code>hero/*</code>)</label>
                         <div style="display:flex; gap:4px;">
                             <button type="button" id="btn-sync-hero-folders" style="padding:4px 7px; font-size:10.5px; background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.5); color:#7dd3fc; border-radius:4px; cursor:pointer;" title="Pindai ulang folder hero/ secara otomatis untuk mendeteksi karakter baru">
-                                🔄 Sync Hero
+                                Sync Hero
                             </button>
                             <button type="button" id="btn-reset-all-enemies" onclick="if(window.clearAllSpawnedFoxes) window.clearAllSpawnedFoxes();" style="padding:4px 8px; font-size:11px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#fca5a5; border-radius:4px; cursor:pointer;" title="Hapus total semua enemy yang terspawn di map">
-                                🗑️ Reset
+                                Reset
                             </button>
                         </div>
                     </div>
@@ -2761,6 +2806,133 @@
                         </span>
                         <span>Klik kiri tanah untuk spawn enemy. Klik kanan untuk hapus. Klik enemy di viewport untuk inspeksi. Tekan <span class="esc-kbd">Esc</span> selesai.</span>
                     </div>
+<!-- SELECTED FOX INSPECTOR -->
+            <div class="accordion collapsed bl-nested" id="accordion-fox-inspector">
+                <div class="accordion-title" style="color:#fb923c;">
+                    <div class="accordion-title-left">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M4 19c0-1.5 1.5-3 4-3h8c2.5 0 4 1.5 4 3v1H4v-1z"></path>
+                                <circle cx="12" cy="11" r="5"></circle>
+                            </svg>
+                        </span>
+                        <span>Transformasi Karakter</span>
+                    </div>
+                    <span class="chevron-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </div>
+                <div class="accordion-body">
+                    <div style="margin-bottom:8px; font-size:11px; font-weight:600; color:#fb923c;" id="fox-inspector-badge">
+                        Tidak Ada Rubah Terpilih
+                    </div>
+
+                    <div class="control-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:6px 10px; background:rgba(15,23,42,0.6); border:1px solid rgba(251,146,60,0.3); border-radius:8px;">
+                        <label style="margin:0; font-weight:600; font-size:12px; color:#f8fafc; cursor:pointer;" for="chk-fox-inspector-boss">
+                            <span>Status: Boss Enemy</span>
+                        </label>
+                        <input type="checkbox" id="chk-fox-inspector-boss" style="width:18px; height:18px; accent-color:#f97316; cursor:pointer;">
+                    </div>
+
+                    <div class="control-group" style="display:flex; gap:8px;">
+                        <div style="flex:1;">
+                            <label style="font-size:11px;">Nama Enemy / Boss</label>
+                            <input type="text" id="input-fox-inspector-name" value="FoxTree" placeholder="Misal: Lingxuzi" style="width:100%; box-sizing:border-box; margin-top:3px; padding:5px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.35); border-radius:6px; color:#f8fafc; font-size:12px;">
+                        </div>
+                        <div style="width:75px;">
+                            <label style="font-size:11px;">Maks HP</label>
+                            <input type="number" id="input-fox-inspector-hp" value="100" min="10" max="5000" step="10" style="width:100%; box-sizing:border-box; margin-top:3px; padding:5px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.35); border-radius:6px; color:#f8fafc; font-size:12px;">
+                        </div>
+                        <div style="width:75px;">
+                            <label style="font-size:11px;">Damage / Hit</label>
+                            <input type="number" id="input-fox-inspector-damage" value="15" min="1" max="500" step="1" title="Damage per hit serangan musuh" style="width:100%; box-sizing:border-box; margin-top:3px; padding:5px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.35); border-radius:6px; color:#f8fafc; font-size:12px;">
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Model Karakter 3D (<code>hero/*</code>)</label>
+                        <select id="select-fox-inspector-species" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(56,189,248,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
+                            <option value="foxtree">FoxTree (hero/enemy-foxtree)</option>
+                            <option value="tharon">Tharon (hero/tharon)</option>
+                            <option value="red">Red Fox (hero/red)</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Perintah AI Rubah Terpilih</label>
+                        <select id="select-fox-inspector-ai" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
+                            <option value="combat">Aggressive Combat (Plasma War)</option>
+                            <option value="companion">Companion (Follow Player)</option>
+                            <option value="wander">Free Roam / Wander</option>
+                            <option value="passive">Passive (Pose Only)</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Radius Deteksi / Serang (Aggro)</span>
+                            <span id="val-fox-ai-radius" class="val-badge">18 m</span>
+                        </label>
+                        <input type="range" id="slider-fox-ai-radius" min="5" max="50" step="1" value="18">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Arah Hadap (Heading)</span>
+                            <span id="val-fox-heading" class="val-badge">0°</span>
+                        </label>
+                        <input type="range" id="slider-fox-heading" min="0" max="360" step="5" value="0">
+                    </div>
+
+                    <div class="control-group">
+                        <label style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>Skala Musuh / Rubah</span>
+                            <span id="val-fox-scale" class="val-badge" style="font-weight:700; color:#38bdf8;">1.00x</span>
+                        </label>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <input type="range" id="slider-fox-scale" min="0.3" max="5.0" step="0.05" value="1.0" style="flex:1;">
+                            <input type="number" id="num-fox-scale" min="0.2" max="10.0" step="0.1" value="1.0" style="width:65px; height:24px; font-size:11px; font-weight:700; text-align:center; background:#18181b; color:#38bdf8; border:1px solid #3f3f46; border-radius:4px;" title="Input skala bebas">
+                        </div>
+                        <div style="display:flex; gap:3px; margin-top:4px;">
+                            <button type="button" class="btn-fox-scale-preset" data-scale="1.0" style="flex:1; font-size:9.5px; padding:3px 0; background:#27272a; color:#d4d4d8; border:1px solid #3f3f46; border-radius:3px; cursor:pointer;" title="Ukuran Normal">1.0x Normal</button>
+                            <button type="button" class="btn-fox-scale-preset" data-scale="1.8" style="flex:1; font-size:9.5px; padding:3px 0; background:#27272a; color:#d4d4d8; border:1px solid #3f3f46; border-radius:3px; cursor:pointer;" title="Ukuran Besar">1.8x Besar</button>
+                            <button type="button" class="btn-fox-scale-preset" data-scale="2.5" style="flex:1; font-size:9.5px; padding:3px 0; background:#27272a; color:#d4d4d8; border:1px solid #3f3f46; border-radius:3px; cursor:pointer;" title="Ukuran Raksasa">2.5x Raksasa</button>
+                            <button type="button" class="btn-fox-scale-preset" data-scale="3.5" style="flex:1; font-size:9.5px; padding:3px 0; background:#27272a; color:#d4d4d8; border:1px solid #3f3f46; border-radius:3px; cursor:pointer;" title="Ukuran Titan">3.5x Titan</button>
+                            <button type="button" class="btn-fox-scale-preset" data-scale="5.0" style="flex:1; font-size:9.5px; padding:3px 0; background:#27272a; color:#d4d4d8; border:1px solid #3f3f46; border-radius:3px; cursor:pointer;" title="Ukuran Boss Kolosal">5.0x Kolosal</button>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Posisi X</span>
+                            <span id="val-fox-pos-x" class="val-badge">0.0</span>
+                        </label>
+                        <input type="range" id="slider-fox-pos-x" min="-40" max="40" step="0.2" value="0">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>Posisi Z</span>
+                            <span id="val-fox-pos-z" class="val-badge">0.0</span>
+                        </label>
+                        <input type="range" id="slider-fox-pos-z" min="-40" max="40" step="0.2" value="0">
+                    </div>
+
+                    <button id="btn-delete-fox" class="btn-action btn-danger" style="margin-top:6px;">
+                        <span class="svg-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                        </span>
+                        <span>Hapus Karakter</span>
+                    </button>
+                </div>
+            </div>
                 </div>
             </div>
 
@@ -2861,215 +3033,6 @@
                     <div id="glb-objects-container"></div>
                 </div>
             </div>
-
-            <!-- SELECTED TREE INSPECTOR -->
-            <div class="accordion collapsed">
-                <div class="accordion-title" style="color:var(--accent);">
-                    <div class="accordion-title-left">
-                        <span class="svg-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <polyline points="5 9 2 12 5 15"></polyline>
-                                <polyline points="9 5 12 2 15 5"></polyline>
-                                <polyline points="15 19 12 22 9 19"></polyline>
-                                <polyline points="19 9 22 12 19 15"></polyline>
-                                <line x1="2" y1="12" x2="22" y2="12"></line>
-                                <line x1="12" y1="2" x2="12" y2="22"></line>
-                            </svg>
-                        </span>
-                        <span>Transformasi Pohon</span>
-                    </div>
-                    <span class="chevron-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </span>
-                </div>
-                <div class="accordion-body">
-                    <div class="control-group">
-                        <label>
-                            <span>Tinggi Batang</span>
-                            <span id="val-tree-height" class="val-badge">1.0</span>
-                        </label>
-                        <input type="range" id="slider-tree-height" min="0.5" max="5.0" step="0.05" value="1.0">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Tebal Batang</span>
-                            <span id="val-tree-thickness" class="val-badge">1.0</span>
-                        </label>
-                        <input type="range" id="slider-tree-thickness" min="0.4" max="2.5" step="0.05" value="1.0">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Kelokan Batang</span>
-                            <span id="val-tree-curvature" class="val-badge">0.5</span>
-                        </label>
-                        <input type="range" id="slider-tree-curvature" min="0.0" max="1.0" step="0.05" value="0.5">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Jumlah Ranting</span>
-                            <span id="val-branch-count" class="val-badge">3</span>
-                        </label>
-                        <input type="range" id="slider-branch-count" min="1" max="6" step="1" value="3">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Jumlah Daun</span>
-                            <span id="val-leaf-count" class="val-badge">1200</span>
-                        </label>
-                        <input type="range" id="slider-leaf-count" min="300" max="3200" step="50" value="1200">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Posisi X</span>
-                            <span id="val-pos-x" class="val-badge">0.0</span>
-                        </label>
-                        <input type="range" id="slider-pos-x" min="-35" max="35" step="0.2" value="0">
-                    </div>
-                    <div class="control-group">
-                        <label>
-                            <span>Posisi Z</span>
-                            <span id="val-pos-z" class="val-badge">0.0</span>
-                        </label>
-                        <input type="range" id="slider-pos-z" min="-35" max="35" step="0.2" value="0">
-                    </div>
-                    <button id="btn-delete-tree" class="btn-action btn-danger" style="margin-top:6px;">
-                        <span class="svg-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <polyline points="3 6 5 6 21 6"></polyline>
-                                <path
-                                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
-                                </path>
-                                <line x1="10" y1="11" x2="10" y2="17"></line>
-                                <line x1="14" y1="11" x2="14" y2="17"></line>
-                            </svg>
-                        </span>
-                        <span>Hapus Pohon</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- SELECTED FOX INSPECTOR -->
-            <div class="accordion collapsed" id="accordion-fox-inspector">
-                <div class="accordion-title" style="color:#fb923c;">
-                    <div class="accordion-title-left">
-                        <span class="svg-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M4 19c0-1.5 1.5-3 4-3h8c2.5 0 4 1.5 4 3v1H4v-1z"></path>
-                                <circle cx="12" cy="11" r="5"></circle>
-                            </svg>
-                        </span>
-                        <span>Transformasi Rubah</span>
-                    </div>
-                    <span class="chevron-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </span>
-                </div>
-                <div class="accordion-body">
-                    <div style="margin-bottom:8px; font-size:11px; font-weight:600; color:#fb923c;" id="fox-inspector-badge">
-                        Tidak Ada Rubah Terpilih
-                    </div>
-
-                    <div class="control-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:6px 10px; background:rgba(15,23,42,0.6); border:1px solid rgba(251,146,60,0.3); border-radius:8px;">
-                        <label style="margin:0; font-weight:600; font-size:12px; color:#f8fafc; cursor:pointer;" for="chk-fox-inspector-boss">
-                            <span>👹 Status: Boss Enemy</span>
-                        </label>
-                        <input type="checkbox" id="chk-fox-inspector-boss" style="width:18px; height:18px; accent-color:#f97316; cursor:pointer;">
-                    </div>
-
-                    <div class="control-group" style="display:flex; gap:8px;">
-                        <div style="flex:1;">
-                            <label style="font-size:11px;">Nama Enemy / Boss</label>
-                            <input type="text" id="input-fox-inspector-name" value="FoxTree" placeholder="Misal: Lingxuzi" style="width:100%; box-sizing:border-box; margin-top:3px; padding:5px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.35); border-radius:6px; color:#f8fafc; font-size:12px;">
-                        </div>
-                        <div style="width:75px;">
-                            <label style="font-size:11px;">Maks HP</label>
-                            <input type="number" id="input-fox-inspector-hp" value="100" min="10" max="5000" step="10" style="width:100%; box-sizing:border-box; margin-top:3px; padding:5px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.35); border-radius:6px; color:#f8fafc; font-size:12px;">
-                        </div>
-                        <div style="width:75px;">
-                            <label style="font-size:11px;">Damage / Hit</label>
-                            <input type="number" id="input-fox-inspector-damage" value="15" min="1" max="500" step="1" title="Damage per hit serangan musuh" style="width:100%; box-sizing:border-box; margin-top:3px; padding:5px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.35); border-radius:6px; color:#f8fafc; font-size:12px;">
-                        </div>
-                    </div>
-
-                    <div class="control-group">
-                        <label>Model Karakter 3D (<code>hero/*</code>)</label>
-                        <select id="select-fox-inspector-species" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(56,189,248,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
-                            <option value="foxtree">👹 FoxTree (hero/enemy-foxtree)</option>
-                            <option value="tharon">⚔️ Tharon (hero/tharon)</option>
-                            <option value="red">🦊 Red Fox (hero/red)</option>
-                        </select>
-                    </div>
-
-                    <div class="control-group">
-                        <label>Perintah AI Rubah Terpilih</label>
-                        <select id="select-fox-inspector-ai" class="select-styled" style="width:100%; margin-top:4px; padding:6px 8px; background:rgba(15,23,42,0.8); border:1px solid rgba(251,146,60,0.4); border-radius:6px; color:#f8fafc; font-size:12px;">
-                            <option value="combat">⚔️ Aggressive Combat (Plasma War)</option>
-                            <option value="companion">🐕 Companion (Follow Player)</option>
-                            <option value="wander">🦊 Free Roam / Wander</option>
-                            <option value="passive">🧍 Passive (Pose Only)</option>
-                        </select>
-                    </div>
-
-                    <div class="control-group">
-                        <label>
-                            <span>Radius Deteksi / Serang (Aggro)</span>
-                            <span id="val-fox-ai-radius" class="val-badge">18 m</span>
-                        </label>
-                        <input type="range" id="slider-fox-ai-radius" min="5" max="50" step="1" value="18">
-                    </div>
-
-                    <div class="control-group">
-                        <label>
-                            <span>Arah Hadap (Heading)</span>
-                            <span id="val-fox-heading" class="val-badge">0°</span>
-                        </label>
-                        <input type="range" id="slider-fox-heading" min="0" max="360" step="5" value="0">
-                    </div>
-
-                    <div class="control-group">
-                        <label>
-                            <span>Skala Rubah</span>
-                            <span id="val-fox-scale" class="val-badge">1.00x</span>
-                        </label>
-                        <input type="range" id="slider-fox-scale" min="0.4" max="1.8" step="0.05" value="1.0">
-                    </div>
-
-                    <div class="control-group">
-                        <label>
-                            <span>Posisi X</span>
-                            <span id="val-fox-pos-x" class="val-badge">0.0</span>
-                        </label>
-                        <input type="range" id="slider-fox-pos-x" min="-40" max="40" step="0.2" value="0">
-                    </div>
-
-                    <div class="control-group">
-                        <label>
-                            <span>Posisi Z</span>
-                            <span id="val-fox-pos-z" class="val-badge">0.0</span>
-                        </label>
-                        <input type="range" id="slider-fox-pos-z" min="-40" max="40" step="0.2" value="0">
-                    </div>
-
-                    <button id="btn-delete-fox" class="btn-action btn-danger" style="margin-top:6px;">
-                        <span class="svg-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <polyline points="3 6 5 6 21 6"></polyline>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                <line x1="10" y1="11" x2="10" y2="17"></line>
-                                <line x1="14" y1="11" x2="14" y2="17"></line>
-                            </svg>
-                        </span>
-                        <span>Hapus Rubah</span>
-                    </button>
-                </div>
-            </div>
-
-
-
         </div>
     </aside>
 
@@ -3119,6 +3082,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
@@ -3150,6 +3114,7 @@
     <script src="js/character/fox-sound.js"></script>
     <script src="js/character/fox-species.js"></script>
     <script src="js/character/fox-materials.js"></script>
+    <script src="js/character/attachment-system.js"></script>
     <script src="js/character/hitbox-system.js"></script>
     <script src="js/character/fox-model.js"></script>
     <script src="js/character/fox-stats.js"></script>

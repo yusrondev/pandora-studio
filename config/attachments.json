@@ -1,0 +1,88 @@
+{
+    "version": 1,
+    "characters": {
+        "red": [
+            {
+                "id": "att_mvvvdwtf",
+                "name": "tripo_pbr_model_16fd1fc8-8e26-40a6-8601-b7a4cc4767fa_meshopt_432bec",
+                "fileName": "tripo_pbr_model_16fd1fc8-8e26-40a6-8601-b7a4cc4767fa_meshopt_432bec.glb",
+                "fileType": "glb",
+                "fileUrl": "assets\/attachments\/tripo_pbr_model_16fd1fc8-8e26-40a6-8601-b7a4cc4767fa_meshopt_432bec.glb",
+                "bone": "Spine1",
+                "position": [
+                    0,
+                    0.007,
+                    0.106
+                ],
+                "rotation": [
+                    49.8,
+                    -90,
+                    0
+                ],
+                "scale": [
+                    0.26,
+                    0.26,
+                    0.26
+                ],
+                "visible": true
+            }
+        ],
+        "tharon": [],
+        "foxtree": [],
+        "jax": [],
+        "mozai": [],
+        "noxis": [],
+        "red-mature": [
+            {
+                "id": "att_mvvowkyj",
+                "name": "tripo_pbr_model_20827a48-ee9c-44c6-a4cb-fa1da9ef13b6_meshopt",
+                "fileName": "tripo_pbr_model_20827a48-ee9c-44c6-a4cb-fa1da9ef13b6_meshopt_1fe3ef.glb",
+                "fileType": "glb",
+                "fileUrl": "assets\/attachments\/tripo_pbr_model_20827a48-ee9c-44c6-a4cb-fa1da9ef13b6_meshopt_1fe3ef.glb",
+                "bone": "Spine2",
+                "position": [
+                    0.006,
+                    0,
+                    -0.091
+                ],
+                "rotation": [
+                    0,
+                    61.8,
+                    0
+                ],
+                "scale": [
+                    0.21,
+                    0.21,
+                    0.21
+                ],
+                "visible": true
+            },
+            {
+                "id": "att_mvvqyc4c",
+                "name": "tripo_pbr_model_16fd1fc8-8e26-40a6-8601-b7a4cc4767fa_meshopt_432bec",
+                "fileName": "tripo_pbr_model_16fd1fc8-8e26-40a6-8601-b7a4cc4767fa_meshopt_432bec.glb",
+                "fileType": "glb",
+                "fileUrl": "assets\/attachments\/tripo_pbr_model_16fd1fc8-8e26-40a6-8601-b7a4cc4767fa_meshopt_432bec.glb",
+                "bone": "RightHand",
+                "position": [
+                    -0.018,
+                    0.029,
+                    -0.017
+                ],
+                "rotation": [
+                    3.4,
+                    -53.2,
+                    118.9
+                ],
+                "scale": [
+                    0.09,
+                    0.09,
+                    0.09
+                ],
+                "visible": true
+            }
+        ],
+        "taurus": []
+    },
+    "updatedAt": "2026-10-31T03:59:56+00:00"
+}

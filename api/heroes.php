@@ -191,7 +191,7 @@ if ($entries) {
             'badge'       => $customMeta['badge'] ?? ($lowerId === 'red' ? '🦊' : ($lowerId === 'enemy-foxtree' ? '👹' : '⚔️')),
             'basePath'    => 'hero/' . $entry . '/',
             'baseScale'   => isset($customMeta['baseScale']) ? floatval($customMeta['baseScale']) : 1.85,
-            'yOffset'     => isset($customMeta['yOffset']) ? floatval($customMeta['yOffset']) : 0.0,
+            'yOffset'     => isset($customMeta['yOffset']) ? floatval($customMeta['yOffset']) : 0.05,
             'files'       => $fbxFiles,
             'slots'       => $mapped['slots'],
             'extraClips'  => $mapped['extraClips']

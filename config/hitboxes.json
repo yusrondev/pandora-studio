@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "updatedAt": "2026-10-28T16:47:48+00:00",
+    "updatedAt": "2026-10-31T01:55:23+00:00",
     "characters": {
         "hero": {
             "hurtbox": {
@@ -12,6 +12,7 @@
             },
             "animations": {
                 "punch1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.36,
@@ -31,9 +32,10 @@
                     ]
                 },
                 "punch2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
-                    "activeStartPct": 0.1,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.21,
                     "hitboxes": [
                         {
@@ -50,6 +52,7 @@
                     ]
                 },
                 "punch3": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
                     "activeStartPct": 0.4,
@@ -69,6 +72,7 @@
                     ]
                 },
                 "flyingPunch": {
+                    "speed": 1,
                     "damage": 100,
                     "knockback": 0.36,
                     "activeStartPct": 0.41,
@@ -88,6 +92,7 @@
                     ]
                 },
                 "kick1": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.25,
                     "activeStartPct": 0.28,
@@ -107,6 +112,7 @@
                     ]
                 },
                 "kick2": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
                     "activeStartPct": 0.12,
@@ -126,6 +132,7 @@
                     ]
                 },
                 "kick3": {
+                    "speed": 1,
                     "damage": 35,
                     "knockback": 0.32,
                     "activeStartPct": 0.28,
@@ -145,6 +152,7 @@
                     ]
                 },
                 "flyingKick": {
+                    "speed": 1,
                     "damage": 300,
                     "knockback": 0.42,
                     "activeStartPct": 0.43,
@@ -175,6 +183,7 @@
                     ]
                 },
                 "idle": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -182,6 +191,7 @@
                     "hitboxes": []
                 },
                 "walk": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -189,6 +199,7 @@
                     "hitboxes": []
                 },
                 "run": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -196,6 +207,7 @@
                     "hitboxes": []
                 },
                 "block": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -203,6 +215,7 @@
                     "hitboxes": []
                 },
                 "hit1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -210,6 +223,63 @@
                     "hitboxes": []
                 },
                 "hit2": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "idle2": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "idle3": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "backward": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "jump": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "jumpNormal": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "dead1": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "dead2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -228,9 +298,10 @@
             },
             "animations": {
                 "punch1": {
+                    "speed": 1,
                     "damage": 15,
                     "knockback": 0.22,
-                    "activeStartPct": 0.12,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.85,
                     "hitboxes": [
                         {
@@ -238,18 +309,19 @@
                             "name": "Tangan Kanan Musuh",
                             "bone": "RightHand",
                             "shape": "sphere",
-                            "radius": 0.26,
+                            "radius": 0.42,
                             "offsetX": 0,
                             "offsetY": 0.05,
-                            "offsetZ": 0.05,
+                            "offsetZ": 0.12,
                             "enabled": true
                         }
                     ]
                 },
                 "punch2": {
+                    "speed": 1,
                     "damage": 15,
                     "knockback": 0.22,
-                    "activeStartPct": 0.12,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.85,
                     "hitboxes": [
                         {
@@ -257,15 +329,16 @@
                             "name": "Tangan Kiri Musuh",
                             "bone": "LeftHand",
                             "shape": "sphere",
-                            "radius": 0.26,
+                            "radius": 0.42,
                             "offsetX": 0,
                             "offsetY": 0.05,
-                            "offsetZ": 0.05,
+                            "offsetZ": 0.12,
                             "enabled": true
                         }
                     ]
                 },
                 "punch3": {
+                    "speed": 1,
                     "damage": 22,
                     "knockback": 0.28,
                     "activeStartPct": 0.33,
@@ -276,15 +349,16 @@
                             "name": "Hitbox Tangan Kiri",
                             "bone": "LeftHand",
                             "shape": "sphere",
-                            "radius": 0.3,
+                            "radius": 0.48,
                             "offsetX": 0,
                             "offsetY": 0.06,
-                            "offsetZ": 0.06,
+                            "offsetZ": 0.14,
                             "enabled": true
                         }
                     ]
                 },
                 "flyingPunch": {
+                    "speed": 1,
                     "damage": 40,
                     "knockback": 0.36,
                     "activeStartPct": 0.1,
@@ -304,6 +378,7 @@
                     ]
                 },
                 "kick1": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.25,
                     "activeStartPct": 0.12,
@@ -323,6 +398,7 @@
                     ]
                 },
                 "kick2": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
                     "activeStartPct": 0.12,
@@ -342,6 +418,7 @@
                     ]
                 },
                 "kick3": {
+                    "speed": 1,
                     "damage": 35,
                     "knockback": 0.32,
                     "activeStartPct": 0.12,
@@ -361,6 +438,7 @@
                     ]
                 },
                 "flyingKick": {
+                    "speed": 1,
                     "damage": 45,
                     "knockback": 0.42,
                     "activeStartPct": 0.1,
@@ -380,6 +458,7 @@
                     ]
                 },
                 "idle": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -387,6 +466,7 @@
                     "hitboxes": []
                 },
                 "walk": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -394,6 +474,7 @@
                     "hitboxes": []
                 },
                 "run": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -401,6 +482,7 @@
                     "hitboxes": []
                 },
                 "hit1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -408,6 +490,7 @@
                     "hitboxes": []
                 },
                 "hit2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -426,6 +509,7 @@
             },
             "animations": {
                 "punch1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.44,
@@ -445,9 +529,10 @@
                     ]
                 },
                 "punch2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
-                    "activeStartPct": 0.1,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.85,
                     "hitboxes": [
                         {
@@ -464,10 +549,11 @@
                     ]
                 },
                 "punch3": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
-                    "activeStartPct": 0.14,
-                    "activeEndPct": 0.88,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
                     "hitboxes": [
                         {
                             "id": "hb_tharon_punch3_main",
@@ -483,6 +569,7 @@
                     ]
                 },
                 "flyingPunch": {
+                    "speed": 1,
                     "damage": 40,
                     "knockback": 0.36,
                     "activeStartPct": 0.1,
@@ -502,6 +589,7 @@
                     ]
                 },
                 "kick1": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.25,
                     "activeStartPct": 0.12,
@@ -521,6 +609,7 @@
                     ]
                 },
                 "kick2": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
                     "activeStartPct": 0.12,
@@ -540,6 +629,7 @@
                     ]
                 },
                 "kick3": {
+                    "speed": 1,
                     "damage": 35,
                     "knockback": 0.32,
                     "activeStartPct": 0.12,
@@ -559,6 +649,7 @@
                     ]
                 },
                 "flyingKick": {
+                    "speed": 1,
                     "damage": 45,
                     "knockback": 0.42,
                     "activeStartPct": 0.1,
@@ -578,6 +669,7 @@
                     ]
                 },
                 "idle": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -585,6 +677,7 @@
                     "hitboxes": []
                 },
                 "idle2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -592,6 +685,7 @@
                     "hitboxes": []
                 },
                 "walk": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -599,6 +693,7 @@
                     "hitboxes": []
                 },
                 "backward": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -606,6 +701,7 @@
                     "hitboxes": []
                 },
                 "run": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -613,6 +709,7 @@
                     "hitboxes": []
                 },
                 "block": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -620,6 +717,7 @@
                     "hitboxes": []
                 },
                 "hit1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -627,6 +725,7 @@
                     "hitboxes": []
                 },
                 "hit2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -645,9 +744,10 @@
             },
             "animations": {
                 "punch1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
-                    "activeStartPct": 0.12,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.85,
                     "hitboxes": [
                         {
@@ -664,9 +764,10 @@
                     ]
                 },
                 "punch2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
-                    "activeStartPct": 0.1,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.85,
                     "hitboxes": [
                         {
@@ -683,10 +784,11 @@
                     ]
                 },
                 "punch3": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
-                    "activeStartPct": 0.14,
-                    "activeEndPct": 0.88,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
                     "hitboxes": [
                         {
                             "id": "hb_taurus_punch3_main",
@@ -702,6 +804,7 @@
                     ]
                 },
                 "flyingPunch": {
+                    "speed": 1,
                     "damage": 40,
                     "knockback": 0.36,
                     "activeStartPct": 0.1,
@@ -721,6 +824,7 @@
                     ]
                 },
                 "kick1": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.25,
                     "activeStartPct": 0.12,
@@ -740,6 +844,7 @@
                     ]
                 },
                 "kick2": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
                     "activeStartPct": 0.12,
@@ -759,6 +864,7 @@
                     ]
                 },
                 "kick3": {
+                    "speed": 1,
                     "damage": 35,
                     "knockback": 0.32,
                     "activeStartPct": 0.12,
@@ -778,6 +884,7 @@
                     ]
                 },
                 "flyingKick": {
+                    "speed": 1,
                     "damage": 45,
                     "knockback": 0.42,
                     "activeStartPct": 0.1,
@@ -797,6 +904,7 @@
                     ]
                 },
                 "idle": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -804,6 +912,7 @@
                     "hitboxes": []
                 },
                 "idle2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -811,6 +920,7 @@
                     "hitboxes": []
                 },
                 "walk": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -818,6 +928,7 @@
                     "hitboxes": []
                 },
                 "backward": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -825,6 +936,7 @@
                     "hitboxes": []
                 },
                 "run": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -832,6 +944,7 @@
                     "hitboxes": []
                 },
                 "block": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -839,6 +952,7 @@
                     "hitboxes": []
                 },
                 "hit1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -846,6 +960,7 @@
                     "hitboxes": []
                 },
                 "hit2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -864,17 +979,18 @@
             },
             "animations": {
                 "punch1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
-                    "activeStartPct": 0,
-                    "activeEndPct": 1,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
                     "hitboxes": [
                         {
                             "id": "hb_jax_punch1_main",
-                            "name": "Hitbox Kepalan \/ Jari Kiri",
+                            "name": "Hitbox Kepalan Kiri (Pukulan 1)",
                             "bone": "LeftHandIndex1",
                             "shape": "sphere",
-                            "radius": 0.22,
+                            "radius": 0.24,
                             "offsetX": 0,
                             "offsetY": 0.11,
                             "offsetZ": 0.04,
@@ -882,10 +998,10 @@
                         },
                         {
                             "id": "hb_jax_punch1_RightHand_mvsc4cqq",
-                            "name": "Hitbox Lengan Bawah Kiri",
-                            "bone": "LeftForeArm",
+                            "name": "Hitbox Kepalan Kanan (Pukulan 2)",
+                            "bone": "RightHand",
                             "shape": "sphere",
-                            "radius": 0.26,
+                            "radius": 0.24,
                             "offsetX": 0,
                             "offsetY": 0.05,
                             "offsetZ": 0.04,
@@ -894,9 +1010,10 @@
                     ]
                 },
                 "punch2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
-                    "activeStartPct": 0.1,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.85,
                     "hitboxes": [
                         {
@@ -913,10 +1030,11 @@
                     ]
                 },
                 "punch3": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
-                    "activeStartPct": 0.14,
-                    "activeEndPct": 0.88,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
                     "hitboxes": [
                         {
                             "id": "hb_jax_punch3_main",
@@ -932,6 +1050,7 @@
                     ]
                 },
                 "flyingPunch": {
+                    "speed": 1,
                     "damage": 40,
                     "knockback": 0.36,
                     "activeStartPct": 0.1,
@@ -951,6 +1070,7 @@
                     ]
                 },
                 "kick1": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.25,
                     "activeStartPct": 0.12,
@@ -970,6 +1090,7 @@
                     ]
                 },
                 "kick2": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
                     "activeStartPct": 0.12,
@@ -989,6 +1110,7 @@
                     ]
                 },
                 "kick3": {
+                    "speed": 1,
                     "damage": 35,
                     "knockback": 0.32,
                     "activeStartPct": 0.12,
@@ -1008,6 +1130,7 @@
                     ]
                 },
                 "flyingKick": {
+                    "speed": 1,
                     "damage": 45,
                     "knockback": 0.42,
                     "activeStartPct": 0.1,
@@ -1027,6 +1150,7 @@
                     ]
                 },
                 "idle": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1034,6 +1158,7 @@
                     "hitboxes": []
                 },
                 "idle2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1041,6 +1166,7 @@
                     "hitboxes": []
                 },
                 "walk": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1048,6 +1174,7 @@
                     "hitboxes": []
                 },
                 "backward": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1055,6 +1182,7 @@
                     "hitboxes": []
                 },
                 "run": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1062,6 +1190,7 @@
                     "hitboxes": []
                 },
                 "block": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1069,6 +1198,7 @@
                     "hitboxes": []
                 },
                 "hit1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1076,6 +1206,7 @@
                     "hitboxes": []
                 },
                 "hit2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1094,9 +1225,10 @@
             },
             "animations": {
                 "punch1": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
-                    "activeStartPct": 0.12,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.85,
                     "hitboxes": [
                         {
@@ -1113,9 +1245,10 @@
                     ]
                 },
                 "punch2": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
-                    "activeStartPct": 0.1,
+                    "activeStartPct": 0.28,
                     "activeEndPct": 0.85,
                     "hitboxes": [
                         {
@@ -1132,10 +1265,11 @@
                     ]
                 },
                 "punch3": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
-                    "activeStartPct": 0.14,
-                    "activeEndPct": 0.88,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
                     "hitboxes": [
                         {
                             "id": "hb_mozai_punch3_main",
@@ -1151,6 +1285,7 @@
                     ]
                 },
                 "flyingPunch": {
+                    "speed": 1,
                     "damage": 40,
                     "knockback": 0.36,
                     "activeStartPct": 0.1,
@@ -1170,6 +1305,7 @@
                     ]
                 },
                 "kick1": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.25,
                     "activeStartPct": 0.12,
@@ -1189,6 +1325,7 @@
                     ]
                 },
                 "kick2": {
+                    "speed": 1,
                     "damage": 30,
                     "knockback": 0.28,
                     "activeStartPct": 0.12,
@@ -1208,6 +1345,7 @@
                     ]
                 },
                 "kick3": {
+                    "speed": 1,
                     "damage": 35,
                     "knockback": 0.32,
                     "activeStartPct": 0.12,
@@ -1227,6 +1365,7 @@
                     ]
                 },
                 "flyingKick": {
+                    "speed": 1,
                     "damage": 45,
                     "knockback": 0.42,
                     "activeStartPct": 0.1,
@@ -1244,6 +1383,516 @@
                             "enabled": true
                         }
                     ]
+                },
+                "idle": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "idle2": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "walk": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "backward": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "run": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "block": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "hit1": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "hit2": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                }
+            }
+        },
+        "noxis": {
+            "hurtbox": {
+                "radius": 0.42,
+                "height": 1.72,
+                "offsetY": 0.02,
+                "offsetZ": 0.04,
+                "useBoneCapsules": true
+            },
+            "animations": {
+                "punch1": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_noxis_punch1_main",
+                            "name": "Kepalan Tangan Kiri",
+                            "bone": "LeftHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.04,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch2": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_noxis_punch2_main",
+                            "name": "Kepalan Tangan Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.04,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch3": {
+                    "speed": 1,
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_noxis_punch3_main",
+                            "name": "Kepalan Kanan Finisher",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.05,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingPunch": {
+                    "speed": 1,
+                    "damage": 40,
+                    "knockback": 0.36,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_noxis_flypunch_main",
+                            "name": "Kepalan Terbang Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.34,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick1": {
+                    "speed": 1,
+                    "damage": 30,
+                    "knockback": 0.25,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.86,
+                    "hitboxes": [
+                        {
+                            "id": "hb_noxis_kick1_main",
+                            "name": "Tendangan Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick2": {
+                    "speed": 1,
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_noxis_kick2_main",
+                            "name": "Tendangan Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick3": {
+                    "speed": 1,
+                    "damage": 35,
+                    "knockback": 0.32,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_noxis_kick3_main",
+                            "name": "Tendangan Maju Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingKick": {
+                    "speed": 1,
+                    "damage": 45,
+                    "knockback": 0.42,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_noxis_flykick_main",
+                            "name": "Tendangan Terbang Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.36,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                }
+            }
+        },
+        "red-mature": {
+            "hurtbox": {
+                "radius": 0.42,
+                "height": 1.72,
+                "offsetY": 0.02,
+                "offsetZ": 0.04,
+                "useBoneCapsules": true
+            },
+            "animations": {
+                "punch1": {
+                    "speed": 1.5,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.28,
+                    "activeEndPct": 0.85,
+                    "hitboxes": [
+                        {
+                            "id": "hb_red-mature_punch1_main",
+                            "name": "Hitbox Tangan Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.04,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch2": {
+                    "speed": 1.5,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.34,
+                    "activeEndPct": 0.47,
+                    "hitboxes": [
+                        {
+                            "id": "hb_red-mature_punch2_main",
+                            "name": "Kepalan Tangan Kanan",
+                            "bone": "RightHand",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.05,
+                            "offsetZ": 0.04,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "punch3": {
+                    "speed": 1.5,
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.32,
+                    "activeEndPct": 0.43,
+                    "hitboxes": [
+                        {
+                            "id": "hb_red-mature_punch3_main",
+                            "name": "Hitbox Tangan Kiri",
+                            "bone": "LeftHand",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.05,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingPunch": {
+                    "speed": 1,
+                    "damage": 40,
+                    "knockback": 0.36,
+                    "activeStartPct": 0.44,
+                    "activeEndPct": 0.52,
+                    "hitboxes": [
+                        {
+                            "id": "hb_red-mature_flypunch_main",
+                            "name": "Hitbox Tangan Kiri",
+                            "bone": "LeftHand",
+                            "shape": "sphere",
+                            "radius": 0.12,
+                            "offsetX": 0,
+                            "offsetY": 0.06,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick1": {
+                    "speed": 1,
+                    "damage": 30,
+                    "knockback": 0.25,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.86,
+                    "hitboxes": [
+                        {
+                            "id": "hb_red-mature_kick1_main",
+                            "name": "Hitbox Kaki \/ Engkel Kiri",
+                            "bone": "LeftFoot",
+                            "shape": "sphere",
+                            "radius": 0.3,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick2": {
+                    "speed": 1,
+                    "damage": 30,
+                    "knockback": 0.28,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_red-mature_kick2_main",
+                            "name": "Tendangan Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.26,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.06,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "kick3": {
+                    "speed": 1,
+                    "damage": 35,
+                    "knockback": 0.32,
+                    "activeStartPct": 0.12,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_red-mature_kick3_main",
+                            "name": "Hitbox Kaki \/ Engkel Kiri",
+                            "bone": "LeftFoot",
+                            "shape": "sphere",
+                            "radius": 0.32,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "flyingKick": {
+                    "speed": 1,
+                    "damage": 45,
+                    "knockback": 0.42,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": [
+                        {
+                            "id": "hb_red-mature_flykick_main",
+                            "name": "Tendangan Terbang Kaki Kanan",
+                            "bone": "RightFoot",
+                            "shape": "sphere",
+                            "radius": 0.36,
+                            "offsetX": 0,
+                            "offsetY": 0.04,
+                            "offsetZ": 0.08,
+                            "enabled": true
+                        }
+                    ]
+                },
+                "idle": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "idle2": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "walk": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "backward": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "run": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "block": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "hit1": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "hit2": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "idle3": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "jump": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "jumpNormal": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "dead1": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "dead2": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
                 }
             }
         }

@@ -408,9 +408,22 @@
             const prefix = getRootPrefix();
             const fullUrl = (fileUrl.startsWith('http') || fileUrl.startsWith('/')) ? fileUrl : (prefix + fileUrl);
 
+            // Build game: file aslinya terenkripsi, jadi loader menerima isi yang sudah dibuka
+            const openedBuffer = window.PandoraVault ? await window.PandoraAssetCache.getAssetBuffer(fullUrl) : null;
+
             if (ext === 'glb' || ext === 'gltf') {
                 const loader = await getGLTFLoader();
                 if (!loader) throw new Error('GLTFLoader tidak tersedia');
+                if (openedBuffer) {
+                    return new Promise((resolve, reject) => {
+                        loader.parse(openedBuffer, '', (gltf) => {
+                            const sceneObj = gltf.scene || gltf.scenes[0];
+                            this.prepareLoaded3DObject(sceneObj);
+                            _modelCache.set(cacheKey, sceneObj);
+                            resolve(sceneObj.clone(true));
+                        }, reject);
+                    });
+                }
                 return new Promise((resolve, reject) => {
                     loader.load(
                         fullUrl,
@@ -427,6 +440,12 @@
             } else if (ext === 'fbx') {
                 const loader = getFBXLoader();
                 if (!loader) throw new Error('FBXLoader tidak tersedia');
+                if (openedBuffer) {
+                    const fbxObj = loader.parse(openedBuffer, '');
+                    this.prepareLoaded3DObject(fbxObj);
+                    _modelCache.set(cacheKey, fbxObj);
+                    return fbxObj.clone(true);
+                }
                 return new Promise((resolve, reject) => {
                     loader.load(
                         fullUrl,

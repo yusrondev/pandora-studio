@@ -1,0 +1,15 @@
+{
+  "name": "pandora-build-protect",
+  "private": true,
+  "description": "Minifikasi engine dan obfuscation pemuat aset untuk Generate Game",
+  "dependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
+    "javascript-obfuscator": "5.9.0",
+    "meshoptimizer": "^1.3.0",
+    "sharp": "^0.35.5",
+    "terser": "5.51.2",
+    "three": "^0.128.0"
+  }
+}

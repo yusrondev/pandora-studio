@@ -25,10 +25,24 @@ if [ "$BUILD_DIR" != "$WEBROOT" ]; then
     mkdir -p "$WEBROOT"
     cp -a "$BUILD_DIR"/. "$WEBROOT"/
 fi
-chown -R www-data:www-data "$WEBROOT"
+
+# Hanya root yang bisa menulis: proses web tidak bisa mengubah game walau berhasil dieksploitasi
+chown -R root:root "$WEBROOT"
+find "$WEBROOT" -type d -exec chmod 755 {} +
+find "$WEBROOT" -type f -exec chmod 644 {} +
+
+ZONE="$(printf '%s' "$SLUG" | tr -c 'a-zA-Z0-9' '_')"
+SNIPPET="/etc/nginx/snippets/$SLUG-security.conf"
+mkdir -p /etc/nginx/snippets
+cp "$BUILD_DIR/deploy/security-headers.conf" "$SNIPPET"
 
 SITE="/etc/nginx/sites-available/$SLUG"
-sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__WEBROOT__|$WEBROOT|g" "$BUILD_DIR/deploy/nginx-site.conf" > "$SITE"
+sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__WEBROOT__|$WEBROOT|g" -e "s|__ZONE__|$ZONE|g" -e "s|__SECURITY_SNIPPET__|$SNIPPET|g" "$BUILD_DIR/deploy/nginx-site.conf" > "$SITE"
+
+# Tanda tangan URL paket aset memakai modul secure_link
+if ! nginx -V 2>&1 | grep -q http_secure_link_module; then
+    apt-get install -y nginx-extras
+fi
 ln -sf "$SITE" "/etc/nginx/sites-enabled/$SLUG"
 
 # Situs bawaan nginx menutupi akses lewat IP

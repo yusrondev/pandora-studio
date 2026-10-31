@@ -450,6 +450,7 @@ function startPlayMode() {
 
     if (window.itemBoxManagerInstance) {
         window.itemBoxManagerInstance.init();
+        window.itemBoxManagerInstance.resetForPlay();
     }
 
     if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.prewarm === 'function') {
@@ -502,6 +503,9 @@ function stopPlayMode() {
         wolfCharacter.root.visible = false;
     }
 
+    if (window.itemBoxManagerInstance && window.itemBoxManagerInstance.isInitialized) {
+        window.itemBoxManagerInstance.resetForPlay();
+    }
     if (typeof ItemSystem !== 'undefined') {
         ItemSystem.reset();
     }

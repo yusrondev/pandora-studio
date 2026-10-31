@@ -426,17 +426,20 @@ function rebuildGrassTransforms() {
         const slopeFactor = 1.0 - terrainNormal.dot(worldUp);
         const slopeScaleBoost = 1.0 + slopeFactor * 0.75;
 
-        const scaleXZ = 0.95 * slopeScaleBoost;
+        // Di build, helai yang lebih sedikit dibuat lebih lebar agar tanah tetap tertutup
+        const coverage = window.PANDORA_RUNTIME ? 1 / Math.sqrt(grassFraction) : 1;
+        const scaleXZ = 0.95 * slopeScaleBoost * coverage;
         const scaleY = grassScalesArray[i] * slopeScaleBoost;
         // Preset grafis rendah menyembunyikan sebagian helai secara merata (urutan indeks tidak berpola)
-        const keep = ((i * 0.6180339887) % 1) < grassFraction;
+        const keep = window.PANDORA_RUNTIME || ((i * 0.6180339887) % 1) < grassFraction;
         dummy.scale.set(keep ? scaleXZ : 0, keep ? scaleY : 0, keep ? scaleXZ : 0);
         dummy.updateMatrix();
         instancedGrassMesh.setMatrixAt(i, dummy.matrix);
     }
 
     // 3. Batasi draw call WebGL HANYA sejumlah instance aktif (tidak menyiksa GPU memproses 100k slot kosong)
-    instancedGrassMesh.count = activeCount;
+    // Di build urutan rumput sudah diacak, jadi cukup menggambar bagian awal; helai skala 0 tetap memakan GPU
+    instancedGrassMesh.count = window.PANDORA_RUNTIME ? Math.round(activeCount * grassFraction) : activeCount;
     instancedGrassMesh.instanceMatrix.needsUpdate = true;
 }
 

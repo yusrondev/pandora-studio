@@ -1,4 +1,32 @@
 /* Menerapkan data stage ke scene. Dipakai Studio dan game hasil generate. */
+// Build game: tanah di bawah rumput diberi warna rumput yang lebih gelap, supaya warna dasarnya tidak
+// tampak sebagai bercak terang di sela helai, terutama di preset rendah yang menggambar lebih sedikit rumput.
+const GRASS_GROUND_SHADE = 0.7;
+
+function tintGroundUnderGrass() {
+    const colors = instancedGrassMesh.geometry.attributes.instanceColor.array;
+    const ground = groundGeo.attributes.color;
+    const stride = groundSegments + 1;
+    const sums = new Float32Array(ground.count * 3);
+    const counts = new Uint16Array(ground.count);
+    for (let i = 0; i < maxGrassCapacity; i++) {
+        if (grassActiveStates[i] !== 1) continue;
+        const col = Math.round((grassCoordsX[i] / groundSize + 0.5) * groundSegments);
+        const row = Math.round((grassCoordsZ[i] / groundSize + 0.5) * groundSegments);
+        if (col < 0 || col > groundSegments || row < 0 || row > groundSegments) continue;
+        const vertex = row * stride + col;
+        sums[vertex * 3] += colors[i * 3];
+        sums[vertex * 3 + 1] += colors[i * 3 + 1];
+        sums[vertex * 3 + 2] += colors[i * 3 + 2];
+        counts[vertex]++;
+    }
+    for (let v = 0; v < ground.count; v++) {
+        if (counts[v] === 0) continue;
+        for (let c = 0; c < 3; c++) ground.array[v * 3 + c] = sums[v * 3 + c] / counts[v] * GRASS_GROUND_SHADE;
+    }
+    ground.needsUpdate = true;
+}
+
 function applyMapDataToScene(mapData) {
     if (!mapData) return;
 
@@ -120,6 +148,7 @@ function applyMapDataToScene(mapData) {
         if (typeof rebuildGrassTransforms === 'function') {
             rebuildGrassTransforms();
         }
+        if (window.PANDORA_RUNTIME) tintGroundUnderGrass();
     }
 
     // 4. Terapkan Trees
@@ -259,8 +288,9 @@ function applyMapDataToScene(mapData) {
     // 7c. Terapkan Item Boxes
     if (typeof itemBoxManagerInstance !== 'undefined' && Array.isArray(mapData.itemBoxes)) {
         itemBoxManagerInstance.clearAll();
+        itemBoxManagerInstance.stageKey = mapData.id || '';
         mapData.itemBoxes.forEach(b => {
-            itemBoxManagerInstance.createItemBox(b.x, b.z);
+            itemBoxManagerInstance.createItemBox(b.x, b.z, null, b.type || 'heal');
         });
         itemBoxManagerInstance.updateCountUI();
     }
@@ -291,17 +321,9 @@ function applyMapDataToScene(mapData) {
         PlayerSpawnManager.deserialize(mapData.playerSpawn);
     }
 
-    // 7d. Terapkan GLB Imported Objects Transform & Collision
-    if (typeof window.glbImporterInstance !== 'undefined' && Array.isArray(mapData.importedObjects) && window.importedObjectsList.length > 0) {
-        mapData.importedObjects.forEach((saved, idx) => {
-            if (window.importedObjectsList[idx]) {
-                const item = window.importedObjectsList[idx];
-                item.root.position.set(saved.posX, saved.posY, saved.posZ);
-                window.glbImporterInstance.setScale(idx, saved.scale);
-                window.glbImporterInstance.setRotationY(idx, saved.rotY);
-                window.glbImporterInstance.setCollision(idx, saved.hasCollision);
-            }
-        });
+    // 7d. Objek 3D impor: file modelnya dimuat di latar, prepareStage menunggu sampai selesai
+    if (window.PandoraImportedObjects) {
+        PandoraImportedObjects.apply(mapData.importedObjects);
     }
 
     // 8. Terapkan Air (Water Mask & Level)

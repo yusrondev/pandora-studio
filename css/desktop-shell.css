@@ -623,3 +623,86 @@ body.play-mode-active #viewport-container { border-radius: 0; }
 /* =========================================================
    CATATAN: gaya hit-tool.html ada di css/hit-tool.css
    ========================================================= */
+
+/* Dialog progres Generate Game, seperti bar proses Blender */
+.generate-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+}
+.generate-dialog {
+    width: min(460px, calc(100vw - 32px));
+    background: var(--bl-panel);
+    border: 1px solid var(--bl-line);
+    border-radius: 6px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+    color: var(--bl-text);
+    font: 12px/1.45 'Inter', 'Segoe UI', sans-serif;
+}
+.generate-dialog-title {
+    padding: 7px 12px;
+    background: var(--bl-panel-head);
+    border-bottom: 1px solid var(--bl-line);
+    border-radius: 6px 6px 0 0;
+    font-weight: 600;
+}
+.generate-dialog-body { padding: 14px 12px 12px; }
+.generate-bar {
+    position: relative;
+    height: 20px;
+    overflow: hidden;
+    background: var(--bl-field);
+    border: 1px solid #111;
+    border-radius: 3px;
+}
+.generate-bar i {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: var(--bl-accent);
+    transition: width 0.2s linear;
+}
+/* Tetap bergerak selama tahap panjang yang tidak punya angka antara */
+.generate-bar b {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 22%;
+    will-change: transform;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+    animation: generate-bar-sweep 1.4s linear infinite;
+}
+@keyframes generate-bar-sweep { from { transform: translateX(-100%); } to { transform: translateX(460%); } }
+.generate-bar span {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+}
+.generate-bar.done b, .generate-bar.failed b { display: none; }
+.generate-bar.failed i { background: #a33a3a; }
+.generate-label { margin-top: 8px; color: var(--bl-text-dim); }
+.generate-result {
+    margin-top: 10px;
+    padding: 8px;
+    max-height: 170px;
+    overflow: auto;
+    background: #232323;
+    border: 1px solid var(--bl-line);
+    border-radius: 3px;
+    word-break: break-all;
+}
+.generate-result .warn { color: #e0b050; }
+.generate-dialog-actions { display: flex; justify-content: flex-end; padding: 0 12px 12px; }
+.generate-dialog-actions[hidden] { display: none; }

@@ -18,7 +18,6 @@ function initMobileControls() {
     const joystickBase = document.getElementById('mobile-joystick-base');
     const joystickStick = document.getElementById('mobile-joystick-stick');
     const btnJump = document.getElementById('btn-mobile-jump');
-    const btnExit = document.getElementById('btn-mobile-exit-demo');
     const btnPunch = document.getElementById('btn-mobile-punch');
     const btnKick = document.getElementById('btn-mobile-kick');
     const btnShield = document.getElementById('btn-mobile-shield');
@@ -32,8 +31,8 @@ function initMobileControls() {
     let baseCenter = { x: 0, y: 0 };
     const maxDistance = 58; // Jangkauan stick (px)
     const deadZone = 0.1;  // Gerakan kecil ibu jari diabaikan
-    const STICK_RUN_ON = 0.85;
-    const STICK_RUN_OFF = 0.72;
+    const STICK_FULL = 0.85; // Dorongan sejauh ini sudah dihitung penuh, supaya ibu jari tidak harus mentok
+    const SPRINT_TAP_MS = 220; // Tombol X: lepas lebih cepat dari ini = lompat, lebih lama = lari
 
     // Joystick mengambang: dasar berpindah ke tempat ibu jari mendarat
     function placeBaseAt(clientX, clientY) {
@@ -54,7 +53,6 @@ function initMobileControls() {
         keys.s = false;
         keys.a = false;
         keys.d = false;
-        keys.shift = false;
         activeTouchId = null;
         window.activeJoystickTouchId = null;
         joystickStick.style.transform = 'translate(-50%, -50%)';
@@ -76,13 +74,11 @@ function initMobileControls() {
         joystickStick.style.transform = `translate(calc(-50% + ${stickX}px), calc(-50% + ${stickY}px))`;
 
         // Normalisasi -1.0 sampai +1.0
-        // Setengah dorongan = berjalan, didorong sampai mentok = berlari (ada jeda agar tidak bergetar di batas)
+        // Analog hanya mengatur arah dan kecepatan berjalan; berlari dengan menahan tombol X
         const rawStrength = clampedDist / maxDistance;
-        const strength = rawStrength <= deadZone ? 0 : Math.min(1, (rawStrength - deadZone) / (STICK_RUN_ON - deadZone));
+        const strength = rawStrength <= deadZone ? 0 : Math.min(1, (rawStrength - deadZone) / (STICK_FULL - deadZone));
         const normX = Math.cos(angle) * strength;
         const normY = -Math.sin(angle) * strength; // Ke atas bernilai positif
-        if (rawStrength >= STICK_RUN_ON) keys.shift = true;
-        else if (rawStrength < STICK_RUN_OFF) keys.shift = false;
 
         mobileJoystickForward = normY;
         mobileJoystickTurn = normX;
@@ -177,32 +173,54 @@ function initMobileControls() {
         }
     });
 
-    // 2. JUMP BUTTON
+    // 2. TOMBOL X: tahan untuk berlari, ketuk untuk melompat
     if (btnJump) {
-        let lastJumpTouchTime = 0;
+        let pressedAt = 0;
+        let lastTouchTime = 0;
+        let labelTimer = 0;
+        // Label baru berganti setelah terbukti ditahan, supaya tidak berkedip saat sekadar mengetuk
+        const caption = btnJump.querySelector('.pad-caption');
+        const press = () => {
+            pressedAt = performance.now();
+            keys.shift = true;
+            btnJump.classList.add('active');
+            clearTimeout(labelTimer);
+            labelTimer = setTimeout(() => { if (caption) caption.textContent = 'LARI'; }, SPRINT_TAP_MS);
+            if (navigator.vibrate) navigator.vibrate(15);
+        };
+        const release = (canJump) => {
+            if (!pressedAt) return;
+            const heldFor = performance.now() - pressedAt;
+            pressedAt = 0;
+            btnJump.classList.remove('active');
+            clearTimeout(labelTimer);
+            if (caption) caption.textContent = 'LONCAT';
+            // Lompat lebih dulu: keys.shift masih aktif saat dibaca, jadi lompat lari tetap bisa dari ketukan
+            if (canJump && heldFor < SPRINT_TAP_MS && typeof triggerWolfJump === 'function') {
+                triggerWolfJump();
+                setTimeout(() => { if (!pressedAt) keys.shift = false; }, 60);
+            } else {
+                keys.shift = false;
+            }
+        };
+
         btnJump.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            lastJumpTouchTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            btnJump.classList.add('active');
-            if (typeof triggerWolfJump === 'function') {
-                triggerWolfJump();
-            } else {
-                keys.space = true;
-                setTimeout(() => { keys.space = false; }, 120);
-            }
-            if (navigator.vibrate) navigator.vibrate(20);
+            lastTouchTime = performance.now();
+            press();
         }, { passive: false });
-
-        btnJump.addEventListener('touchend', () => {
-            btnJump.classList.remove('active');
-        });
-
-        btnJump.addEventListener('click', (e) => {
+        btnJump.addEventListener('touchend', (e) => {
             e.preventDefault();
-            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            if (now - lastJumpTouchTime < 450) return; // Sudah diproses oleh touchstart
-            if (typeof triggerWolfJump === 'function') triggerWolfJump();
+            release(true);
+        }, { passive: false });
+        btnJump.addEventListener('touchcancel', () => release(false));
+
+        // Mouse untuk mencoba di desktop; abaikan event sintetis setelah sentuhan
+        btnJump.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (performance.now() - lastTouchTime > 450) press();
         });
+        window.addEventListener('mouseup', () => release(true));
     }
 
     // 4. PUNCH BUTTON (COMBO ATTACK)
@@ -295,20 +313,6 @@ function initMobileControls() {
             if (typeof triggerWolfBlock === 'function') {
                 triggerWolfBlock();
             }
-        });
-    }
-
-    // 6. EXIT DEMO BUTTON
-    if (btnExit) {
-        btnExit.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof stopPlayMode === 'function') stopPlayMode();
-        }, { passive: false });
-
-        btnExit.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (typeof stopPlayMode === 'function') stopPlayMode();
         });
     }
 }

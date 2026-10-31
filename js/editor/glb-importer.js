@@ -199,13 +199,18 @@ class GLBImporterManager {
         }
 
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             const arrayBuffer = e.target.result;
+            if (window.MeshoptDecoder) {
+                await window.MeshoptDecoder.ready;
+                this.gltfLoader.setMeshoptDecoder(window.MeshoptDecoder);
+            }
+            const storedFile = await this.storeModelFile(arrayBuffer);
             this.gltfLoader.parse(
                 arrayBuffer,
                 '',
                 (gltf) => {
-                    this.handleLoadedGLTF(gltf, file.name);
+                    this.handleLoadedGLTF(gltf, file.name, storedFile);
                 },
                 (error) => {
                     console.error('[GLBImporter] Gagal mem-parse file GLB:', error);
@@ -216,7 +221,25 @@ class GLBImporterManager {
         reader.readAsArrayBuffer(file);
     }
 
-    handleLoadedGLTF(gltf, fileName) {
+    // Tanpa file di project, objek hanya hidup sampai halaman ditutup dan tidak bisa ikut ke build
+    async storeModelFile(arrayBuffer) {
+        try {
+            const res = await fetch('api/upload-model.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-pandora-model' },
+                body: arrayBuffer
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.error);
+            return json.file;
+        } catch (err) {
+            console.error('[GLBImporter] Gagal menyimpan file model:', err);
+            alert('File 3D gagal disimpan ke project, jadi tidak akan tersimpan bersama map: ' + err.message);
+            return null;
+        }
+    }
+
+    handleLoadedGLTF(gltf, fileName, storedFile = null) {
         const model = gltf.scene;
         if (!model) return;
 
@@ -275,6 +298,7 @@ class GLBImporterManager {
         const assetRecord = {
             id: `glb_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
             name: cleanName,
+            file: storedFile,
             root: rootGroup,
             model: model,
             baseSize: { x: size.x, y: size.y, z: size.z },
@@ -289,7 +313,10 @@ class GLBImporterManager {
 
         this.importedObjectsList.push(assetRecord);
         window.importedObjectsList = this.importedObjectsList;
-        this.selectObject(this.importedObjectsList.length - 1);
+        if (storedFile && window.PandoraImportedObjects) {
+            PandoraImportedObjects.restoreMissing(cleanName, assetRecord, { scene: model.clone(true), animations: gltf.animations || [] });
+        }
+        this.selectObject(this.importedObjectsList.indexOf(assetRecord));
     }
 
     /* ===================================================================
@@ -365,6 +392,7 @@ class GLBImporterManager {
         const newRecord = {
             id: `glb_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
             name: newName,
+            file: source.file,
             root: newRoot,
             model: clonedModel,
             baseSize: { ...source.baseSize },

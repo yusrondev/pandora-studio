@@ -509,15 +509,6 @@
     <!-- MOBILE SIDEBAR OVERLAY BACKDROP -->
     <div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop"></div>
 
-    <!-- DEMO MODE EXIT BUTTON (Tampil di Desktop maupun Mobile saat Demo Mode berjalan) -->
-    <button type="button" id="btn-mobile-exit-demo" class="mobile-action-btn mobile-exit-btn" title="Keluar Demo (ESC)">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-        <span class="mobile-exit-text">Exit (ESC)</span>
-    </button>
-
     <!-- MOBILE TOUCH CONTROLS (Virtual Analog Joystick & Action Buttons for Fox) -->
     <div id="mobile-play-controls" class="mobile-play-controls" style="display: none;">
         <!-- Left Virtual Joystick Zone -->
@@ -537,7 +528,7 @@
             <button type="button" id="btn-mobile-kick" class="mobile-action-btn mobile-kick-btn" title="Kick (Tendangan)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 4 21 20 3 20"/></svg><span class="pad-caption">TENDANG</span></button>
 
             <!-- Jump Button (Lompat) -->
-            <button type="button" id="btn-mobile-jump" class="mobile-action-btn mobile-jump-btn" title="Jump (Lompat)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg><span class="pad-caption">LOMPAT</span></button>
+            <button type="button" id="btn-mobile-jump" class="mobile-action-btn mobile-jump-btn" title="Tahan untuk lari, ketuk untuk lompat"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg><span class="pad-caption">LONCAT</span></button>
 
             <!-- Main Punch Button (Pukulan Combo Utama - Ukuran Paling Menonjol) -->
             <button type="button" id="btn-mobile-punch" class="mobile-action-btn mobile-punch-btn" title="Punch Attack (Pukulan Combo)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><rect x="4.5" y="4.5" width="15" height="15"/></svg><span class="pad-caption">PUKUL</span></button>
@@ -1090,6 +1081,10 @@
                     <div class="control-group">
                         <label>Nama Game</label>
                         <input type="text" id="project-game-name" class="project-text-input" maxlength="60">
+                    </div>
+                    <div class="control-group">
+                        <label title="Pisahkan dengan koma. Contoh: game.com, *.game.com. Kosong berarti build bisa berjalan di alamat mana saja, termasuk Play.bat. Jika diisi, Play.bat dan alamat lain ditolak.">Domain Diizinkan</label>
+                        <input type="text" id="project-allowed-domains" class="project-text-input" placeholder="kosong = semua alamat">
                     </div>
                     <div class="control-group">
                         <label title="Lingkaran = stage awal game. Karakter stage mengikuti pilihan Karakter di toolbar saat stage disimpan.">Stage (lingkaran = stage awal)</label>
@@ -3028,7 +3023,7 @@
                                 <line x1="18" y1="12" x2="22" y2="12"></line>
                             </svg>
                         </span>
-                        <span>Item Box Spawner (Power-Up)</span>
+                        <span>Pickup Heal &amp; Stamina</span>
                     </div>
                     <span class="chevron-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -3039,9 +3034,18 @@
                 <div class="accordion-body">
                     <div class="control-group">
                         <label>
-                            <span>Total Item Box di Map</span>
-                            <span id="val-item-box-count" class="val-badge">0</span>
+                            <span>Heal di Map</span>
+                            <span id="val-pickup-heal-count" class="val-badge">0</span>
                         </label>
+                        <label>
+                            <span>Stamina di Map</span>
+                            <span id="val-pickup-stamina-count" class="val-badge">0</span>
+                        </label>
+                    </div>
+
+                    <div class="pickup-type-switch">
+                        <button type="button" class="pickup-type-btn" data-pickup-type="heal" title="Cahaya hijau: memulihkan HP"><i class="pickup-dot heal"></i>Heal</button>
+                        <button type="button" class="pickup-type-btn" data-pickup-type="stamina" title="Cahaya oranye: memulihkan stamina"><i class="pickup-dot stamina"></i>Stamina</button>
                     </div>
 
                     <!-- Interactive Click-to-Place Mode Toggle Button -->
@@ -3057,19 +3061,19 @@
                     </button>
 
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
-                        <button type="button" id="btn-spawn-item-box-center" class="btn-compact" style="flex:1;" title="Spawn Item Box di Titik Fokus Kamera">
+                        <button type="button" id="btn-spawn-item-box-center" class="btn-compact" style="flex:1;" title="Letakkan pickup di titik fokus kamera">
                             <span>+ Titik Kamera</span>
                         </button>
-                        <button type="button" id="btn-spawn-item-box-fox" class="btn-compact" style="flex:1;" title="Spawn Item Box di Posisi Rubah Saat Ini">
-                            <span>+ Posisi Rubah</span>
+                        <button type="button" id="btn-spawn-item-box-fox" class="btn-compact" style="flex:1;" title="Letakkan pickup di posisi karakter">
+                            <span>+ Posisi Karakter</span>
                         </button>
                     </div>
 
                     <div style="display:flex; gap:6px; margin-bottom:10px;">
-                        <button type="button" id="btn-reset-item-boxes" class="btn-compact" style="flex:1;" title="Respawn Semua Box yang Pernah Diambil">
+                        <button type="button" id="btn-reset-item-boxes" class="btn-compact" style="flex:1;" title="Munculkan lagi semua pickup yang sudah diambil">
                             <span>Respawn All</span>
                         </button>
-                        <button type="button" id="btn-clear-item-boxes" class="btn-compact btn-danger" style="flex:1;" title="Hapus Semua Item Box dari Map">
+                        <button type="button" id="btn-clear-item-boxes" class="btn-compact btn-danger" style="flex:1;" title="Hapus semua pickup dari map">
                             <span>Hapus Semua</span>
                         </button>
                     </div>
@@ -3082,7 +3086,7 @@
                                 <line x1="12" y1="8" x2="12.01" y2="8"></line>
                             </svg>
                         </span>
-                        <span><b>Cara Pakai:</b> Klik tombol "Aktifkan Mode Spawner", lalu <b>Klik Kiri</b> di mana saja pada tanah untuk meletakkan Box. <b>Klik Kanan</b> pada Box untuk menghapus. Peluru Plasma maksimal 3x tembak!</span>
+                        <span><b>Cara Pakai:</b> Pilih jenis pickup, klik "Aktifkan Mode Spawner", lalu <b>Klik Kiri</b> pada tanah untuk meletakkan. <b>Klik Kanan</b> pada pickup untuk menghapus. Pickup diambil dengan mendekatinya saat stat belum penuh, lalu hilang dan tidak muncul lagi. Boss otomatis menjatuhkan pickup saat tereliminasi.</span>
                     </div>
                 </div>
             </div>
@@ -3173,6 +3177,8 @@
     <script src="js/core/scene.js"></script>
     <script src="js/core/cinematic-shared.js"></script>
     <script src="js/core/cinematic-player.js"></script>
+    <script src="js/core/imported-objects.js"></script>
+    <script src="js/core/boss-kill-cam.js"></script>
     <script src="js/environment/sky.js"></script>
     <script src="js/editor/history.js"></script>
     <script src="js/terrain/terrain.js"></script>

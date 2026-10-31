@@ -4,8 +4,9 @@
    keadaan stage: aktor tetap di tempat, jadi musuh, atau jadi posisi pemain.
    ========================================================= */
 const ENEMY_DEATH_SLOWMO = 0.35;
-const ENEMY_DEATH_SLOWMO_MS = 1500;
+const ENEMY_DEATH_SLOWMO_MS = 1900;
 const ENEMY_DEATH_CINEMATIC_DELAY_MS = 1300;
+const BOSS_DEATH_CINEMATIC_DELAY_MS = 1950; // Cinematic boss menunggu kamera eliminasi selesai mendekat
 
 const CinematicPlayer = {
     active: false,
@@ -305,6 +306,11 @@ const CinematicPlayer = {
             window.PandoraTimeScale = ENEMY_DEATH_SLOWMO;
             clearTimeout(this._slowmoTimer);
             this._slowmoTimer = setTimeout(() => { window.PandoraTimeScale = 1; }, ENEMY_DEATH_SLOWMO_MS);
+            if (typeof BossKillCam !== 'undefined') BossKillCam.start(agent);
+            setTimeout(() => {
+                if (typeof isPlayMode === 'undefined' || !isPlayMode || !agent.isDead) return;
+                if (window.itemBoxManagerInstance) itemBoxManagerInstance.dropBossReward(agent.root.position);
+            }, BOSS_DROP_DELAY_MS);
         }
         if (!wantsCinematic) return;
 
@@ -315,7 +321,7 @@ const CinematicPlayer = {
             if (window.PandoraStageFlow && PandoraStageFlow.rememberStudioStage) PandoraStageFlow.rememberStudioStage();
             const scenes = mode === 'auto' ? this.buildAutoDeathScene(agent) : this.buildDeathScenes(agent);
             if (scenes.length > 0) this.play({ scenes, ephemeral: true, dyingAgent: agent });
-        }, ENEMY_DEATH_CINEMATIC_DELAY_MS);
+        }, agent.isBoss ? BOSS_DEATH_CINEMATIC_DELAY_MS : ENEMY_DEATH_CINEMATIC_DELAY_MS);
     },
 
     // Kamera memutari jasad perlahan, opsional dengan kata terakhir

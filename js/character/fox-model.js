@@ -2917,8 +2917,7 @@ const ENEMY_FOXTREE_CONFIG = {
     files: {
         idle: 'idle.fbx',
         punch1: 'combat/punch/punch1.fbx',
-        punch2: 'combat/punch/punch2.fbx',
-        punch3: 'combat/punch/punch3.fbx'
+        punch2: 'combat/punch/punch2.fbx'
     },
     baseScale: 1.85,
     yOffset: 0.05,
@@ -3056,8 +3055,8 @@ window.EnemyFoxTreeAssetManager = {
                     console.warn('[EnemyFoxTreeAssetManager] Could not load punch2.fbx:', p2Err);
                 }
 
-                // 5. Load Punch 3 (combat/punch/punch3.fbx)
-                try {
+                // 5. Load Punch 3 (opsional: hero/foxtree hanya punya punch1 dan punch2)
+                if (files.punch3) try {
                     const p3Obj = await loadFBX(basePath + files.punch3);
                     if (p3Obj.animations && p3Obj.animations.length > 0) {
                         const p3Clip = p3Obj.animations[0].clone();

@@ -1,542 +1,621 @@
 /* ===================================================================
-   PANDORA ITEM SYSTEM - ITEM BOX (MYSTERY CRATE) MANAGER
-   Crash Nitro Kart-inspired Power-Up Item Box Spawner.
-   Custom non-copyright holographic cyber-crystal aesthetic,
-   dynamic floating bobbing, collection collision, shatter FX,
-   and automatic respawn loop.
+   PICKUP HEAL & STAMINA
+   Bola kecil bercahaya dengan aura dan butir yang mengorbit: hijau memulihkan HP, oranye memulihkan stamina.
+   Sekali diambil hilang dari permainan; boss menjatuhkan sekumpulan saat tereliminasi.
+   Saat diambil, tubuh karakter disapu garis cahaya dari kaki ke kepala.
+   Tanpa PointLight: jumlah lampu yang berubah memaksa semua shader dikompilasi ulang.
    =================================================================== */
+const PICKUP_TYPES = {
+    heal: { label: 'Heal', color: 0x18e860, hot: 0xd8ffe6, fraction: 0.35, chime: [523.25, 659.25, 783.99, 1046.5] },
+    stamina: { label: 'Stamina', color: 0xff8a12, hot: 0xfff0c9, fraction: 0.6, chime: [659.25, 880, 1174.66, 1318.51] }
+};
+const PICKUP_RESTORE_SECONDS = 0.7;
+const PICKUP_MIN_SPACING = 1.0;
+const PICKUP_AURA_SPRITES = 5;
+const PICKUP_ORB_PARTICLES = 45;
+const PICKUP_MOTES = 60;
+const PICKUP_HOVER = 0.62; // Cukup tinggi agar aura tidak terpotong tanah
+const BOSS_DROP_DELAY_MS = 1500; // Setelah kamera eliminasi selesai mendekat
+const BOSS_DROP = { heal: 5, stamina: 2, healFraction: 0.08, staminaFraction: 0.12, radiusMin: 1.4, radiusMax: 3.2 };
+const SCAN_SWEEP_SECONDS = 0.75;
+const SCAN_FADE_SECONDS = 0.35;
+const BURST_PARTICLES = 26;
+
+// Dianimasikan di GPU. Warna premultiplied: rgb menambah cahaya, alpha menutup latar, sehingga tetap
+// bersinar di area gelap tanpa memutih di tanah terang.
+const PICKUP_VERTEX = `
+    attribute vec4 aSeed; // sudut, jarak, kecepatan, fase
+    attribute float aKind; // 0 aura, 1 isi bola, 2 butir yang mengorbit
+    uniform float uTime;
+    uniform float uPixelScale;
+    uniform float uHover;
+    varying float vAlpha;
+    varying float vHeat;
+    void main() {
+        float boxPhase = fract(modelMatrix[3][0] * 0.37 + modelMatrix[3][2] * 0.71) * 6.28;
+        float t = uTime + boxPhase;
+        float bob = uHover + sin(t * 1.7) * 0.035;
+        float angle = aSeed.x + t * aSeed.z * (aKind > 1.5 ? 2.6 : 1.2);
+        float height = fract(aSeed.w * 3.71) * 2.0 - 1.0;
+        float ring = sqrt(max(0.0, 1.0 - height * height));
+        float radius, size, alpha, heat;
+        if (aKind < 0.5) {
+            radius = 0.02;
+            size = (0.62 + aSeed.y * 0.5) * (1.0 + 0.1 * sin(t * 2.2 + aSeed.x));
+            alpha = 0.2;
+            heat = 0.0;
+        } else if (aKind < 1.5) {
+            radius = 0.085 * aSeed.y;
+            size = 0.1 + 0.05 * sin(t * 4.0 + aSeed.w * 6.28);
+            alpha = 0.9;
+            heat = 1.0 - aSeed.y * 0.45;
+        } else {
+            radius = 0.16 + aSeed.y * 0.2 + 0.025 * sin(t * 3.0 + aSeed.w * 6.28);
+            size = 0.028 + 0.022 * fract(aSeed.w * 7.31);
+            alpha = 0.55 + 0.45 * sin(t * (2.0 + aSeed.z * 6.0) + aSeed.x);
+            heat = 0.75;
+        }
+        vec3 p = vec3(cos(angle) * ring * radius, bob + height * radius, sin(angle) * ring * radius);
+        vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = size * uPixelScale / max(0.1, -mvPosition.z);
+        vAlpha = alpha;
+        vHeat = heat;
+        gl_Position = projectionMatrix * mvPosition;
+    }
+`;
+
+const PICKUP_FRAGMENT = `
+    uniform vec3 uColor;
+    uniform vec3 uHot;
+    varying float vAlpha;
+    varying float vHeat;
+    void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        if (d > 1.0) discard;
+        float soft = pow(1.0 - d, 2.0) * vAlpha;
+        vec3 color = mix(uColor, uHot, vHeat);
+        gl_FragColor = vec4(color * soft * mix(0.8, 1.5, vHeat), soft * mix(0.85, 0.72, vHeat));
+    }
+`;
+
+const SCAN_FRAGMENT = `
+    uniform vec3 uColor;
+    uniform float uScanY;
+    uniform float uAlpha;
+    varying float vWorldY;
+    varying vec3 vNormal;
+    varying vec3 vViewPosition;
+    void main() {
+        float offset = vWorldY - uScanY;
+        float band = exp(-offset * offset * 90.0);
+        float trail = offset < 0.0 ? 0.32 * exp(offset * 1.4) : 0.0;
+        float rim = pow(1.0 - max(0.0, dot(normalize(vNormal), normalize(vViewPosition))), 2.0);
+        float glow = band * 1.6 + trail * (0.5 + rim * 1.5);
+        gl_FragColor = vec4(uColor * (1.0 + band), clamp(glow, 0.0, 1.0) * uAlpha);
+    }
+`;
 
 class ItemBoxManager {
     constructor() {
         this.boxes = [];
-        this.pickupRadius = 1.8;
-        this.respawnTime = 4.5; // Durasi respawn cepat (4.5 detik) agar aksi tempur mengalir cepat tanpa menunggu lama
-        this.audioCtx = null;
-        this.shards = [];
+        this.pickupRadius = 1.1;
+        this.stageKey = '';
+        this.collectedKeys = new Set(); // Build game: yang sudah diambil tidak muncul lagi sampai game dimulai ulang
+        this.activeType = 'heal';
         this.containerGroup = new THREE.Group();
-        this.containerGroup.name = 'ItemBoxesContainer';
-
-        // Shared geometries & materials for peak performance
-        this.frameGeo = null;
-        this.frameMat = null;
-        this.coreGeo = null;
-        this.coreMat = null;
-        this.ringGeo = null;
-        this.ringMat = null;
-        this.shardGeo = null;
-        this.shardMat = null;
+        this.containerGroup.name = 'PickupsContainer';
         this.isInitialized = false;
+        this.audioCtx = null;
+        this.visuals = {};
+        this.restores = [];
+        this.scanTwins = [];
+        this.scanRoot = null;
+        this.scanTime = -1;
+        this.scanBase = 0;
+        this.scanTop = 2;
+        this.burst = null;
     }
 
     init() {
         if (this.isInitialized) return;
         if (typeof scene === 'undefined') return;
         this.isInitialized = true;
+        scene.add(this.containerGroup);
 
-        if (!this.containerGroup.parent) {
-            scene.add(this.containerGroup);
+        const glow = this.makeTexture((ctx, size) => {
+            const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+            g.addColorStop(0, 'rgba(255,255,255,1)');
+            g.addColorStop(0.3, 'rgba(255,255,255,0.45)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, size, size);
+        });
+        const ring = this.makeTexture((ctx, size) => {
+            const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+            g.addColorStop(0.55, 'rgba(255,255,255,0)');
+            g.addColorStop(0.82, 'rgba(255,255,255,0.9)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, size, size);
+        });
+        this.groundGeo = new THREE.PlaneGeometry(1.7, 1.7);
+        this.groundGeo.rotateX(-Math.PI / 2);
+
+        const total = PICKUP_AURA_SPRITES + PICKUP_ORB_PARTICLES + PICKUP_MOTES;
+        const seeds = new Float32Array(total * 4);
+        const kinds = new Float32Array(total);
+        for (let i = 0; i < total; i++) {
+            seeds[i * 4] = Math.random() * Math.PI * 2;
+            seeds[i * 4 + 1] = Math.random();
+            seeds[i * 4 + 2] = 0.14 + Math.random() * 0.26;
+            seeds[i * 4 + 3] = Math.random();
+            kinds[i] = i < PICKUP_AURA_SPRITES ? 0 : (i < PICKUP_AURA_SPRITES + PICKUP_ORB_PARTICLES ? 1 : 2);
         }
-
-        // 1. Outer Translucent Holographic Cube Frame (MeshStandardMaterial tanpa transmission pass agar 60fps bebas freeze)
-        const boxSize = 1.15;
-        this.frameGeo = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
-        this.frameMat = new THREE.MeshStandardMaterial({
-            color: 0x0ea5e9,
-            emissive: 0x0284c7,
-            emissiveIntensity: 0.45,
-            metalness: 0.2,
-            roughness: 0.15,
-            opacity: 0.82,
-            transparent: true,
-            depthWrite: false
+        this.particleGeo = new THREE.BufferGeometry();
+        // Posisi dihitung di shader; atribut ini hanya menentukan jumlah titik
+        this.particleGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(total * 3), 3));
+        this.particleGeo.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 4));
+        this.particleGeo.setAttribute('aKind', new THREE.BufferAttribute(kinds, 1));
+        this.particleTime = { value: 0 };
+        this.particleScale = { value: 400 };
+        Object.keys(PICKUP_TYPES).forEach((type) => {
+            this.visuals[type] = new THREE.ShaderMaterial({
+                vertexShader: PICKUP_VERTEX,
+                fragmentShader: PICKUP_FRAGMENT,
+                uniforms: {
+                    uTime: this.particleTime,
+                    uPixelScale: this.particleScale,
+                    uHover: { value: PICKUP_HOVER },
+                    uColor: { value: new THREE.Color(PICKUP_TYPES[type].color) },
+                    uHot: { value: new THREE.Color(PICKUP_TYPES[type].hot) }
+                },
+                transparent: true,
+                depthWrite: false,
+                toneMapped: false,
+                blending: THREE.CustomBlending,
+                blendSrc: THREE.OneFactor,
+                blendDst: THREE.OneMinusSrcAlphaFactor
+            });
         });
 
-        // 2. Inner Rotating Energy Crystal Core
-        this.coreGeo = new THREE.OctahedronGeometry(0.38, 0);
-        this.coreMat = new THREE.MeshStandardMaterial({
-            color: 0xff7700,
-            emissive: 0xff5500,
-            emissiveIntensity: 1.2,
-            roughness: 0.2,
-            metalness: 0.8
-        });
+        // Contoh tersembunyi: shadernya ikut dikompilasi saat loading walau stage belum punya pickup,
+        // supaya pickup dari boss tidak membuat game tersendat
+        const sample = this.buildVisual('heal');
+        sample.group.visible = false;
+        this.containerGroup.add(sample.group);
 
-        // 3. Orbiting Energy Halos
-        this.ringGeo = new THREE.TorusGeometry(0.55, 0.022, 8, 24);
-        this.ringMat = new THREE.MeshBasicMaterial({
-            color: 0x38bdf8,
-            transparent: true,
-            opacity: 0.85
-        });
-
-        // Cached shatter shard geometry & material
-        this.shardGeo = new THREE.TetrahedronGeometry(0.16, 0);
-        this.shardMat = new THREE.MeshBasicMaterial({
-            color: 0x38bdf8,
-            transparent: true,
-            opacity: 1.0
-        });
-
-        // Di awal game buat TIDAK ADA box, biarkan user menentukan sendiri lokasinya
-        this.spawnDefaultItemBoxes();
-
-        // Bind editor UI controls
+        this.buildBurst(glow, ring);
+        this.boxes = [];
         this.bindUI();
     }
 
-    updateCountUI() {
-        const badge = document.getElementById('val-item-box-count');
-        if (badge) {
-            badge.innerText = this.boxes.length;
+    makeTexture(paint) {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 128;
+        paint(canvas.getContext('2d'), 128);
+        return new THREE.CanvasTexture(canvas);
+    }
+
+    // Partikel dan cincin dipakai ulang, jadi mengambil pickup tidak membuat objek baru di tengah permainan
+    buildBurst(glow, ring) {
+        const group = new THREE.Group();
+        group.name = 'PickupBurst';
+        group.visible = false;
+        const positions = new Float32Array(BURST_PARTICLES * 3);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const pointsMaterial = new THREE.PointsMaterial({
+            map: glow, size: 0.2, transparent: true, depthWrite: false,
+            toneMapped: false, fog: false, sizeAttenuation: true
+        });
+        const points = new THREE.Points(geometry, pointsMaterial);
+        points.frustumCulled = false;
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            map: ring, transparent: true, depthWrite: false, toneMapped: false, fog: false
+        });
+        const ringMesh = new THREE.Mesh(this.groundGeo, ringMaterial);
+        group.add(points, ringMesh);
+        scene.add(group);
+        const seeds = [];
+        for (let i = 0; i < BURST_PARTICLES; i++) {
+            seeds.push({ angle: Math.random() * Math.PI * 2, radius: 0.25 + Math.random() * 0.4, speed: 0.9 + Math.random() * 1.5, delay: Math.random() * 0.3 });
         }
+        this.burst = { group, points, positions, seeds, pointsMaterial, ringMaterial, ringMesh };
+    }
+
+    updateCountUI() {
+        const count = (type) => this.boxes.filter(b => b.type === type).length;
+        const heal = document.getElementById('val-pickup-heal-count');
+        const stamina = document.getElementById('val-pickup-stamina-count');
+        if (heal) heal.innerText = count('heal');
+        if (stamina) stamina.innerText = count('stamina');
+    }
+
+    setActiveType(type) {
+        this.activeType = type;
+        document.querySelectorAll('[data-pickup-type]').forEach((btn) => {
+            btn.classList.toggle('active', btn.dataset.pickupType === type);
+        });
     }
 
     toggleSpawnerMode(force) {
-        if (typeof force === 'boolean') {
-            window.isItemBoxSpawnerActive = force;
-        } else {
-            window.isItemBoxSpawnerActive = !window.isItemBoxSpawnerActive;
-        }
-
+        window.isItemBoxSpawnerActive = typeof force === 'boolean' ? force : !window.isItemBoxSpawnerActive;
         const btnToggle = document.getElementById('btn-toggle-itembox-spawner');
         const txtToggle = document.getElementById('txt-itembox-spawner-toggle');
-        if (btnToggle) {
-            if (window.isItemBoxSpawnerActive) {
-                btnToggle.classList.add('active');
-                if (txtToggle) txtToggle.innerText = 'Mode Spawner Aktif (Klik Tanah)';
-            } else {
-                btnToggle.classList.remove('active');
-                if (txtToggle) txtToggle.innerText = 'Aktifkan Mode Spawner (Klik Tanah)';
-            }
-        }
+        if (btnToggle) btnToggle.classList.toggle('active', window.isItemBoxSpawnerActive);
+        if (txtToggle) txtToggle.innerText = window.isItemBoxSpawnerActive ? 'Mode Spawner Aktif (Klik Tanah)' : 'Aktifkan Mode Spawner (Klik Tanah)';
     }
 
     deleteItemBox(box) {
-        if (!box) return;
         const idx = this.boxes.indexOf(box);
-        if (idx !== -1) {
-            this.boxes.splice(idx, 1);
-        }
-        if (box.group && box.group.parent) {
-            box.group.parent.remove(box.group);
-        }
+        if (idx === -1) return;
+        this.containerGroup.remove(box.group);
+        this.boxes.splice(idx, 1);
         this.updateCountUI();
     }
 
     deleteItemBoxAtLocation(x, z, radius = 3.0) {
-        const radSq = radius * radius;
-        let deleted = false;
-        for (let i = this.boxes.length - 1; i >= 0; i--) {
-            const b = this.boxes[i];
-            const dx = b.x - x;
-            const dz = b.z - z;
-            if (dx * dx + dz * dz <= radSq) {
-                if (b.group && b.group.parent) {
-                    b.group.parent.remove(b.group);
-                }
-                this.boxes.splice(i, 1);
-                deleted = true;
-                break;
-            }
-        }
-        if (deleted) this.updateCountUI();
-        return deleted;
+        const box = this.boxes.find(b => Math.hypot(b.baseX - x, b.baseZ - z) <= radius);
+        if (box) this.deleteItemBox(box);
+        return !!box;
     }
 
     bindUI() {
-        // 1. Toggle Interactive Click-to-Place Mode
-        const btnToggle = document.getElementById('btn-toggle-itembox-spawner');
-        if (btnToggle) {
-            btnToggle.onclick = () => {
-                this.toggleSpawnerMode();
-            };
-        }
-
-        // 2. Spawn at Camera Target Focus
-        const btnSpawn = document.getElementById('btn-spawn-item-box-center');
-        if (btnSpawn) {
-            btnSpawn.onclick = () => {
-                const targetX = (typeof controls !== 'undefined' && controls.target) ? controls.target.x : 0;
-                const targetZ = (typeof controls !== 'undefined' && controls.target) ? controls.target.z : 0;
-                this.createItemBox(targetX, targetZ);
-                this.updateCountUI();
-            };
-        }
-
-        // 3. Spawn at Fox Current Position
-        const btnSpawnFox = document.getElementById('btn-spawn-item-box-fox');
-        if (btnSpawnFox) {
-            btnSpawnFox.onclick = () => {
-                let fx = 0, fz = 0;
-                if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
-                    fx = wolfCharacter.root.position.x;
-                    fz = wolfCharacter.root.position.z;
-                }
-                this.createItemBox(fx, fz);
-                this.updateCountUI();
-            };
-        }
-
-        const btnReset = document.getElementById('btn-reset-item-boxes');
-        if (btnReset) {
-            btnReset.onclick = () => {
-                this.boxes.forEach(b => {
-                    b.isActive = true;
-                    b.respawnTimer = 0;
-                    b.group.visible = true;
-                    b.group.scale.setScalar(1.0);
-                });
-                this.updateCountUI();
-            };
-        }
-
-        const btnClear = document.getElementById('btn-clear-item-boxes');
-        if (btnClear) {
-            btnClear.onclick = () => {
-                this.clearAll();
-                this.updateCountUI();
-            };
-        }
-
-        this.updateCountUI();
-    }
-
-    spawnDefaultItemBoxes() {
-        // Di awal game buat TIDAK ADA box, biarkan user menentukan sendiri di mana box ingin diletakkan!
-        this.boxes = [];
-        this.updateCountUI();
-    }
-
-    createItemBox(x, z, id = null) {
-        if (!this.frameGeo) this.init();
-
-        // Pastikan jika sudah ada di area itu, tidak perlu spawn terus (override)
-        // Hanya spawn jika area memang kosong (radius 3.5 meter)!
-        const MIN_PROXIMITY_DIST = 3.5;
-        const isOccupied = this.boxes.some(b => {
-            const dx = b.x - x;
-            const dz = b.z - z;
-            return (dx * dx + dz * dz) < (MIN_PROXIMITY_DIST * MIN_PROXIMITY_DIST);
-        });
-
-        if (isOccupied) {
-            return null;
-        }
-
-        const boxGroup = new THREE.Group();
-        boxGroup.name = id || `ItemBox_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-
-        // Outer holographic frame
-        const frameMesh = new THREE.Mesh(this.frameGeo, this.frameMat);
-        frameMesh.castShadow = true;
-        boxGroup.add(frameMesh);
-
-        // Cyber edge wireframe brackets
-        const edgesGeo = new THREE.EdgesGeometry(this.frameGeo);
-        const edgesMat = new THREE.LineBasicMaterial({
-            color: 0x7dd3fc,
-            linewidth: 2,
-            transparent: true,
-            opacity: 0.95
-        });
-        const edgeLines = new THREE.LineSegments(edgesGeo, edgesMat);
-        boxGroup.add(edgeLines);
-
-        // Inner glowing crystal
-        const coreMesh = new THREE.Mesh(this.coreGeo, this.coreMat);
-        boxGroup.add(coreMesh);
-
-        // Orbiting rings
-        const ring1 = new THREE.Mesh(this.ringGeo, this.ringMat);
-        ring1.rotation.x = Math.PI / 3;
-        boxGroup.add(ring1);
-
-        const ring2 = new THREE.Mesh(this.ringGeo, this.ringMat);
-        ring2.rotation.y = Math.PI / 4;
-        boxGroup.add(ring2);
-
-        // Soft ambient point light illuminating grass
-        const boxLight = new THREE.PointLight(0xff9900, 1.4, 5.5, 2);
-        boxLight.position.set(0, 0, 0);
-        boxGroup.add(boxLight);
-
-        // Position on terrain
-        const groundY = (typeof getTerrainHeightFast === 'function') ? getTerrainHeightFast(x, z) : 0;
-        const baseHoverY = groundY + 1.25;
-
-        boxGroup.position.set(x, baseHoverY, z);
-        this.containerGroup.add(boxGroup);
-
-        const boxData = {
-            id: boxGroup.name,
-            group: boxGroup,
-            core: coreMesh,
-            ring1: ring1,
-            ring2: ring2,
-            light: boxLight,
-            baseX: x,
-            baseZ: z,
-            baseHoverY: baseHoverY,
-            phase: Math.random() * Math.PI * 2,
-            isActive: true,
-            respawnTimer: 0
+        const onClick = (id, fn) => {
+            const el = document.getElementById(id);
+            if (el) el.onclick = fn;
         };
-
-        this.boxes.push(boxData);
-        return boxData;
+        document.querySelectorAll('[data-pickup-type]').forEach((btn) => {
+            btn.onclick = () => this.setActiveType(btn.dataset.pickupType);
+        });
+        onClick('btn-toggle-itembox-spawner', () => this.toggleSpawnerMode());
+        onClick('btn-spawn-item-box-center', () => {
+            const target = (typeof controls !== 'undefined' && controls.target) ? controls.target : { x: 0, z: 0 };
+            this.createItemBox(target.x, target.z, null, this.activeType);
+            this.updateCountUI();
+        });
+        onClick('btn-spawn-item-box-fox', () => {
+            const pos = (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) ? wolfCharacter.root.position : { x: 0, z: 0 };
+            this.createItemBox(pos.x, pos.z, null, this.activeType);
+            this.updateCountUI();
+        });
+        onClick('btn-reset-item-boxes', () => this.respawnAll());
+        onClick('btn-clear-item-boxes', () => {
+            this.clearAll();
+            this.updateCountUI();
+        });
+        this.setActiveType(this.activeType);
+        this.updateCountUI();
     }
 
-    removeItemBox(index) {
-        if (index < 0 || index >= this.boxes.length) return;
-        const box = this.boxes[index];
-        if (box.group && box.group.parent) {
-            box.group.parent.remove(box.group);
-        }
-        this.boxes.splice(index, 1);
+    createItemBox(x, z, id = null, type = this.activeType) {
+        if (!this.isInitialized) this.init();
+        if (!PICKUP_TYPES[type]) type = 'heal'; // Map lama belum menyimpan jenis
+        if (this.boxes.some(b => Math.hypot(b.baseX - x, b.baseZ - z) < PICKUP_MIN_SPACING)) return null;
+
+        const key = this.stageKey + ':' + type + ':' + x.toFixed(2) + ',' + z.toFixed(2);
+        if (window.PANDORA_RUNTIME && this.collectedKeys.has(key)) return null;
+
+        const box = {
+            ...this.buildVisual(type),
+            key, type,
+            fraction: PICKUP_TYPES[type].fraction,
+            isDrop: false,
+            baseX: x, baseZ: z,
+            isActive: true
+        };
+        box.id = id || box.group.name;
+        const groundY = (typeof getTerrainHeightFast === 'function') ? getTerrainHeightFast(x, z) : 0;
+        box.group.position.set(x, groundY, z);
+        this.containerGroup.add(box.group);
+        this.boxes.push(box);
+        return box;
+    }
+
+    buildVisual(type) {
+        const group = new THREE.Group();
+        group.name = `Pickup_${type}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        const particles = new THREE.Points(this.particleGeo, this.visuals[type]);
+        particles.frustumCulled = false;
+        group.add(particles);
+        return { group, particles };
+    }
+
+    // Boss menjatuhkan sekumpulan pickup kecil di sekitar tubuhnya, seperti God of War
+    dropBossReward(position) {
+        const place = (type, fraction) => {
+            const half = (typeof groundSize !== 'undefined' ? groundSize : 80) / 2 - 1.5;
+            let box = null;
+            // Posisi acak bisa terlalu dekat dengan pickup lain, jadi dicoba beberapa kali
+            for (let attempt = 0; attempt < 12 && !box; attempt++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = BOSS_DROP.radiusMin + Math.random() * (BOSS_DROP.radiusMax - BOSS_DROP.radiusMin);
+                const x = THREE.MathUtils.clamp(position.x + Math.cos(angle) * radius, -half, half);
+                const z = THREE.MathUtils.clamp(position.z + Math.sin(angle) * radius, -half, half);
+                box = this.createItemBox(x, z, null, type);
+            }
+            if (!box) return;
+            box.isDrop = true;
+            box.fraction = fraction;
+            box.group.scale.setScalar(0.01);
+            if (typeof gsap !== 'undefined') {
+                gsap.to(box.group.scale, { x: 1, y: 1, z: 1, duration: 0.45, delay: Math.random() * 0.35, ease: 'back.out(2)' });
+            } else {
+                box.group.scale.setScalar(1);
+            }
+        };
+        for (let i = 0; i < BOSS_DROP.heal; i++) place('heal', BOSS_DROP.healFraction);
+        for (let i = 0; i < BOSS_DROP.stamina; i++) place('stamina', BOSS_DROP.staminaFraction);
     }
 
     clearAll() {
-        this.boxes.forEach(box => {
-            if (box.group && box.group.parent) {
-                box.group.parent.remove(box.group);
-            }
-        });
+        this.boxes.forEach(box => this.containerGroup.remove(box.group));
         this.boxes = [];
     }
 
-    // ==========================================
-    // AUDIO SYNTHESIS: ITEM COLLECT CHIME
-    // ==========================================
-    playCollectSound() {
+    // Pickup dari boss tidak ikut tersimpan dan hilang saat permainan diulang (boss hidup lagi saat pemain gugur)
+    clearDrops() {
+        for (let i = this.boxes.length - 1; i >= 0; i--) {
+            if (this.boxes[i].isDrop) {
+                this.containerGroup.remove(this.boxes[i].group);
+                this.boxes.splice(i, 1);
+            }
+        }
+    }
+
+    stopEffects() {
+        this.restores = [];
+        this.scanTime = -1;
+        this.setScanVisible(false);
+        if (this.burst) this.burst.group.visible = false;
+    }
+
+    respawnAll() {
+        this.clearDrops();
+        this.boxes.forEach((box) => {
+            box.isActive = true;
+            box.group.visible = true;
+            box.group.scale.setScalar(1);
+        });
+        this.stopEffects();
+        this.updateCountUI();
+    }
+
+    // Tiap Play Mode dimulai atau berhenti. Di Studio semua pickup kembali agar stage bisa diuji lagi;
+    // di build yang sudah diambil tetap hilang, termasuk saat pemain gugur dan hidup kembali.
+    resetForPlay() {
+        if (!window.PANDORA_RUNTIME) {
+            this.respawnAll();
+            return;
+        }
+        this.clearDrops();
+        this.stopEffects();
+    }
+
+    playCollectSound(type) {
         try {
             this.audioCtx = this.audioCtx || new (window.AudioContext || window.webkitAudioContext)();
             if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
-
             const t = this.audioCtx.currentTime;
-
-            // Musical arpeggio chime (Crash Nitro Kart mystery box pickup chime)
-            const notes = [440, 554.37, 659.25, 880, 1108.73];
-            notes.forEach((freq, idx) => {
+            PICKUP_TYPES[type].chime.forEach((freq, idx) => {
                 const osc = this.audioCtx.createOscillator();
                 const gain = this.audioCtx.createGain();
-                const startTime = t + idx * 0.055;
-
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(freq, startTime);
-                osc.frequency.exponentialRampToValueAtTime(freq * 1.05, startTime + 0.18);
-
-                gain.gain.setValueAtTime(0.22, startTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
-
+                const start = t + idx * 0.07;
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, start);
+                gain.gain.setValueAtTime(0.0001, start);
+                gain.gain.exponentialRampToValueAtTime(0.16, start + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, start + 0.32);
                 osc.connect(gain);
                 gain.connect(this.audioCtx.destination);
-
-                osc.start(startTime);
-                osc.stop(startTime + 0.23);
+                osc.start(start);
+                osc.stop(start + 0.33);
             });
-
-            // Energetic bass thud on impact
-            const bass = this.audioCtx.createOscillator();
-            const bassGain = this.audioCtx.createGain();
-            bass.type = 'sine';
-            bass.frequency.setValueAtTime(140, t);
-            bass.frequency.exponentialRampToValueAtTime(45, t + 0.22);
-            bassGain.gain.setValueAtTime(0.4, t);
-            bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
-            bass.connect(bassGain);
-            bassGain.connect(this.audioCtx.destination);
-            bass.start(t);
-            bass.stop(t + 0.25);
         } catch (_) { }
     }
 
-    playRespawnSound(pos) {
-        try {
-            this.audioCtx = this.audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-            if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
-
-            const t = this.audioCtx.currentTime;
-            const osc = this.audioCtx.createOscillator();
-            const gain = this.audioCtx.createGain();
-
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(320, t);
-            osc.frequency.exponentialRampToValueAtTime(960, t + 0.25);
-
-            gain.gain.setValueAtTime(0.12, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
-
-            osc.connect(gain);
-            gain.connect(this.audioCtx.destination);
-            osc.start(t);
-            osc.stop(t + 0.27);
-        } catch (_) { }
+    // ---------- Sapuan cahaya pada tubuh ----------
+    getScanMaterials() {
+        if (this.scanMaterials) return this.scanMaterials;
+        this.scanUniforms = {
+            uColor: { value: new THREE.Color(0xffffff) },
+            uScanY: { value: 0 },
+            uAlpha: { value: 0 }
+        };
+        const common = {
+            uniforms: this.scanUniforms,
+            fragmentShader: SCAN_FRAGMENT,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false
+        };
+        const vertex = (skinned) => `
+            ${skinned ? '#include <skinning_pars_vertex>' : ''}
+            varying float vWorldY;
+            varying vec3 vNormal;
+            varying vec3 vViewPosition;
+            void main() {
+                vec3 transformed = vec3(position);
+                vec3 objectNormal = vec3(normal);
+                ${skinned ? '#include <skinbase_vertex>\n#include <skinnormal_vertex>\n#include <skinning_vertex>' : ''}
+                vec3 expanded = transformed + objectNormal * 0.006;
+                vec4 mvPosition = modelViewMatrix * vec4(expanded, 1.0);
+                vWorldY = (modelMatrix * vec4(expanded, 1.0)).y;
+                vNormal = normalize(normalMatrix * objectNormal);
+                vViewPosition = -mvPosition.xyz;
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+        this.scanMaterials = {
+            skinned: new THREE.ShaderMaterial({ ...common, vertexShader: vertex(true), skinning: true }),
+            rigid: new THREE.ShaderMaterial({ ...common, vertexShader: vertex(false) })
+        };
+        return this.scanMaterials;
     }
 
-    // ==========================================
-    // SHATTER PARTICLE EFFECT
-    // ==========================================
-    createShatterFX(pos) {
-        const shardCount = 12;
-        const shardGeo = this.shardGeo || new THREE.TetrahedronGeometry(0.16, 0);
-        const shardMat = this.shardMat || new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 1.0 });
+    // Lapisan kedua di atas tubuh karakter, mengikuti tulang yang sama. Dipanggil di balik layar pemuatan
+    // agar shadernya sudah dikompilasi sebelum pickup pertama diambil.
+    ensureScanTwins(character) {
+        if (!character || !character.root) return;
+        const meshes = [];
+        character.root.traverse((child) => {
+            if (child.isMesh && !child.userData.isEagleVisionTwin) meshes.push(child);
+        });
+        if (this.scanRoot === character.root && this.scanTwins.length === meshes.length) return;
 
-        for (let i = 0; i < shardCount; i++) {
-            const mesh = new THREE.Mesh(shardGeo, shardMat);
-            mesh.position.copy(pos);
+        this.scanTwins.forEach(twin => twin.parent && twin.parent.remove(twin));
+        const materials = this.getScanMaterials();
+        this.scanTwins = meshes.map((mesh) => {
+            let twin;
+            if (mesh.isSkinnedMesh && mesh.skeleton) {
+                twin = new THREE.SkinnedMesh(mesh.geometry, materials.skinned);
+                twin.bind(mesh.skeleton, mesh.bindMatrix);
+                twin.bindMode = mesh.bindMode;
+                twin.bindMatrixInverse.copy(mesh.bindMatrixInverse);
+            } else {
+                twin = new THREE.Mesh(mesh.geometry, materials.rigid);
+            }
+            // Sistem siluet melewati penanda ini, jadi lapisan ini tidak ikut digandakan
+            twin.userData.isEagleVisionTwin = true;
+            twin.renderOrder = 999998;
+            twin.castShadow = false;
+            twin.receiveShadow = false;
+            twin.frustumCulled = false;
+            twin.position.copy(mesh.position);
+            twin.rotation.copy(mesh.rotation);
+            twin.scale.copy(mesh.scale);
+            twin.visible = false;
+            mesh.parent.add(twin);
+            return twin;
+        });
+        this.scanRoot = character.root;
+    }
 
-            const dir = new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                Math.random() * 1.5 + 0.5,
-                (Math.random() - 0.5) * 2
-            ).normalize();
+    setScanVisible(visible) {
+        this.scanTwins.forEach((twin) => { twin.visible = visible; });
+    }
 
-            const speed = 4.5 + Math.random() * 6.0;
-            const vel = dir.multiplyScalar(speed);
+    startEffects(type) {
+        const character = wolfCharacter;
+        this.ensureScanTwins(character);
+        const color = PICKUP_TYPES[type].color;
+        this.scanUniforms.uColor.value.set(color);
+        this.scanBase = character.root.position.y;
+        this.scanTop = this.scanBase + 1.85 * (character.root.scale.y / 1.85);
+        character.root.traverse((child) => {
+            if (child.isBone && /head$/i.test(child.name)) {
+                const head = child.getWorldPosition(new THREE.Vector3());
+                this.scanTop = head.y + 0.3 * (character.root.scale.y / 1.85);
+            }
+        });
+        // Beberapa pickup berdekatan tidak memulai ulang sapuan yang sedang berjalan
+        if (this.scanTime < 0 || this.scanType !== type) {
+            this.scanTime = 0;
+            this.scanType = type;
+        }
+        this.setScanVisible(true);
 
-            scene.add(mesh);
+        this.burst.pointsMaterial.color.set(color);
+        this.burst.ringMaterial.color.set(color);
+        this.burst.group.visible = true;
+        this.burst.time = 0;
 
-            this.shards.push({
-                mesh: mesh,
-                vel: vel,
-                rotVel: new THREE.Vector3(Math.random() * 8, Math.random() * 8, Math.random() * 8),
-                age: 0,
-                life: 0.65 + Math.random() * 0.45
-            });
+        const wrapper = document.querySelector(type === 'heal' ? '.hp-wrapper' : '.stamina-wrapper');
+        if (wrapper) {
+            wrapper.classList.remove('bar-restored');
+            void wrapper.offsetWidth;
+            wrapper.classList.add('bar-restored');
         }
     }
 
-    // ==========================================
-    // COLLECTION LOGIC
-    // ==========================================
-    collectBox(box, collector = null) {
-        if (!box.isActive) return;
+    updateEffects(dt) {
+        if (this.scanTime >= 0) {
+            this.scanTime += dt;
+            const sweep = Math.min(1, this.scanTime / SCAN_SWEEP_SECONDS);
+            const eased = 1 - Math.pow(1 - sweep, 2);
+            this.scanUniforms.uScanY.value = this.scanBase - 0.1 + (this.scanTop - this.scanBase + 0.3) * eased;
+            const fade = Math.max(0, this.scanTime - SCAN_SWEEP_SECONDS) / SCAN_FADE_SECONDS;
+            this.scanUniforms.uAlpha.value = Math.max(0, 1 - fade);
+            if (fade >= 1) {
+                this.scanTime = -1;
+                this.setScanVisible(false);
+            }
+        }
 
+        const burst = this.burst;
+        if (burst && burst.group.visible) {
+            burst.time += dt;
+            const root = wolfCharacter && wolfCharacter.root;
+            if (root) burst.group.position.copy(root.position);
+            burst.seeds.forEach((seed, i) => {
+                const age = Math.max(0, burst.time - seed.delay);
+                burst.positions[i * 3] = Math.cos(seed.angle + age * 2.2) * seed.radius;
+                burst.positions[i * 3 + 1] = age * seed.speed;
+                burst.positions[i * 3 + 2] = Math.sin(seed.angle + age * 2.2) * seed.radius;
+            });
+            burst.points.geometry.attributes.position.needsUpdate = true;
+            burst.pointsMaterial.opacity = Math.max(0, 1 - burst.time / 1.1);
+            burst.ringMesh.scale.setScalar(0.6 + burst.time * 3.2);
+            burst.ringMaterial.opacity = Math.max(0, 1 - burst.time / 0.6);
+            if (burst.time >= 1.1) burst.group.visible = false;
+        }
+
+        // HP dan stamina naik bertahap supaya bar terlihat terisi
+        for (let i = this.restores.length - 1; i >= 0; i--) {
+            const restore = this.restores[i];
+            const step = Math.min(restore.left, restore.total * dt / PICKUP_RESTORE_SECONDS);
+            restore.left -= step;
+            if (restore.type === 'heal') {
+                if (!PlayerHealthState.isDead) PlayerHealthState.heal(step);
+            } else {
+                FoxStaminaState.current = Math.min(FoxStaminaState.max, FoxStaminaState.current + step);
+                FoxStaminaState.updateHUD();
+            }
+            if (restore.left <= 0) this.restores.splice(i, 1);
+        }
+    }
+
+    needsRestore(type) {
+        const state = type === 'heal' ? PlayerHealthState : FoxStaminaState;
+        return state.current < state.max;
+    }
+
+    collectBox(box) {
         box.isActive = false;
-        box.respawnTimer = this.respawnTime;
         box.group.visible = false;
-
-        // Visual shatter & audio
-        this.createShatterFX(box.group.position);
-        this.playCollectSound();
-
-        // Award weapon to AI Fox if collected by AI, otherwise to Player
-        if (collector && collector.isAIFox) {
-            if (typeof collector.onCollectItemBox === 'function') {
-                collector.onCollectItemBox('plasma');
-            }
-        } else {
-            if (typeof ItemSystem !== 'undefined' && ItemSystem.onItemCollected) {
-                ItemSystem.onItemCollected('plasma');
-            }
-        }
+        if (window.PANDORA_RUNTIME && !box.isDrop) this.collectedKeys.add(box.key);
+        const state = box.type === 'heal' ? PlayerHealthState : FoxStaminaState;
+        const amount = state.max * box.fraction;
+        this.restores.push({ type: box.type, total: amount, left: amount });
+        this.playCollectSound(box.type);
+        this.startEffects(box.type);
     }
 
-    // ==========================================
-    // MAIN UPDATE LOOP
-    // ==========================================
     update(dt, elapsedTime) {
+        if (!this.isInitialized) return;
         dt = Math.min(dt, 0.05);
+        this.updateEffects(dt);
+        this.particleTime.value = elapsedTime;
+        const bufferHeight = renderer.domElement.height;
+        this.particleScale.value = bufferHeight * 0.5 / Math.tan(THREE.MathUtils.degToRad(camera.fov) * 0.5);
 
-        // 1. Update flying shatter shards
-        for (let i = this.shards.length - 1; i >= 0; i--) {
-            const s = this.shards[i];
-            s.age += dt;
-            const k = s.age / s.life;
+        const playing = typeof isPlayMode !== 'undefined' && isPlayMode && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root
+            && typeof PlayerHealthState !== 'undefined' && !PlayerHealthState.isDead;
+        const playerPos = playing ? wolfCharacter.root.position : null;
 
-            s.vel.y -= 9.8 * dt; // Gravity
-            s.mesh.position.addScaledVector(s.vel, dt);
-            s.mesh.rotation.x += s.rotVel.x * dt;
-            s.mesh.rotation.y += s.rotVel.y * dt;
-
-            s.mesh.material.opacity = Math.max(0, 1.0 - k);
-            s.mesh.scale.setScalar(Math.max(0.01, 1.0 - k * 0.5));
-
-            if (k >= 1.0) {
-                scene.remove(s.mesh);
-                s.mesh.geometry.dispose();
-                s.mesh.material.dispose();
-                this.shards.splice(i, 1);
-            }
-        }
-
-        // 2. Check Fox position in Play Mode for collision pickup
-        let foxPos = null;
-        if (typeof isPlayMode !== 'undefined' && isPlayMode && typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) {
-            foxPos = wolfCharacter.root.position;
-        }
-
-        // 3. Update each Item Box
         for (let i = 0; i < this.boxes.length; i++) {
             const box = this.boxes[i];
+            if (!box.isActive) continue;
 
-            if (!box.isActive) {
-                // Respawn countdown
-                box.respawnTimer -= dt;
-                if (box.respawnTimer <= 0) {
-                    box.isActive = true;
-                    box.group.visible = true;
-                    box.group.scale.setScalar(0.01);
-
-                    // Smooth pop-in tween
-                    if (typeof gsap !== 'undefined') {
-                        gsap.to(box.group.scale, {
-                            x: 1.0,
-                            y: 1.0,
-                            z: 1.0,
-                            duration: 0.6,
-                            ease: "elastic.out(1.2, 0.4)"
-                        });
-                    } else {
-                        box.group.scale.setScalar(1.0);
-                    }
-                    this.playRespawnSound(box.group.position);
-                }
-                continue;
+            // Pickup hanya terpakai jika stat memang belum penuh, jadi tidak terbuang saat lewat
+            if (playerPos && Math.hypot(playerPos.x - box.baseX, playerPos.z - box.baseZ) < this.pickupRadius && this.needsRestore(box.type)) {
+                this.collectBox(box);
             }
-
-            // Floating bobbing motion & steady spin
-            const bob = Math.sin(elapsedTime * 2.8 + box.phase) * 0.15;
-            box.group.position.y = box.baseHoverY + bob;
-            box.group.rotation.y += dt * 1.5;
-
-            // Inner core multi-axis rotation & pulse
-            if (box.core) {
-                box.core.rotation.x += dt * 2.5;
-                box.core.rotation.y += dt * 3.2;
-                const scalePulse = 1.0 + Math.sin(elapsedTime * 5.0 + box.phase) * 0.12;
-                box.core.scale.setScalar(scalePulse);
-            }
-
-            // Ring orbits
-            if (box.ring1) box.ring1.rotation.z += dt * 2.2;
-            if (box.ring2) box.ring2.rotation.x += dt * 1.8;
-
-            // Light flicker
-            if (box.light) {
-                box.light.intensity = 1.2 + Math.sin(elapsedTime * 8.0 + box.phase) * 0.35;
-            }
-
-            // Collision detection with Fox
-            if (foxPos) {
-                const dx = foxPos.x - box.group.position.x;
-                const dz = foxPos.z - box.group.position.z;
-                const distSq = dx * dx + dz * dz;
-
-                if (distSq < this.pickupRadius * this.pickupRadius) {
-                    this.collectBox(box);
-                }
-            }
-        }
-
-        // 4. Check AI Foxes collision with Item Boxes
-        if (typeof FoxAIManager !== 'undefined' && FoxAIManager.checkItemBoxCollisions) {
-            FoxAIManager.checkItemBoxCollisions(this);
         }
     }
 }
 
-// Global instance
 window.itemBoxManagerInstance = new ItemBoxManager();
 
 if (document.readyState === 'loading') {
@@ -544,7 +623,6 @@ if (document.readyState === 'loading') {
         window.itemBoxManagerInstance.init();
     });
 } else {
-    // If scene is ready, init now, otherwise delay slightly
     setTimeout(() => {
         if (typeof scene !== 'undefined') {
             window.itemBoxManagerInstance.init();

@@ -43,8 +43,10 @@ const terrainHeightTexture = new THREE.DataTexture(
     THREE.RedFormat,
     THREE.FloatType
 );
-terrainHeightTexture.minFilter = THREE.LinearFilter;
-terrainHeightTexture.magFilter = THREE.LinearFilter;
+// Tanpa ekstensi ini (iPhone dan banyak ponsel) tekstur float berfilter linear terbaca hitam
+const terrainFloatFilter = renderer.getContext().getExtension('OES_texture_float_linear') ? THREE.LinearFilter : THREE.NearestFilter;
+terrainHeightTexture.minFilter = terrainFloatFilter;
+terrainHeightTexture.magFilter = terrainFloatFilter;
 terrainHeightTexture.wrapS = THREE.ClampToEdgeWrapping;
 terrainHeightTexture.wrapT = THREE.ClampToEdgeWrapping;
 terrainHeightTexture.generateMipmaps = false;

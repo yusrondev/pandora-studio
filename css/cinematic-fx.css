@@ -93,13 +93,18 @@
 .cfx-title-blood .cfx-title-sub { color: #bfa79f; }
 
 /* HUD permainan disembunyikan selama cinematic */
+body.boss-kill-cam #player-combat-hud,
+body.boss-kill-cam #boss-health-bar-container,
+body.boss-kill-cam #floating-hp-container,
+body.boss-kill-cam #fox-stats-hud,
+body.boss-kill-cam #item-slot-hud,
+body.boss-kill-cam #mobile-play-controls,
 body.cinematic-playing #player-combat-hud,
 body.cinematic-playing #boss-health-bar-container,
 body.cinematic-playing #floating-hp-container,
 body.cinematic-playing #fox-stats-hud,
 body.cinematic-playing #item-slot-hud,
-body.cinematic-playing #mobile-play-controls,
-body.cinematic-playing #btn-mobile-exit-demo { visibility: hidden !important; }
+body.cinematic-playing #mobile-play-controls { visibility: hidden !important; }
 
 @media (max-width: 768px) {
     .cfx-line { font-size: 19px; }

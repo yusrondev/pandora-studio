@@ -40,6 +40,36 @@ function updateAdaptiveResolution(now, frameLimit) {
     }
 }
 
+// Build game: FPS yang lama rendah menurunkan preset sekali langkah, selama pemain belum memilih sendiri
+const AUTO_QUALITY_WINDOW_MS = 5000;
+const AUTO_QUALITY_MIN_FPS = 24;
+const AUTO_QUALITY_MAX_GAP_MS = 500;
+const AUTO_QUALITY_ORDER = ['ultra', 'high', 'medium', 'low'];
+let autoQualitySince = 0;
+let autoQualityFrames = 0;
+
+let autoQualityLastFrame = 0;
+
+function updateAutoQuality(now) {
+    // Tab tersembunyi atau jeda sesaat bukan tanda perangkat lemah: mulai hitung lagi
+    if (document.hidden || now - autoQualityLastFrame > AUTO_QUALITY_MAX_GAP_MS) {
+        autoQualitySince = 0;
+        autoQualityFrames = 0;
+    }
+    autoQualityLastFrame = now;
+    if (!autoQualitySince) autoQualitySince = now;
+    autoQualityFrames++;
+    if (now - autoQualitySince < AUTO_QUALITY_WINDOW_MS) return;
+    const fps = autoQualityFrames * 1000 / (now - autoQualitySince);
+    autoQualitySince = now;
+    autoQualityFrames = 0;
+    const next = AUTO_QUALITY_ORDER[AUTO_QUALITY_ORDER.indexOf(PandoraSettings.values.graphics) + 1];
+    if (fps < AUTO_QUALITY_MIN_FPS && next) {
+        PandoraSettings.values.graphics = next;
+        applyGraphicsPreset();
+    }
+}
+
 function updateShadowSchedule(isGameplay) {
     const every = isGameplay ? PandoraSettings.preset().shadowEvery : SHADOW_UPDATE_EVERY_EDITOR;
     if (frameCounter % every !== 0) return;
@@ -96,13 +126,18 @@ function animate() {
 
     if (window.PandoraGamePaused) {
         clock.getDelta();
-        renderer.render(scene, camera);
+        autoQualitySince = 0;
+        autoQualityFrames = 0;
+        // Saat stage disiapkan di balik menu judul, menggambar hanya memboroskan baterai
+        if (!window.PandoraRenderHold) renderer.render(scene, camera);
         return;
     }
+    if (window.PANDORA_RUNTIME && isGameplay && settings.autoQuality) updateAutoQuality(frameNow);
     updateShadowSchedule(isGameplay);
 
     // Panggil getDelta() terlebih dahulu sebelum getElapsedTime agar delta bernilai valid (>0)
-    const delta = Math.min(clock.getDelta(), 0.1) * (window.PandoraTimeScale || 1);
+    const realDelta = Math.min(clock.getDelta(), 0.1);
+    const delta = realDelta * (window.PandoraTimeScale || 1);
     const elapsedTime = clock.getElapsedTime();
 
     // Galat di satu sistem tidak boleh menghentikan render: canvas yang tidak digambar tampil hitam
@@ -185,6 +220,10 @@ function animate() {
         PlayerSpawnManager.update(delta, elapsedTime);
     }
 
+    if (window.PandoraImportedObjects) {
+        PandoraImportedObjects.update(delta);
+    }
+
     if (typeof PortalManager !== 'undefined') {
         PortalManager.tick(delta, elapsedTime);
     }
@@ -232,14 +271,22 @@ function animate() {
         camera.position.copy(lastValidCameraPosition);
     }
 
+    if (typeof BossKillCam !== 'undefined') BossKillCam.beforeRender(realDelta);
+
     // Render scene depth pass untuk perpotongan fisika air 100% presisi mengikuti bentuk 3D mesh (batu, pohon, rumput)
     if (typeof renderWaterDepthPass === 'function') {
         renderWaterDepthPass(renderer, scene, camera);
     }
 
-    renderer.render(scene, camera);
+    if (typeof BossKillCam !== 'undefined' && BossKillCam.active) {
+        BossKillCam.render();
+        BossKillCam.afterRender();
+    } else {
+        renderer.render(scene, camera);
+    }
 }
-animate();
+// Frame pertama setelah semua skrip selesai: di build, seluruh engine adalah satu berkas
+requestAnimationFrame(animate);
 
 // Synchronous & Reactive Viewport Resizing (Dedicated Viewport)
 function updateViewportSize() {
@@ -248,6 +295,9 @@ function updateViewportSize() {
     const width = container ? container.clientWidth : window.innerWidth;
     const height = container ? container.clientHeight : window.innerHeight;
     if (width <= 0 || height <= 0) return;
+
+    const currentSize = renderer.getSize(new THREE.Vector2());
+    if (currentSize.x === width && currentSize.y === height) return;
 
     if (camera.aspect !== width / height) {
         camera.aspect = width / height;

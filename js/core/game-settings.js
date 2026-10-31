@@ -13,15 +13,24 @@ const EDITOR_FPS_OPTIONS = [30, 60];
 
 const PandoraSettings = {
     storageKey: window.PANDORA_RUNTIME ? 'pandora.settings.game' : 'pandora.settings.studio',
-    values: { graphics: 'high', fpsLimit: 60, editorFps: 60, dynamicResolution: false, showFps: false },
+    values: { graphics: 'high', fpsLimit: 60, editorFps: 60, dynamicResolution: false, showFps: false, autoQuality: true },
     listeners: [],
 
     load() {
+        this.values.graphics = this.devicePreset();
         try {
             const stored = JSON.parse(localStorage.getItem(this.storageKey) || 'null');
             if (stored) Object.assign(this.values, stored);
         } catch (err) { /* memakai nilai bawaan */ }
         if (!GRAPHICS_PRESETS[this.values.graphics]) this.values.graphics = 'high';
+    },
+
+    // Bawaan pertama kali: ponsel tidak sanggup preset tinggi, dan Safari iOS menutup tab yang boros memori
+    devicePreset() {
+        const touchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+        if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && !touchMac) return 'high';
+        const weak = (navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+        return weak ? 'low' : 'medium';
     },
 
     preset() {
@@ -30,6 +39,7 @@ const PandoraSettings = {
 
     set(key, value) {
         this.values[key] = value;
+        if (key === 'graphics') this.values.autoQuality = false;
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(this.values));
         } catch (err) { /* tetap berlaku untuk sesi ini */ }

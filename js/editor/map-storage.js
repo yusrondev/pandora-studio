@@ -209,6 +209,23 @@ const PandoraToast = {
 };
 
 // --- 3. SERIALIZATION & DESERIALIZATION OF 3D MAP ---
+// Entri lama yang filenya belum diimpor ulang ikut disimpan, supaya posisinya tidak hilang
+function serializeImportedObjects() {
+    const objects = (window.importedObjectsList || []).map(o => ({
+        name: o.name,
+        file: o.file || null,
+        posX: Math.round(o.root.position.x * 100) / 100,
+        posY: Math.round(o.root.position.y * 100) / 100,
+        posZ: Math.round(o.root.position.z * 100) / 100,
+        rotX: Math.round(o.root.rotation.x * 10000) / 10000,
+        rotY: o.rotY || 0,
+        rotZ: Math.round(o.root.rotation.z * 10000) / 10000,
+        scale: o.scale || 1.0,
+        hasCollision: !!o.hasCollision
+    }));
+    return objects.concat(window.PandoraImportedObjects ? PandoraImportedObjects.missing : []);
+}
+
 function serializeMapData(name, existingId = null) {
     // 1. Terrain data
     const posAttr = groundGeo.attributes.position;
@@ -368,20 +385,13 @@ function serializeMapData(name, existingId = null) {
             deathFrom: f.deathFrom || 0,
             deathTo: f.deathTo === undefined ? -1 : f.deathTo
         })) : [],
-        itemBoxes: (typeof itemBoxManagerInstance !== 'undefined' && itemBoxManagerInstance.boxes) ? itemBoxManagerInstance.boxes.map(b => ({
+        itemBoxes: (typeof itemBoxManagerInstance !== 'undefined' && itemBoxManagerInstance.boxes) ? itemBoxManagerInstance.boxes.filter(b => !b.isDrop).map(b => ({
             x: Math.round(b.baseX * 100) / 100,
-            z: Math.round(b.baseZ * 100) / 100
+            z: Math.round(b.baseZ * 100) / 100,
+            type: b.type
         })) : [],
         playerSpawn: (typeof PlayerSpawnManager !== 'undefined') ? PlayerSpawnManager.serialize() : null,
-        importedObjects: (typeof window.importedObjectsList !== 'undefined') ? window.importedObjectsList.map(o => ({
-            name: o.name,
-            posX: Math.round(o.root.position.x * 100) / 100,
-            posY: Math.round(o.root.position.y * 100) / 100,
-            posZ: Math.round(o.root.position.z * 100) / 100,
-            rotY: o.rotY || 0,
-            scale: o.scale || 1.0,
-            hasCollision: !!o.hasCollision
-        })) : [],
+        importedObjects: serializeImportedObjects(),
         water: {
             level: typeof getWaterCurrentLevel === 'function' ? getWaterCurrentLevel() : 0.02,
             mask: (typeof hasWaterDrawn === 'function' && hasWaterDrawn() && typeof waterCanvas !== 'undefined') ? waterCanvas.toDataURL('image/png') : null,
@@ -659,14 +669,27 @@ const MapManagerUI = {
     },
 
     async handleLoadMap(mapId) {
-        const mapDetail = await MapStorageAPI.fetchMapDetail(mapId);
-        if (!mapDetail) {
-            PandoraToast.show('Gagal memuat data map.', 'danger');
-            return;
-        }
+        const dialog = ProjectPanel.showProgressDialog('Membuka Stage');
+        dialog.update(0.05, 'Membaca data stage');
+        const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+        let mapDetail = null;
+        try {
+            await nextPaint();
+            mapDetail = await MapStorageAPI.fetchMapDetail(mapId);
+            if (!mapDetail) {
+                PandoraToast.show('Gagal memuat data map.', 'danger');
+                return;
+            }
 
-        // Terapkan ke scene 3D
-        applyMapDataToScene(mapDetail);
+            // Terapkan ke scene 3D
+            dialog.update(0.2, 'Membangun scene');
+            await nextPaint();
+            applyMapDataToScene(mapDetail);
+            await this.waitForStageContent(dialog);
+        } finally {
+            dialog.close();
+        }
+        if (!mapDetail) return;
         currentActiveMapId = mapDetail.id;
         currentActiveMapName = mapDetail.name;
 
@@ -675,6 +698,24 @@ const MapManagerUI = {
         if (txtSave) txtSave.innerText = 'Simpan';
 
         PandoraToast.show(`Map '${mapDetail.name}' berhasil dimuat ke editor!`, 'success');
+    },
+
+    // Objek impor dan model karakter dimuat di latar setelah data stage diterapkan
+    async waitForStageContent(dialog) {
+        const deadline = performance.now() + STAGE_READY_TIMEOUT_MS;
+        const objects = window.PandoraImportedObjects;
+        while (performance.now() < deadline) {
+            const total = objects.pending > 0 ? objects.total : 0;
+            if (total > 0) {
+                const done = total - objects.pending;
+                dialog.update(0.3 + 0.6 * done / total, `Memuat objek 3D (${done + 1}/${total}): ${objects.currentName}`);
+            } else {
+                const waiting = spawnedFoxesList.filter(fox => !(fox.model && fox.model.mixer)).length;
+                if (waiting === 0) return;
+                dialog.update(0.92, 'Menyiapkan karakter');
+            }
+            await new Promise(resolve => setTimeout(resolve, 80));
+        }
     },
 
     handleSaveClick() {

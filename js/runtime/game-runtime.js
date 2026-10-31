@@ -8,6 +8,7 @@
     const DEATH_QUOTE_FADE_MS = 320;
     const DEATH_QUOTE_MIN_MS = 3000;    // Waktu baca kata-kata saat layar gelap
     const LEAF_COUNT = 16;
+    const BACKGROUND_DOWNLOAD_PAUSE_MS = 400;
 
     const DEATH_QUOTES = [
         'Pedang yang patah pernah mengenal api. Tempa dirimu sekali lagi.',
@@ -133,7 +134,7 @@
         },
 
         // Hanya unduh ke cache, tanpa mengurai: tidak mengganggu frame
-        async download(urls, onProgress) {
+        async download(urls, onProgress, concurrency = DOWNLOAD_CONCURRENCY, pauseMs = 0) {
             const queue = Array.from(new Set(urls));
             const total = queue.length;
             let done = 0;
@@ -143,9 +144,10 @@
                     try { await PandoraAssetCache.getAssetBuffer(url); } catch (err) { /* file opsional */ }
                     done++;
                     if (onProgress) onProgress(done / total);
+                    if (pauseMs > 0) await new Promise(resolve => setTimeout(resolve, pauseMs));
                 }
             };
-            await Promise.all(Array.from({ length: DOWNLOAD_CONCURRENCY }, worker));
+            await Promise.all(Array.from({ length: concurrency }, worker));
         },
 
         loadCharacter(id) {
@@ -179,7 +181,8 @@
                 if (s.id === stage.id) return;
                 [s.player].concat(s.others).forEach(id => later.push(...this.characterFiles(id)));
             });
-            await this.download(later);
+            // Menyimpan file besar ke cache berjalan di thread utama, jadi jangan menumpuk saat bermain
+            await this.download(later, null, 1, BACKGROUND_DOWNLOAD_PAUSE_MS);
         }
     };
 
@@ -202,7 +205,7 @@
         return el;
     }
 
-    // Layar pemuatan setelah "Mulai". Kilau pada bar adalah animasi CSS, jadi tetap bergerak saat
+    // Layar pemuatan setelah "Mulai": bar, status, dan persen. Kilau pada bar adalah animasi CSS, jadi tetap bergerak saat
     // thread utama sibuk mengurai model dan angka persennya sedang tertahan.
     function showLoadingView(cover) {
         const el = document.createElement('div');
@@ -216,7 +219,7 @@
         const status = document.createElement('span');
         const percent = document.createElement('span');
         meta.append(status, percent);
-        el.append(createQuoteText(), bar, meta);
+        el.append(bar, meta);
         cover.append(el);
 
         let value = 0;
@@ -285,44 +288,74 @@
         const cover = document.getElementById('game-cover');
         const startStage = project.stages.find(s => s.id === project.startStageId) || project.stages[0];
 
-        // Menu judul langsung tampil; aset dimuat di belakangnya. "Mulai" hanya menunggu sisanya.
-        let essentialsProgress = 0;
+        // Menu judul langsung tampil dan seluruh stage disiapkan di belakangnya, jadi "Mulai" hanya
+        // menunggu sisa yang belum selesai; pemain yang berlama-lama di menu langsung masuk.
         let loadingView = null;
-        const essentialsReady = StageLoader.essentials(startStage, (progress) => {
-            essentialsProgress = progress;
-            if (loadingView) loadingView.reach(progress * 40);
+        const loadState = { label: 'Memuat karakter', cap: 38, value: 0 };
+        const setPhase = (label, cap) => {
+            loadState.label = label;
+            loadState.cap = cap;
+            if (loadingView) loadingView.phase(label, cap);
+        };
+        const reach = (value) => {
+            loadState.value = Math.max(loadState.value, value);
+            if (loadingView) loadingView.reach(value);
+        };
+
+        window.PandoraGamePaused = true;
+        window.PandoraRenderHold = true;
+        const essentialsReady = StageLoader.essentials(startStage, progress => reach(progress * 40));
+        const stageAssetsReady = essentialsReady.then(() => {
+            reach(40);
+            setPhase('Memuat petarung', 58);
+            return StageLoader.stageAssets(startStage);
         });
-        const stageAssetsReady = essentialsReady.then(() => StageLoader.stageAssets(startStage));
+        const stagePrepared = stageAssetsReady.then(async () => {
+            reach(60);
+            setPhase('Membangun dunia', 80);
+            const ok = await PandoraStageFlow.enterStage(project.startStageId);
+            if (!ok) return false;
+            reach(80);
+            setPhase('Membangkitkan petarung', 98);
+            await PandoraStageFlow.prepareStage(progress => reach(80 + progress * 18));
+            return true;
+        });
 
         showTitleScreen(project.name, async () => {
             loadingView = showLoadingView(cover);
-            loadingView.reach(essentialsProgress * 40);
-            loadingView.phase('Memuat karakter', 38);
-            await essentialsReady;
-            loadingView.reach(40);
-            loadingView.phase('Memuat petarung', 58);
-            await stageAssetsReady;
-            loadingView.reach(60);
-            window.PandoraGamePaused = true;
-            loadingView.phase('Membangun dunia', 80);
-            const ok = await PandoraStageFlow.enterStage(project.startStageId);
+            loadingView.reach(loadState.value);
+            loadingView.phase(loadState.label, loadState.cap);
+            const ok = await stagePrepared;
+            window.PandoraGamePaused = false;
+            window.PandoraRenderHold = false;
             if (!ok) {
-                window.PandoraGamePaused = false;
                 document.body.insertAdjacentHTML('beforeend', '<div id="game-title-screen"><h1>Stage awal tidak ditemukan</h1></div>');
                 return;
             }
-            loadingView.reach(80);
-            loadingView.phase('Membangkitkan petarung', 98);
-            await PandoraStageFlow.prepareStage(progress => loadingView.reach(80 + progress * 18));
-            window.PandoraGamePaused = false;
             loadingView.finish();
-            await new Promise(resolve => setTimeout(resolve, 350));
+            await new Promise(resolve => setTimeout(resolve, 200));
             revealGame(cover);
             watchPlayerDeath(PandoraStageFlow);
             bindPauseMenu();
         });
         stageAssetsReady.then(() => StageLoader.laterStages(startStage));
     }
+
+    // Safari iOS mengabaikan user-scalable: cubit dan ketuk dua kali harus dicegah sendiri
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach((name) => {
+        document.addEventListener(name, event => event.preventDefault(), { passive: false });
+    });
+    // Audio di ponsel baru boleh berbunyi setelah sentuhan pertama
+    const unlockAudio = () => {
+        if (typeof foxSoundFX !== 'undefined' && foxSoundFX.init) {
+            foxSoundFX.init();
+            if (foxSoundFX.ctx && foxSoundFX.ctx.state === 'suspended') foxSoundFX.ctx.resume();
+        }
+    };
+    document.addEventListener('touchend', unlockAudio, { once: true });
+    // Ponsel bisa mencabut konteks WebGL saat memori penuh atau tab ditinggal: muat ulang saat pulih
+    renderer.domElement.addEventListener('webglcontextlost', event => event.preventDefault());
+    renderer.domElement.addEventListener('webglcontextrestored', () => location.reload());
 
     if (document.readyState === 'complete') boot();
     else window.addEventListener('load', boot);

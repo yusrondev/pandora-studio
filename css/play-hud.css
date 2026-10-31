@@ -655,54 +655,6 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
     z-index: 5;
 }
 
-/* Exit Demo Button - Selalu tampil di pojok kanan atas saat demo mode di desktop maupun mobile */
-#btn-mobile-exit-demo {
-    display: none;
-}
-
-body.play-mode-active #btn-mobile-exit-demo {
-    display: flex !important;
-}
-
-.mobile-exit-btn {
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    width: auto;
-    height: 32px;
-    padding: 0 14px;
-    gap: 6px;
-    border-radius: 16px;
-    background: rgba(185, 28, 28, 0.88);
-    border: 1px solid rgba(254, 202, 202, 0.6);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-    color: #ffffff;
-    pointer-events: auto;
-    z-index: 9999;
-    flex-direction: row;
-    align-items: center;
-    cursor: pointer;
-    transition: transform 0.15s ease, background 0.15s ease;
-}
-
-.mobile-exit-btn:hover {
-    background: rgba(220, 38, 38, 0.95);
-    transform: translateY(-1px);
-}
-
-.mobile-exit-btn:active {
-    background: rgba(153, 27, 27, 0.95);
-    transform: scale(0.94);
-}
-
-.mobile-exit-text {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-}
-
 /* =========================================================
    MOBILE RESPONSIVE MEDIA QUERIES (Smartphone / Xiaomi 15)
    Compact HUD, Non-blocking, Proportional Layout

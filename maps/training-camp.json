@@ -5,9 +5,9 @@
         "canvasSize": 80,
         "planeColor": "#cbb6b8",
         "showGrid": false,
-        "skyPreset": "sunset",
-        "sunAzimuth": 210,
-        "sunElevation": 15,
+        "skyPreset": "day",
+        "sunAzimuth": 300,
+        "sunElevation": 45,
         "windSpeed": 1,
         "leafFall": 1
     },
@@ -41308,7 +41308,7 @@
             "isBoss": true,
             "name": "Jax",
             "maxHealth": 500,
-            "damagePerHit": 25,
+            "damagePerHit": 8,
             "aiMode": "combat",
             "detectionRadius": 5,
             "deathMode": "fade",
@@ -41333,9 +41333,68 @@
             "deathLine": "",
             "deathFrom": 0,
             "deathTo": -1
+        },
+        {
+            "species": "noxis",
+            "pose": "idle",
+            "posX": -24.4,
+            "posZ": 13.56,
+            "rotY": 1.42,
+            "scale": 1,
+            "isBoss": true,
+            "name": "Noxis",
+            "maxHealth": 500,
+            "damagePerHit": 25,
+            "aiMode": "combat",
+            "detectionRadius": 6,
+            "deathMode": "fade",
+            "deathLine": "",
+            "deathFrom": 0,
+            "deathTo": -1
         }
     ],
-    "itemBoxes": [],
+    "itemBoxes": [
+        {
+            "x": 0.03,
+            "z": 8.87,
+            "type": "heal"
+        },
+        {
+            "x": 4.1,
+            "z": 1.96,
+            "type": "heal"
+        },
+        {
+            "x": 3.57,
+            "z": -7.67,
+            "type": "heal"
+        },
+        {
+            "x": -6.74,
+            "z": 2.7,
+            "type": "stamina"
+        },
+        {
+            "x": -0.77,
+            "z": 11.1,
+            "type": "stamina"
+        },
+        {
+            "x": -0.21,
+            "z": 17.33,
+            "type": "stamina"
+        },
+        {
+            "x": 6.99,
+            "z": 9.3,
+            "type": "stamina"
+        },
+        {
+            "x": 3.67,
+            "z": 7.12,
+            "type": "stamina"
+        }
+    ],
     "playerSpawn": {
         "x": 0,
         "z": 0,
@@ -1241408,9 +1241467,9 @@
                 "environment": {
                     "planeColor": "#cbb6b8",
                     "showGrid": false,
-                    "skyPreset": "sunset",
-                    "sunAzimuth": 210,
-                    "sunElevation": 15,
+                    "skyPreset": "day",
+                    "sunAzimuth": 300,
+                    "sunElevation": 45,
                     "windSpeed": 1,
                     "leafFall": 1
                 },
@@ -1241643,10 +1241702,10 @@
                     },
                     {
                         "id": "wp_1793420704805_406",
-                        "x": 0,
+                        "x": -1.13,
                         "y": 4.5,
-                        "z": 14,
-                        "heightOffset": 4.5,
+                        "z": 15.99,
+                        "heightOffset": 4.2,
                         "yaw": 180,
                         "pitch": -12,
                         "fov": 45
@@ -1241713,11 +1241772,11 @@
         "fernCount": 0,
         "bushCount": 0,
         "butterflyCount": 0,
-        "foxCount": 2,
+        "foxCount": 3,
         "grassCount": 100000,
         "version": "1.0"
     },
     "filename": "training-camp.json",
-    "updatedAt": "2026-10-31T06:38:46+00:00",
-    "createdAt": "2026-10-31T06:38:46+00:00"
+    "updatedAt": "2026-10-31T09:28:23+00:00",
+    "createdAt": "2026-10-31T09:28:23+00:00"
 }

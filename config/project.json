@@ -1,8 +1,11 @@
 {
-    "name": "FOXA",
-    "startStageId": "training-camp",
+    "name": "FoxNew",
+    "startStageId": "lembah-suram",
     "stageOrder": [
+        "lembah-suram",
         "training-camp",
-        "default-sanctuary"
-    ]
+        "default-sanctuary",
+        "padang-rumput"
+    ],
+    "allowedDomains": ""
 }

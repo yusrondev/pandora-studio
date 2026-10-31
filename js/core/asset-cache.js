@@ -12,14 +12,30 @@
  */
 
 (function () {
-    const CACHE_NAME = 'pandora-assets-v1';
-    const IDB_NAME = 'pandora_asset_cache_db';
+    // Cache build game berlaku per build, karena nama dan isi paket berubah tiap Generate
+    const BUILD_ID = window.PANDORA_BUILD_ID || '';
+    const CACHE_NAME = BUILD_ID ? 'pandora-packs-' + BUILD_ID : 'pandora-assets-v1';
+    const IDB_NAME = BUILD_ID ? 'pandora_packs_' + BUILD_ID : 'pandora_asset_cache_db';
     const IDB_VERSION = 1;
     const IDB_STORE = 'asset_buffers';
 
     // Aktifkan in-memory Three.js cache
     if (typeof THREE !== 'undefined' && THREE.Cache) {
         THREE.Cache.enabled = true;
+    }
+
+    // Build lama (termasuk yang masih menyimpan aset tanpa enkripsi) dihapus dari browser pemain
+    if (BUILD_ID) {
+        if ('caches' in window) {
+            caches.keys().then((names) => names.forEach((name) => {
+                if (name.startsWith('pandora-') && name !== CACHE_NAME) caches.delete(name);
+            })).catch(() => {});
+        }
+        if ('indexedDB' in window && window.indexedDB.databases) {
+            window.indexedDB.databases().then((list) => list.forEach((db) => {
+                if (db.name && db.name.startsWith('pandora_') && db.name !== IDB_NAME) window.indexedDB.deleteDatabase(db.name);
+            })).catch(() => {});
+        }
     }
 
     // --- IndexedDB Fallback Store ---
@@ -109,6 +125,28 @@
         return parts.length === 0 ? '' : parts.join('/') + '/';
     }
 
+    // Klip hasil pemanggangan Generate Game (lihat tools/protect/bake-clips.js)
+    function decodeBakedClip(buffer) {
+        const head = new DataView(buffer);
+        if (buffer.byteLength < 8 || head.getUint32(0, true) !== 0x504c4350) return null;
+        const jsonLength = head.getUint32(4, true);
+        const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 8, jsonLength)));
+        let offset = 8 + jsonLength;
+        const classes = {
+            vector: THREE.VectorKeyframeTrack,
+            quaternion: THREE.QuaternionKeyframeTrack,
+            number: THREE.NumberKeyframeTrack
+        };
+        const tracks = meta.t.map((track) => {
+            const times = new Float32Array(buffer, offset, track.c);
+            offset += track.c * 4;
+            const values = new Float32Array(buffer, offset, track.v);
+            offset += track.v * 4;
+            return new classes[track.k](track.n, times, values);
+        });
+        return { animations: [new THREE.AnimationClip(meta.n, meta.d, tracks)], traverse() {} };
+    }
+
     const PandoraAssetCache = {
         stats: {
             cacheHits: 0,
@@ -134,8 +172,19 @@
         },
 
         async readAssetBuffer(url) {
+            const vault = window.PandoraVault;
+            if (vault && vault.covers(url)) {
+                await vault.ready;
+                const pack = vault.locate(url);
+                return vault.open(await this.readStored(pack.key, pack.url));
+            }
+            return this.readStored(url, url);
+        },
+
+        // key adalah nama di cache, url alamat unduhnya (bisa berbeda karena URL paket bertanda tangan)
+        async readStored(key, url) {
             // 1. Cek Cache API
-            let buffer = await cacheApiGet(url);
+            let buffer = await cacheApiGet(key);
             if (buffer && buffer.byteLength > 0) {
                 this.stats.cacheHits++;
                 console.log(`[PandoraAssetCache ⚡] HIT (Cache API): ${url} (${(buffer.byteLength / 1024).toFixed(1)} KB)`);
@@ -143,14 +192,14 @@
             }
 
             // 2. Cek IndexedDB
-            buffer = await idbGet(url);
+            buffer = await idbGet(key);
             if (buffer && buffer.byteLength > 0) {
                 this.stats.cacheHits++;
                 console.log(`[PandoraAssetCache ⚡] HIT (IndexedDB): ${url} (${(buffer.byteLength / 1024).toFixed(1)} KB)`);
                 // Replikasi ke Cache API jika memungkinkan
                 try {
                     const blob = new Blob([buffer]);
-                    cacheApiSet(url, new Response(blob, { headers: { 'Content-Type': 'application/octet-stream' } }));
+                    cacheApiSet(key, new Response(blob, { headers: { 'Content-Type': 'application/octet-stream' } }));
                 } catch (_) {}
                 return buffer;
             }
@@ -167,12 +216,16 @@
             const freshBuffer = await response.arrayBuffer();
 
             // Selesai ditulis sebelum kembali, supaya pembacaan berikutnya tidak mengunduh ulang
+            // Satu tempat cukup; IndexedDB hanya untuk browser tanpa Cache API (halaman http://)
+            let cached = false;
             try {
-                await cacheApiSet(url, responseClone);
+                cached = await cacheApiSet(key, responseClone);
             } catch (_) {}
-            try {
-                await idbSet(url, freshBuffer);
-            } catch (_) {}
+            if (!cached) {
+                try {
+                    await idbSet(key, freshBuffer);
+                } catch (_) {}
+            }
 
             return freshBuffer;
         },
@@ -195,6 +248,8 @@
 
             try {
                 const buffer = await this.getAssetBuffer(url);
+                const baked = BUILD_ID ? decodeBakedClip(buffer) : null;
+                if (baked) return baked;
                 // Parse langsung dari buffer memori (0ms network)
                 return loader.parse(buffer, basePath);
             } catch (err) {

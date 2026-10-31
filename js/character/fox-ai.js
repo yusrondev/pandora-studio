@@ -28,6 +28,8 @@ window.ENEMY_COMBAT_CONFIG = ENEMY_COMBAT_CONFIG;
 
 let FoxAIManager = null;
 
+const BOSS_DEATH_FADE_DELAY_MS = 1950;
+
 class FoxAIAgent {
     constructor(foxRecord) {
         this.fox = foxRecord;
@@ -326,7 +328,11 @@ class FoxAIAgent {
 
         const deathMode = (this.fox && this.fox.deathMode) || 'fade';
         if (typeof CinematicPlayer !== 'undefined') CinematicPlayer.onEnemyKilled(this, deathMode);
-        if (deathMode === 'fade') this.startDeathFade();
+        if (deathMode === 'fade') {
+            // Boss tetap terlihat selama kamera eliminasi menyorotnya
+            if (this.isBoss) setTimeout(() => { if (this.isDead) this.startDeathFade(); }, BOSS_DEATH_FADE_DELAY_MS);
+            else this.startDeathFade();
+        }
     }
 
     startDeathFade() {
@@ -398,54 +404,11 @@ class FoxAIAgent {
     }
 
     findClosestItemBox() {
-        if (typeof itemBoxManagerInstance === 'undefined' || !itemBoxManagerInstance || !itemBoxManagerInstance.boxes) {
-            return null;
-        }
-        let closest = null;
-        let minDistSq = Infinity;
-        const myPos = this.root.position;
-
-        for (let i = 0; i < itemBoxManagerInstance.boxes.length; i++) {
-            const box = itemBoxManagerInstance.boxes[i];
-            if (!box || !box.isActive) continue;
-
-            const dx = box.baseX - myPos.x;
-            const dz = box.baseZ - myPos.z;
-            const distSq = dx * dx + dz * dz;
-
-            if (distSq < minDistSq) {
-                minDistSq = distSq;
-                closest = box;
-            }
-        }
-        return closest;
+        return null; // Pickup kini khusus pemain
     }
 
     findBestRespawningBox() {
-        if (typeof itemBoxManagerInstance === 'undefined' || !itemBoxManagerInstance || !itemBoxManagerInstance.boxes) {
-            return null;
-        }
-        let best = null;
-        let bestScore = Infinity;
-        const myPos = this.root.position;
-
-        for (let i = 0; i < itemBoxManagerInstance.boxes.length; i++) {
-            const box = itemBoxManagerInstance.boxes[i];
-            if (!box) continue;
-
-            const dx = box.baseX - myPos.x;
-            const dz = box.baseZ - myPos.z;
-            const dist = Math.hypot(dx, dz);
-            const remainingTimer = box.respawnTimer || 0;
-
-            // Prioritaskan box dengan timer tersisa paling sedikit dan jarak terdekat
-            const score = remainingTimer * 2.2 + dist;
-            if (score < bestScore) {
-                bestScore = score;
-                best = box;
-            }
-        }
-        return best;
+        return null; // Pickup kini khusus pemain
     }
 
     // ==========================================
@@ -1715,35 +1678,6 @@ class FoxAIManagerClass {
     resetAll() {
         for (let i = 0; i < this.agents.length; i++) {
             if (this.agents[i]) this.agents[i].reset();
-        }
-    }
-
-    checkItemBoxCollisions(itemBoxManager) {
-        if (!itemBoxManager || !itemBoxManager.boxes) return;
-        const inPlay = (typeof isPlayMode !== 'undefined' && isPlayMode);
-        if (!inPlay) return;
-
-        for (let a = 0; a < this.agents.length; a++) {
-            const agent = this.agents[a];
-            if (!agent || agent.isDead || !agent.root.visible) continue;
-            // Hanya AI ber-mode 'combat' yang boleh mengambil dan melengkapi senjata bazooka
-            const mode = agent.aiMode || (agent.fox && agent.fox.aiMode) || 'combat';
-            if (mode !== 'combat') continue;
-
-            const aPos = agent.root.position;
-
-            for (let b = 0; b < itemBoxManager.boxes.length; b++) {
-                const box = itemBoxManager.boxes[b];
-                if (!box || !box.isActive) continue;
-
-                const dx = aPos.x - box.baseX;
-                const dz = aPos.z - box.baseZ;
-                const distSq = dx * dx + dz * dz;
-
-                if (distSq < itemBoxManager.pickupRadius * itemBoxManager.pickupRadius) {
-                    itemBoxManager.collectBox(box, agent);
-                }
-            }
         }
     }
 

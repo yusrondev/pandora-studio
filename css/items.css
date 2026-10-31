@@ -587,4 +587,51 @@ body.play-mode-active .item-slot-hud.visible {
     opacity: 0.85;
 }
 
+/* Panel pickup */
+.pickup-type-switch { display: flex; gap: 6px; margin-bottom: 8px; }
+.pickup-type-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 4px;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+.pickup-type-btn.active { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.45); }
+.pickup-dot { width: 9px; height: 9px; border-radius: 50%; }
+.pickup-dot.heal { background: #35f07a; box-shadow: 0 0 6px #35f07a; }
+.pickup-dot.stamina { background: #ff9d1f; box-shadow: 0 0 6px #ff9d1f; }
 
+/* Bar berkilau saat stat dipulihkan */
+.bar-restored { animation: bar-restored 0.8s ease-out; }
+@keyframes bar-restored {
+    0% { filter: brightness(2.4); transform: scaleY(1.5); }
+    100% { filter: brightness(1); transform: scaleY(1); }
+}
+
+/* Pesan saat menyentuh portal yang masih terkunci */
+#portal-locked-hint {
+    position: fixed;
+    top: 16%;
+    left: 50%;
+    z-index: 9000;
+    padding: 8px 18px;
+    max-width: 86vw;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.72);
+    border: 1px solid rgba(168, 53, 42, 0.8);
+    border-radius: 3px;
+    color: #f0e6da;
+    font: 500 14px/1.4 'Inter', 'Segoe UI', sans-serif;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s linear;
+}
+#portal-locked-hint.visible { opacity: 1; }

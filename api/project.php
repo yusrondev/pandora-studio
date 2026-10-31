@@ -26,7 +26,8 @@ if ($method === 'POST') {
     $project = [
         'name' => trim((string) ($payload['name'] ?? 'Pandora Game')) ?: 'Pandora Game',
         'startStageId' => (string) ($payload['startStageId'] ?? ''),
-        'stageOrder' => array_values(array_map('strval', (array) ($payload['stageOrder'] ?? [])))
+        'stageOrder' => array_values(array_map('strval', (array) ($payload['stageOrder'] ?? []))),
+        'allowedDomains' => trim((string) ($payload['allowedDomains'] ?? ''))
     ];
     $saved = file_put_contents($projectFile, json_encode($project, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     echo json_encode(['success' => $saved !== false, 'project' => $project], JSON_UNESCAPED_UNICODE);

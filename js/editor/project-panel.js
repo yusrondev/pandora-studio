@@ -4,7 +4,7 @@
    Setiap stage adalah satu file di maps/; urutannya ada di config/project.json
    ========================================================= */
 const ProjectPanel = {
-    project: { name: 'Pandora Game', startStageId: '', stageOrder: [] },
+    project: { name: 'Pandora Game', startStageId: '', stageOrder: [], allowedDomains: '' },
     stages: [],
 
     async init() {
@@ -14,6 +14,11 @@ const ProjectPanel = {
         this.nameEl = document.getElementById('project-game-name');
         this.nameEl.addEventListener('change', () => {
             this.project.name = this.nameEl.value.trim() || 'Pandora Game';
+            this.saveProject();
+        });
+        this.domainsEl = document.getElementById('project-allowed-domains');
+        this.domainsEl.addEventListener('change', () => {
+            this.project.allowedDomains = this.domainsEl.value.trim();
             this.saveProject();
         });
         document.getElementById('btn-stage-new').addEventListener('click', () => this.promptNewStage());
@@ -41,6 +46,7 @@ const ProjectPanel = {
             console.warn('[Project] api/project.php tidak terjangkau:', err);
         }
         this.nameEl.value = this.project.name;
+        this.domainsEl.value = this.project.allowedDomains || '';
     },
 
     async saveProject() {
@@ -213,31 +219,116 @@ const ProjectPanel = {
         const btn = document.getElementById('btn-generate-game');
         btn.disabled = true;
         statusEl.className = 'generate-status';
-        statusEl.textContent = 'Menyalin engine dan aset...';
+        statusEl.textContent = '';
+        const dialog = this.showProgressDialog('Generate Game: ' + gameName);
         try {
-            const res = await fetch('api/export-game.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: gameName })
-            });
-            const json = await res.json();
-            if (!json.success) throw new Error(json.error || 'Generate gagal');
+            const json = await this.requestExport(gameName, dialog);
+            if (!json || !json.success) throw new Error((json && json.error) || 'Generate gagal');
 
-            statusEl.classList.add('ok');
-            statusEl.innerHTML = '';
             const lines = [`Selesai: ${json.fileCount} file, ${json.sizeMB} MB`, json.path, 'Jalankan Play.bat di folder tersebut.'];
             (json.warnings || []).forEach(w => lines.push('Peringatan: ' + w));
+            statusEl.classList.add('ok');
             lines.forEach(line => {
                 const div = document.createElement('div');
                 div.textContent = line;
                 statusEl.appendChild(div);
             });
+            dialog.finish(lines);
         } catch (err) {
             statusEl.classList.add('error');
             statusEl.textContent = 'Generate gagal: ' + err.message;
+            dialog.fail(err.message);
         } finally {
             btn.disabled = false;
         }
+    },
+
+    // Exporter mengirim satu baris JSON per tahap; baris terakhir berisi hasil
+    async requestExport(gameName, dialog) {
+        const res = await fetch('api/export-game.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: gameName })
+        });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = '';
+        let result = null;
+        const handleLine = (line) => {
+            if (!line.trim()) return;
+            const data = JSON.parse(line);
+            if (data.progress !== undefined) dialog.update(data.progress, data.label);
+            else result = data;
+        };
+        for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            pending += decoder.decode(value, { stream: true });
+            const lines = pending.split('\n');
+            pending = lines.pop();
+            lines.forEach(handleLine);
+        }
+        handleLine(pending);
+        return result;
+    },
+
+    showProgressDialog(title) {
+        const overlay = document.createElement('div');
+        overlay.className = 'generate-overlay';
+        overlay.innerHTML = `
+            <div class="generate-dialog" role="dialog" aria-modal="true">
+                <div class="generate-dialog-title"></div>
+                <div class="generate-dialog-body">
+                    <div class="generate-bar"><i></i><b></b><span>0%</span></div>
+                    <div class="generate-label">Memulai</div>
+                    <div class="generate-result" hidden></div>
+                </div>
+                <div class="generate-dialog-actions" hidden><button type="button" class="btn-compact">Tutup</button></div>
+            </div>`;
+        overlay.querySelector('.generate-dialog-title').textContent = title;
+        document.body.appendChild(overlay);
+
+        const bar = overlay.querySelector('.generate-bar');
+        const fill = bar.querySelector('i');
+        const percent = bar.querySelector('span');
+        const label = overlay.querySelector('.generate-label');
+        const result = overlay.querySelector('.generate-result');
+        const actions = overlay.querySelector('.generate-dialog-actions');
+        const update = (value, text) => {
+            fill.style.width = (value * 100).toFixed(1) + '%';
+            percent.textContent = Math.round(value * 100) + '%';
+            if (text) label.textContent = text;
+        };
+        const end = (lines) => {
+            bar.classList.add('done');
+            result.hidden = false;
+            result.innerHTML = '';
+            lines.forEach((line) => {
+                const div = document.createElement('div');
+                div.textContent = line;
+                if (line.startsWith('Peringatan:')) div.className = 'warn';
+                result.appendChild(div);
+            });
+            actions.hidden = false;
+            const close = actions.querySelector('button');
+            close.addEventListener('click', () => overlay.remove());
+            close.focus();
+        };
+        return {
+            update,
+            close() {
+                overlay.remove();
+            },
+            finish(lines) {
+                update(1, 'Selesai');
+                end(lines);
+            },
+            fail(message) {
+                bar.classList.add('failed');
+                label.textContent = 'Generate gagal';
+                end([message]);
+            }
+        };
     }
 };
 window.ProjectPanel = ProjectPanel;

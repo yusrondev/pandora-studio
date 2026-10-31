@@ -5,6 +5,8 @@
    ========================================================= */
 
 const PORTAL_DEFAULT_RADIUS = 1.6;
+const PORTAL_COLOR_OPEN = { gate: 0x8b6cff, veil: 0x6ee7ff };
+const PORTAL_COLOR_LOCKED = { gate: 0x55555f, veil: 0xa8352a };
 
 class PortalManagerClass {
     constructor() {
@@ -132,13 +134,36 @@ class PortalManagerClass {
         if (Array.isArray(list)) list.forEach(data => this.create(data));
     }
 
+    // Portal baru terbuka setelah semua boss di stage ini mati
+    aliveBossCount() {
+        if (typeof spawnedFoxesList === 'undefined') return 0;
+        return spawnedFoxesList.filter(fox => fox.isBoss && !(fox.ai && fox.ai.isDead)).length;
+    }
+
+    showLockedHint(count) {
+        if (!this.lockedHint) {
+            this.lockedHint = document.createElement('div');
+            this.lockedHint.id = 'portal-locked-hint';
+            document.body.appendChild(this.lockedHint);
+        }
+        this.lockedHint.textContent = count > 0 ? `Portal terkunci. Kalahkan semua boss di stage ini (sisa ${count}).` : '';
+        this.lockedHint.classList.toggle('visible', count > 0);
+    }
+
     tick(delta, elapsed) {
+        const aliveBosses = isPlayMode ? this.aliveBossCount() : 0;
+        const colors = aliveBosses > 0 ? PORTAL_COLOR_LOCKED : PORTAL_COLOR_OPEN;
         for (let i = 0; i < this.portals.length; i++) {
             const p = this.portals[i];
             p.veil.material.opacity = 0.26 + Math.sin(elapsed * 2.4) * 0.08;
-            p.floor.material.color.setHex(p.id === this.selectedId && !isPlayMode ? 0xffffff : 0x8b6cff);
+            p.veil.material.color.setHex(colors.veil);
+            p.gate.material.color.setHex(colors.gate);
+            p.floor.material.color.setHex(p.id === this.selectedId && !isPlayMode ? 0xffffff : colors.gate);
         }
-        if (!isPlayMode || !wolfCharacter || !wolfCharacter.root) return;
+        if (!isPlayMode || !wolfCharacter || !wolfCharacter.root) {
+            this.showLockedHint(0);
+            return;
+        }
 
         // Pemain baru bisa memicu portal setelah keluar dari semua radius,
         // supaya tiba di dekat portal tujuan tidak langsung terlempar balik.
@@ -151,9 +176,10 @@ class PortalManagerClass {
                 break;
             }
         }
+        this.showLockedHint(inside && inside.targetStageId ? aliveBosses : 0);
         if (!inside) {
             this.armed = true;
-        } else if (this.armed && inside.targetStageId) {
+        } else if (this.armed && inside.targetStageId && aliveBosses === 0) {
             this.armed = false;
             PandoraStageFlow.travelThroughPortal(inside);
         }
@@ -163,7 +189,8 @@ class PortalManagerClass {
 const PortalManager = new PortalManagerClass();
 window.PortalManager = PortalManager;
 
-const STAGE_READY_TIMEOUT_MS = 15000;
+// Longgar untuk jaringan lambat: membuka game sebelum semua model siap membuatnya membeku saat bermain
+const STAGE_READY_TIMEOUT_MS = 90000;
 
 const PandoraStageFlow = {
     isTransitioning: false,
@@ -225,9 +252,18 @@ const PandoraStageFlow = {
             if (onProgress) onProgress(loaded() / total());
             await new Promise(resolve => setTimeout(resolve, 100));
         }
-        while (window.PandoraAttachmentSystem && PandoraAttachmentSystem.pendingModelLoads > 0 && performance.now() < deadline) {
+        const modelsLoading = () => (window.PandoraAttachmentSystem ? PandoraAttachmentSystem.pendingModelLoads : 0)
+            + (window.PandoraImportedObjects ? PandoraImportedObjects.pending : 0);
+        while (modelsLoading() > 0 && performance.now() < deadline) {
             await new Promise(resolve => setTimeout(resolve, 100));
         }
+        // Collision objek impor dibangun sekarang, bukan saat pertama kali disentuh pemain
+        if (window.PandoraGLBCollision && window.importedObjectsList) {
+            importedObjectsList.forEach(item => item.hasCollision && PandoraGLBCollision.prebuild(item));
+        }
+        // Siluet karakter yang tertutup rintangan baru tampil saat bermain; shadernya perlu ikut dikompilasi
+        if (typeof ensureFoxEagleVisionSystem === 'function') ensureFoxEagleVisionSystem(wolfCharacter);
+        if (window.itemBoxManagerInstance) itemBoxManagerInstance.ensureScanTwins(wolfCharacter);
         const culled = [];
         scene.traverse((object) => {
             if (object.frustumCulled) {
@@ -236,6 +272,7 @@ const PandoraStageFlow = {
             }
         });
         renderer.compile(scene, camera);
+        if (typeof BossKillCam !== 'undefined') BossKillCam.prewarm();
         renderer.shadowMap.needsUpdate = true;
         renderer.render(scene, camera);
         culled.forEach((object) => { object.frustumCulled = true; });
@@ -268,11 +305,16 @@ const PandoraStageFlow = {
             ? { x: portal.spawnX, z: portal.spawnZ, rotY: THREE.MathUtils.degToRad(portal.spawnRotY || 0) }
             : null;
         window.PandoraGamePaused = true;
-        await this.enterStage(portal.targetStageId, spawn);
-        await this.prepareStage();
-        window.PandoraGamePaused = false;
-        this.isTransitioning = false;
-        await this._fade(false);
+        // Galat saat pindah tidak boleh meninggalkan pemain di layar hitam yang terkunci
+        try {
+            if (await this.enterStage(portal.targetStageId, spawn)) await this.prepareStage();
+        } catch (err) {
+            console.error('[StageFlow] Gagal pindah stage:', err);
+        } finally {
+            window.PandoraGamePaused = false;
+            this.isTransitioning = false;
+            await this._fade(false);
+        }
     },
 
     // Di Studio, stage asal dikembalikan saat Play Demo dihentikan

@@ -1,6 +1,6 @@
 {
     "success": true,
-    "updatedAt": "2026-10-31T07:08:06+00:00",
+    "updatedAt": "2026-10-31T10:43:06+00:00",
     "general": {
         "basePath": "hero\/general\/",
         "files": [
@@ -197,7 +197,6 @@
             "files": [
                 "idle.fbx",
                 "jump-withrun.fbx",
-                "jump-withrunssssss.fbx",
                 "run.fbx"
             ],
             "slots": {
@@ -205,9 +204,7 @@
                 "run": "run.fbx",
                 "jump": "jump-withrun.fbx"
             },
-            "extraClips": {
-                "jump_withrunssssss": "jump-withrunssssss.fbx"
-            }
+            "extraClips": []
         },
         {
             "id": "taurus",

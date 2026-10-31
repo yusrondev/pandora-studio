@@ -115,7 +115,10 @@ window.addEventListener('keyup', (e) => {
 // User preferred camera distance (bisa di zoom in/out bebas oleh user)
 // Jarak awal kamera: seluruh tubuh karakter terlihat dengan ruang di sekitarnya
 const PLAY_CAMERA_START_DIST = 6.8;
-const PLAY_CAMERA_START_PITCH = 20.0;
+const PLAY_CAMERA_START_PITCH = 11.0;
+const PLAY_CAMERA_PITCH = 11.0;      // Sudut normal, cukup rendah agar pemandangan dan cakrawala terlihat
+const PLAY_CAMERA_RUN_PITCH = 14.0;  // Sedikit naik saat berlari agar arah depan tetap terbaca
+const PLAY_CAMERA_BOSS_PITCH = 13.0;
 let userPreferredDist = PLAY_CAMERA_START_DIST;
 let currentCamDist = PLAY_CAMERA_START_DIST;
 let isCameraOccluded = false;
@@ -362,7 +365,7 @@ let lastPinchDistance = null;
 
 // Persistent camera orbit angles (memastikan kamera tidak pernah terpental/jitter oleh ground clamp atau OrbitControls)
 let camOrbitYaw = null;
-let camOrbitPitch = THREE.MathUtils.degToRad(18.0);
+let camOrbitPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_PITCH);
 let _lastFollowSign = 1;
 
 // Delta akumulasi rotasi kamera dari sentuhan layar mobile (Multitouch look)
@@ -384,7 +387,7 @@ window.addEventListener('touchstart', (e) => {
         const inJoystick = el && el.closest && el.closest('#mobile-joystick-zone');
         // Dedikasi area kiri bawah layar (45% lebar layar) untuk kontrol joystick gerak, BUKAN kamera
         const inLeftMovementZone = (touch.clientX < window.innerWidth * 0.45 && touch.clientY > window.innerHeight * 0.30);
-        const inActionBtn = el && el.closest && (el.closest('.mobile-action-btn') || el.closest('#btn-mobile-exit-demo'));
+        const inActionBtn = el && el.closest && el.closest('.mobile-action-btn');
         const inToolbar = el && el.closest && el.closest('#top-toolbar');
         const inSpecies = el && el.closest && el.closest('#fox-species-bar');
 
@@ -1872,7 +1875,7 @@ function updateWolfPhysics(dt, elapsed) {
             camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxBossStep, maxBossStep) * bossWeight;
 
             // Elevasi kamera yang pas untuk boss (sedikit lebih tinggi agar visual boss megah)
-            const targetPitch = THREE.MathUtils.degToRad(20.0);
+            const targetPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_BOSS_PITCH);
             camOrbitPitch = THREE.MathUtils.clamp(
                 THREE.MathUtils.lerp(camOrbitPitch, targetPitch, (1.0 - Math.exp(-4.5 * dt)) * bossWeight),
                 MIN_ALLOWED_PITCH,
@@ -1901,7 +1904,7 @@ function updateWolfPhysics(dt, elapsed) {
         const maxAttackStep = 9.0 * dt;
         camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxAttackStep, maxAttackStep);
 
-        const targetPitch = THREE.MathUtils.degToRad(18.0);
+        const targetPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_PITCH);
         camOrbitPitch = THREE.MathUtils.clamp(
             THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-5.0 * dt)),
             MIN_ALLOWED_PITCH,
@@ -1927,7 +1930,7 @@ function updateWolfPhysics(dt, elapsed) {
         const maxChaseStep = 4.2 * dt;
         camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxChaseStep, maxChaseStep);
 
-        const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? 22.0 : 18.0);
+        const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? PLAY_CAMERA_RUN_PITCH : PLAY_CAMERA_PITCH);
         camOrbitPitch = THREE.MathUtils.clamp(
             THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)),
             MIN_ALLOWED_PITCH,
@@ -1949,7 +1952,7 @@ function updateWolfPhysics(dt, elapsed) {
         const maxLockStep = 3.5 * dt;
         camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxLockStep, maxLockStep);
 
-        const targetPitch = THREE.MathUtils.degToRad(18.0);
+        const targetPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_PITCH);
         camOrbitPitch = THREE.MathUtils.clamp(
             THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-3.0 * dt)),
             MIN_ALLOWED_PITCH,
@@ -1959,7 +1962,7 @@ function updateWolfPhysics(dt, elapsed) {
 
     // Keluar encounter saat player diam: elevasi kembali ke sudut normal (yaw dibiarkan, tidak memutar paksa)
     if (!activeBoss && bossWeight > 0 && !isUserHoldingCamera && !isCharacterMoving && !isPlayerAttacking) {
-        camOrbitPitch = THREE.MathUtils.lerp(camOrbitPitch, THREE.MathUtils.degToRad(18.0), 1.0 - Math.exp(-3.0 * dt));
+        camOrbitPitch = THREE.MathUtils.lerp(camOrbitPitch, THREE.MathUtils.degToRad(PLAY_CAMERA_PITCH), 1.0 - Math.exp(-3.0 * dt));
     }
 
     window.camOrbitYaw = camOrbitYaw;
@@ -2647,6 +2650,8 @@ window.updateLegArticulation = updateLegArticulation;
     const _candidateTris = [];
 
     window.PandoraGLBCollision = {
+        prebuild: getOrBuildCollider,
+
         resolveCharacterCollision(rootPos, charScale = 1.85, maxStepUp = 0.70, velocityY = 0, camPos = null, isMoving = false, dt = 0.016) {
             const list = window.importedObjectsList;
             if (!Array.isArray(list) || list.length === 0 || !rootPos) {

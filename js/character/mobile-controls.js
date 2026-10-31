@@ -30,7 +30,7 @@ function initMobileControls() {
     // 1. VIRTUAL ANALOG JOYSTICK LOGIC
     let activeTouchId = null;
     let baseCenter = { x: 0, y: 0 };
-    const maxDistance = 46; // Jangkauan stick (px)
+    const maxDistance = 58; // Jangkauan stick (px)
     const deadZone = 0.1;  // Gerakan kecil ibu jari diabaikan
     const STICK_RUN_ON = 0.85;
     const STICK_RUN_OFF = 0.72;

@@ -324,8 +324,6 @@
         stageAssetsReady.then(() => StageLoader.laterStages(startStage));
     }
 
-    addFallingLeaves(document.getElementById('game-cover'));
-
     if (document.readyState === 'complete') boot();
     else window.addEventListener('load', boot);
 })();

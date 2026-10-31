@@ -61,6 +61,39 @@ function getGeneralHeroBasePath() {
  * Three.js PropertyBinding secara default akan mengaitkan track tersebut ke ROOT MODEL, sehingga rotasi jempol
  * langsung memutar badan karakter ~50°-90° dan membuatnya 'doyong' (miring/roboh ke lantai).
  */
+const JUMP_RUN_RATE = 1.25;
+const JUMP_NORMAL_RATE = 1.75;
+const JUMP_BLEND_OUT = 0.08; // Detik terakhir klip dipakai untuk berbaur ke animasi berikutnya
+const jumpPhaseCache = new WeakMap();
+
+// Kapan kaki lepas dan menyentuh tanah di dalam klip (detik), dibaca dari titik terendah Hips sebelum
+// dan sesudah puncak lompatan, sehingga fisika mengikuti animasi tiap karakter.
+function getJumpClipPhases(clip) {
+    if (jumpPhaseCache.has(clip)) return jumpPhaseCache.get(clip);
+    let phases = { liftoff: clip.duration * 0.27, landing: clip.duration * 0.82 };
+    const hips = clip.tracks.find(t => t.name.toLowerCase().includes('hips.position'));
+    if (hips && hips.times.length > 4) {
+        const heightAt = (i) => hips.values[i * 3 + 1];
+        let peak = 0;
+        for (let i = 1; i < hips.times.length; i++) {
+            if (heightAt(i) > heightAt(peak)) peak = i;
+        }
+        let liftoff = 0;
+        for (let i = 1; i < peak; i++) {
+            if (heightAt(i) < heightAt(liftoff)) liftoff = i;
+        }
+        let landing = peak;
+        for (let i = peak + 1; i < hips.times.length; i++) {
+            if (heightAt(i) < heightAt(landing)) landing = i;
+        }
+        if (peak > 0 && landing > peak) {
+            phases = { liftoff: hips.times[liftoff], landing: hips.times[landing] };
+        }
+    }
+    jumpPhaseCache.set(clip, phases);
+    return phases;
+}
+
 function sanitizeAnimationClipForModel(clip, rootModel) {
     if (!clip || !rootModel) return clip;
     const existingNodeNames = new Set();
@@ -1935,8 +1968,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
         /**
          * Lompat:
          * - Tidak sprint (atau diam) -> jump-normal.fbx (lompat di tempat, input gerak terkunci sampai selesai, durasi lebih cepat & responsif)
-         * - Sprint -> Jump-withrun.fbx (impuls langsung dengan momentum gerak atletis)
-         * Mengembalikan true jika impuls fisik harus langsung diterapkan saat itu juga.
+         * - Sprint -> Jump-withrun.fbx: karakter terangkat saat kaki lepas tanah di dalam klip (jumpImpulsePending),
+         *   dan klip selalu diputar sampai selesai.
+         * Mengembalikan false jika lompatan tidak bisa dimulai.
          */
         triggerJump(isSprinting = false, isStationary = false) {
             if (this.isFlyingPunch || this.isFlyingKick) return false;
@@ -1974,15 +2008,14 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.targetWeights.jumpNormal = (key === 'jumpNormal') ? 1.0 : 0.0;
 
             this.isJumping = true;
-            this.isStationaryJump = isStationary || useNormal;
+            this.isStationaryJump = isStationary;
             this.activeJumpKey = key;
             this.jumpTimer = 0.0;
 
-            // Durasi dipercepat agar responsif dan lincah (2.0x untuk lompat di tempat)
-            const rate = useNormal ? 2.0 : 1.30;
+            const rate = useNormal ? JUMP_NORMAL_RATE : JUMP_RUN_RATE;
             action.timeScale = rate;
             const clip = action.getClip();
-            this.jumpDuration = (clip && clip.duration) ? (clip.duration / rate) : 0.62;
+            this.jumpDuration = Math.max(0.1, clip.duration / rate - JUMP_BLEND_OUT);
 
             action.reset();
             action.setLoop(THREE.LoopOnce, 1);
@@ -1990,8 +2023,12 @@ function createWolfCharacterModel(speciesKey = 'red') {
             action.enabled = true;
             action.play();
 
-            this.jumpImpulsePending = false;
-            // LANGSUNG eksekusi impuls fisik melompat tanpa delay, responsif seketika
+            this.jumpImpulsePending = !useNormal;
+            if (!useNormal) {
+                const phases = getJumpClipPhases(clip);
+                this.jumpLiftoffAt = phases.liftoff / rate;
+                this.jumpFlightTime = (phases.landing - phases.liftoff) / rate;
+            }
             return true;
         },
 
@@ -2732,8 +2769,6 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 const runPace = Math.max(0.70, Math.min(1.6, absSpeed / 5.2));
                 this.actions.run.timeScale = runPace;
             }
-            if (this.actions.jump) this.actions.jump.timeScale = 1.25;      // Jump-withrun.fbx
-            if (this.actions.jumpNormal) this.actions.jumpNormal.timeScale = 1.75; // jump-normal.fbx
 
             // Step the Three.js AnimationMixer
             this.mixer.update(dt);

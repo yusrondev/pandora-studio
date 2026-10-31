@@ -52,7 +52,8 @@ window.addEventListener('keydown', (e) => {
     if (k === 'shift' || code === 'ShiftLeft' || code === 'ShiftRight') keys.shift = true;
     if (k === ' ' || code === 'Space') {
         e.preventDefault();
-        keys.space = true;
+        // Menahan spasi tidak boleh memicu lompatan berulang
+        if (!e.repeat) keys.space = true;
     }
     if (k === 'q' || code === 'KeyQ') {
         keys.q = true;
@@ -585,6 +586,8 @@ window.foxSitBlend = foxSitBlend;
 
 const gravity = -26;
 const jumpPower = 9.6;
+const JUMP_RUN_HEIGHT = 0.4; // Tambahan tinggi dari fisika; sebagian besar tinggi lompatan sudah ada di animasi
+let jumpFlightGravity = 0;   // Gravitasi lompatan agar waktu di udara sama dengan fase udara klip
 
 function updateLegArticulation(leg, phase, intensity, isFront, crouchAmount, isPivotOnly = false) {}
 function updateDogPaddleLegFront(leg, phase, intensity, isSprint, dt) {}
@@ -1635,7 +1638,9 @@ function updateWolfPhysics(dt, elapsed) {
             }
             if (applyNow) {
                 // Hilangkan lompatan paksa native Y code, biarkan dieksekusi oleh animasi jump-normal.fbx saja
-                if (isSprinting) {
+                if (wolfCharacter && wolfCharacter.jumpImpulsePending) {
+                    velocityY = 0; // Masih di tanah sampai kaki lepas di dalam klip
+                } else if (isSprinting) {
                     velocityY = 6.8;
                     isGrounded = false;
                 } else {
@@ -1645,6 +1650,17 @@ function updateWolfPhysics(dt, elapsed) {
                 keys.space = false; // Reset keys.space agar jump berikutnya merespons input segar
                 if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playJump) foxSoundFX.playJump();
             }
+        }
+
+        // Tombol yang ditekan selagi melompat diabaikan, bukan disimpan untuk melompat lagi setelah mendarat
+        if (keys.space && wolfCharacter && wolfCharacter.isJumping) keys.space = false;
+
+        if (wolfCharacter && wolfCharacter.isJumping && wolfCharacter.jumpImpulsePending && wolfCharacter.jumpTimer >= wolfCharacter.jumpLiftoffAt) {
+            wolfCharacter.jumpImpulsePending = false;
+            const flight = wolfCharacter.jumpFlightTime;
+            velocityY = 4 * JUMP_RUN_HEIGHT / flight;
+            jumpFlightGravity = -8 * JUMP_RUN_HEIGHT / (flight * flight);
+            isGrounded = false;
         }
 
         const wasGrounded = isGrounded;
@@ -1658,15 +1674,15 @@ function updateWolfPhysics(dt, elapsed) {
             if (!wasGrounded) {
                 if (velocityY < -3) landingSquash = 0.10;
                 if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playLand) foxSoundFX.playLand();
-                // Saat menyentuh tanah, seketika reset status jump & cooldown idle
-                // agar pemain bisa langsung jump lagi tanpa jeda tersedat!
-                if (wolfCharacter && typeof wolfCharacter.onLanded === 'function') {
+                // Klip lompat yang masih berjalan dibiarkan selesai (fase mendarat), lalu berakhir sendiri
+                if (wolfCharacter && typeof wolfCharacter.onLanded === 'function' && !wolfCharacter.isJumping) {
                     wolfCharacter.onLanded();
                 }
             }
         } else {
-            velocityY += gravity * dt;
+            velocityY += (jumpFlightGravity || gravity) * dt;
         }
+        if (isGrounded) jumpFlightGravity = 0;
         // Jaminan absolut: kaki hero humanoid tidak pernah tembus ke bawah lantai/grid!
         if (foxRoot.position.y < effectiveGroundH) {
             foxRoot.position.y = effectiveGroundH;

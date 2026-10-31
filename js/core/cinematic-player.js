@@ -299,11 +299,9 @@ const CinematicPlayer = {
 
     // Musuh mati: momen kemenangan tanpa layar gelap, atau cinematic sesuai mode di Spawner Character
     onEnemyKilled(agent, mode) {
-        const others = (typeof FoxAIManager !== 'undefined' && FoxAIManager.agents) ? FoxAIManager.agents : [];
-        const isLast = !others.some(a => a && a !== agent && !a.isDead && a.root && a.root.visible);
         const wantsCinematic = mode === 'auto' || mode === 'scene';
 
-        if (agent.isBoss || isLast || wantsCinematic) {
+        if (agent.isBoss) {
             window.PandoraTimeScale = ENEMY_DEATH_SLOWMO;
             clearTimeout(this._slowmoTimer);
             this._slowmoTimer = setTimeout(() => { window.PandoraTimeScale = 1; }, ENEMY_DEATH_SLOWMO_MS);

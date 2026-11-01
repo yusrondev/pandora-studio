@@ -377,6 +377,10 @@ function animate() {
     }
 
     if (typeof BossKillCam !== 'undefined') BossKillCam.beforeRender(realDelta);
+    // Geser bahu hanya untuk kamera permainan; sinematik, kamera L1, dan editor memakai bingkai penuh
+    if (camera.view && camera.view.enabled && (!isPlayMode || isCinematicRunning || BossKillCam.active)) camera.clearViewOffset();
+    PandoraSunMotes.update(realDelta);
+    PandoraLightShafts.update(realDelta);
     const updatesDone = performance.now();
 
     // Render scene depth pass untuk perpotongan fisika air 100% presisi mengikuti bentuk 3D mesh (batu, pohon, rumput)
@@ -387,6 +391,8 @@ function animate() {
     if (typeof BossKillCam !== 'undefined' && BossKillCam.active) {
         BossKillCam.render();
         BossKillCam.afterRender();
+    } else if (PandoraPostFX.enabled()) {
+        PandoraPostFX.render();
     } else {
         renderer.render(scene, camera);
     }

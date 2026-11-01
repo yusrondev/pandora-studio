@@ -651,6 +651,7 @@ sliderTreeCurvature.addEventListener('input', () => {
         let updatedTree;
         if (typeCode === 'oak') updatedTree = createGenshinOakTree(foliageMat, leafCount, branchCount, newCurvature);
         else if (typeCode.startsWith('birch')) updatedTree = createGenshinBirchTree(foliageMat, leafCount, branchCount, newCurvature, typeCode);
+        else if (typeCode === 'pine_ref') updatedTree = createReferenceConifer(leafCount, newCurvature);
         else if (typeCode === 'pine') updatedTree = createGenshinPineTree(foliageMat, leafCount, newCurvature);
 
         updatedTree.position.set(posX, getTerrainHeightFast(posX, posZ), posZ);
@@ -850,3 +851,33 @@ document.querySelectorAll('.btn-canvas-preset').forEach(btn => {
         }
     });
 });
+
+// Palet referensi untuk map yang sedang dibuka. Baru tetap setelah map disimpan.
+function applyReferencePalette() {
+    const ground = groundGeo.attributes.color;
+    for (let i = 0; i < ground.count; i++) {
+        const luma = ground.getX(i) * 0.3 + ground.getY(i) * 0.59 + ground.getZ(i) * 0.11;
+        ground.setXYZ(i, 0.11 + luma * 0.17, 0.075 + luma * 0.105, 0.04 + luma * 0.05);
+    }
+    ground.needsUpdate = true;
+
+    const grass = instancedGrassMesh.geometry.attributes.instanceColor;
+    for (let i = 0; i < maxGrassCapacity; i++) {
+        if (grassActiveStates[i] !== 1) continue;
+        const luma = grass.getX(i) * 0.3 + grass.getY(i) * 0.59 + grass.getZ(i) * 0.11;
+        grass.setXYZ(i, 0.14 + luma * 0.3, 0.26 + luma * 0.36, 0.05 + luma * 0.08);
+    }
+    grass.needsUpdate = true;
+    rebuildGrassTransforms();
+
+    setRockTheme('reference');
+    applySkyPreset('reference');
+    const skySelect = document.getElementById('select-sky-preset');
+    if (skySelect) skySelect.value = 'reference';
+    const rockTheme = document.getElementById('select-rock-theme');
+    if (rockTheme) rockTheme.value = 'reference';
+    PandoraToast.show('Palet referensi diterapkan. Simpan map agar tetap.', 'success');
+}
+window.applyReferencePalette = applyReferencePalette;
+const btnReferencePalette = document.getElementById('btn-reference-palette');
+if (btnReferencePalette) btnReferencePalette.addEventListener('click', applyReferencePalette);

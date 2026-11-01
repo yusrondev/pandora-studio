@@ -56,6 +56,28 @@ function createBaseLeafGeometry() {
 
 const sharedBaseLeafGeo = createBaseLeafGeometry();
 
+// Daun semak referensi: lonjong membulat dengan ujung sedikit runcing
+function createRoundLeafGeometry() {
+    const N = 6;
+    const pos = [];
+    const idx = [];
+    for (let i = 0; i < N; i++) {
+        const h = i / (N - 1);
+        const w = 0.52 * Math.pow(Math.sin(Math.PI * Math.pow(h, 0.82)), 0.72);
+        const f = 0.05 * Math.sin(Math.PI * h);
+        pos.push(-w, h, 0, 0, h, f, w, h, 0);
+    }
+    for (let i = 0; i < N - 1; i++) {
+        const b = i * 3;
+        idx.push(b, b + 1, b + 3, b + 1, b + 4, b + 3, b + 1, b + 2, b + 4, b + 2, b + 5, b + 4);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setIndex(idx);
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    return g;
+}
+const sharedRoundLeafGeo = createRoundLeafGeometry();
+
 // 2. UNIFORMS BERSAMA (SHARED UNIFORMS)
 const FOX_TRAIL_COUNT = 6;
 const foxTrailUniformArray = [];
@@ -240,7 +262,17 @@ void main() {
 function createBushFragmentShader(theme) {
     let colDark, colMid, colHi, colYel;
 
-    if (theme === 'autumn') {
+    if (theme === 'reference') {
+        colDark = 'vec3(0.10, 0.24, 0.07)';
+        colMid = 'vec3(0.32, 0.47, 0.11)';
+        colHi = 'vec3(0.62, 0.72, 0.16)';
+        colYel = 'vec3(0.84, 0.86, 0.28)';
+    } else if (theme === 'referenceGold') {
+        colDark = 'vec3(0.34, 0.20, 0.04)';
+        colMid = 'vec3(0.74, 0.50, 0.08)';
+        colHi = 'vec3(0.93, 0.72, 0.15)';
+        colYel = 'vec3(0.99, 0.86, 0.32)';
+    } else if (theme === 'autumn') {
         colDark = 'vec3(0.32, 0.20, 0.06)';
         colMid = 'vec3(0.68, 0.45, 0.14)';
         colHi = 'vec3(0.92, 0.72, 0.22)';
@@ -314,8 +346,65 @@ const bushMaterials = {
         vertexShader: BUSH_VERTEX_SHADER,
         fragmentShader: createBushFragmentShader('autumn'),
         side: THREE.DoubleSide
+    }),
+    reference: new THREE.ShaderMaterial({
+        uniforms: sharedBushUniforms,
+        vertexShader: BUSH_VERTEX_SHADER,
+        fragmentShader: createBushFragmentShader('reference'),
+        side: THREE.DoubleSide
+    }),
+    referenceGold: new THREE.ShaderMaterial({
+        uniforms: sharedBushUniforms,
+        vertexShader: BUSH_VERTEX_SHADER,
+        fragmentShader: createBushFragmentShader('referenceGold'),
+        side: THREE.DoubleSide
     })
 };
+
+// Semak referensi: tangkai melengkung keluar dari pangkal dengan daun berpasangan di sepanjangnya
+function buildReferenceBushLeaves(bx, by, bz, radius, ry, R, hue, lP, lQ, lS, lC) {
+    const stems = Math.floor(13 + 11 * radius);
+    const basis = new THREE.Matrix4();
+    const xAxis = new THREE.Vector3();
+    const zAxis = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    let count = 0;
+    for (let s = 0; s < stems; s++) {
+        const yaw = R() * 6.2832;
+        // Tangkai pendek mengisi bagian tengah agar semak tidak bolong
+        const reach = radius * (0.15 + 0.9 * R());
+        const rise = ry * (0.35 + 0.75 * R());
+        const dirX = Math.cos(yaw);
+        const dirZ = Math.sin(yaw);
+        const pairs = 6 + Math.floor(R() * 4);
+        for (let p = 0; p < pairs; p++) {
+            const t = (p + 1) / pairs;
+            // Lengkung tangkai: naik cepat lalu merunduk di ujung
+            const px = bx + dirX * reach * t;
+            const py = by + rise * Math.sin(t * 2.2) / 0.81;
+            const pz = bz + dirZ * reach * t;
+            for (let side = -1; side <= 1; side += 2) {
+                const spread = 0.95 + (R() - 0.5) * 0.4;
+                tempDv.set(
+                    dirX * Math.cos(spread) - dirZ * Math.sin(spread) * side,
+                    0.05 + (R() - 0.5) * 0.35 - t * 0.2,
+                    dirZ * Math.cos(spread) + dirX * Math.sin(spread) * side
+                ).normalize();
+                // Permukaan daun menghadap ke atas agar menangkap cahaya, seperti di referensi
+                xAxis.crossVectors(tempDv, up).normalize();
+                zAxis.crossVectors(xAxis, tempDv).normalize();
+                basis.makeBasis(xAxis, tempDv, zAxis);
+                tempQ1.setFromRotationMatrix(basis);
+                lP.push(px, py, pz);
+                lQ.push(tempQ1.x, tempQ1.y, tempQ1.z, tempQ1.w);
+                lS.push((0.2 + 0.13 * R()) * (1.0 - t * 0.3) * (0.95 + 0.14 * radius), R(), hue);
+                lC.push(bx, bz, radius, ry);
+                count++;
+            }
+        }
+    }
+    return count;
+}
 
 // 5. PEMBUAT GEOMETRI INSTANCED SEMAK TUNGGAL
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
@@ -327,7 +416,8 @@ function generateBushInstancedMesh(bx, by, bz, radius, hy, bushType, seed) {
     const R = bushRng(seed);
     const ry = radius * hy;
     const hue = R();
-    const leafCount = Math.floor(70 + 260 * radius * hy);
+    const isReference = bushType === 'spawn_bush_ref' || bushType === 'spawn_bush_ref_gold';
+    let leafCount = isReference ? 0 : Math.floor(70 + 260 * radius * hy);
 
     const lP = [];
     const lQ = [];
@@ -370,9 +460,12 @@ function generateBushInstancedMesh(bx, by, bz, radius, hy, bushType, seed) {
         lC.push(bx, bz, radius, ry);
     }
 
+    if (isReference) leafCount = buildReferenceBushLeaves(bx, by, bz, radius, ry, R, hue, lP, lQ, lS, lC);
+
+    const baseLeaf = isReference ? sharedRoundLeafGeo : sharedBaseLeafGeo;
     const instGeo = new THREE.InstancedBufferGeometry();
-    instGeo.setIndex(sharedBaseLeafGeo.getIndex());
-    instGeo.setAttribute('position', sharedBaseLeafGeo.getAttribute('position'));
+    instGeo.setIndex(baseLeaf.getIndex());
+    instGeo.setAttribute('position', baseLeaf.getAttribute('position'));
 
     instGeo.setAttribute('iPos', new THREE.InstancedBufferAttribute(new Float32Array(lP), 3));
     instGeo.setAttribute('iQ', new THREE.InstancedBufferAttribute(new Float32Array(lQ), 4));
@@ -381,7 +474,11 @@ function generateBushInstancedMesh(bx, by, bz, radius, hy, bushType, seed) {
     instGeo.instanceCount = leafCount;
 
     let mat = bushMaterials.lush;
-    if (bushType === 'spawn_bush_autumn') {
+    if (bushType === 'spawn_bush_ref') {
+        mat = bushMaterials.reference;
+    } else if (bushType === 'spawn_bush_ref_gold') {
+        mat = bushMaterials.referenceGold;
+    } else if (bushType === 'spawn_bush_autumn') {
         mat = bushMaterials.autumn;
     } else if (bushType === 'spawn_bush_giant') {
         mat = bushMaterials.forest;
@@ -452,6 +549,9 @@ function placeBushesAt(hitPoint, bushType) {
             hy = 0.82;
         } else if (bushType === 'spawn_bush_autumn') {
             hy = 0.70;
+        } else if (bushType === 'spawn_bush_ref' || bushType === 'spawn_bush_ref_gold') {
+            rad *= 1.2;
+            hy = 0.85;
         }
 
         const seed = Math.floor(Math.random() * 10000000);

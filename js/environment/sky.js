@@ -695,6 +695,20 @@ const skyPresets = {
     }
 };
 
+// Langit pucat hangat dan cahaya keemasan seperti video referensi
+skyPresets.reference = Object.assign({}, skyPresets.day, {
+    topColor: 0xb5c4bc,
+    midColor: 0xd6d4bd,
+    bottomColor: 0xe9dcbd,
+    fogColor: 0xcfc4a0,
+    fogNear: 30,
+    fogFar: 110,
+    sunColor: 0xffdca8,
+    ambientColor: 0x8a8560,
+    ambientIntensity: 0.55,
+    sunIntensity: 1.9
+});
+
 function applySkyPreset(presetKey) {
     const p = skyPresets[presetKey];
     if (!p) return;

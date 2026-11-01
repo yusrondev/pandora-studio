@@ -20,104 +20,269 @@ const rockParams = {
     rockDensity: 4,
     minSize: 0.8,
     maxSize: 2.0,
-    heightScale: 1.5,
-    colorBottom: new THREE.Color(0x64748b), // Slate Gray gelap
-    colorTop: new THREE.Color(0xcbd5e1),    // Abu-abu terang
-    currentTheme: 'slate'
+    heightScale: 1.0,
+    currentTheme: 'reference'
 };
 
-// 1. DATA TEXTURE UNTUK CEL-SHADED TOON GRADIENT RAMP
-const rockColors = new Uint8Array([70, 150, 255]);
-const rockGradientMap = new THREE.DataTexture(rockColors, 3, 1, THREE.LuminanceFormat);
-rockGradientMap.minFilter = THREE.NearestFilter;
-rockGradientMap.magFilter = THREE.NearestFilter;
-rockGradientMap.needsUpdate = true;
-
-const rockMaterial = new THREE.MeshToonMaterial({
-    gradientMap: rockGradientMap,
-    shadowSide: THREE.BackSide
-});
+// 1. MATERIAL BATU: tekstur datang dari model GLB
+const rockMaterial = new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0 });
 
 rockMaterial.userData = { shader: null };
 
+// Lumut digambar pengguna pada peta dari atas; shader membacanya menurut posisi dunia
+const ROCK_MOSS_EXTENT = 400;
+const ROCK_MOSS_SIZE = 1024;
+const rockMossCanvas = document.createElement('canvas');
+rockMossCanvas.width = rockMossCanvas.height = ROCK_MOSS_SIZE;
+const rockMossContext = rockMossCanvas.getContext('2d');
+rockMossContext.fillRect(0, 0, ROCK_MOSS_SIZE, ROCK_MOSS_SIZE);
+const rockMossTexture = new THREE.CanvasTexture(rockMossCanvas);
+rockMossTexture.flipY = false;
+let rockMossStrokes = [];
+
+function drawRockMossStroke(x, z, radius, erase) {
+    const scale = ROCK_MOSS_SIZE / ROCK_MOSS_EXTENT;
+    const cx = (x + ROCK_MOSS_EXTENT / 2) * scale;
+    const cy = (z + ROCK_MOSS_EXTENT / 2) * scale;
+    const r = Math.max(2, radius * scale);
+    const ctx = rockMossContext;
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const color = erase ? '0,0,0' : '255,255,255';
+    gradient.addColorStop(0, `rgba(${color},0.9)`);
+    gradient.addColorStop(0.7, `rgba(${color},0.55)`);
+    gradient.addColorStop(1, `rgba(${color},0)`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    rockMossTexture.needsUpdate = true;
+}
+
+function paintRockMoss(point, radius, erase) {
+    const stroke = [+point.x.toFixed(2), +point.z.toFixed(2), +radius.toFixed(2), erase ? 1 : 0];
+    // Menahan kuas di satu tempat tidak perlu menambah data
+    const last = rockMossStrokes[rockMossStrokes.length - 1];
+    if (last && last[3] === stroke[3] && Math.hypot(last[0] - stroke[0], last[1] - stroke[1]) < radius * 0.2) return;
+    rockMossStrokes.push(stroke);
+    drawRockMossStroke(stroke[0], stroke[1], stroke[2], erase);
+}
+
+function setRockMossStrokes(strokes) {
+    rockMossStrokes = Array.isArray(strokes) ? strokes.slice() : [];
+    rockMossContext.fillStyle = '#000';
+    rockMossContext.fillRect(0, 0, ROCK_MOSS_SIZE, ROCK_MOSS_SIZE);
+    rockMossStrokes.forEach(stroke => drawRockMossStroke(stroke[0], stroke[1], stroke[2], stroke[3] === 1));
+    rockMossTexture.needsUpdate = true;
+}
+
+function getRockMossStrokes() {
+    return rockMossStrokes;
+}
+window.paintRockMoss = paintRockMoss;
+window.setRockMossStrokes = setRockMossStrokes;
+window.getRockMossStrokes = getRockMossStrokes;
+
 rockMaterial.onBeforeCompile = (shader) => {
     rockMaterial.userData.shader = shader;
-    shader.uniforms.colorBottom = { value: rockParams.colorBottom };
-    shader.uniforms.colorTop = { value: rockParams.colorTop };
+    shader.uniforms.uMossMap = { value: rockMossTexture };
 
     shader.vertexShader = shader.vertexShader.replace(
         '#include <common>',
-        `#include <common>\nvarying float vLocalY;`
+        `#include <common>\nvarying vec3 vRockWorld;\nvarying vec3 vRockUp;`
     );
     shader.vertexShader = shader.vertexShader.replace(
         '#include <begin_vertex>',
-        `#include <begin_vertex>\nvLocalY = position.y;`
+        `#include <begin_vertex>
+        vec4 rockWorld = vec4(transformed, 1.0);
+        vec3 rockUp = objectNormal;
+        #ifdef USE_INSTANCING
+            rockWorld = instanceMatrix * rockWorld;
+            rockUp = mat3(instanceMatrix) * rockUp;
+        #endif
+        vRockWorld = (modelMatrix * rockWorld).xyz;
+        vRockUp = normalize(mat3(modelMatrix) * rockUp);`
     );
 
     shader.fragmentShader = shader.fragmentShader.replace(
         '#include <common>',
         `#include <common>
-        uniform vec3 colorBottom;
-        uniform vec3 colorTop;
-        varying float vLocalY;`
+        uniform sampler2D uMossMap;
+        varying vec3 vRockWorld;
+        varying vec3 vRockUp;
+        float rockHash(vec3 p) {
+            p = fract(p * 0.3183099 + 0.1);
+            p *= 17.0;
+            return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+        }
+        float rockNoise(vec3 p) {
+            vec3 i = floor(p);
+            vec3 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(
+                mix(mix(rockHash(i), rockHash(i + vec3(1, 0, 0)), f.x), mix(rockHash(i + vec3(0, 1, 0)), rockHash(i + vec3(1, 1, 0)), f.x), f.y),
+                mix(mix(rockHash(i + vec3(0, 0, 1)), rockHash(i + vec3(1, 0, 1)), f.x), mix(rockHash(i + vec3(0, 1, 1)), rockHash(i + vec3(1, 1, 1)), f.x), f.y),
+                f.z);
+        }
+        float rockFbm(vec3 p) {
+            return rockNoise(p) * 0.55 + rockNoise(p * 2.3) * 0.3 + rockNoise(p * 5.1) * 0.15;
+        }`
     );
     shader.fragmentShader = shader.fragmentShader.replace(
-        'vec4 diffuseColor = vec4( diffuse, opacity );',
-        `
-        float mixRatio = smoothstep(-1.0, 1.0, vLocalY);
-        vec3 finalGradient = mix(colorBottom, colorTop, mixRatio);
-        vec4 diffuseColor = vec4( finalGradient, opacity );
-        `
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        // Lumut hanya ada di tempat yang digambar dengan kuas lumut
+        float mossPaint = texture2D(uMossMap, (vRockWorld.xz + ${ROCK_MOSS_EXTENT.toFixed(1)} * 0.5) / ${ROCK_MOSS_EXTENT.toFixed(1)}).r;
+        float mossFine = rockFbm(vRockWorld * 3.1);
+        float moss = smoothstep(0.32, 0.6, mossPaint + (rockFbm(vRockWorld * 1.7) - 0.5) * 0.5 + (mossFine - 0.5) * 0.25) * smoothstep(-0.35, 0.25, vRockUp.y);
+        diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.03, 0.06, 0.015), vec3(0.1, 0.15, 0.03), mossFine), moss);`
     );
 };
 
-// 3. FUNGSI GEOMETRI BATU CHUNKY BERBONGKAH DENGAN VARIASI SEED
-function createDeformedRockGeometry(variantSeed = 0) {
-    let geo = new THREE.DodecahedronGeometry(1, 1);
-    const posAttr = geo.attributes.position;
-    const vertex = new THREE.Vector3();
+// 3. MODEL BATU: tiap mesh di dalam GLB menjadi satu pilihan batu (A, B, C, dst.)
+const ROCK_MODEL_FILE = 'assets/rocks/rocks-stylized.glb';
+const rockVariants = [];
+let rockAssetsPromise = null;
+let rocksPendingLoad = [];
+let rockBakeAfterLoad = false;
 
-    const phase = variantSeed * 1.618;
-    for (let i = 0; i < posAttr.count; i++) {
-        vertex.fromBufferAttribute(posAttr, i);
-
-        // Distorsi sinusoidal multi-frekuensi agar permukaan bergerigi namun utuh
-        const noiseX = Math.sin(vertex.y * 3.0 + phase) * 0.15;
-        const noiseY = Math.cos(vertex.z * 3.0 + phase * 0.8) * 0.15;
-        const noiseZ = Math.sin(vertex.x * 3.0 + phase * 1.2) * 0.15;
-
-        vertex.x += noiseX;
-        vertex.y += noiseY;
-        vertex.z += noiseZ;
-
-        posAttr.setXYZ(i, vertex.x, vertex.y, vertex.z);
-    }
-
-    if (geo.index) {
-        geo = geo.toNonIndexed();
-    }
-    geo.computeVertexNormals();
-    return geo;
+function rockVariantLabel(index) {
+    return 'Batu ' + String.fromCharCode(65 + index);
 }
 
-// Pre-create 6 geometry variations for high performance and visual diversity
-const rockGeoVariations = [];
-for (let v = 0; v < 6; v++) {
-    const g = createDeformedRockGeometry(v);
-    g._isShared = true;
-    rockGeoVariations.push(g);
+// Pivot di tengah, ukuran terpanjang menjadi 2 satuan, proporsi tiap batu tetap seperti modelnya
+function normalizeRockGeometry(mesh) {
+    mesh.updateWorldMatrix(true, false);
+    const geometry = mesh.geometry.clone();
+    geometry.applyMatrix4(mesh.matrixWorld);
+    geometry.computeBoundingBox();
+    const center = geometry.boundingBox.getCenter(new THREE.Vector3());
+    const size = geometry.boundingBox.getSize(new THREE.Vector3());
+    geometry.translate(-center.x, -center.y, -center.z);
+    const scale = 2 / Math.max(size.x, size.y, size.z);
+    geometry.scale(scale, scale, scale);
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    geometry._isShared = true;
+    return geometry;
 }
 
-function getRandomRockGeometry() {
-    const idx = Math.floor(Math.random() * rockGeoVariations.length);
-    return rockGeoVariations[idx];
+function ensureRockAssets() {
+    if (rockAssetsPromise) return rockAssetsPromise;
+    rockAssetsPromise = (async () => {
+        const buffer = window.PandoraAssetCache
+            ? await PandoraAssetCache.getAssetBuffer(ROCK_MODEL_FILE)
+            : await (await fetch(ROCK_MODEL_FILE)).arrayBuffer();
+        const gltf = await new Promise((resolve, reject) => new THREE.GLTFLoader().parse(buffer, '', resolve, reject));
+        const meshes = [];
+        gltf.scene.updateMatrixWorld(true);
+        gltf.scene.traverse((child) => {
+            if (child.isMesh) meshes.push(child);
+        });
+        meshes.sort((a, b) => a.name.localeCompare(b.name));
+        meshes.forEach(mesh => rockVariants.push(normalizeRockGeometry(mesh)));
+        rockMaterial.map = meshes[0].material.map;
+        rockMaterial.needsUpdate = true;
+
+        const pending = rocksPendingLoad;
+        rocksPendingLoad = [];
+        pending.forEach(recreateRock);
+        if (rockBakeAfterLoad) {
+            rockBakeAfterLoad = false;
+            bakeRocksForRuntime();
+        }
+        if (!window.PANDORA_RUNTIME) renderRockThumbnails();
+    })().catch((err) => {
+        console.error('[Rocks] Model batu gagal dimuat:', err);
+    });
+    return rockAssetsPromise;
+}
+window.ensureRockAssets = ensureRockAssets;
+
+// Gambar kecil tiap batu untuk kartu kuas di panel Studio
+function renderRockThumbnails() {
+    const cards = document.querySelectorAll('[data-rock-thumb]');
+    if (cards.length === 0) return;
+    const size = 96;
+    const thumbRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    thumbRenderer.setSize(size, size);
+    thumbRenderer.outputEncoding = THREE.sRGBEncoding;
+    const thumbScene = new THREE.Scene();
+    thumbScene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.1));
+    const light = new THREE.DirectionalLight(0xffffff, 1.3);
+    light.position.set(2, 3, 2.5);
+    thumbScene.add(light);
+    const thumbCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 20);
+    thumbCamera.position.set(2.8, 2.0, 3.6);
+    thumbCamera.lookAt(0, 0, 0);
+    const thumbMaterial = new THREE.MeshStandardMaterial({ map: rockMaterial.map, roughness: 0.95 });
+    cards.forEach((card) => {
+        const geometry = rockVariants[Number(card.dataset.rockThumb)];
+        if (!geometry) return;
+        const mesh = new THREE.Mesh(geometry, thumbMaterial);
+        thumbScene.add(mesh);
+        thumbRenderer.render(thumbScene, thumbCamera);
+        thumbScene.remove(mesh);
+        card.style.backgroundImage = `url(${thumbRenderer.domElement.toDataURL('image/png')})`;
+        card.style.backgroundSize = 'contain';
+        card.style.backgroundPosition = 'center';
+        card.style.backgroundRepeat = 'no-repeat';
+    });
+    thumbRenderer.forceContextLoss();
+    thumbRenderer.dispose();
+}
+
+// Tebing: lempeng ditumpuk berlapis, tiap lapis mundur sedikit dari kamera
+const CLIFF_LAYER_HEIGHT = 1.75;
+const CLIFF_LAYER_SETBACK = 0.55;
+const CLIFF_SLAB_WIDTH = 3.6;
+function placeCliffAt(point) {
+    if (rockVariants.length === 0) return;
+    const toCamera = new THREE.Vector3(camera.position.x - point.x, 0, camera.position.z - point.z);
+    if (toCamera.lengthSq() < 0.01) toCamera.set(0, 0, 1);
+    toCamera.normalize();
+    const tangent = new THREE.Vector3(toCamera.z, 0, -toCamera.x);
+    const facingYaw = Math.atan2(tangent.z, -tangent.x);
+    const width = Math.max(CLIFF_SLAB_WIDTH, rockParams.brushRadius * 2);
+    const slabsPerRow = Math.max(1, Math.round(width / CLIFF_SLAB_WIDTH));
+    const layers = Math.max(3, Math.round(rockParams.heightScale * 2.2));
+    const bound = (typeof groundSize !== 'undefined' ? groundSize / 2 : 75) - 1.0;
+
+    for (let layer = 0; layer < layers; layer++) {
+        for (let i = 0; i < slabsPerRow; i++) {
+            const along = (i - (slabsPerRow - 1) / 2) * CLIFF_SLAB_WIDTH + (Math.random() - 0.5) * 0.9;
+            const back = layer * CLIFF_LAYER_SETBACK + (Math.random() - 0.4) * 1.6;
+            const x = point.x + tangent.x * along - toCamera.x * back;
+            const z = point.z + tangent.z * along - toCamera.z * back;
+            if (Math.abs(x) > bound || Math.abs(z) > bound) continue;
+            const y = getTerrainHeightFast(x, z) + 0.2 + layer * CLIFF_LAYER_HEIGHT;
+            recreateRock({
+                posX: x, posY: y, posZ: z,
+                rotX: (Math.random() - 0.5) * 0.12,
+                rotY: facingYaw + (Math.random() - 0.5) * 0.7,
+                rotZ: (Math.random() - 0.5) * 0.12,
+                scaleX: 2.0 + Math.random() * 1.5,
+                scaleY: 1.3 + Math.random() * 1.1,
+                scaleZ: 1.7 + Math.random() * 1.0,
+                variant: Math.floor(Math.random() * rockVariants.length)
+            });
+        }
+    }
 }
 
 // 4. PENEMPATAN BEBATUAN (PLACE ROCKS)
 function placeRocksAt(intersectPoint, rockType = 'spawn_rock') {
-    const isBoulder = (rockType === 'spawn_boulder');
+    if (rockType === 'spawn_cliff') {
+        placeCliffAt(intersectPoint);
+        updateRockCountUI();
+        return;
+    }
+    if (rockVariants.length === 0) {
+        ensureRockAssets();
+        return;
+    }
+    // spawn_rock_a sampai spawn_rock_k memilih satu batu; spawn_rock mengacak semuanya
+    const letter = /^spawn_rock_([a-z])$/.exec(rockType);
+    const chosenVariant = letter ? letter[1].charCodeAt(0) - 97 : -1;
     const radius = rockParams.brushRadius;
-    const count = (radius < 1.5 || isBoulder) ? 1 : rockParams.rockDensity;
+    const count = radius < 1.5 ? 1 : rockParams.rockDensity;
 
     const groundBound = (typeof groundSize !== 'undefined' ? groundSize / 2 : 75) - 1.0;
 
@@ -134,7 +299,8 @@ function placeRocksAt(intersectPoint, rockType = 'spawn_rock') {
             continue;
         }
 
-        const rockGeo = getRandomRockGeometry();
+        const variant = rockVariants[chosenVariant] ? chosenVariant : Math.floor(Math.random() * rockVariants.length);
+        const rockGeo = rockVariants[variant];
         const rock = new THREE.Mesh(rockGeo, rockMaterial);
 
         // Rotasi natural: rotasi penuh pada sumbu vertikal Y, dengan kemiringan organik halus pada X & Z
@@ -144,13 +310,11 @@ function placeRocksAt(intersectPoint, rockType = 'spawn_rock') {
             (Math.random() - 0.5) * 0.2
         );
 
-        let scaleBase = rockParams.minSize + Math.random() * (rockParams.maxSize - rockParams.minSize);
-        if (isBoulder) {
-            scaleBase *= 2.2; // Bongkahan batu besar
-        }
+        const scaleBase = rockParams.minSize + Math.random() * (rockParams.maxSize - rockParams.minSize);
 
-        const widthScaleX = scaleBase * (0.7 + Math.random() * 0.6);
-        const widthScaleZ = scaleBase * (0.7 + Math.random() * 0.6);
+        // Variasi kecil saja, agar bentuk batu tetap seperti modelnya
+        const widthScaleX = scaleBase * (0.92 + Math.random() * 0.16);
+        const widthScaleZ = scaleBase * (0.92 + Math.random() * 0.16);
         const heightScale = scaleBase * rockParams.heightScale * (0.9 + Math.random() * 0.3);
 
         rock.scale.set(widthScaleX, heightScale, widthScaleZ);
@@ -160,7 +324,7 @@ function placeRocksAt(intersectPoint, rockType = 'spawn_rock') {
             : 0;
 
         // Posisikan sedikit masuk ke tanah agar kokoh menancap
-        rock.position.set(posX, groundY + (heightScale * 0.42), posZ);
+        rock.position.set(posX, groundY - (rockGeo.boundingBox.min.y + 0.05) * heightScale, posZ);
 
         rock.castShadow = true;
         rock.receiveShadow = true;
@@ -173,6 +337,7 @@ function placeRocksAt(intersectPoint, rockType = 'spawn_rock') {
         rock.userData = {
             isRock: true,
             rockType: rockType,
+            rockVariant: variant,
             scaleBase: scaleBase,
             heightScale: heightScale,
             minX: bb.min.x, maxX: bb.max.x,
@@ -222,6 +387,7 @@ function clearAllRocks() {
         rocksGroup.remove(rocksList[i]);
     }
     rocksList.length = 0;
+    rocksPendingLoad = [];
     clearRockChunks();
     updateRockCountUI();
 }
@@ -240,6 +406,11 @@ function clearRockChunks() {
 }
 
 function bakeRocksForRuntime() {
+    if (rockVariants.length === 0) {
+        rockBakeAfterLoad = true;
+        ensureRockAssets();
+        return;
+    }
     clearRockChunks();
     const cells = new Map();
     rocksList.forEach((rock) => {
@@ -271,7 +442,15 @@ function bakeRocksForRuntime() {
 
 // 7. RECREATE ROCK (UNTUK UNDO/REDO & LOAD MAP)
 function recreateRock(data) {
-    const rockGeo = getRandomRockGeometry();
+    if (rockVariants.length === 0) {
+        rocksPendingLoad.push(data);
+        ensureRockAssets();
+        return;
+    }
+    // Map lama belum menyimpan jenis batu: dipilih dari posisinya, jadi hasilnya selalu sama
+    const hasVariant = rockVariants[data.variant] !== undefined;
+    const variant = hasVariant ? data.variant : Math.abs(Math.floor(data.posX * 73.1 + data.posZ * 37.7)) % rockVariants.length;
+    const rockGeo = rockVariants[variant];
     const rock = new THREE.Mesh(rockGeo, rockMaterial);
 
     rock.position.set(data.posX, data.posY, data.posZ);
@@ -282,6 +461,9 @@ function recreateRock(data) {
         rock.scale.set(data.scaleX, data.scaleY, data.scaleZ);
     } else {
         rock.scale.set(1.5, 1.5, 1.5);
+    }
+    if (!hasVariant) {
+        rock.position.y = getTerrainHeightFast(data.posX, data.posZ) - (rockGeo.boundingBox.min.y + 0.05) * rock.scale.y;
     }
 
     rock.castShadow = true;
@@ -306,6 +488,7 @@ function recreateRock(data) {
         bottomY: bb.min.y
     };
 
+    rock.userData.rockVariant = variant;
     rocksGroup.add(rock);
     rocksList.push(rock);
     updateRockCountUI();
@@ -363,20 +546,7 @@ window.deleteRockByIndex = deleteRockByIndex;
 // 9. SET TEMA WARNA GRADASI BATU
 function setRockTheme(themeName) {
     rockParams.currentTheme = themeName;
-    if (themeName === 'mossy') {
-        rockParams.colorBottom.set(0x2d4a3e);
-        rockParams.colorTop.set(0x8fa382);
-    } else if (themeName === 'desert') {
-        rockParams.colorBottom.set(0x78350f);
-        rockParams.colorTop.set(0xfcd34d);
-    } else {
-        // Slate Anime (Default)
-        rockParams.colorBottom.set(0x64748b);
-        rockParams.colorTop.set(0xcbd5e1);
-    }
-
-    if (rockMaterial.userData.shader) {
-        rockMaterial.userData.shader.uniforms.colorBottom.value.copy(rockParams.colorBottom);
-        rockMaterial.userData.shader.uniforms.colorTop.value.copy(rockParams.colorTop);
-    }
+    // Warna model dipertahankan; tema hanya memberi rona di atas teksturnya
+    const tints = { reference: 0xffffff, slate: 0xcfd6df, mossy: 0xa9b89a, desert: 0xe3b77e };
+    rockMaterial.color.setHex(tints[themeName] !== undefined ? tints[themeName] : 0xffffff);
 }

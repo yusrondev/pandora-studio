@@ -1,11 +1,12 @@
 {
     "success": true,
-    "updatedAt": "2026-10-31T15:33:11+00:00",
+    "updatedAt": "2026-11-01T04:53:51+00:00",
     "general": {
         "basePath": "hero\/general\/",
         "files": [
             "backward.fbx",
             "block.fbx",
+            "combat\/kick\/flying-kick-old.fbx",
             "combat\/kick\/flying-kick.fbx",
             "combat\/punch\/flying-punch.fbx",
             "dead\/dead1.fbx",

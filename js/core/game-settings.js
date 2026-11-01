@@ -5,20 +5,20 @@
 // Ponsel: nama dan isi preset tetap, tetapi resolusi dan pembaruan bayangan Tinggi dibuat lebih ringan agar tidak cepat panas
 const PANDORA_IS_PHONE = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 const GRAPHICS_PRESETS = {
-    low:    { label: 'Rendah', leafFraction: 0.55, maxDpr: 0.85, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.35, grassFraction: 0.4,  waterDepthEvery: 6, antialias: false, gpu: 'default' },
-    medium: { label: 'Sedang', leafFraction: 0.8, maxDpr: 1.0,  shadowSize: 1024, shadowEvery: 3, cloudFraction: 0.65, grassFraction: 0.7,  waterDepthEvery: 4, antialias: false, gpu: 'default' },
-    high:   { label: 'Tinggi', leafFraction: 1, maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
-    ultra:  { label: 'Ultra',  leafFraction: 1, maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 1, antialias: true,  gpu: 'high-performance' },
+    low:    { label: 'Rendah', leafFraction: 0.55, shafts: 0.3, maxDpr: 0.85, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.35, grassFraction: 0.4,  waterDepthEvery: 6, antialias: false, gpu: 'default' },
+    medium: { label: 'Sedang', leafFraction: 0.8, shafts: 0.6, maxDpr: 1.0,  shadowSize: 1024, shadowEvery: 3, cloudFraction: 0.65, grassFraction: 0.7,  waterDepthEvery: 4, antialias: false, gpu: 'default' },
+    high:   { label: 'Tinggi', postFx: !PANDORA_IS_PHONE, leafFraction: 1, shafts: 1, maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
+    ultra:  { label: 'Ultra',  postFx: !PANDORA_IS_PHONE, leafFraction: 1, shafts: 1, maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 1, antialias: true,  gpu: 'high-performance' },
     auto:   { label: 'Rekomendasi' } // Isinya salah satu tingkat AUTO_QUALITY_LEVELS, dipilih dari FPS perangkat
 };
 
 // Tingkat kualitas Rekomendasi, dari yang paling ringan
 const AUTO_QUALITY_LEVELS = [
-    { label: 'Sangat rendah', leafFraction: 0.4, maxDpr: 0.75, shadowSize: 1024, shadowEvery: 6, cloudFraction: 0.25, grassFraction: 0.25, waterDepthEvery: 6, antialias: false, gpu: 'default' },
+    { label: 'Sangat rendah', leafFraction: 0.4, shafts: 0, maxDpr: 0.75, shadowSize: 1024, shadowEvery: 6, cloudFraction: 0.25, grassFraction: 0.25, waterDepthEvery: 6, antialias: false, gpu: 'default' },
     GRAPHICS_PRESETS.low,
-    { label: 'Rendah+', leafFraction: 0.7, maxDpr: 1.0, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.5, grassFraction: 0.55, waterDepthEvery: 5, antialias: false, gpu: 'default' },
+    { label: 'Rendah+', leafFraction: 0.7, shafts: 0.45, maxDpr: 1.0, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.5, grassFraction: 0.55, waterDepthEvery: 5, antialias: false, gpu: 'default' },
     GRAPHICS_PRESETS.medium,
-    { label: 'Sedang+', leafFraction: 0.9, maxDpr: 1.25, shadowSize: 2048, shadowEvery: 3, cloudFraction: 0.85, grassFraction: 0.85, waterDepthEvery: 3, antialias: true, gpu: 'high-performance' },
+    { label: 'Sedang+', leafFraction: 0.9, shafts: 0.8, maxDpr: 1.25, shadowSize: 2048, shadowEvery: 3, cloudFraction: 0.85, grassFraction: 0.85, waterDepthEvery: 3, antialias: true, gpu: 'high-performance' },
     GRAPHICS_PRESETS.high,
     GRAPHICS_PRESETS.ultra
 ];

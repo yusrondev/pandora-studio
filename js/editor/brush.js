@@ -234,7 +234,11 @@ function handleBrushAction(event) {
         const rockBrush = (typeof selectRockBrush !== 'undefined') ? selectRockBrush.value : 'none';
         if (rockBrush !== 'none') {
             const radius = (typeof sliderRockRadius !== 'undefined') ? parseFloat(sliderRockRadius.value) : 4.0;
-            if (rockBrush === 'remove') {
+            if (rockBrush === 'spawn_moss' || rockBrush === 'erase_moss') {
+                // Kuas lumut mengikuti batu yang ditunjuk, bukan tanah di belakangnya
+                const rockHit = raycaster.intersectObjects(rocksList, false)[0];
+                paintRockMoss(rockHit ? rockHit.point : hitPoint, radius, rockBrush === 'erase_moss');
+            } else if (rockBrush === 'remove') {
                 removeRocksInRadius(hitPoint, radius);
             } else {
                 placeRocksAt(hitPoint, rockBrush);

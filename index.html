@@ -260,9 +260,11 @@
                 </span>
                 <span>Sky</span>
             </label>
+            <button type="button" id="btn-reference-palette" class="cinematic-mini-select" title="Ubah warna tanah, rumput, dan batu map ini ke palet referensi. Baru tetap setelah map disimpan.">Palet Referensi</button>
             <select id="select-sky-preset" class="cinematic-mini-select" style="max-width:130px; height:22px;">
                 <option value="day" selected>Siang</option>
                 <option value="sunset">Sore</option>
+                <option value="reference">Referensi</option>
                 <option value="night">Malam (Aurora &amp; Bintang)</option>
             </select>
         </div>
@@ -1586,6 +1588,7 @@
                             <option value="birch_teal">Birch Teal</option>
                             <option value="birch_red">Birch Autumn</option>
                             <option value="pine">Pine Tree (Cemara)</option>
+                            <option value="pine_ref">Konifer Referensi</option>
                         </select>
                         <div class="spawner-card-grid tree-grid" id="tree-picker-grid">
                             <button type="button" class="spawner-card active" data-value="none"
@@ -1673,6 +1676,18 @@
                                     </svg>
                                 </div>
                                 <span class="card-name">Pine Cemara</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="pine_ref"
+                                title="Konifer Referensi (dahan bertingkat melengkung)">
+                                <div class="card-preview pine-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="36" rx="10" ry="2" fill="rgba(0,0,0,0.35)" />
+                                        <rect x="19" y="10" width="2" height="26" fill="#7a3a22" />
+                                        <path d="M20 3 L25 12 L21 11 L27 20 L21 18 L30 29 L20 25 L10 29 L19 18 L13 20 L19 11 L15 12 Z" fill="#2c5a26" />
+                                        <path d="M20 3 L23 11 L20 10 L24 19 L20 17 L26 27 L20 24 Z" fill="#8ea63a" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Konifer Referensi</span>
                             </button>
                         </div>
                     </div>
@@ -1895,8 +1910,21 @@
                             </div>
                             <select id="select-rock-brush" style="display:none;">
                                 <option value="none">Off</option>
-                                <option value="spawn_rock">Batu Anime</option>
-                                <option value="spawn_boulder">Bongkahan</option>
+                                <option value="spawn_rock">Batu Acak</option>
+                                <option value="spawn_rock_a">Batu A</option>
+                                <option value="spawn_rock_b">Batu B</option>
+                                <option value="spawn_rock_c">Batu C</option>
+                                <option value="spawn_rock_d">Batu D</option>
+                                <option value="spawn_rock_e">Batu E</option>
+                                <option value="spawn_rock_f">Batu F</option>
+                                <option value="spawn_rock_g">Batu G</option>
+                                <option value="spawn_rock_h">Batu H</option>
+                                <option value="spawn_rock_i">Batu I</option>
+                                <option value="spawn_rock_j">Batu J</option>
+                                <option value="spawn_rock_k">Batu K</option>
+                                <option value="spawn_cliff">Tebing</option>
+                                <option value="spawn_moss">Kuas Lumut</option>
+                                <option value="erase_moss">Hapus Lumut</option>
                                 <option value="remove">Hapus Batu</option>
                             </select>
                             <div class="spawner-card-grid rock-grid" id="rock-picker-grid">
@@ -1919,18 +1947,78 @@
                                             <polygon points="26,12 33,20 28,22" fill="#475569" />
                                         </svg>
                                     </div>
-                                    <span class="card-name">Batu Anime</span>
+                                    <span class="card-name">Batu Acak</span>
                                 </button>
-                                <button type="button" class="spawner-card" data-value="spawn_boulder" title="Tanam Bongkahan Karang / Batu Besar">
-                                    <div class="card-preview rock-boulder-bg">
+                                <button type="button" class="spawner-card" data-value="spawn_rock_a" title="Tanam Batu A">
+                                    <div class="card-preview" data-rock-thumb="0" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu A</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_b" title="Tanam Batu B">
+                                    <div class="card-preview" data-rock-thumb="1" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu B</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_c" title="Tanam Batu C">
+                                    <div class="card-preview" data-rock-thumb="2" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu C</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_d" title="Tanam Batu D">
+                                    <div class="card-preview" data-rock-thumb="3" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu D</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_e" title="Tanam Batu E">
+                                    <div class="card-preview" data-rock-thumb="4" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu E</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_f" title="Tanam Batu F">
+                                    <div class="card-preview" data-rock-thumb="5" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu F</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_g" title="Tanam Batu G">
+                                    <div class="card-preview" data-rock-thumb="6" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu G</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_h" title="Tanam Batu H">
+                                    <div class="card-preview" data-rock-thumb="7" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu H</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_i" title="Tanam Batu I">
+                                    <div class="card-preview" data-rock-thumb="8" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu I</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_j" title="Tanam Batu J">
+                                    <div class="card-preview" data-rock-thumb="9" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu J</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_rock_k" title="Tanam Batu K">
+                                    <div class="card-preview" data-rock-thumb="10" style="background-color:#2b2b30;"></div>
+                                    <span class="card-name">Batu K</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_cliff" title="Tanam Tebing berlapis. Lebar mengikuti radius kuas, tinggi mengikuti Tinggi Bebatuan.">
+                                    <div class="card-preview" style="background:#2a2118;">
                                         <svg viewBox="0 0 40 40" class="card-svg">
-                                            <ellipse cx="20" cy="35" rx="16" ry="4" fill="rgba(0,0,0,0.45)" />
-                                            <polygon points="6,34 9,18 19,8 31,11 36,26 31,35" fill="#475569" />
-                                            <polygon points="19,8 31,11 27,24 16,21" fill="#64748b" />
-                                            <polygon points="19,8 16,21 9,18" fill="#94a3b8" />
+                                            <path d="M6 35 L8 28 L13 27 L14 21 L19 20 L20 13 L27 12 L29 19 L33 21 L34 35 Z" fill="#5e5144" />
+                                            <path d="M8 28 L13 27 M14 21 L19 20 M20 13 L27 12 M11 31 L30 30 M15 25 L31 24 M21 17 L29 16" stroke="#241f1a" stroke-width="1" />
                                         </svg>
                                     </div>
-                                    <span class="card-name">Bongkahan</span>
+                                    <span class="card-name">Tebing</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_moss" title="Kuas Lumut: gambar di permukaan batu">
+                                    <div class="card-preview" style="background:#2a2118;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <path d="M7 34 L10 18 L20 9 L31 13 L34 34 Z" fill="#5e5144" />
+                                            <path d="M12 22 Q18 13 27 16 Q31 24 22 27 Q15 29 12 22 Z" fill="#5f7a22" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Kuas Lumut</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="erase_moss" title="Hapus Lumut: gambar di permukaan batu">
+                                    <div class="card-preview" style="background:#2a2118;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <path d="M7 34 L10 18 L20 9 L31 13 L34 34 Z" fill="#5e5144" />
+                                            <path d="M12 22 Q18 13 27 16 Q31 24 22 27 Q15 29 12 22 Z" fill="#3b3128" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Hapus Lumut</span>
                                 </button>
                                 <button type="button" class="spawner-card" data-value="remove" title="Hapus Bebatuan dalam Radius">
                                     <div class="card-preview rock-remove-bg">
@@ -1994,16 +2082,17 @@
                         <div class="control-group">
                             <label>
                                 <span>Tinggi Bebatuan</span>
-                                <span id="val-rock-height-scale" class="val-badge">1.5</span>
+                                <span id="val-rock-height-scale" class="val-badge">1.0</span>
                             </label>
-                            <input type="range" id="slider-rock-height-scale" min="0.5" max="4.0" step="0.1" value="1.5">
+                            <input type="range" id="slider-rock-height-scale" min="0.5" max="4.0" step="0.1" value="1">
                         </div>
 
                         <!-- PRESET TEMA WARNA GRADASI -->
                         <div class="control-group">
                             <label>Tema Gradasi Warna</label>
                             <select id="select-rock-theme" class="cinematic-mini-select" style="width:100%; height:24px;">
-                                <option value="slate" selected>Slate Gray Anime (Default)</option>
+                                <option value="reference" selected>Referensi</option>
+                                <option value="slate">Slate Gray Anime (Default)</option>
                                 <option value="mossy">Mossy Green (Berlumut)</option>
                                 <option value="desert">Desert Sandstone (Batu Gurun)</option>
                             </select>
@@ -2294,6 +2383,8 @@
                                 <option value="spawn_bush_wide">Semak Rendah</option>
                                 <option value="spawn_bush_giant">Semak Hutan</option>
                                 <option value="spawn_bush_autumn">Semak Emas</option>
+                                <option value="spawn_bush_ref">Semak Referensi</option>
+                                <option value="spawn_bush_ref_gold">Semak Referensi Emas</option>
                                 <option value="remove">Hapus Semak</option>
                             </select>
                             <div class="spawner-card-grid bush-grid" id="bush-picker-grid">
@@ -2357,6 +2448,32 @@
                                         </svg>
                                     </div>
                                     <span class="card-name">Semak Emas</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_bush_ref" title="Tanam Semak Referensi">
+                                    <div class="card-preview" style="background:#1d2a12;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <ellipse cx="20" cy="35" rx="14" ry="3" fill="rgba(0,0,0,0.4)" />
+                                            <path d="M20 34 Q19 24 11 18 M20 34 Q21 22 29 16 M20 34 L20 14" stroke="#4a3a1a" stroke-width="1" fill="none" />
+                                            <ellipse cx="11" cy="18" rx="4" ry="3" fill="#5f7a22" /><ellipse cx="17" cy="23" rx="4" ry="3" fill="#5f7a22" />
+                                            <ellipse cx="29" cy="16" rx="4" ry="3" fill="#a3b538" /><ellipse cx="24" cy="23" rx="4" ry="3" fill="#5f7a22" />
+                                            <ellipse cx="20" cy="13" rx="4" ry="3" fill="#a3b538" /><ellipse cx="13" cy="27" rx="4" ry="3" fill="#a3b538" />
+                                            <ellipse cx="28" cy="27" rx="4" ry="3" fill="#5f7a22" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Semak Referensi</span>
+                                </button>
+                                <button type="button" class="spawner-card" data-value="spawn_bush_ref_gold" title="Tanam Semak Referensi Emas">
+                                    <div class="card-preview" style="background:#1d2a12;">
+                                        <svg viewBox="0 0 40 40" class="card-svg">
+                                            <ellipse cx="20" cy="35" rx="14" ry="3" fill="rgba(0,0,0,0.4)" />
+                                            <path d="M20 34 Q19 24 11 18 M20 34 Q21 22 29 16 M20 34 L20 14" stroke="#4a3a1a" stroke-width="1" fill="none" />
+                                            <ellipse cx="11" cy="18" rx="4" ry="3" fill="#b98a18" /><ellipse cx="17" cy="23" rx="4" ry="3" fill="#b98a18" />
+                                            <ellipse cx="29" cy="16" rx="4" ry="3" fill="#ecc23a" /><ellipse cx="24" cy="23" rx="4" ry="3" fill="#b98a18" />
+                                            <ellipse cx="20" cy="13" rx="4" ry="3" fill="#ecc23a" /><ellipse cx="13" cy="27" rx="4" ry="3" fill="#ecc23a" />
+                                            <ellipse cx="28" cy="27" rx="4" ry="3" fill="#b98a18" />
+                                        </svg>
+                                    </div>
+                                    <span class="card-name">Semak Referensi Emas</span>
                                 </button>
                                 <button type="button" class="spawner-card" data-value="remove" title="Hapus / Cabut Semak">
                                     <div class="card-preview">
@@ -3185,6 +3302,7 @@
     <script src="js/core/cinematic-player.js"></script>
     <script src="js/core/imported-objects.js"></script>
     <script src="js/core/boss-kill-cam.js"></script>
+    <script src="js/core/post-fx.js"></script>
     <script src="js/environment/sky.js"></script>
     <script src="js/editor/history.js"></script>
     <script src="js/terrain/terrain.js"></script>
@@ -3193,6 +3311,7 @@
     <script src="js/trees/foliage-materials.js"></script>
     <script src="js/trees/falling-leaves.js"></script>
     <script src="js/trees/tree-generators.js"></script>
+    <script src="js/trees/reference-conifer.js"></script>
     <script src="js/grass/grass.js"></script>
     <script src="js/rocks/rock-manager.js"></script>
     <script src="js/flowers/flower-manager.js"></script>

@@ -114,10 +114,13 @@ window.addEventListener('keyup', (e) => {
 
 // User preferred camera distance (bisa di zoom in/out bebas oleh user)
 // Jarak awal kamera: seluruh tubuh karakter terlihat dengan ruang di sekitarnya
-const PLAY_CAMERA_START_DIST = 6.8;
-const PLAY_CAMERA_START_PITCH = 11.0;
-const PLAY_CAMERA_PITCH = 11.0;      // Sudut normal, cukup rendah agar pemandangan dan cakrawala terlihat
-const PLAY_CAMERA_RUN_PITCH = 14.0;  // Sedikit naik saat berlari agar arah depan tetap terbaca
+const PLAY_CAMERA_START_DIST = 3.5;
+const PLAY_CAMERA_START_PITCH = 6.0;
+const PLAY_CAMERA_PITCH = 6.0;       // Sudut normal: setinggi bahu, hampir datar
+const PLAY_CAMERA_RUN_PITCH = 8.0;   // Sedikit naik saat berlari agar arah depan tetap terbaca
+// Karakter di kiri layar, arah depan lapang. Yang digeser gambarnya, bukan posisi kamera,
+// karena yaw kamera dihitung ulang dari posisi kamera tiap frame.
+const PLAY_CAMERA_SHOULDER = 0.13;   // Terhadap lebar layar
 const PLAY_CAMERA_BOSS_PITCH = 13.0;
 let userPreferredDist = PLAY_CAMERA_START_DIST;
 let currentCamDist = PLAY_CAMERA_START_DIST;
@@ -1991,7 +1994,7 @@ function updateWolfPhysics(dt, elapsed) {
 
     const userTargetDist = THREE.MathUtils.clamp(userPreferredDist, 2.4, 18.0);
     // Jarak zoom mendekat saat di ujung map
-    const edgeZoomDist = Math.max(4.2, userTargetDist * 0.75);
+    const edgeZoomDist = Math.min(userTargetDist, Math.max(4.2, userTargetDist * 0.75));
     let effectiveTargetDist = THREE.MathUtils.lerp(userTargetDist, edgeZoomDist, smoothEdge);
 
     // Encounter hanya menambah jarak di atas pilihan zoom user, tidak mengubah userPreferredDist,
@@ -2046,6 +2049,10 @@ function updateWolfPhysics(dt, elapsed) {
     currentCamDist += (effectiveTargetDist - currentCamDist) * Math.min(1.0, zoomLerpRate * dt);
 
     camera.position.copy(controls.target).addScaledVector(rayDir, currentCamDist);
+
+    // Saat bertarung karakter kembali ke tengah agar musuh dan karakter sama-sama terlihat
+    // setViewOffset menurunkan aspect dari ukuran penuh, jadi ukurannya harus mengikuti aspect layar
+    camera.setViewOffset(camera.aspect, 1, camera.aspect * PLAY_CAMERA_SHOULDER * (1 - Math.max(bossWeight, combatWeight)), 0, camera.aspect, 1);
 
     // Mencegah kamera menembus lantai tanah (ground floor clamp)
     if (typeof getTerrainHeightFast === 'function') {

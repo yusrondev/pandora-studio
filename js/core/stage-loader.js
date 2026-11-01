@@ -69,6 +69,14 @@ function applyMapDataToScene(mapData) {
             applySkyPreset(env.skyPreset);
         }
 
+        if (typeof setRockTheme === 'function') {
+            // 'slate' dulu tersimpan otomatis sebagai bawaan lama, bukan pilihan pengguna
+            const rockTheme = (!env.rockTheme || env.rockTheme === 'slate') ? 'reference' : env.rockTheme;
+            setRockTheme(rockTheme);
+            const selectRock = document.getElementById('select-rock-theme');
+            if (selectRock) selectRock.value = rockTheme;
+        }
+
         // Sun Azimuth & Elevation
         const sliderAzim = document.getElementById('slider-azimuth');
         const sliderElev = document.getElementById('slider-elevation');
@@ -172,6 +180,7 @@ function applyMapDataToScene(mapData) {
             else if (tData.type === 'birch_teal') tree = createGenshinBirchTree(birchTealMat, lCount, bCount, curv);
             else if (tData.type === 'birch_red') tree = createGenshinBirchTree(autumnRedMat, lCount, bCount, curv);
             else if (tData.type === 'pine') tree = createGenshinPineTree(pineEmeraldMat, lCount, curv);
+            else if (tData.type === 'pine_ref') tree = createReferenceConifer(lCount, curv);
 
             if (!tree) return;
 
@@ -216,6 +225,7 @@ function applyMapDataToScene(mapData) {
     if (Array.isArray(mapData.rocks) && typeof recreateRock === 'function') {
         mapData.rocks.forEach(rData => recreateRock(rData));
     }
+    if (typeof setRockMossStrokes === 'function') setRockMossStrokes(mapData.rockMoss);
     if (window.PANDORA_RUNTIME) bakeRocksForRuntime();
 
     // 6. Terapkan Bunga (Flowers)

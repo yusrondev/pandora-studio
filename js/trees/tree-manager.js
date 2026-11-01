@@ -213,7 +213,7 @@ function refreshLayerUI() {
                 }, 10);
             }
             const rData = rock.userData || {};
-            const rName = rData.rockType === 'spawn_boulder' ? 'Bongkahan Boulder' : 'Batu Slate';
+            const rName = typeof rockVariantLabel === 'function' ? rockVariantLabel(rData.rockVariant || 0) : 'Batu';
             const rPos = rock.position;
 
             li.innerHTML = `
@@ -423,6 +423,7 @@ function spawnTreeAtLocation(typeCode, posX, posZ) {
     else if (typeCode === 'birch_teal') tree = createGenshinBirchTree(birchTealMat, 1000, initialBranchCount, initialCurvature);
     else if (typeCode === 'birch_red') tree = createGenshinBirchTree(autumnRedMat, 900, initialBranchCount, initialCurvature);
     else if (typeCode === 'pine') tree = createGenshinPineTree(pineEmeraldMat, 3100, initialCurvature);
+    else if (typeCode === 'pine_ref') tree = createReferenceConifer(0, initialCurvature);
 
     if (!tree) {
         resetSeed();

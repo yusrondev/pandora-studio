@@ -426,13 +426,14 @@ $attachmentFiles = [];
 array_walk_recursive($attachments['characters'], function ($value, $key) use (&$attachmentFiles) {
     if (is_string($value) && strpos($value, 'assets/attachments/') === 0) $attachmentFiles[$value] = true;
 });
-$hasAttachments = count($attachmentFiles) > 0 || count($importedModelFiles) > 0;
+// Model batu selalu ikut, jadi pemuat GLB selalu dibutuhkan
+$hasAttachments = true;
 
 // --- Engine: hanya file gameplay ---
 $gameScripts = [
-    'js/core/asset-cache.js', 'js/core/random.js', 'js/core/game-settings.js', 'js/core/scene.js', 'js/core/cinematic-shared.js', 'js/core/cinematic-player.js', 'js/core/imported-objects.js', 'js/core/boss-kill-cam.js', 'js/runtime/game-shim.js',
+    'js/core/asset-cache.js', 'js/core/random.js', 'js/core/game-settings.js', 'js/core/scene.js', 'js/core/cinematic-shared.js', 'js/core/cinematic-player.js', 'js/core/imported-objects.js', 'js/core/boss-kill-cam.js', 'js/core/post-fx.js', 'js/runtime/game-shim.js',
     'js/environment/sky.js', 'js/terrain/terrain.js', 'js/water/water-manager.js', 'js/environment/fog-manager.js',
-    'js/trees/foliage-materials.js', 'js/trees/falling-leaves.js', 'js/trees/tree-generators.js', 'js/grass/grass.js',
+    'js/trees/foliage-materials.js', 'js/trees/falling-leaves.js', 'js/trees/tree-generators.js', 'js/trees/reference-conifer.js', 'js/grass/grass.js',
     'js/rocks/rock-manager.js', 'js/flowers/flower-manager.js', 'js/ferns/fern-manager.js', 'js/bushes/bush-manager.js',
     'js/butterflies/butterfly-manager.js', 'js/trees/tree-manager.js', 'js/character/play-state.js', 'js/environment/sun.js',
     'js/character/fox-sound.js', 'js/character/fox-species.js', 'js/character/fox-materials.js',
@@ -516,6 +517,7 @@ file_put_contents($dest . '/config/attachments.json', json_encode($attachments, 
 if (is_file($root . '/config/hitboxes.json')) copy($root . '/config/hitboxes.json', $dest . '/config/hitboxes.json');
 
 copyTree($root . '/hero/general', $dest . '/hero/general');
+copyTree($root . '/assets/rocks', $dest . '/assets/rocks');
 foreach ($bundled as $id) {
     copyTree($root . '/hero/' . $id, $dest . '/hero/' . $id);
 }
@@ -535,6 +537,9 @@ file_put_contents($dest . '/README.txt', str_replace("\n", "\r\n", <<<TXT
 MAIN DI KOMPUTER INI
   Windows    : klik dua kali Play.bat
   macOS/Linux: jalankan ./play.sh (butuh python3)
+
+KREDIT ASET
+  Model batu: "Free Pack - Rocks Stylized" oleh PolyOne Studio (sketchfab.com/polyone), CC-BY-4.0.
 
 PERLINDUNGAN
   Aset terenkripsi dan hanya dibuka oleh game ini. Jangan bagikan folder deploy/
@@ -613,7 +618,7 @@ if (is_dir($dest . '/assets/imported') && is_file($root . '/tools/protect/node_m
     }
 }
 
-sealPaths($dest, ['hero', 'assets/attachments', 'assets/imported', 'data/maps', 'data/project.json', 'config'], $master, $packDir, 0.6, 0.85);
+sealPaths($dest, ['hero', 'assets/attachments', 'assets/imported', 'assets/rocks', 'data/maps', 'data/project.json', 'config'], $master, $packDir, 0.6, 0.85);
 if (is_dir($dest . '/assets') && count(scandir($dest . '/assets')) === 2) rmdir($dest . '/assets');
 $keySalt = random_int(1, 200);
 file_put_contents($dest . '/' . $keyFile, buildKeyModule($secret, $keySalt));

@@ -305,6 +305,7 @@ function serializeMapData(name, existingId = null) {
         planeColor: pickerPlaneColor ? pickerPlaneColor.value : '#cbb6b8',
         showGrid: toggleGrid ? toggleGrid.checked : true,
         skyPreset: selectSky ? selectSky.value : 'day',
+rockTheme: typeof rockParams !== 'undefined' ? rockParams.currentTheme : undefined,
         sunAzimuth: sliderAzim ? parseFloat(sliderAzim.value) : 300,
         sunElevation: sliderElev ? parseFloat(sliderElev.value) : 45,
         windSpeed: sliderWind ? parseFloat(sliderWind.value) : 1.0,
@@ -320,6 +321,7 @@ function serializeMapData(name, existingId = null) {
             colors: terrainColors
         },
         trees: trees,
+        rockMoss: typeof getRockMossStrokes === 'function' ? getRockMossStrokes() : [],
         rocks: typeof rocksList !== 'undefined' ? rocksList.map(r => ({
             posX: r.position.x,
             posY: r.position.y,
@@ -329,7 +331,8 @@ function serializeMapData(name, existingId = null) {
             rotZ: r.rotation.z,
             scaleX: r.scale.x,
             scaleY: r.scale.y,
-            scaleZ: r.scale.z
+            scaleZ: r.scale.z,
+            variant: r.userData ? r.userData.rockVariant : undefined
         })) : [],
         flowers: typeof flowersList !== 'undefined' ? flowersList.map(f => ({
             posX: f.posX !== undefined ? f.posX : (f.position ? f.position.x : 0),

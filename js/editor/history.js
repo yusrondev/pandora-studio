@@ -54,6 +54,7 @@ function captureStateSnapshot() {
                 seed: t.userData.seed // Menyimpan seed pohon untuk menjaga konsistensi bentuk
             };
         }),
+        rockMoss: typeof getRockMossStrokes === 'function' ? getRockMossStrokes().slice() : [],
         rocks: (typeof rocksList !== 'undefined') ? rocksList.map(r => ({
             posX: r.position.x,
             posY: r.position.y,
@@ -63,7 +64,8 @@ function captureStateSnapshot() {
             rotZ: r.rotation.z,
             scaleX: r.scale.x,
             scaleY: r.scale.y,
-            scaleZ: r.scale.z
+            scaleZ: r.scale.z,
+            variant: r.userData ? r.userData.rockVariant : undefined
         })) : [],
         flowers: (typeof flowersList !== 'undefined') ? flowersList.map(f => ({
             posX: f.posX !== undefined ? f.posX : (f.position ? f.position.x : 0),
@@ -207,6 +209,9 @@ function applyState(state) {
             } else if (tType === 'pine') {
                 tree = createGenshinPineTree(pineEmeraldMat, lCount, curv);
                 foliageMat = pineEmeraldMat;
+            } else if (tType === 'pine_ref') {
+                tree = createReferenceConifer(lCount, curv);
+                foliageMat = tree.userData.foliageMat;
             } else {
                 tree = createGenshinOakTree(oakGreenMat, lCount, bCount, curv);
                 foliageMat = oakGreenMat;
@@ -260,6 +265,7 @@ function applyState(state) {
     if (state.rocks && typeof rocksList !== 'undefined' && typeof recreateRock === 'function') {
         clearAllRocks();
         state.rocks.forEach(rData => recreateRock(rData));
+        if (typeof setRockMossStrokes === 'function') setRockMossStrokes(state.rockMoss);
     }
 
     // 3c. Restore Bunga (Flowers)

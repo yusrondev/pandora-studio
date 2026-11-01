@@ -2,7 +2,7 @@
    Aset disimpan sebagai data/p/<nama-acak>.bin: 12 byte IV, data AES-256-GCM, 16 byte tag. */
 (function () {
     const CONFIG = __CONFIG__;
-    const COVERED = /^(hero\/|assets\/attachments\/|assets\/imported\/|data\/maps\/|data\/project\.json$|config\/)/;
+    const COVERED = /^(hero\/|assets\/attachments\/|assets\/imported\/|assets\/rocks\/|data\/maps\/|data\/project\.json$|config\/)/;
     const API_PATH = /(^|\/)api\/[^\/]+\.php/;
     const TOKEN_LIFETIME_S = 172800;
     const nativeFetch = window.fetch.bind(window);

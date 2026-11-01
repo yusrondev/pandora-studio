@@ -1253,7 +1253,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
         blockDrainPool: 0,
 
         startBlock() {
-            if (this.isDead || this.isTakingHit || this.isFlyingPunch || this.isFlyingKick) return;
+            if (this.isBlocking || this.isDead || this.isTakingHit || this.isFlyingPunch || this.isFlyingKick) return;
 
             // Cek Stamina: Jika stamina habis atau exhausted, tidak bisa block
             if (typeof FoxStaminaState !== 'undefined') {
@@ -1272,7 +1272,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.jumpImpulsePending = false;
 
             this.isBlocking = true;
-            this.isBlockHeld = true;
+            this.isBlockHeld = false; // Durasi tetap: menahan tombol tidak memperpanjang
             this.blockStartTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
             this.blockMinEndTime = this.blockStartTime + 450; // Minimal durasi jika tombol hanya diklik/tap cepat
 
@@ -1293,6 +1293,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 if (this.targetWeights) this.targetWeights[k] = 0.0;
             });
             if (this.targetWeights) this.targetWeights.block = 1.0;
+            if (this === wolfCharacter) PandoraBarrier.activate(this);
         },
 
         stopBlock(force = false) {
@@ -1455,8 +1456,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 this.onBlockHit(attackerPos);
                 return;
             }
-            // Rage Mode: damage tetap masuk, tetapi tubuh tidak tersentak
-            if (this.rageActive) return;
+            // Rage Mode dan backflip: damage tetap masuk, tetapi tubuh tidak tersentak
+            if (this.rageActive || this.isBackflipping) return;
             // Super-Armor Animasi: Saat mengeksekusi flyingPunch (Run + Punch) atau flyingKick,
             // jangan menginterupsi / membatalkan animasi walaupun Fox tetap menerima damage HP dari AI enemy
             if (this.isFlyingPunch || this.isFlyingKick) {
@@ -1547,6 +1548,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
          * - Saat jalan biasa / diam: Combo kick biasa (kick1 -> kick2 -> kick3)
          */
         triggerKick() {
+            if (this.isBackflipping) return;
             if (this.isDead || this.isTakingHit) return;
 
             // KUNCI ANTI-SPAM FLYING KICK / FLYING PUNCH:
@@ -1763,6 +1765,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
          * - Saat jalan biasa / diam: Combo punch biasa (punch1 -> punch2 -> punch3)
          */
         triggerPunch() {
+            if (this.isBackflipping) return;
             if (this.isDead || this.isTakingHit) return;
 
             // KUNCI ANTI-SPAM FLYING PUNCH / FLYING KICK:
@@ -2153,6 +2156,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
                         if (fwd.dot(toEnemy) >= cfg.minDot) {
                             hitAny = true;
                             const strikeDamage = Math.round(((attackKey === 'flyingKick') ? 45 : (attackKey === 'flyingPunch' ? 40 : (attackKey && attackKey.startsWith('kick') ? 30 : 25))) * (this.damageScale || 1));
+                            if (!this.isAlly && typeof StyleMeter !== 'undefined') StyleMeter.registerHit(strikeDamage);
                             const isCrit = (attackKey === 'flyingKick' || attackKey === 'flyingPunch' || attackKey === 'kick3' || attackKey === 'punch3');
                             const hitWorldPos = new THREE.Vector3(ePos.x, ePos.y + 0.95, ePos.z);
                             if (item.ai && typeof item.ai.takeDamage === 'function') {
@@ -3443,6 +3447,7 @@ function createEnemyFoxTreeModel(speciesKey = 'enemy-foxtree') {
         },
 
         triggerPunch() {
+            if (this.isBackflipping) return;
             if (this.isDead || this.isTakingHit || this.isPunching) return;
             const comboKeys = ['punch1', 'punch2', 'punch3'];
             const nextKey = comboKeys[this.punchComboIndex % comboKeys.length];

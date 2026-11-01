@@ -1184,15 +1184,14 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
 
 /* Karakter berada sekitar tengah layar, jadi busur ini selalu terasa di sampingnya */
 #stamina-gauge {
-    --stamina-size: clamp(72px, 24vh, 124px);
+    --stamina-size: clamp(52px, 17vh, 88px);
     position: fixed;
-    /* Garis busur ada di 90% lebar kotak, jadi jaraknya dihitung dari sana */
-    left: calc(50% + clamp(38px, 6vw, 70px) - var(--stamina-size) * 0.9);
-    top: 58%;
+    left: 0;
+    top: 0;
+    will-change: transform;
     z-index: 9990;
     width: var(--stamina-size);
     height: var(--stamina-size);
-    margin-top: calc(var(--stamina-size) / -2);
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.3s ease-out;
@@ -1206,6 +1205,92 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
 .stamina-fill { stroke: #ffb71c; stroke-width: 4.6; }
 .stamina-tip { stroke: #fff4c8; stroke-width: 1.6; stroke-linecap: round; }
 #stamina-gauge.critical .stamina-fill { stroke: #ff4d3d; }
+
+/* Penghitung hit dan peringkat gaya di sisi kanan */
+#style-meter {
+    position: fixed;
+    right: max(22px, env(safe-area-inset-right));
+    top: 13vh;
+    z-index: 9990;
+    min-width: 128px;
+    text-align: right;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(14px);
+    transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+    font-family: 'Pandora Title', Georgia, serif;
+    /* Warna atas, tengah, dan bawah huruf: makin tinggi peringkat makin membara */
+    --style-top: #f4f1e6;
+    --style-mid: #bfc4c9;
+    --style-low: #5f6871;
+}
+#style-meter.visible { opacity: 1; transform: none; }
+#style-meter[data-rank="C"] { --style-top: #e4f6ff; --style-mid: #63bdf2; --style-low: #1561a8; }
+#style-meter[data-rank="B"] { --style-top: #f1ffd2; --style-mid: #8fdc42; --style-low: #1f7f2c; }
+#style-meter[data-rank="A"] { --style-top: #fff7bd; --style-mid: #ffc92e; --style-low: #d9770b; }
+#style-meter[data-rank="S"] { --style-top: #fff3b0; --style-mid: #ff9a1a; --style-low: #c9320a; }
+#style-meter[data-rank="SS"] { --style-top: #ffe08a; --style-mid: #ff5e1a; --style-low: #a80f12; }
+#style-meter[data-rank="SSS"] { --style-top: #fff; --style-mid: #ff3b4e; --style-low: #7a0636; }
+.style-rank, .style-bar { display: none; }
+#style-meter.has-rank .style-rank, #style-meter.has-rank .style-bar { display: block; }
+.style-rank {
+    width: max-content;
+    margin-left: auto;
+    padding: 0 8px 4px 14px;
+    font-size: clamp(50px, 15vh, 84px);
+    font-weight: 900;
+    font-style: italic;
+    line-height: 1;
+    color: transparent;
+    background: linear-gradient(180deg, var(--style-top) 12%, var(--style-mid) 52%, var(--style-low) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 1px rgba(25, 6, 0, 0.95)) drop-shadow(0 3px 0 rgba(25, 6, 0, 0.85));
+}
+.style-rank.rise { animation: style-rank-rise 0.3s cubic-bezier(0.2, 1.5, 0.4, 1); }
+@keyframes style-rank-rise { from { transform: scale(1.7); opacity: 0.2; } to { transform: scale(1); opacity: 1; } }
+/* Bilah dengan ujung logam, seperti indikator pada game aksi klasik */
+.style-bar {
+    position: relative;
+    box-sizing: border-box;
+    width: 124px;
+    height: 9px;
+    margin: 1px 6px 7px auto;
+    padding: 2px;
+    background: #15130f;
+    border: 1px solid #a9a491;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.style-bar::before, .style-bar::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    background: linear-gradient(135deg, #f4efdc, #8b8672 55%, #4a463a);
+    border: 1px solid #1a1812;
+    transform: translateY(-50%) rotate(45deg);
+}
+.style-bar::before { left: -7px; }
+.style-bar::after { right: -7px; }
+.style-bar i { display: block; height: 100%; background: linear-gradient(180deg, #d9ff7a, #5ee02a 45%, #1c8f1e); transform-origin: left center; transform: scaleX(0); }
+.style-hits { padding-right: 6px; transition: opacity 0.2s; }
+.style-hits b {
+    display: inline-block;
+    padding: 0 3px 2px 6px;
+    font-size: clamp(24px, 7.5vh, 38px);
+    font-weight: 900;
+    font-style: italic;
+    line-height: 1;
+    color: transparent;
+    background: linear-gradient(180deg, #fff 18%, #ffe27a 58%, #e8931a 92%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 2px 0 rgba(25, 6, 0, 0.85));
+}
+.style-hits span { margin-left: 5px; color: #f4e7c8; font-size: clamp(10px, 2.8vh, 13px); font-weight: 700; letter-spacing: 0.2em; text-shadow: 0 1px 2px #000; }
+.style-hits.pop b { animation: style-hit-pop 0.16s ease-out; }
+@keyframes style-hit-pop { from { transform: scale(1.35); } to { transform: scale(1); } }
 
 /* Layar pemuatan saat pindah stage lewat portal */
 .stage-travel {
@@ -1239,4 +1324,12 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
     font: 500 11px 'Inter', 'Segoe UI', sans-serif;
     letter-spacing: 0.14em;
     text-transform: uppercase;
+}
+
+/* Di perangkat sentuh, blur di atas canvas yang terus bergerak sangat memboroskan GPU */
+@media (pointer: coarse) {
+    * {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
 }

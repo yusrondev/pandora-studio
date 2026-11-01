@@ -565,6 +565,17 @@
         const attacker = getAttackerInstance();
         if (!attacker || !attacker.actions) return;
 
+        // Backflip dimuat terpisah dari animasi karakter, jadi aksinya dibuat saat pertama dipilih
+        if (activeAnimKey === 'backflip' && !attacker.actions.backflip && attacker.mixer) {
+            PandoraBackflip.load().then(() => {
+                if (PandoraBackflip.clip && activeAnimKey === 'backflip') {
+                    PandoraBackflip.getAction(attacker);
+                    playSelectedAnimationOnAttacker(true);
+                }
+            });
+            return;
+        }
+
         const targetAction = attacker.actions[activeAnimKey];
 
         // 1. Nol-kan semua action terlebih dahulu (hati-hati terhadap alias seperti punch === punch1, kick === kick1)
@@ -654,6 +665,31 @@
     // ===================================================================
     // 4. MANAJEMEN DATA HITBOX & UI SINKRONISASI
     // ===================================================================
+    // Jarak lompatan hanya berlaku untuk animasi Backflip
+    function syncBackflipDistanceRow(animCfg, speedSlider) {
+        let row = document.getElementById('ht-backflip-distance-row');
+        if (!row && speedSlider) {
+            row = document.createElement('label');
+            row.id = 'ht-backflip-distance-row';
+            row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; font-size:11px;';
+            row.innerHTML = '<span>Jarak Lompat</span><input type="number" id="ht-backflip-distance" min="0" max="12" step="0.1" style="width:64px;">';
+            speedSlider.parentElement.insertAdjacentElement('afterend', row);
+            row.querySelector('input').addEventListener('input', (event) => {
+                const value = parseFloat(event.target.value);
+                if (!isNaN(value) && value >= 0) getCurrentAnimConfig().distance = value;
+            });
+        }
+        if (!row) return;
+        const isBackflip = activeAnimKey === 'backflip';
+        row.style.display = isBackflip ? 'flex' : 'none';
+        if (isBackflip) {
+            const input = row.querySelector('input');
+            if (document.activeElement !== input) {
+                input.value = typeof animCfg.distance === 'number' ? animCfg.distance : BACKFLIP_DEFAULT_DISTANCE;
+            }
+        }
+    }
+
     function getCurrentAnimConfig() {
         return HS.getAnimationConfig(activeCharKey, activeAnimKey);
     }
@@ -960,6 +996,7 @@
             if (speedSlider) speedSlider.value = curSpeed.toFixed(2);
             if (speedNum && document.activeElement !== speedNum) speedNum.value = curSpeed.toFixed(2);
             if (speedVal) speedVal.innerText = `${curSpeed.toFixed(2)}x`;
+            syncBackflipDistanceRow(animCfg, speedSlider);
 
             // Highlight tombol preset speed
             const quickSpeedBtns = document.querySelectorAll('.btn-quick-speed');

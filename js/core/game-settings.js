@@ -4,25 +4,29 @@
    ========================================================= */
 // Ponsel: nama dan isi preset tetap, tetapi resolusi dan pembaruan bayangan Tinggi dibuat lebih ringan agar tidak cepat panas
 const PANDORA_IS_PHONE = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+// Ponsel di tingkat rendah: beban terbesar adalah piksel rumput, daun, dan awan.
+// foliageShadow mematikan pembacaan bayangan per piksel; coverPower < 0.5 berarti helai tidak diperbesar penuh saat dikurangi.
+const PHONE_LOW = { grassFar: 28, shadowTreeFar: 14, leafFraction: 0.32, shafts: 0.15, shadowSize: 512, cloudFraction: 0.08, cloudPuffScale: 1.5, grassFraction: 0.22, foliageShadow: false, coverPower: 0.32, fogFraction: 0.35 };
+const PHONE_LOWEST = { grassFar: 22, shadowTreeFar: 10, leafFraction: 0.22, maxDpr: 0.7, cloudFraction: 0.05, cloudPuffScale: 1.7, grassFraction: 0.14, foliageShadow: false, coverPower: 0.28, shadowDynamicEvery: 3, fogFraction: 0.25 };
 const GRAPHICS_PRESETS = {
-    low:    { label: 'Rendah', leafFraction: 0.55, shafts: 0.3, maxDpr: 0.85, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.35, grassFraction: 0.4,  waterDepthEvery: 6, antialias: false, gpu: 'default' },
-    medium: { label: 'Sedang', leafFraction: 0.8, shafts: 0.6, maxDpr: 1.0,  shadowSize: 1024, shadowEvery: 3, cloudFraction: 0.65, grassFraction: 0.7,  waterDepthEvery: 4, antialias: false, gpu: 'default' },
-    high:   { label: 'Tinggi', postFx: !PANDORA_IS_PHONE, leafFraction: 1, shafts: 1, maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
-    ultra:  { label: 'Ultra',  postFx: !PANDORA_IS_PHONE, leafFraction: 1, shafts: 1, maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 1, antialias: true,  gpu: 'high-performance' },
+    low:    { label: 'Rendah', shadowDynamicEvery: 2, grassFar: 36, shadowTreeFar: 24, leafFraction: 0.55, shafts: 0.3, maxDpr: 0.85, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.25, grassFraction: 0.4,  waterDepthEvery: 12, antialias: false, gpu: 'default', ...(PANDORA_IS_PHONE ? PHONE_LOW : {}) },
+    medium: { label: 'Sedang', grassFar: 54, shadowTreeFar: 38, leafFraction: 0.8, shafts: 0.6, maxDpr: 1.0,  shadowSize: 1024, shadowEvery: 3, cloudFraction: 0.65, grassFraction: 0.7,  waterDepthEvery: 4, antialias: false, gpu: 'default' },
+    high:   { label: 'Tinggi', grassFar: 90, shadowTreeFar: 60, postFx: !PANDORA_IS_PHONE, leafFraction: 1, shafts: 1, maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
+    ultra:  { label: 'Ultra', grassFar: 140, shadowTreeFar: 90,  postFx: !PANDORA_IS_PHONE, leafFraction: 1, shafts: 1, maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 1, antialias: true,  gpu: 'high-performance' },
     auto:   { label: 'Rekomendasi' } // Isinya salah satu tingkat AUTO_QUALITY_LEVELS, dipilih dari FPS perangkat
 };
 
 // Tingkat kualitas Rekomendasi, dari yang paling ringan
 const AUTO_QUALITY_LEVELS = [
-    { label: 'Sangat rendah', leafFraction: 0.4, shafts: 0, maxDpr: 0.75, shadowSize: 1024, shadowEvery: 6, cloudFraction: 0.25, grassFraction: 0.25, waterDepthEvery: 6, antialias: false, gpu: 'default' },
+    { label: 'Sangat rendah', shadowDynamicEvery: 2, grassFar: 28, shadowTreeFar: 18, leafFraction: 0.4, shafts: 0, maxDpr: 0.75, shadowSize: 512, shadowEvery: 6, cloudFraction: 0.12, grassFraction: 0.25, waterDepthEvery: 24, antialias: false, gpu: 'default', ...(PANDORA_IS_PHONE ? PHONE_LOWEST : {}) },
     GRAPHICS_PRESETS.low,
-    { label: 'Rendah+', leafFraction: 0.7, shafts: 0.45, maxDpr: 1.0, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.5, grassFraction: 0.55, waterDepthEvery: 5, antialias: false, gpu: 'default' },
+    { label: 'Rendah+', grassFar: 44, shadowTreeFar: 30, leafFraction: 0.7, shafts: 0.45, maxDpr: 1.0, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.5, grassFraction: 0.55, waterDepthEvery: 5, antialias: false, gpu: 'default' },
     GRAPHICS_PRESETS.medium,
-    { label: 'Sedang+', leafFraction: 0.9, shafts: 0.8, maxDpr: 1.25, shadowSize: 2048, shadowEvery: 3, cloudFraction: 0.85, grassFraction: 0.85, waterDepthEvery: 3, antialias: true, gpu: 'high-performance' },
+    { label: 'Sedang+', grassFar: 68, shadowTreeFar: 45, leafFraction: 0.9, shafts: 0.8, maxDpr: 1.25, shadowSize: 2048, shadowEvery: 3, cloudFraction: 0.85, grassFraction: 0.85, waterDepthEvery: 3, antialias: true, gpu: 'high-performance' },
     GRAPHICS_PRESETS.high,
     GRAPHICS_PRESETS.ultra
 ];
-const AUTO_START_PHONE = 3;
+const AUTO_START_PHONE = 1;
 const AUTO_START_DESKTOP = 5;
 const AUTO_TARGET_FPS = 60;
 const AUTO_WINDOW_MS = 2000;
@@ -32,6 +36,7 @@ const AUTO_DROP_WINDOWS = 2;          // Dua jendela berturut-turut, agar satu s
 const AUTO_RAISE_AFTER_MS = 30000;
 const AUTO_FAILED_RAISE_MS = 20000;   // Turun lagi secepat ini setelah naik berarti tingkat itu batas perangkat
 const AUTO_CEILING_MS = 24 * 3600 * 1000;
+const AUTO_WEAK_FPS = 30;              // Tingkat terendah pun tidak sanggup 60: stabil 30 FPS lebih nyaman dan tidak sepanas itu
 const AUTO_FRAME_GAP_MS = 400;        // Jeda sepanjang ini berarti loading atau tab tersembunyi, bukan beban render
 const FPS_LIMIT_OPTIONS = [30, 60, 90, 120, 144, 0]; // 0 = tanpa batas
 const EDITOR_FPS_OPTIONS = [30, 60];
@@ -89,6 +94,7 @@ const PandoraAutoQuality = {
     level: AUTO_START_DESKTOP,
     ceiling: AUTO_QUALITY_LEVELS.length - 1,
     ceilingAt: 0,
+    capped: false,
     windowStart: 0,
     lastFrame: 0,
     frames: 0,
@@ -102,6 +108,7 @@ const PandoraAutoQuality = {
             const stored = JSON.parse(localStorage.getItem(this.storageKey) || 'null');
             if (!stored) return;
             if (AUTO_QUALITY_LEVELS[stored.level]) this.level = stored.level;
+            this.capped = !!stored.capped && Date.now() - (stored.ceilingAt || 0) < AUTO_CEILING_MS;
             // Batas lama dicoba ulang sesekali: perangkat yang tadinya panas bisa jadi kini sanggup
             if (AUTO_QUALITY_LEVELS[stored.ceiling] && Date.now() - stored.ceilingAt < AUTO_CEILING_MS) {
                 this.ceiling = stored.ceiling;
@@ -112,7 +119,7 @@ const PandoraAutoQuality = {
 
     persist() {
         try {
-            localStorage.setItem(this.storageKey, JSON.stringify({ level: this.level, ceiling: this.ceiling, ceilingAt: this.ceilingAt }));
+            localStorage.setItem(this.storageKey, JSON.stringify({ level: this.level, ceiling: this.ceiling, ceilingAt: this.ceilingAt, capped: this.capped }));
         } catch (err) { /* tetap berlaku untuk sesi ini */ }
     },
 
@@ -128,6 +135,10 @@ const PandoraAutoQuality = {
         this.persist();
         applyGraphicsPreset();
         this.restart(now);
+    },
+
+    limit(frameLimit) {
+        return this.capped ? Math.min(frameLimit > 0 ? frameLimit : AUTO_WEAK_FPS, AUTO_WEAK_FPS) : frameLimit;
     },
 
     // Dipanggil tiap frame yang digambar saat bermain
@@ -148,7 +159,17 @@ const PandoraAutoQuality = {
         if (fps < target * AUTO_DROP_RATIO) {
             this.stableSince = now;
             this.slowWindows++;
-            if (this.slowWindows < AUTO_DROP_WINDOWS || this.level === 0) return;
+            if (this.slowWindows < AUTO_DROP_WINDOWS) return;
+            if (this.level === 0) {
+                if (!this.capped) {
+                    this.capped = true;
+                    this.ceiling = 0;
+                    this.ceilingAt = Date.now();
+                    this.persist();
+                    this.restart(now);
+                }
+                return;
+            }
             if (now - this.raisedAt < AUTO_FAILED_RAISE_MS) {
                 this.ceiling = this.level - 1;
                 this.ceilingAt = Date.now();
@@ -159,7 +180,7 @@ const PandoraAutoQuality = {
         this.slowWindows = 0;
         if (fps < target * AUTO_RAISE_RATIO) {
             this.stableSince = now;
-        } else if (now - this.stableSince >= AUTO_RAISE_AFTER_MS && this.level < this.ceiling) {
+        } else if (!this.capped && now - this.stableSince >= AUTO_RAISE_AFTER_MS && this.level < this.ceiling) {
             this.raisedAt = now;
             this.setLevel(this.level + 1, now);
         }
@@ -172,6 +193,15 @@ PandoraSettings.load();
 window.PandoraSettings = PandoraSettings;
 
 let appliedGrassFraction = PandoraSettings.preset().grassFraction;
+
+function foliageShadowValue() {
+    return PandoraSettings.preset().foliageShadow === false ? 0 : 1;
+}
+
+// Helai yang dikurangi dibuat lebih lebar agar tetap rimbun, sebanding dengan coverPower preset
+function foliageCoverage(fraction) {
+    return Math.pow(fraction, -(PandoraSettings.preset().coverPower || 0.5));
+}
 
 // Terapkan preset yang bisa berubah tanpa memuat ulang halaman
 function applyGraphicsPreset() {
@@ -200,7 +230,18 @@ function applyGraphicsPreset() {
 
     if (typeof cloudInstancedMesh !== 'undefined' && typeof globalPuffIndex !== 'undefined') {
         cloudInstancedMesh.count = Math.round(globalPuffIndex * preset.cloudFraction);
+        volumetricCloudMat.uniforms.uPuffScale.value = preset.cloudPuffScale || 1;
     }
+
+    if (window.applyFogQuality) window.applyFogQuality();
+
+    const shadowValue = foliageShadowValue();
+    if (typeof foliageMaterialsList !== 'undefined') {
+        foliageMaterialsList.forEach((material) => {
+            if (material.uniforms.uFoliageShadow) material.uniforms.uFoliageShadow.value = shadowValue;
+        });
+    }
+    if (typeof instancedGrassMesh !== 'undefined' && instancedGrassMesh) instancedGrassMesh.material.uniforms.uFoliageShadow.value = shadowValue;
 }
 
 PandoraSettings.onChange((key) => {
@@ -277,7 +318,7 @@ const SettingsPanel = {
 
         const autoInfo = document.createElement('div');
         autoInfo.className = 'pset-hint';
-        const autoInfoText = () => 'Otomatis mengikuti kemampuan perangkat, saat ini: ' + AUTO_QUALITY_LEVELS[PandoraAutoQuality.level].label + '.';
+        const autoInfoText = () => 'Otomatis mengikuti kemampuan perangkat, saat ini: ' + AUTO_QUALITY_LEVELS[PandoraAutoQuality.level].label + (PandoraAutoQuality.capped ? ', 30 FPS.' : '.');
         if (values.graphics === 'auto') autoInfo.textContent = autoInfoText();
 
         body.appendChild(this.section('Grafis'));
@@ -425,7 +466,7 @@ const FpsCounter = {
         this.el.style.display = 'block';
         this.frames++;
         if (now - this.since >= 500) {
-            const auto = PandoraSettings.values.graphics === 'auto' ? ' | ' + PandoraSettings.preset().label : '';
+            const auto = ' | ' + PandoraSettings.preset().label + (PandoraSettings.values.graphics === 'auto' ? ' (auto)' : '');
             const info = renderer.info.render;
             this.el.textContent = Math.round(this.frames * 1000 / (now - this.since)) + ' FPS' + auto
                 + ' | ' + info.calls + ' dc | ' + Math.round(info.triangles / 1000) + 'k'

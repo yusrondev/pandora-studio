@@ -322,6 +322,8 @@ rockTheme: typeof rockParams !== 'undefined' ? rockParams.currentTheme : undefin
         },
         trees: trees,
         rockMoss: typeof getRockMossStrokes === 'function' ? getRockMossStrokes() : [],
+        plateaus: PandoraPlateaus.serialize(),
+        dirt: getDirtStrokes().slice(),
         rocks: typeof rocksList !== 'undefined' ? rocksList.map(r => ({
             posX: r.position.x,
             posY: r.position.y,

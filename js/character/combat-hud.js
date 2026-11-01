@@ -107,6 +107,10 @@ window.PlayerHealthState = PlayerHealthState;
 const STAMINA_ARC_SPAN = 52;      // Derajat dari sumbu datar ke tiap ujung busur
 const STAMINA_ARC_RADIUS = 40;    // Dalam viewBox 100
 const STAMINA_COMET_DEGREES = 42; // Panjang ekor komet
+const STAMINA_SMOOTHING = 12;
+const STAMINA_ANCHOR_HEIGHT = 0.68; // Dikali skala karakter: kira-kira setinggi dada
+const STAMINA_SIDE_GAP = 0.1;       // Terhadap tinggi layar, jarak dari tubuh karakter
+const STAMINA_FOLLOW_RATE = 16;
 const StaminaGauge = {
     el: null,
     fill: null,
@@ -114,7 +118,12 @@ const StaminaGauge = {
     tip: null,
     gradient: null,
     length: 0,
-    lastPct: -1,
+    anchor: new THREE.Vector3(),
+    screenX: null,
+    screenY: null,
+    shown: 1,
+    rendered: -1,
+    lastTime: 0,
 
     polar(deg) {
         const rad = deg * Math.PI / 180;
@@ -173,20 +182,161 @@ const StaminaGauge = {
         this.tip.setAttribute('y2', tipY + dy);
     },
 
+    // Nilai tampilan mengejar stamina dengan halus; stamina sendiri berubah per langkah aksi
+    // Menempel di sisi kanan karakter pada layar. Sedikit dihaluskan supaya tidak ikut bergetar mengikuti animasi.
+    follow(dt) {
+        if (typeof wolfCharacter === 'undefined' || !wolfCharacter || !wolfCharacter.root) return;
+        const root = wolfCharacter.root;
+        this.anchor.set(root.position.x, root.position.y + STAMINA_ANCHOR_HEIGHT * root.scale.y, root.position.z);
+        camera.updateMatrixWorld();
+        this.anchor.project(camera);
+        if (this.anchor.z > 1) return;
+        const size = this.el.offsetWidth;
+        const targetX = (this.anchor.x * 0.5 + 0.5) * window.innerWidth + STAMINA_SIDE_GAP * window.innerHeight - size * 0.5;
+        const targetY = (0.5 - this.anchor.y * 0.5) * window.innerHeight - size * 0.5;
+        const blend = this.screenX === null ? 1 : 1 - Math.exp(-STAMINA_FOLLOW_RATE * dt);
+        this.screenX = this.screenX === null ? targetX : this.screenX + (targetX - this.screenX) * blend;
+        this.screenY = this.screenY === null ? targetY : this.screenY + (targetY - this.screenY) * blend;
+        const maxX = window.innerWidth - size;
+        const maxY = window.innerHeight - size;
+        this.el.style.transform = `translate3d(${Math.max(0, Math.min(maxX, this.screenX)).toFixed(1)}px, ${Math.max(0, Math.min(maxY, this.screenY)).toFixed(1)}px, 0)`;
+    },
+
     update() {
         if (!this.el) this.build();
-        const playing = typeof isPlayMode !== 'undefined' && isPlayMode && !PlayerHealthState.isDead;
-        const ratio = Math.max(0, Math.min(1, FoxStaminaState.current / FoxStaminaState.max));
-        const sprinting = typeof keys !== 'undefined' && keys.shift;
-        this.el.classList.toggle('visible', !!(playing && (ratio < 0.995 || sprinting)));
+        const now = performance.now();
+        const dt = Math.min(0.1, (now - this.lastTime) / 1000);
+        this.lastTime = now;
+        this.follow(dt);
 
-        const pct = Math.round(ratio * 200) / 2;
-        if (pct === this.lastPct) return;
-        this.lastPct = pct;
-        this.render(pct / 100);
+        const playing = typeof isPlayMode !== 'undefined' && isPlayMode && !PlayerHealthState.isDead;
+        const inSkill = !!window.PandoraUltimateCasting;
+        this.el.classList.toggle('visible', !!(playing && !inSkill));
+
+        const ratio = Math.max(0, Math.min(1, FoxStaminaState.current / FoxStaminaState.max));
+        this.shown += (ratio - this.shown) * (1 - Math.exp(-STAMINA_SMOOTHING * dt));
+        if (Math.abs(this.shown - this.rendered) > 0.0004) {
+            this.rendered = this.shown;
+            this.render(this.shown);
+        }
         this.el.classList.toggle('critical', ratio <= 0.15);
     }
 };
+
+// Penghitung hit dan peringkat gaya bertarung di sisi kanan layar
+const STYLE_RANKS = [
+    { letter: 'D', score: 8 },
+    { letter: 'C', score: 24 },
+    { letter: 'B', score: 44 },
+    { letter: 'A', score: 68 },
+    { letter: 'S', score: 98 },
+    { letter: 'SS', score: 134 },
+    { letter: 'SSS', score: 176 }
+];
+const STYLE_MAX_SCORE = 220;
+const STYLE_HIT_SCORE = 5;
+const STYLE_COMBO_SECONDS = 3;       // Hit lebih lambat dari ini memulai hitungan baru
+const STYLE_DECAY_DELAY = 1.2;
+const STYLE_DECAY_RATE = 7;
+const STYLE_HURT_FACTOR = 0.45;      // Terkena serangan memangkas sebagian besar peringkat
+
+const StyleMeter = {
+    el: null,
+    score: 0,
+    hits: 0,
+    sinceHit: Infinity,
+    rankIndex: -1,
+    lastTime: 0,
+    lastHealth: null,
+
+    build() {
+        this.el = document.createElement('div');
+        this.el.id = 'style-meter';
+        this.el.innerHTML = '<div class="style-rank"></div><div class="style-bar"><i></i></div><div class="style-hits"><b>0</b><span>HIT</span></div>';
+        this.rankEl = this.el.querySelector('.style-rank');
+        this.barEl = this.el.querySelector('.style-bar i');
+        this.hitsWrap = this.el.querySelector('.style-hits');
+        this.hitsEl = this.el.querySelector('.style-hits b');
+        document.body.appendChild(this.el);
+    },
+
+    replay(element, className) {
+        element.classList.remove(className);
+        void element.offsetWidth;
+        element.classList.add(className);
+    },
+
+    // Pindah stage memulai hitungan baru
+    reset() {
+        this.score = 0;
+        this.hits = 0;
+        this.sinceHit = Infinity;
+        this.rankIndex = -1;
+        this.lastHealth = null;
+    },
+
+    // Hanya serangan pemain sendiri yang dihitung, bukan bunshin
+    registerHit(damage) {
+        if (!this.el) this.build();
+        if (this.sinceHit > STYLE_COMBO_SECONDS) this.hits = 0;
+        this.hits++;
+        this.sinceHit = 0;
+        const comboBonus = 1 + Math.min(1, this.hits * 0.04);
+        this.score = Math.min(STYLE_MAX_SCORE, this.score + (STYLE_HIT_SCORE + (damage || 0) * 0.1) * comboBonus);
+        this.hitsEl.textContent = this.hits;
+        this.replay(this.hitsWrap, 'pop');
+        this.renderRank();
+    },
+
+    currentRank() {
+        let index = -1;
+        for (let i = 0; i < STYLE_RANKS.length; i++) {
+            if (this.score >= STYLE_RANKS[i].score) index = i;
+        }
+        return index;
+    },
+
+    renderRank() {
+        const index = this.currentRank();
+        if (index === this.rankIndex) return;
+        const rising = index > this.rankIndex;
+        this.rankIndex = index;
+        if (index < 0) return;
+        this.rankEl.textContent = STYLE_RANKS[index].letter;
+        this.el.dataset.rank = STYLE_RANKS[index].letter;
+        if (rising) this.replay(this.rankEl, 'rise');
+    },
+
+    update() {
+        if (!this.el) this.build();
+        const now = performance.now();
+        const dt = Math.min(0.1, (now - this.lastTime) / 1000);
+        this.lastTime = now;
+        this.sinceHit += dt;
+
+        const playing = typeof isPlayMode !== 'undefined' && isPlayMode;
+        if (!playing || PlayerHealthState.isDead) {
+            this.score = 0;
+            this.hits = 0;
+        }
+        if (this.lastHealth !== null && PlayerHealthState.current < this.lastHealth) this.score *= STYLE_HURT_FACTOR;
+        this.lastHealth = PlayerHealthState.current;
+        if (this.sinceHit > STYLE_DECAY_DELAY) this.score = Math.max(0, this.score - STYLE_DECAY_RATE * dt);
+        if (this.sinceHit > STYLE_COMBO_SECONDS) this.hits = 0;
+        this.renderRank();
+
+        const hasRank = this.rankIndex >= 0;
+        this.el.classList.toggle('visible', playing && (hasRank || this.hits > 0));
+        this.el.classList.toggle('has-rank', hasRank);
+        this.hitsWrap.style.opacity = this.hits > 0 ? 1 : 0;
+        if (hasRank) {
+            const low = STYLE_RANKS[this.rankIndex].score;
+            const next = this.rankIndex + 1 < STYLE_RANKS.length ? STYLE_RANKS[this.rankIndex + 1].score : STYLE_MAX_SCORE;
+            this.barEl.style.transform = `scaleX(${Math.min(1, (this.score - low) / (next - low)).toFixed(3)})`;
+        }
+    }
+};
+window.StyleMeter = StyleMeter;
 
 const CombatHUD = {
     bossContainer: null,
@@ -293,6 +443,7 @@ const CombatHUD = {
 
         // 1. KAPSUL STAMINA
         if (typeof FoxStaminaState !== 'undefined') StaminaGauge.update();
+        StyleMeter.update();
 
         // 2. DETEKSI BOSS & UPDATE BAR BOSS TENGAH ATAS
         // Boss aktif ditentukan fox-physics agar bar dan kamera selalu sepakat soal radius

@@ -434,14 +434,14 @@ $gameScripts = [
     'js/core/asset-cache.js', 'js/core/random.js', 'js/core/game-settings.js', 'js/core/scene.js', 'js/core/cinematic-shared.js', 'js/core/cinematic-player.js', 'js/core/imported-objects.js', 'js/core/boss-kill-cam.js', 'js/core/post-fx.js', 'js/runtime/game-shim.js',
     'js/environment/sky.js', 'js/terrain/terrain.js', 'js/water/water-manager.js', 'js/environment/fog-manager.js',
     'js/trees/foliage-materials.js', 'js/trees/falling-leaves.js', 'js/trees/tree-generators.js', 'js/trees/reference-conifer.js', 'js/grass/grass.js',
-    'js/rocks/rock-manager.js', 'js/flowers/flower-manager.js', 'js/ferns/fern-manager.js', 'js/bushes/bush-manager.js',
+    'js/rocks/rock-manager.js', 'js/terrain/terrain-shapes.js', 'js/flowers/flower-manager.js', 'js/ferns/fern-manager.js', 'js/bushes/bush-manager.js',
     'js/butterflies/butterfly-manager.js', 'js/trees/tree-manager.js', 'js/character/play-state.js', 'js/environment/sun.js',
     'js/character/fox-sound.js', 'js/character/fox-species.js', 'js/character/fox-materials.js',
     'js/character/attachment-system.js', 'js/character/hitbox-system.js', 'js/character/fox-model.js',
     'js/character/fox-stats.js', 'js/character/fox-physics.js', 'js/character/fox-spawner.js',
     'js/items/plasma-weapon.js', 'js/items/item-box-manager.js', 'js/items/item-system.js', 'js/character/fox-ai.js',
     'js/character/combat-hud.js', 'js/character/mobile-controls.js', 'js/character/player-spawn.js',
-    'js/character/play-mode.js', 'js/character/ultimate-system.js', 'js/core/render-loop.js', 'js/environment/portal-manager.js', 'js/environment/trigger-manager.js',
+    'js/character/play-mode.js', 'js/character/backflip.js', 'js/character/barrier.js', 'js/character/ultimate-system.js', 'js/core/render-loop.js', 'js/environment/portal-manager.js', 'js/environment/trigger-manager.js',
     'js/core/stage-loader.js', 'js/runtime/game-runtime.js'
 ];
 $gameStyles = ['css/base.css', 'css/icons.css', 'css/play-hud.css', 'css/items.css', 'css/cinematic-fx.css', 'css/settings-panel.css', 'css/mobile-controls.css', 'css/game-runtime.css'];
@@ -518,6 +518,7 @@ if (is_file($root . '/config/hitboxes.json')) copy($root . '/config/hitboxes.jso
 
 copyTree($root . '/hero/general', $dest . '/hero/general');
 copyTree($root . '/assets/rocks', $dest . '/assets/rocks');
+copyFiles($root, $dest, ['hero/red-mature/backflip.fbx']);
 foreach ($bundled as $id) {
     copyTree($root . '/hero/' . $id, $dest . '/hero/' . $id);
 }

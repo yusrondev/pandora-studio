@@ -112,9 +112,20 @@ function handleBrushAction(event) {
     const intersects = raycaster.intersectObject(ground);
 
     if (intersects.length > 0) {
-        const hitPoint = intersects[0].point;
-
         const sculptMode = selectTerrainMode.value;
+        if (sculptMode.startsWith('shape_') && sculptMode !== 'shape_remove') {
+            PandoraPlateaus.drag(sculptMode, intersects[0].point);
+            return;
+        }
+
+        // Kuas lain mengikuti bidang dataran yang ditunjuk, bukan tanah di belakangnya
+        const plateauHit = raycaster.intersectObjects(PandoraPlateaus.meshes, false)[0];
+        const hitPoint = plateauHit && plateauHit.distance < intersects[0].distance ? plateauHit.point : intersects[0].point;
+
+        if (sculptMode === 'shape_remove') {
+            PandoraPlateaus.removeAt(hitPoint);
+            return;
+        }
         if (sculptMode !== 'none') {
             sculptTerrain(hitPoint, sculptMode, parseFloat(sliderSculptRadius.value));
             return;
@@ -123,7 +134,12 @@ function handleBrushAction(event) {
         const roadBrush = selectRoadBrush.value;
         if (roadBrush !== 'none') {
             const roadRad = parseFloat(sliderRoadRadius.value);
-            paintRoadOnTerrain(hitPoint, roadBrush, roadRad);
+            if (roadBrush === 'road_earth' || roadBrush === 'road_snow') {
+                paintDirt(hitPoint, roadRad, parseFloat(document.getElementById('slider-dirt-thickness').value), false, roadBrush === 'road_snow' ? 1 : 0);
+            } else {
+                paintRoadOnTerrain(hitPoint, roadBrush, roadRad);
+                if (roadBrush === 'remove') paintDirt(hitPoint, roadRad, 1, true);
+            }
             if (roadBrush !== 'remove' && typeof removeGrassInRadius === 'function') {
                 removeGrassInRadius(hitPoint, roadRad * 0.85);
             }
@@ -236,7 +252,7 @@ function handleBrushAction(event) {
             const radius = (typeof sliderRockRadius !== 'undefined') ? parseFloat(sliderRockRadius.value) : 4.0;
             if (rockBrush === 'spawn_moss' || rockBrush === 'erase_moss') {
                 // Kuas lumut mengikuti batu yang ditunjuk, bukan tanah di belakangnya
-                const rockHit = raycaster.intersectObjects(rocksList, false)[0];
+                const rockHit = raycaster.intersectObjects(rocksList.concat(PandoraPlateaus.meshes), false)[0];
                 paintRockMoss(rockHit ? rockHit.point : hitPoint, radius, rockBrush === 'erase_moss');
             } else if (rockBrush === 'remove') {
                 removeRocksInRadius(hitPoint, radius);
@@ -889,6 +905,7 @@ function updateBrushReticle(hitPoint, normal) {
         radius = parseFloat(sliderRoadRadius.value) || 4.0;
         if (roadBrush === 'road_clay') colorHex = 0xb46b3f;      // Terakota tanah liat PBR
         else if (roadBrush === 'road_green') colorHex = 0x84cc16; // Hijau berlumut
+        else if (roadBrush === 'road_snow') colorHex = 0xe0f2fe;  // Putih salju
         else if (roadBrush === 'remove') colorHex = 0xef4444;     // Merah hapus jalan
         else colorHex = 0xf59e0b;                                 // Amber jalan tanah coklat
     } else if (waterBrush !== 'none') {
@@ -1026,6 +1043,7 @@ function handleCanvasPointerMove(e) {
         } else if (selectRoadBrush.value !== 'none') {
             const radius = parseFloat(sliderRoadRadius.value) || 4.0;
             paintRoadOnTerrain(hitPoint, 'remove', radius);
+            paintDirt(hitPoint, radius, 1, true);
         } else if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') {
             const radius = (typeof sliderWaterRadius !== 'undefined') ? (parseFloat(sliderWaterRadius.value) || 4.0) : 4.0;
             if (typeof paintWaterAt === 'function') {

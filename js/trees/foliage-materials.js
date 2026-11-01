@@ -183,6 +183,9 @@ const genshinFoliageShader = {
 
         uniform float uTime;
         uniform float uLeafScale;
+        #ifdef TREE_BAKED
+            attribute vec3 aTreeCenter;
+        #endif
         uniform float uWindSpeed;
 
         varying vec2 vUv;
@@ -203,7 +206,11 @@ const genshinFoliageShader = {
             vec4 worldPosition = modelMatrix * instanceMatrix * vec4(pos, 1.0);
             vWorldPosition = worldPosition.xyz;
 
-            vec4 treeCenter = modelMatrix * vec4(0.0, 3.2, 0.0, 1.0);
+            #ifdef TREE_BAKED
+                vec4 treeCenter = vec4(aTreeCenter, 1.0);
+            #else
+                vec4 treeCenter = modelMatrix * vec4(0.0, 3.2, 0.0, 1.0);
+            #endif
             vSphericalNormal = normalize(worldPosition.xyz - treeCenter.xyz);
 
             vec3 objectNormal = vSphericalNormal;
@@ -227,6 +234,7 @@ const genshinFoliageShader = {
         uniform vec3 uBaseColor;
         uniform vec3 uShadowColor;
         uniform vec3 uHighlightColor;
+        uniform float uFoliageShadow;
 
         varying vec2 vUv;
         varying vec3 vSphericalNormal;
@@ -247,7 +255,7 @@ const genshinFoliageShader = {
 
             float shadowVal = 1.0;
             #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
-                shadowVal = getShadow(
+                if (uFoliageShadow > 0.5) shadowVal = getShadow(
                     directionalShadowMap[0],
                     directionalLightShadows[0].shadowMapSize,
                     directionalLightShadows[0].shadowBias,
@@ -275,6 +283,10 @@ function createGenshinFoliageMaterial(baseHex, shadowHex, highlightHex, tex = le
         fog: true
     });
 
+    mat.uniforms.uFoliageShadow = { value: foliageShadowValue() };
+
+    // Di build daun banyak pohon digabung, jadi pusat tiap pohon dibawa per daun
+    if (window.PANDORA_RUNTIME) mat.defines = { TREE_BAKED: 1 };
     mat.uniforms.uTexture.value = tex;
     mat.uniforms.uBaseColor.value.setHex(baseHex);
     mat.uniforms.uShadowColor.value.setHex(shadowHex);

@@ -41521,6 +41521,8 @@
         }
     ],
     "rockMoss": [],
+    "plateaus": [],
+    "dirt": [],
     "rocks": [
         {
             "posX": 25.862381713358403,
@@ -1242250,7 +1242252,21 @@
             ]
         }
     ],
-    "portals": [],
+    "portals": [
+        {
+            "id": "portal-1793551260128-1",
+            "name": "Portal 1",
+            "x": -0.5,
+            "z": -35.3,
+            "rotY": 0,
+            "radius": 1.6,
+            "targetStageId": "noxis",
+            "spawnMode": "default",
+            "spawnX": 0,
+            "spawnZ": 0,
+            "spawnRotY": 0
+        }
+    ],
     "triggers": [],
     "character": "red-mature",
     "cinematic": {
@@ -1243089,6 +1243105,6 @@
         "version": "1.0"
     },
     "filename": "taron.json",
-    "updatedAt": "2026-11-01T01:17:53+00:00",
-    "createdAt": "2026-11-01T01:17:53+00:00"
+    "updatedAt": "2026-11-01T16:41:09+00:00",
+    "createdAt": "2026-11-01T16:41:09+00:00"
 }

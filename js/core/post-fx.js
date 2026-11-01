@@ -269,8 +269,9 @@ const PandoraSunMotes = {
 
     update(realDelta) {
         if (!this.points) this.build();
-        this.points.visible = isPlayMode;
-        if (!isPlayMode) return;
+        // Debu dimatikan di tingkat paling ringan
+        this.points.visible = isPlayMode && PandoraSettings.preset().shafts > 0;
+        if (!this.points.visible) return;
         this.uniforms.uTime.value += realDelta;
         this.uniforms.uCamera.value.copy(camera.position);
         this.uniforms.uPixelScale.value = renderer.domElement.height * 0.5 / Math.tan(THREE.MathUtils.degToRad(camera.fov) * 0.5);

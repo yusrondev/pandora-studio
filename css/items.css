@@ -610,6 +610,9 @@ body.play-mode-active .item-slot-hud.visible {
 
 /* Bar berkilau saat stat dipulihkan */
 .bar-restored { animation: bar-restored 0.8s ease-out; }
+/* Posisi busur stamina memakai transform, jadi yang dianimasikan isi di dalamnya */
+#stamina-gauge.bar-restored { animation: none; }
+#stamina-gauge.bar-restored svg { animation: bar-restored 0.8s ease-out; transform-origin: center; }
 @keyframes bar-restored {
     0% { filter: brightness(2.4); transform: scaleY(1.5); }
     100% { filter: brightness(1); transform: scaleY(1); }

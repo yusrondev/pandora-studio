@@ -31,6 +31,7 @@ function triggerWolfPunch() {
 window.triggerWolfPunch = triggerWolfPunch;
 
 function startWolfBlock() {
+    if (window.PandoraBackflip && PandoraBackflip.active) return;
     if (window.PandoraUltimateCasting) return;
     const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
     if (char && typeof char.startBlock === 'function') {
@@ -353,6 +354,7 @@ function startPlayMode() {
 
     // Atur OrbitControls: Matikan touch handling OrbitControls di Play Mode agar tidak bentrok dengan analog & kamera mobile
     controls.enabled = true;
+    controls.enableRotate = false; // Saat bermain kamera diputar oleh fox-physics
     controls.enablePan = false;
     controls.enableZoom = true;
     controls.enableDamping = false;
@@ -478,6 +480,7 @@ function startPlayMode() {
 }
 
 function stopPlayMode() {
+    if (window.PandoraBackflip) PandoraBackflip.stop(wolfCharacter);
     // Game hasil generate tidak punya mode editor untuk dituju
     if (window.PANDORA_RUNTIME && !(window.PandoraStageFlow && PandoraStageFlow.isTransitioning)) return;
 
@@ -558,6 +561,7 @@ function stopPlayMode() {
         };
     }
 
+    controls.enableRotate = true;
     camera.position.copy(savedEditorCamera.position);
     controls.target.copy(savedEditorCamera.target);
     controls.update();

@@ -83,6 +83,8 @@ const ShadowCache = {
         treesList.forEach(tree => tree.traverse(collect));
         rocksGroup.traverse(collect);
         treeBarkGroup.traverse(collect);
+        treeLeafGroup.traverse(collect);
+        PandoraPlateaus.group.traverse(collect);
         return casters;
     },
 
@@ -164,7 +166,7 @@ const ShadowCache = {
 ShadowCache.install();
 
 function updateShadowSchedule(isGameplay) {
-    const every = isPlayMode ? 1 : (isGameplay ? PandoraSettings.preset().shadowEvery : SHADOW_UPDATE_EVERY_EDITOR);
+    const every = isPlayMode ? (PandoraSettings.preset().shadowDynamicEvery || 1) : (isGameplay ? PandoraSettings.preset().shadowEvery : SHADOW_UPDATE_EVERY_EDITOR);
     if (frameCounter % every !== 0) return;
     renderer.shadowMap.needsUpdate = true;
 
@@ -200,8 +202,9 @@ function animate() {
         (typeof CinematicManager !== 'undefined' && CinematicManager.isPlaying);
     const isGameplay = isPlayMode || isCinematicRunning;
     const settings = PandoraSettings.values;
+    const gameplayLimit = settings.graphics === 'auto' ? PandoraAutoQuality.limit(settings.fpsLimit) : settings.fpsLimit;
     const frameLimit = isGameplay
-        ? settings.fpsLimit
+        ? gameplayLimit
         : (settings.fpsLimit > 0 ? Math.min(settings.fpsLimit, settings.editorFps) : settings.editorFps);
     sampleVsync(frameNow);
     if (frameLimit > 0) {
@@ -218,7 +221,7 @@ function animate() {
     if (settings.graphics === 'auto') {
         // Menu jeda, loading, dan kamera bokeh L1 bukan beban permainan biasa, jadi tidak ikut dinilai
         const measuring = isPlayMode && !window.PandoraGamePaused && !document.hidden && !BossKillCam.active;
-        if (measuring) PandoraAutoQuality.update(frameNow, settings.fpsLimit);
+        if (measuring) PandoraAutoQuality.update(frameNow, gameplayLimit);
         else PandoraAutoQuality.windowStart = 0;
     } else if (isGameplay && settings.dynamicResolution) {
         updateAdaptiveResolution(frameNow, settings.fpsLimit);
@@ -379,7 +382,10 @@ function animate() {
     if (typeof BossKillCam !== 'undefined') BossKillCam.beforeRender(realDelta);
     // Geser bahu hanya untuk kamera permainan; sinematik, kamera L1, dan editor memakai bingkai penuh
     if (camera.view && camera.view.enabled && (!isPlayMode || isCinematicRunning || BossKillCam.active)) camera.clearViewOffset();
+    if (window.PANDORA_RUNTIME && isPlayMode) PandoraFoliageLod.update(frameCounter);
     PandoraSunMotes.update(realDelta);
+    PandoraGroundCover.update(realDelta);
+    PandoraBarrier.update(realDelta);
     PandoraLightShafts.update(realDelta);
     const updatesDone = performance.now();
 

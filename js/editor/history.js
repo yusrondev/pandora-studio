@@ -55,6 +55,8 @@ function captureStateSnapshot() {
             };
         }),
         rockMoss: typeof getRockMossStrokes === 'function' ? getRockMossStrokes().slice() : [],
+        plateaus: PandoraPlateaus.serialize(),
+        dirt: getDirtStrokes().slice(),
         rocks: (typeof rocksList !== 'undefined') ? rocksList.map(r => ({
             posX: r.position.x,
             posY: r.position.y,
@@ -266,6 +268,9 @@ function applyState(state) {
         clearAllRocks();
         state.rocks.forEach(rData => recreateRock(rData));
         if (typeof setRockMossStrokes === 'function') setRockMossStrokes(state.rockMoss);
+        PandoraPlateaus.load(state.plateaus);
+        setDirtStrokes(state.dirt);
+        PandoraPlateaus.refreshContents();
     }
 
     // 3c. Restore Bunga (Flowers)

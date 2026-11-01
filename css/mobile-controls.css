@@ -4,12 +4,13 @@
 /* Joystick mengambang: muncul di tempat ibu jari mendarat */
 #mobile-joystick-zone {
     left: 0 !important;
-    bottom: 0 !important;
+    top: 31vh !important;
+    bottom: auto !important;
     width: 46vw !important;
     height: 62vh !important;
-    align-items: flex-end !important;
+    align-items: center !important;
     justify-content: flex-start !important;
-    padding: 0 0 max(26px, env(safe-area-inset-bottom)) 26px;
+    padding: 0 0 0 26px;
     box-sizing: border-box;
 }
 

@@ -168,6 +168,13 @@
 
                 float edge = smoothstep(0.0, 0.14, xz.x) * smoothstep(1.0, 0.86, xz.x) * smoothstep(0.0, 0.14, xz.y) * smoothstep(1.0, 0.86, xz.y);
                 vA = edge * pow(sin(clamp(h, 0.02, 0.98) * 3.14159), 0.6) * fogMask;
+                // Lembar di luar area kabut dibuang sebelum menyentuh piksel; lembar ini besar dan sangat mahal
+                if (vA < 0.002) {
+                    vUv = vec2(0.0);
+                    vLit = 0.0;
+                    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+                    return;
+                }
 
                 vec4 mv = viewMatrix * vec4(wp, 1.0);
                 float sz = uSize * (0.55 + 0.9 * aVar.x);
@@ -212,14 +219,15 @@
     }
 
     function applyUniforms() {
-        geo.instanceCount = Math.floor(P.count);
+        const fraction = PandoraSettings.preset().fogFraction || 1;
+        geo.instanceCount = Math.floor(P.count * fraction);
         U.uSize.value = P.size;
         U.uHeight.value = P.height;
         U.uBox.value.set(P.area, 1, P.area);
         const a = P.wind * Math.PI / 180;
         U.uWind.value.set(Math.cos(a) * 1.4, Math.sin(a) * 1.4);
         U.uTurb.value = P.turb;
-        U.uOpacity.value = P.opacity;
+        U.uOpacity.value = P.opacity / Math.sqrt(fraction);
         U.uLightInt.value = P.light;
         U.uLightRange.value = P.range;
         U.uExp.value = P.exposure;
@@ -385,6 +393,7 @@
     window.clearAllFog = clearAllFog;
     window.hasFogDrawn = () => hasAnyFogDrawn;
     window.updateFog = updateFog;
+    window.applyFogQuality = applyUniforms;
     window.reseedFog = reseed;
     window.applyFogPreset = applyPreset;
     window.fogParams = P;

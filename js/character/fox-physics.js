@@ -57,7 +57,8 @@ window.addEventListener('keydown', (e) => {
     }
     if (k === 'q' || code === 'KeyQ') {
         keys.q = true;
-        if (typeof startWolfBlock === 'function') {
+        // Barrier sekali tekan: auto-repeat dari tombol yang ditahan diabaikan
+        if (!e.repeat && typeof startWolfBlock === 'function') {
             startWolfBlock();
         }
     }
@@ -117,11 +118,19 @@ window.addEventListener('keyup', (e) => {
 const PLAY_CAMERA_START_DIST = 3.5;
 const PLAY_CAMERA_START_PITCH = 6.0;
 const PLAY_CAMERA_PITCH = 6.0;       // Sudut normal: setinggi bahu, hampir datar
-const PLAY_CAMERA_RUN_PITCH = 8.0;   // Sedikit naik saat berlari agar arah depan tetap terbaca
 // Karakter di kiri layar, arah depan lapang. Yang digeser gambarnya, bukan posisi kamera,
 // karena yaw kamera dihitung ulang dari posisi kamera tiap frame.
 const PLAY_CAMERA_SHOULDER = 0.13;   // Terhadap lebar layar
-const PLAY_CAMERA_BOSS_PITCH = 13.0;
+// Kamera hanya digerakkan pemain. Bantuan otomatisnya kecil dan langsung mengalah saat kamera digeser.
+const PLAY_CAMERA_MIN_PITCH = -12.0; // Bisa melihat ke atas, ke tajuk pohon dan langit
+const PLAY_CAMERA_MAX_PITCH = 55.0;
+const CAMERA_MOUSE_YAW = 0.0045;
+const CAMERA_MOUSE_PITCH = 0.0035;
+const CAMERA_STRAFE_ASSIST = 0.38;   // Radian/detik: kamera ikut sedikit saat berjalan ke samping
+const CAMERA_ASSIST_DELAY = 1.2;     // Detik setelah kamera digeser sebelum bantuan aktif lagi
+const CAMERA_BOSS_ASSIST = 1.6;      // Kecepatan menoleh pelan ke bos
+const CAMERA_ATTACK_ASSIST = 2.2;    // Kecepatan menoleh pelan ke musuh yang diserang
+const CAMERA_ATTACK_ASSIST_ANGLE = 0.7; // Musuh dalam sudut ini sudah cukup terlihat, kamera tidak perlu menoleh
 let userPreferredDist = PLAY_CAMERA_START_DIST;
 let currentCamDist = PLAY_CAMERA_START_DIST;
 let isCameraOccluded = false;
@@ -362,14 +371,15 @@ function updateFoxEagleVisionVisibility(isOccluded, dt, elapsed) {
 let isUserHoldingCamera = false;
 let isUserMouseDown = false;
 let isInteractingWithCamera = false;
-let cameraReleaseTimer = 0.0;
 let activeCameraTouches = new Map();
 let lastPinchDistance = null;
 
 // Persistent camera orbit angles (memastikan kamera tidak pernah terpental/jitter oleh ground clamp atau OrbitControls)
 let camOrbitYaw = null;
 let camOrbitPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_PITCH);
-let _lastFollowSign = 1;
+let _cameraLookIdle = Infinity;
+let _camMouseLastX = 0;
+let _camMouseLastY = 0;
 
 // Delta akumulasi rotasi kamera dari sentuhan layar mobile (Multitouch look)
 let pendingCameraYawDelta = 0.0;
@@ -397,7 +407,6 @@ window.addEventListener('touchstart', (e) => {
         if (!inJoystick && !inLeftMovementZone && !inActionBtn && !inToolbar && !inSpecies) {
             activeCameraTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
             isInteractingWithCamera = true;
-            cameraReleaseTimer = 2.0;
         }
     }
 
@@ -458,7 +467,6 @@ window.addEventListener('touchmove', (e) => {
 
     if (cameraTouchMoved) {
         isInteractingWithCamera = true;
-        cameraReleaseTimer = 2.0;
     }
 }, { passive: true });
 
@@ -472,7 +480,6 @@ function removeCameraTouches(e) {
     }
     if (activeCameraTouches.size === 0) {
         isInteractingWithCamera = false;
-        cameraReleaseTimer = 1.8;
     }
 }
 
@@ -489,6 +496,8 @@ window.addEventListener('pointerdown', (e) => {
         _camMouseDownButton = e.button;
         _camMouseDownX = e.clientX || 0;
         _camMouseDownY = e.clientY || 0;
+        _camMouseLastX = _camMouseDownX;
+        _camMouseLastY = _camMouseDownY;
     }
 }, { capture: true });
 
@@ -498,7 +507,6 @@ window.addEventListener('pointerup', (e) => {
         if (isUserMouseDown) {
             isUserMouseDown = false;
             isInteractingWithCamera = false;
-            cameraReleaseTimer = 0.45;
         }
     }
 });
@@ -511,12 +519,14 @@ window.addEventListener('pointermove', (e) => {
             if (movedDist > 6) {
                 isUserMouseDown = true;
                 isInteractingWithCamera = true;
-                cameraReleaseTimer = 0.0;
+                pendingCameraYawDelta -= ((e.clientX || 0) - _camMouseLastX) * CAMERA_MOUSE_YAW;
+                pendingCameraPitchDelta += ((e.clientY || 0) - _camMouseLastY) * CAMERA_MOUSE_PITCH;
+                _camMouseLastX = e.clientX || 0;
+                _camMouseLastY = e.clientY || 0;
             }
         } else if (e.buttons === 0 && isUserMouseDown) {
             isUserMouseDown = false;
             isInteractingWithCamera = false;
-            cameraReleaseTimer = 0.45;
         }
     }
 });
@@ -526,13 +536,11 @@ if (typeof controls !== 'undefined' && controls && controls.addEventListener) {
     controls.addEventListener('start', () => {
         if (typeof isPlayMode !== 'undefined' && isPlayMode) {
             isInteractingWithCamera = true;
-            cameraReleaseTimer = 0.0;
         }
     });
     controls.addEventListener('end', () => {
         if (typeof isPlayMode !== 'undefined' && isPlayMode) {
             isInteractingWithCamera = false;
-            cameraReleaseTimer = 0.6;
         }
     });
 }
@@ -758,6 +766,18 @@ function findActiveBossEnemy(playerRoot) {
 }
 
 // Bobot transisi 0..1 dengan easing, agar masuk/keluar encounter tidak pernah melompat
+// Menoleh pelan ke sasaran. deadAngle: sudut sasaran yang sudah dianggap terlihat.
+function turnCameraToward(targetPos, fromPos, rate, dt, deadAngle = 0) {
+    const toX = targetPos.x - fromPos.x;
+    const toZ = targetPos.z - fromPos.z;
+    if (Math.hypot(toX, toZ) < 0.05) return;
+    let diff = (Math.atan2(-toX, -toZ) - camOrbitYaw) % (Math.PI * 2);
+    if (diff < -Math.PI) diff += Math.PI * 2;
+    if (diff > Math.PI) diff -= Math.PI * 2;
+    if (Math.abs(diff) <= deadAngle) return;
+    camOrbitYaw += (diff - Math.sign(diff) * deadAngle) * (1 - Math.exp(-rate * dt));
+}
+
 function stepEncounterBlend(value, isActive, dt) {
     return isActive
         ? Math.min(1.0, value + dt / ENCOUNTER_BLEND_IN_TIME)
@@ -926,7 +946,8 @@ function updateWolfPhysics(dt, elapsed) {
     // Kunci kontrol saat sedang melompat di tempat (stationary jump) atau saat combat/terkena hit/shield
     const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && wolfCharacter.isStationaryJump);
     const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit || wolfCharacter.isBlocking));
-    const isMovementLocked = isPlayerInCombat || isStationaryJumping || !!window.PandoraUltimateCasting;
+    const backflipStep = PandoraBackflip.update(dt, wolfCharacter, _bossEncounter, inputX, inputY, isGrounded);
+    const isMovementLocked = isPlayerInCombat || isStationaryJumping || !!window.PandoraUltimateCasting || backflipStep !== null;
 
     // Vektor arah pandangan kamera pada bidang horizontal (XZ ground plane)
     let camFwd;
@@ -1066,6 +1087,11 @@ function updateWolfPhysics(dt, elapsed) {
                 foxSoundFX.playFootstep();
             }
         }
+    }
+
+    if (backflipStep) {
+        foxRoot.position.addScaledVector(PandoraBackflip.direction, backflipStep);
+        camera.position.addScaledVector(PandoraBackflip.direction, backflipStep);
     }
 
     // Realistic Knockback horizontal displacement & friction
@@ -1504,6 +1530,7 @@ function updateWolfPhysics(dt, elapsed) {
     const mapHalf = (typeof groundSize !== 'undefined' ? groundSize : 80) / 2;
     foxRoot.position.x = THREE.MathUtils.clamp(foxRoot.position.x, -mapHalf + 1.2, mapHalf - 1.2);
     foxRoot.position.z = THREE.MathUtils.clamp(foxRoot.position.z, -mapHalf + 1.2, mapHalf - 1.2);
+    PandoraPlateaus.pushOut(foxRoot, camera);
 
     // ========================================================
     // 2. TERRAIN HEIGHT, WATER INTERACTION (100% ocean.html) & LOMPATAN
@@ -1632,7 +1659,7 @@ function updateWolfPhysics(dt, elapsed) {
         }
 
         // Jump diperbolehkan meskipun sedang memukul atau menendang (jump akan meng-cancel aksi tersebut)
-        if (window.PandoraUltimateCasting) keys.space = false;
+        if (window.PandoraUltimateCasting || PandoraBackflip.active) keys.space = false;
         if (keys.space && isGrounded && !(wolfCharacter && wolfCharacter.isJumping)) {
             const hasWalkRunInput = Boolean(keys.w || keys.s || (typeof mobileJoystickForward !== 'undefined' && Math.abs(mobileJoystickForward) > 0.18));
             const isSprinting = (huntBlend > 0.4 && Math.abs(currentSpeed) > 1.8);
@@ -1706,9 +1733,9 @@ function updateWolfPhysics(dt, elapsed) {
     // ========================================================
     // Titik fokus kamera mengikuti dada/kepala Hero character atau midpoint antara Hero dan Enemy yang di-lock
     const playerTargetPos = new THREE.Vector3(
-        foxRoot.position.x + forward.x * (0.15 * foxScale),
+        foxRoot.position.x,
         foxRoot.position.y + 0.95 * foxScale,
-        foxRoot.position.z + forward.z * (0.15 * foxScale)
+        foxRoot.position.z
     );
 
     const activeBoss = findActiveBossEnemy(foxRoot);
@@ -1767,22 +1794,14 @@ function updateWolfPhysics(dt, elapsed) {
     const isTouchingCamera = (activeCameraTouches.size > 0 || isUserMouseDown);
     const isCameraSwipeActive = (Math.abs(pendingCameraYawDelta) > 0.00001 || Math.abs(pendingCameraPitchDelta) > 0.00001);
 
-    const isCharacterMoving = (Math.abs(currentSpeed) > 0.10 || Math.abs(currentTurnRate) > 0.10 || (window.currentFoxInputMag || 0) > 0.08 || keys.w || keys.s || keys.a || keys.d || Math.abs(analogFwd) > 0.10 || Math.abs(analogTurn) > 0.10);
     const isPlayerAttacking = !!(wolfCharacter && (wolfCharacter.isPunching || wolfCharacter.isKicking));
 
     if (isTouchingCamera || isCameraSwipeActive) {
-        cameraReleaseTimer = 0.5;
-        isUserHoldingCamera = true;
-    } else if (isPlayerAttacking || isCharacterMoving) {
-        // Saat menyerang musuh (Punch/Kick/Flying) atau bergerak: segera posisikan kamera di belakang Fox tanpa jeda!
-        cameraReleaseTimer = 0.0;
-        isUserHoldingCamera = false;
-    } else if (cameraReleaseTimer > 0) {
-        cameraReleaseTimer -= dt;
-        isUserHoldingCamera = true;
+        _cameraLookIdle = 0;
     } else {
-        isUserHoldingCamera = false;
+        _cameraLookIdle += dt;
     }
+    isUserHoldingCamera = _cameraLookIdle < CAMERA_ASSIST_DELAY;
 
     // Reset kamera langsung ke belakang player saat masuk Play Mode
     if (window._forceCameraBehindPlayer) {
@@ -1791,7 +1810,7 @@ function updateWolfPhysics(dt, elapsed) {
         camOrbitPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_START_PITCH);
         currentCamDist = PLAY_CAMERA_START_DIST;
         userPreferredDist = PLAY_CAMERA_START_DIST;
-        cameraReleaseTimer = 0.0;
+        _cameraLookIdle = Infinity;
         isUserHoldingCamera = false;
         _bossEncounter = null;
         _bossCamBlend = 0.0;
@@ -1812,19 +1831,8 @@ function updateWolfPhysics(dt, elapsed) {
         camOrbitPitch = window.camOrbitPitch;
     }
 
-    // Hanya panggil controls.update() saat mouse desktop sedang aktif di-drag
-    if (isUserMouseDown && typeof controls !== 'undefined' && controls.update) {
-        controls.update();
-        const camRay = camera.position.clone().sub(controls.target);
-        const hDist = Math.hypot(camRay.x, camRay.z);
-        if (hDist > 0.02) camOrbitYaw = Math.atan2(camRay.x, camRay.z);
-        camOrbitPitch = Math.atan2(camRay.y, Math.max(0.05, hDist));
-    }
-
-    // PENTING: Batasi sudut pitch maksimal ke 30 derajat dari horizontal
-    // (Kamera TIDAK BISA menukik ke atas kepala / up-to-down top-down under ANY circumstance)
-    const MAX_ALLOWED_PITCH = THREE.MathUtils.degToRad(30.0);
-    const MIN_ALLOWED_PITCH = THREE.MathUtils.degToRad(6.0);
+    const MAX_ALLOWED_PITCH = THREE.MathUtils.degToRad(PLAY_CAMERA_MAX_PITCH);
+    const MIN_ALLOWED_PITCH = THREE.MathUtils.degToRad(PLAY_CAMERA_MIN_PITCH);
 
     // Terapkan delta usapan kamera touch mobile (Multitouch kamera saat berjalan/berlari)
     if (pendingCameraYawDelta !== 0.0 || pendingCameraPitchDelta !== 0.0) {
@@ -1837,136 +1845,18 @@ function updateWolfPhysics(dt, elapsed) {
     camOrbitPitch = THREE.MathUtils.clamp(camOrbitPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
 
     // ========================================================
-    // AUTO PITCH NUDGE SAAT FOX OCCLUDED (Terrain / Rumput)
-    // Saat fox terhalang dan sedang zoom-out, sedikit naikkan
-    // pitch kamera agar sudut pandang lebih overhead dan fox
-    // lebih mungkin terlihat dari balik terrain/rumput.
+    // BANTUAN KAMERA, HANYA SAAT PEMAIN TIDAK SEDANG MENGGESER KAMERA
+    // Karakter berbelok tidak memutar kamera, jadi arah analog selalu sama dengan arah di layar.
     // ========================================================
-    if (_autoZoomOutActive && _autoZoomOutDist > 0.5 && !activeBoss) {
-        const occludedPitchTarget = THREE.MathUtils.degToRad(26.0);
-        const nudgeT = Math.min(1.0, _autoZoomOutDist / AUTO_ZOOM_MAX_EXTRA);
-        const blendedPitch = THREE.MathUtils.lerp(camOrbitPitch, occludedPitchTarget, nudgeT * 0.35);
-        camOrbitPitch = THREE.MathUtils.clamp(blendedPitch, MIN_ALLOWED_PITCH, MAX_ALLOWED_PITCH);
-    }
-
-    if (activeBoss && !isUserHoldingCamera) {
-        // ========================================================
-        // BOSS ENCOUNTER CAMERA LOCK (MENGUNCI FOKUS PENUH KE BOSS)
-        // Kamera menghadap Boss baik saat player maju, mundur (S), bergerak ke samping (strafing),
-        // menyerang ataupun menghindar. Geser kamera oleh user mengambil alih sementara (soft-lock),
-        // dan begitu keluar radius, cabang kamera normal di bawah kembali mengambil alih.
-        // ========================================================
-        const toBossX = activeBoss.root.position.x - foxRoot.position.x;
-        const toBossZ = activeBoss.root.position.z - foxRoot.position.z;
-        const bossDist = Math.hypot(toBossX, toBossZ);
-
-        if (bossDist > 0.05) {
-            const targetYaw = Math.atan2(-toBossX, -toBossZ);
-            let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
-            if (diff < -Math.PI) diff += Math.PI * 2;
-            if (diff > Math.PI) diff -= Math.PI * 2;
-
-            if (Math.abs(diff) > Math.PI - 0.06) {
-                diff = (_lastFollowSign || 1) * (Math.PI - 0.06);
-            } else {
-                _lastFollowSign = Math.sign(diff) || 1;
-            }
-
-            // Kecepatan putaran orbit kamera untuk mengunci boss secara responsif dan bebas jitter
-            const bossChaseSpeed = isPlayerAttacking ? 11.0 : (isCharacterMoving ? 8.5 : 6.5);
-            const smoothT = 1.0 - Math.exp(-bossChaseSpeed * dt);
-            const maxBossStep = 8.5 * dt;
-            camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxBossStep, maxBossStep) * bossWeight;
-
-            // Elevasi kamera yang pas untuk boss (sedikit lebih tinggi agar visual boss megah)
-            const targetPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_BOSS_PITCH);
-            camOrbitPitch = THREE.MathUtils.clamp(
-                THREE.MathUtils.lerp(camOrbitPitch, targetPitch, (1.0 - Math.exp(-4.5 * dt)) * bossWeight),
-                MIN_ALLOWED_PITCH,
-                MAX_ALLOWED_PITCH
-            );
+    if (!isUserHoldingCamera) {
+        if (activeBoss) {
+            turnCameraToward(activeBoss.root.position, foxRoot.position, CAMERA_BOSS_ASSIST * bossWeight, dt);
+        } else if (isPlayerAttacking && activeCombatTarget && activeCombatTarget.root) {
+            turnCameraToward(activeCombatTarget.root.position, foxRoot.position, CAMERA_ATTACK_ASSIST, dt, CAMERA_ATTACK_ASSIST_ANGLE);
+        } else if (Math.abs(inputX) > 0.2) {
+            // Berjalan ke samping membuat kamera ikut menoleh sedikit, seperti game open world pada umumnya
+            camOrbitYaw -= inputX * CAMERA_STRAFE_ASSIST * dt * Math.min(1, Math.abs(currentSpeed));
         }
-    } else if (isUserHoldingCamera) {
-        // 1. SAAT USER MEMEGANG / MENGGESER KAMERA:
-        // Kamera bebas dirotasi oleh user sesuai usapan jari/mouse, sudut dipertahankan
-    } else if (isPlayerAttacking) {
-        // 2A. SAAT MENYERANG MUSUH (PUNCH / KICK / FLYING PUNCH / FLYING KICK):
-        // Kamera secara responsif langsung berada tepat di belakang punggung Fox kita menghadap ke sasaran
-        const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
-        let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
-        if (diff < -Math.PI) diff += Math.PI * 2;
-        if (diff > Math.PI) diff -= Math.PI * 2;
-
-        if (Math.abs(diff) > Math.PI - 0.06) {
-            diff = (_lastFollowSign || 1) * (Math.PI - 0.06);
-        } else {
-            _lastFollowSign = Math.sign(diff) || 1;
-        }
-
-        const attackChaseSpeed = 10.5;
-        const smoothT = 1.0 - Math.exp(-attackChaseSpeed * dt);
-        const maxAttackStep = 9.0 * dt;
-        camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxAttackStep, maxAttackStep);
-
-        const targetPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_PITCH);
-        camOrbitPitch = THREE.MathUtils.clamp(
-            THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-5.0 * dt)),
-            MIN_ALLOWED_PITCH,
-            MAX_ALLOWED_PITCH
-        );
-    } else if (isCharacterMoving) {
-        // 2B. SAAT MELEPAS GESTURE KAMERA DAN MENYETIR ANALOG:
-        // Kamera secara otomatis dan responsif mengikuti hadapan (belakang) rubah
-        const targetYaw = Math.atan2(-Math.sin(foxRoot.rotation.y), -Math.cos(foxRoot.rotation.y));
-        let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
-        if (diff < -Math.PI) diff += Math.PI * 2;
-        if (diff > Math.PI) diff -= Math.PI * 2;
-
-        // Cegah osilasi tanda bolak-balik saat rotasi ~180 derajat
-        if (Math.abs(diff) > Math.PI - 0.06) {
-            diff = (_lastFollowSign || 1) * (Math.PI - 0.06);
-        } else {
-            _lastFollowSign = Math.sign(diff) || 1;
-        }
-
-        const chaseSpeed = (huntBlend > 0.4) ? 5.2 : 3.8;
-        const smoothT = 1.0 - Math.exp(-chaseSpeed * dt);
-        const maxChaseStep = 4.2 * dt;
-        camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxChaseStep, maxChaseStep);
-
-        const targetPitch = THREE.MathUtils.degToRad((huntBlend > 0.4) ? PLAY_CAMERA_RUN_PITCH : PLAY_CAMERA_PITCH);
-        camOrbitPitch = THREE.MathUtils.clamp(
-            THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-2.5 * dt)),
-            MIN_ALLOWED_PITCH,
-            MAX_ALLOWED_PITCH
-        );
-    } else if (activeCombatTarget && activeCombatTarget.root && activeCombatTarget.root.visible) {
-        // 3. SAAT KARAKTER DIAM DI AREA MUSUH:
-        // Kamera otomatis mengarah dari belakang Hero menuju Musuh untuk framing pertarungan
-        const toEnemyX = activeCombatTarget.root.position.x - foxRoot.position.x;
-        const toEnemyZ = activeCombatTarget.root.position.z - foxRoot.position.z;
-        const targetYaw = Math.atan2(-toEnemyX, -toEnemyZ);
-
-        let diff = (targetYaw - camOrbitYaw) % (Math.PI * 2);
-        if (diff < -Math.PI) diff += Math.PI * 2;
-        if (diff > Math.PI) diff -= Math.PI * 2;
-
-        const lockChaseSpeed = 5.0;
-        const smoothT = 1.0 - Math.exp(-lockChaseSpeed * dt);
-        const maxLockStep = 3.5 * dt;
-        camOrbitYaw += THREE.MathUtils.clamp(diff * smoothT, -maxLockStep, maxLockStep);
-
-        const targetPitch = THREE.MathUtils.degToRad(PLAY_CAMERA_PITCH);
-        camOrbitPitch = THREE.MathUtils.clamp(
-            THREE.MathUtils.lerp(camOrbitPitch, targetPitch, 1.0 - Math.exp(-3.0 * dt)),
-            MIN_ALLOWED_PITCH,
-            MAX_ALLOWED_PITCH
-        );
-    }
-
-    // Keluar encounter saat player diam: elevasi kembali ke sudut normal (yaw dibiarkan, tidak memutar paksa)
-    if (!activeBoss && bossWeight > 0 && !isUserHoldingCamera && !isCharacterMoving && !isPlayerAttacking) {
-        camOrbitPitch = THREE.MathUtils.lerp(camOrbitPitch, THREE.MathUtils.degToRad(PLAY_CAMERA_PITCH), 1.0 - Math.exp(-3.0 * dt));
     }
 
     window.camOrbitYaw = camOrbitYaw;

@@ -119,6 +119,7 @@ function createGrassGridSystem(count, areaSize) {
         lights: true,
         fog: true
     });
+    tuftMat.uniforms.uFoliageShadow = { value: foliageShadowValue() };
 
     instancedGrassMesh = new THREE.InstancedMesh(tuftGeo, tuftMat, count);
     instancedGrassMesh.receiveShadow = true;
@@ -282,6 +283,7 @@ const genshinGrassShader = {
         #include <fog_pars_fragment>
 
         uniform sampler2D uTexture;
+        uniform float uFoliageShadow;
         varying vec2 vUv;
         varying vec3 vWorldPosition;
         varying vec3 vInstanceColor;
@@ -348,7 +350,7 @@ const genshinGrassShader = {
 
             float shadowVal = 1.0;
             #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
-                shadowVal = getShadow(
+                if (uFoliageShadow > 0.5) shadowVal = getShadow(
                     directionalShadowMap[0],
                     directionalLightShadows[0].shadowMapSize,
                     directionalLightShadows[0].shadowBias,
@@ -427,7 +429,7 @@ function rebuildGrassTransforms() {
         const slopeScaleBoost = 1.0 + slopeFactor * 0.75;
 
         // Di build, helai yang lebih sedikit dibuat lebih lebar agar tanah tetap tertutup
-        const coverage = window.PANDORA_RUNTIME ? 1 / Math.sqrt(grassFraction) : 1;
+        const coverage = window.PANDORA_RUNTIME ? foliageCoverage(grassFraction) : 1;
         const scaleXZ = 0.95 * slopeScaleBoost * coverage;
         const scaleY = grassScalesArray[i] * slopeScaleBoost;
         // Preset grafis rendah menyembunyikan sebagian helai secara merata (urutan indeks tidak berpola)
@@ -446,7 +448,7 @@ function rebuildGrassTransforms() {
 
 // Build: rumput digambar per petak agar petak di luar pandangan kamera tidak menyita GPU.
 // instancedGrassMesh tetap menjadi sumber data; meshnya sendiri tidak digambar.
-const GRASS_CHUNK_SIZE = 24;
+const GRASS_CHUNK_SIZE = 14;
 const GRASS_CHUNK_SWAY = 1.5; // Ruang untuk tinggi dan goyangan helai
 const grassChunksGroup = new THREE.Group();
 grassChunksGroup.name = 'grassChunks';
@@ -480,6 +482,7 @@ function rebuildGrassChunks() {
         const chunkColors = new Float32Array(indices.length * 3);
         const mesh = new THREE.InstancedMesh(geometry, instancedGrassMesh.material, indices.length);
         mesh.receiveShadow = true;
+        mesh.userData.fullCount = indices.length;
         const box = new THREE.Box3();
         const point = new THREE.Vector3();
         indices.forEach((index, slot) => {
@@ -494,6 +497,7 @@ function rebuildGrassChunks() {
         geometry.boundingSphere.radius += GRASS_CHUNK_SWAY;
         grassChunksGroup.add(mesh);
     });
+    if (typeof PandoraFoliageLod !== 'undefined' && typeof treeLeafGroup !== 'undefined') PandoraFoliageLod.update(0, true);
 }
 
 function updateTreesAndGrassPositions() {

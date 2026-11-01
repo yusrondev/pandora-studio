@@ -600,19 +600,113 @@ function bakeTreesForRuntime() {
         chunk.receiveShadow = true;
         treeBarkGroup.add(chunk);
     });
+    bakeTreeLeaves();
     applyTreeLeafFraction();
 }
+
+// Daun semua pohon sejenis dalam satu petak menjadi satu InstancedMesh: 1 draw call, bukan 1 per pohon
+const TREE_LEAF_CHUNK_SIZE = 24;
+const TREE_LEAF_SIZE_MARGIN = 5;
+const treeLeafGroup = new THREE.Group();
+treeLeafGroup.name = 'treeLeaves';
+scene.add(treeLeafGroup);
+
+function bakeTreeLeaves() {
+    treeLeafGroup.children.slice().forEach((mesh) => {
+        treeLeafGroup.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.dispose();
+    });
+    const cells = new Map();
+    treesList.forEach((tree) => {
+        const leaves = tree.userData.leafMesh;
+        if (!leaves) return;
+        leaves.updateMatrixWorld(true);
+        const key = leaves.material.uuid + ':' + Math.floor(tree.position.x / TREE_LEAF_CHUNK_SIZE) + ':' + Math.floor(tree.position.z / TREE_LEAF_CHUNK_SIZE);
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(leaves);
+    });
+
+    const local = new THREE.Matrix4();
+    const world = new THREE.Matrix4();
+    const color = new THREE.Color();
+    const point = new THREE.Vector3();
+    cells.forEach((sources) => {
+        // Diacak antarpohon, supaya mengurangi jumlah daun menipiskan semua pohon secara merata
+        const entries = [];
+        sources.forEach((leaves) => {
+            const center = new THREE.Vector3(0, 3.2, 0).applyMatrix4(leaves.matrixWorld);
+            for (let i = 0; i < leaves.count; i++) entries.push({ leaves, index: i, center });
+        });
+        for (let i = entries.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [entries[i], entries[j]] = [entries[j], entries[i]];
+        }
+        const first = sources[0];
+        const geometry = first.geometry.clone();
+        const mesh = new THREE.InstancedMesh(geometry, first.material, entries.length);
+        const centers = new Float32Array(entries.length * 3);
+        const box = new THREE.Box3();
+        entries.forEach((entry, i) => {
+            entry.leaves.getMatrixAt(entry.index, local);
+            world.multiplyMatrices(entry.leaves.matrixWorld, local);
+            mesh.setMatrixAt(i, world);
+            box.expandByPoint(point.setFromMatrixPosition(world));
+            centers.set([entry.center.x, entry.center.y, entry.center.z], i * 3);
+            if (entry.leaves.instanceColor) {
+                entry.leaves.getColorAt(entry.index, color);
+                mesh.setColorAt(i, color);
+            }
+        });
+        geometry.setAttribute('aTreeCenter', new THREE.InstancedBufferAttribute(centers, 3));
+        geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+        geometry.boundingSphere.radius += TREE_LEAF_SIZE_MARGIN;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.customDepthMaterial = first.customDepthMaterial;
+        mesh.userData.fullCount = entries.length;
+        mesh.userData.isTreeLeaves = true;
+        treeLeafGroup.add(mesh);
+        sources.forEach(leaves => leaves.parent && leaves.parent.remove(leaves));
+    });
+}
+
+// Rumput dan daun dikurangi menurut jarak dari kamera. Urutan helai acak, jadi cukup menggambar bagian awal.
+const FOLIAGE_LOD_NEAR = 16;
+const FOLIAGE_LOD_EVERY = 8;
+const FOLIAGE_LOD_FAR_LEAF_MIN = 0.3; // Tajuk jauh tetap ada walau jarang, supaya pohon tidak hilang
+const PandoraFoliageLod = {
+    update(frame, force) {
+        if (!force && frame % FOLIAGE_LOD_EVERY !== 0) return;
+        const preset = PandoraSettings.preset();
+        const camX = camera.position.x;
+        const camZ = camera.position.z;
+        const distanceTo = (mesh) => {
+            const c = mesh.geometry.boundingSphere.center;
+            return Math.max(0, Math.hypot(c.x - camX, c.z - camZ) - mesh.geometry.boundingSphere.radius);
+        };
+        grassChunksGroup.children.forEach((mesh) => {
+            const t = 1 - THREE.MathUtils.smoothstep(distanceTo(mesh), FOLIAGE_LOD_NEAR, preset.grassFar);
+            mesh.count = Math.round(mesh.userData.fullCount * t);
+            mesh.visible = mesh.count > 0;
+        });
+        treeLeafGroup.children.forEach((mesh) => {
+            const distance = distanceTo(mesh);
+            const t = 1 - THREE.MathUtils.smoothstep(distance, FOLIAGE_LOD_NEAR, preset.grassFar * 1.4);
+            const keep = FOLIAGE_LOD_FAR_LEAF_MIN + (1 - FOLIAGE_LOD_FAR_LEAF_MIN) * t;
+            mesh.count = Math.max(1, Math.round(mesh.userData.fullCount * preset.leafFraction * keep));
+            // Pohon jauh tidak perlu membayangi; pengaruhnya nyaris tak terlihat
+            mesh.castShadow = distance < preset.shadowTreeFar;
+        });
+    }
+};
+window.PandoraFoliageLod = PandoraFoliageLod;
 
 // Daun lebih sedikit dibuat lebih lebar agar tajuk tetap rimbun
 function applyTreeLeafFraction() {
     const fraction = PandoraSettings.preset().leafFraction;
-    treesList.forEach((tree) => {
-        const leaves = tree.userData.leafMesh;
-        if (!leaves) return;
-        if (leaves.userData.fullCount === undefined) leaves.userData.fullCount = leaves.count;
-        leaves.count = Math.max(1, Math.round(leaves.userData.fullCount * fraction));
-    });
-    const scale = 1 / Math.sqrt(fraction);
+    PandoraFoliageLod.update(0, true);
+    const scale = foliageCoverage(fraction);
     foliageMaterialsList.forEach((material) => {
         if (material.uniforms.uLeafScale) material.uniforms.uLeafScale.value = scale;
     });

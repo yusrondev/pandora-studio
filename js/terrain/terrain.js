@@ -5,6 +5,7 @@
 let groundSize = 80;
 window.groundSize = groundSize;
 const groundSegments = 100;
+let terrainHeightOverlay = null; // Diisi terrain-shapes.js saat ada dataran
 const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, groundSegments, groundSegments);
 groundGeo.rotateX(-Math.PI / 2);
 
@@ -289,7 +290,7 @@ const groundMat = new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.D
 // namun secara cerdas menghilangkan bayangan pada area tanah yang memiliki air
 // agar bayangan tidak ganda (karena bayangan sudah tampil di permukaan air).
 groundMat.customProgramCacheKey = function () {
-    return 'groundMat_waterShadow_v11';
+    return 'groundMat_waterShadow_v15';
 };
 
 groundMat.onBeforeCompile = function (shader) {
@@ -301,6 +302,7 @@ groundMat.onBeforeCompile = function (shader) {
     shader.uniforms.uGroundWaterSpeed = { value: 1.00 };
     shader.uniforms.uClaySoilAlbedo = { value: claySoilTextures.albedo };
     shader.uniforms.uClaySoilNormal = { value: claySoilTextures.normal };
+    Object.assign(shader.uniforms, groundCoverUniforms);
 
     shader.vertexShader = `
         varying vec3 vGroundWorldPos;
@@ -324,6 +326,7 @@ groundMat.onBeforeCompile = function (shader) {
         uniform float uGroundWaterSpeed;
         uniform sampler2D uClaySoilAlbedo;
         uniform sampler2D uClaySoilNormal;
+        ${GROUND_COVER_GLSL}
         varying vec3 vGroundWorldPos;
 
         // Simulasi elevasi gelombang Gerstner dinamis (100% sinkron realtime dengan air)
@@ -410,7 +413,10 @@ groundMat.onBeforeCompile = function (shader) {
 
             vec3 blendedSoil = clayTex.rgb * 0.75 + microTex.rgb * 0.35;
             diffuseColor.rgb = mix(diffuseColor.rgb, blendedSoil, clayDet);
-        }`
+        }
+        // Salju dan tanah tebal
+        vec4 coverColor = groundCover(vGroundWorldPos.xz, vec3(0.0, 1.0, 0.0));
+        diffuseColor.rgb = mix(diffuseColor.rgb, coverColor.rgb, coverColor.a);`
     );
 
     frag = frag.replace(
@@ -574,7 +580,215 @@ function getTerrainHeightFast(x, z) {
     // Interpolasi mulus (bilinear) untuk menghilangkan efek patah-patah seperti tangga
     const hTop = h00 * (1 - tx) + h10 * tx;
     const hBottom = h01 * (1 - tx) + h11 * tx;
-    return hTop * (1 - tz) + hBottom * tz;
+    const height = hTop * (1 - tz) + hBottom * tz;
+    return terrainHeightOverlay ? terrainHeightOverlay(x, z, height) : height;
+}
+
+// Lapisan salju dan tanah tebal: peta ketebalan dari atas (Luminance = tanah, Alpha = salju).
+const COVER_MAP_SIZE = 1024;
+const COVER_MAP_EXTENT = 200;
+const COVER_DIRT_DEPTH = 0.22;
+const COVER_SNOW_DEPTH = 0.48;
+const coverMapData = new Uint8Array(COVER_MAP_SIZE * COVER_MAP_SIZE * 2);
+const coverMapTexture = new THREE.DataTexture(coverMapData, COVER_MAP_SIZE, COVER_MAP_SIZE, THREE.LuminanceAlphaFormat);
+coverMapTexture.minFilter = THREE.LinearFilter;
+coverMapTexture.magFilter = THREE.LinearFilter;
+coverMapTexture.needsUpdate = true;
+let dirtStrokes = [];
+let coverVersion = 0;
+
+// Noise menyambung untuk tanah dan salju: R gumpalan, G retakan, B dan A kemiringan R
+function createCoverNoiseTexture() {
+    const size = 256;
+    const data = new Uint8Array(size * size * 4);
+    const wrap = (v, n) => ((v % n) + n) % n;
+    const gradientLayer = (cells) => {
+        const angles = new Float32Array(cells * cells).map(() => Math.random() * Math.PI * 2);
+        return (u, v) => {
+            const fx = u * cells, fy = v * cells;
+            const ix = Math.floor(fx), iy = Math.floor(fy);
+            const tx = fx - ix, ty = fy - iy;
+            const corner = (a, b) => {
+                const angle = angles[wrap(iy + b, cells) * cells + wrap(ix + a, cells)];
+                return Math.cos(angle) * (tx - a) + Math.sin(angle) * (ty - b);
+            };
+            const sx = tx * tx * tx * (tx * (tx * 6 - 15) + 10), sy = ty * ty * ty * (ty * (ty * 6 - 15) + 10);
+            return (corner(0, 0) * (1 - sx) + corner(1, 0) * sx) * (1 - sy) + (corner(0, 1) * (1 - sx) + corner(1, 1) * sx) * sy;
+        };
+    };
+    const octaves = [[gradientLayer(4), 1], [gradientLayer(8), 0.55], [gradientLayer(16), 0.3], [gradientLayer(32), 0.16], [gradientLayer(64), 0.08]];
+    const warpA = gradientLayer(6), warpB = gradientLayer(6);
+    const fbm = (u, v) => octaves.reduce((sum, [layer, weight]) => sum + layer(u, v) * weight, 0);
+
+    const crackCells = 18;
+    const seeds = new Float32Array(crackCells * crackCells * 2).map(() => Math.random());
+    const crackEdge = (u, v) => {
+        const fx = u * crackCells, fy = v * crackCells;
+        const ix = Math.floor(fx), iy = Math.floor(fy);
+        let first = 9, second = 9;
+        for (let b = -1; b <= 1; b++) {
+            for (let a = -1; a <= 1; a++) {
+                const cell = (wrap(iy + b, crackCells) * crackCells + wrap(ix + a, crackCells)) * 2;
+                const d = Math.hypot(ix + a + seeds[cell] - fx, iy + b + seeds[cell + 1] - fy);
+                if (d < first) { second = first; first = d; }
+                else if (d < second) second = d;
+            }
+        }
+        return second - first;
+    };
+
+    const height = new Float32Array(size * size);
+    let low = Infinity, high = -Infinity;
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const u = x / size, v = y / size;
+            const wu = u + warpA(u, v) * 0.09, wv = v + warpB(u, v) * 0.09;
+            const value = fbm(wu, wv);
+            height[y * size + x] = value;
+            low = Math.min(low, value);
+            high = Math.max(high, value);
+            data[(y * size + x) * 4 + 1] = 255 * Math.min(1, crackEdge(wu + warpB(u, v) * 0.03, wv + warpA(u, v) * 0.03));
+        }
+    }
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const i = y * size + x;
+            const slopeX = height[y * size + wrap(x + 1, size)] - height[y * size + wrap(x - 1, size)];
+            const slopeY = height[wrap(y + 1, size) * size + x] - height[wrap(y - 1, size) * size + x];
+            data[i * 4] = 255 * (height[i] - low) / (high - low);
+            data[i * 4 + 2] = Math.max(0, Math.min(255, 127.5 + slopeX * 900));
+            data[i * 4 + 3] = Math.max(0, Math.min(255, 127.5 + slopeY * 900));
+        }
+    }
+    const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.generateMipmaps = true;
+    texture.needsUpdate = true;
+    return texture;
+}
+
+const groundCoverUniforms = {
+    uCoverMap: { value: coverMapTexture },
+    uCoverNoise: { value: createCoverNoiseTexture() },
+    uCoverSun: { value: new THREE.Vector3(0.5, 0.8, 0.3).normalize() }
+};
+
+// Warna dipakai bersama oleh tanah jauh dan permukaan dekat pemain, supaya sambungannya tidak terlihat
+const GROUND_COVER_GLSL = `
+    uniform sampler2D uCoverMap;
+    uniform sampler2D uCoverNoise;
+    uniform vec3 uCoverSun;
+    vec4 groundCover(vec2 xz, vec3 shapeNormal) {
+        vec4 cover = texture2D(uCoverMap, (xz + ${COVER_MAP_EXTENT.toFixed(1)} * 0.5) / ${COVER_MAP_EXTENT.toFixed(1)});
+        float dirt = cover.r;
+        float snow = cover.a;
+        float amount = max(dirt, snow);
+        if (amount < 0.01) return vec4(0.0);
+        // Empat skala dengan sudut dan periode berbeda, supaya ulangan teksturnya tidak pernah segaris
+        mat2 r1 = mat2(0.809, 0.588, -0.588, 0.809);
+        mat2 r2 = mat2(0.309, -0.951, 0.951, 0.309);
+        mat2 r3 = mat2(-0.530, 0.848, -0.848, -0.530);
+        mat2 r4 = mat2(0.946, 0.326, -0.326, 0.946);
+        vec4 n1 = texture2D(uCoverNoise, r1 * xz * 0.037);
+        vec4 n2 = texture2D(uCoverNoise, r2 * xz * 0.113);
+        vec4 n3 = texture2D(uCoverNoise, r3 * xz * 0.331);
+        vec4 n4 = texture2D(uCoverNoise, r4 * xz * 0.977);
+        vec2 slope = ((n1.ba - 0.5) * r1) * 0.5 + ((n2.ba - 0.5) * r2) * 0.8 + ((n3.ba - 0.5) * r3) * 0.8 + ((n4.ba - 0.5) * r4) * 0.45;
+        float snowShare = snow / max(0.001, dirt + snow);
+        float bump = mix(1.15, 0.85, snowShare);
+        vec3 n = normalize(shapeNormal - vec3(slope.x, 0.0, slope.y) * bump);
+        float light = clamp(dot(n, uCoverSun) / max(uCoverSun.y, 0.3), 0.45, 1.3);
+
+        // Tanah liat: warna berubah pelan, retakan halus hanya muncul di sebagian area
+        float tone = n1.r * 0.5 + n2.r * 0.3 + n3.r * 0.2;
+        vec3 dirtColor = mix(vec3(0.062, 0.031, 0.015), vec3(0.122, 0.064, 0.031), smoothstep(0.22, 0.8, tone));
+        dirtColor *= 0.86 + n4.r * 0.28;
+        float crack = (1.0 - smoothstep(0.02, 0.12, n2.g)) * smoothstep(0.5, 0.72, n1.r);
+        dirtColor *= (1.0 - crack * 0.38) * light;
+
+        // Salju: alur tiupan angin memanjang, gundukan besar, dan kilau halus
+        vec4 wind = texture2D(uCoverNoise, r2 * xz * vec2(0.09, 0.62) + n1.rg * 0.12);
+        float snowLight = light + (wind.g - 0.5) * 0.28 + (wind.r - 0.5) * 0.32;
+        vec3 snowColor = mix(vec3(0.14, 0.2, 0.36), vec3(0.5, 0.53, 0.58), smoothstep(0.42, 1.08, snowLight));
+        snowColor *= 0.84 + tone * 0.3;
+        snowColor += smoothstep(0.74, 0.8, n4.r) * smoothstep(0.85, 1.15, snowLight) * 0.2;
+
+        float mask = smoothstep(0.02, 0.1, amount + (n1.r + n2.r - 1.0) * 0.05);
+        return vec4(mix(dirtColor, snowColor, snowShare), mask);
+    }
+`;
+
+function stampCover(x, z, radius, thickness, erase, kind) {
+    const scale = COVER_MAP_SIZE / COVER_MAP_EXTENT;
+    const cx = (x + COVER_MAP_EXTENT / 2) * scale;
+    const cz = (z + COVER_MAP_EXTENT / 2) * scale;
+    const r = Math.max(1.2, radius * scale);
+    const value = thickness * 255;
+    const minX = Math.max(0, Math.floor(cx - r)), maxX = Math.min(COVER_MAP_SIZE - 1, Math.ceil(cx + r));
+    const minZ = Math.max(0, Math.floor(cz - r)), maxZ = Math.min(COVER_MAP_SIZE - 1, Math.ceil(cz + r));
+    for (let row = minZ; row <= maxZ; row++) {
+        for (let col = minX; col <= maxX; col++) {
+            const d = Math.hypot(col - cx, row - cz) / r;
+            if (d >= 1) continue;
+            const edge = 1 - Math.pow(d, 3);
+            const index = (row * COVER_MAP_SIZE + col) * 2;
+            if (erase) {
+                coverMapData[index] *= 1 - edge;
+                coverMapData[index + 1] *= 1 - edge;
+            } else {
+                const own = index + (kind === 1 ? 1 : 0);
+                const other = index + (kind === 1 ? 0 : 1);
+                coverMapData[own] = Math.max(coverMapData[own], value * edge);
+                coverMapData[other] *= 1 - edge;
+            }
+        }
+    }
+}
+
+// kind: 0 tanah, 1 salju
+function paintDirt(point, radius, thickness, erase, kind) {
+    const stroke = [+point.x.toFixed(2), +point.z.toFixed(2), +radius.toFixed(2), +thickness.toFixed(2), erase ? 1 : 0, kind === 1 ? 1 : 0];
+    const last = dirtStrokes[dirtStrokes.length - 1];
+    if (last && last[4] === stroke[4] && last[3] === stroke[3] && last[5] === stroke[5] && last[2] === stroke[2] && Math.hypot(last[0] - stroke[0], last[1] - stroke[1]) < radius * 0.2) return;
+    if (erase && dirtStrokes.length === 0) return;
+    dirtStrokes.push(stroke);
+    stampCover(stroke[0], stroke[1], stroke[2], stroke[3], erase, stroke[5]);
+    coverMapTexture.needsUpdate = true;
+    coverVersion++;
+}
+
+function setDirtStrokes(strokes) {
+    dirtStrokes = Array.isArray(strokes) ? strokes.slice() : [];
+    coverMapData.fill(0);
+    dirtStrokes.forEach(s => stampCover(s[0], s[1], s[2], s[3], s[4] === 1, s[5] === 1 ? 1 : 0));
+    coverMapTexture.needsUpdate = true;
+    coverVersion++;
+}
+
+function getDirtStrokes() {
+    return dirtStrokes;
+}
+
+function hasDirtPainted() {
+    return dirtStrokes.length > 0;
+}
+
+// Kedalaman lapisan di titik ini dalam satuan dunia
+function getCoverDepth(x, z) {
+    const scale = COVER_MAP_SIZE / COVER_MAP_EXTENT;
+    const col = Math.round((x + COVER_MAP_EXTENT / 2) * scale);
+    const row = Math.round((z + COVER_MAP_EXTENT / 2) * scale);
+    if (col < 0 || row < 0 || col >= COVER_MAP_SIZE || row >= COVER_MAP_SIZE) return 0;
+    const index = (row * COVER_MAP_SIZE + col) * 2;
+    return Math.max(coverMapData[index] * COVER_DIRT_DEPTH, coverMapData[index + 1] * COVER_SNOW_DEPTH) / 255;
+}
+
+function isCoverSnow(x, z) {
+    const scale = COVER_MAP_SIZE / COVER_MAP_EXTENT;
+    const index = (Math.round((z + COVER_MAP_EXTENT / 2) * scale) * COVER_MAP_SIZE + Math.round((x + COVER_MAP_EXTENT / 2) * scale)) * 2;
+    return coverMapData[index + 1] > coverMapData[index];
 }
 
 function getTerrainNormalAt(x, z) {

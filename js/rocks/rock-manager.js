@@ -130,9 +130,12 @@ rockMaterial.onBeforeCompile = (shader) => {
         `#include <map_fragment>
         // Lumut hanya ada di tempat yang digambar dengan kuas lumut
         float mossPaint = texture2D(uMossMap, (vRockWorld.xz + ${ROCK_MOSS_EXTENT.toFixed(1)} * 0.5) / ${ROCK_MOSS_EXTENT.toFixed(1)}).r;
-        float mossFine = rockFbm(vRockWorld * 3.1);
-        float moss = smoothstep(0.32, 0.6, mossPaint + (rockFbm(vRockWorld * 1.7) - 0.5) * 0.5 + (mossFine - 0.5) * 0.25) * smoothstep(-0.35, 0.25, vRockUp.y);
-        diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.03, 0.06, 0.015), vec3(0.1, 0.15, 0.03), mossFine), moss);`
+        // Noise mahal hanya dihitung di tempat yang benar-benar dicat lumut
+        if (mossPaint > 0.01) {
+            float mossFine = rockFbm(vRockWorld * 3.1);
+            float moss = smoothstep(0.32, 0.6, mossPaint + (rockFbm(vRockWorld * 1.7) - 0.5) * 0.5 + (mossFine - 0.5) * 0.25) * smoothstep(-0.35, 0.25, vRockUp.y);
+            diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.03, 0.06, 0.015), vec3(0.1, 0.15, 0.03), mossFine), moss);
+        }`
     );
 };
 

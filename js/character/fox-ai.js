@@ -1158,6 +1158,7 @@ class FoxAIAgent {
         const mapHalf = (typeof groundSize !== 'undefined' ? groundSize : 80) / 2 - 2.5;
         this.root.position.x = THREE.MathUtils.clamp(this.root.position.x, -mapHalf, mapHalf);
         this.root.position.z = THREE.MathUtils.clamp(this.root.position.z, -mapHalf, mapHalf);
+        PandoraPlateaus.pushOut(this.root, null);
 
         // Ketinggian Terrain
         const groundH = (typeof getTerrainHeightFast === 'function')

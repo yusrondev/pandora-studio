@@ -1,6 +1,6 @@
 {
     "success": true,
-    "updatedAt": "2026-11-01T04:53:51+00:00",
+    "updatedAt": "2026-11-01T17:06:30+00:00",
     "general": {
         "basePath": "hero\/general\/",
         "files": [
@@ -198,6 +198,7 @@
             "baseScale": 1.85,
             "yOffset": 0.05,
             "files": [
+                "backflip.fbx",
                 "idle.fbx",
                 "jump-withrun.fbx",
                 "run.fbx"
@@ -205,7 +206,8 @@
             "slots": {
                 "idle": "idle.fbx",
                 "run": "run.fbx",
-                "jump": "jump-withrun.fbx"
+                "jump": "jump-withrun.fbx",
+                "jumpNormal": "backflip.fbx"
             },
             "extraClips": []
         },

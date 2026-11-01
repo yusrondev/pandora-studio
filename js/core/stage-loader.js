@@ -28,6 +28,7 @@ function tintGroundUnderGrass() {
 }
 
 function applyMapDataToScene(mapData) {
+    if (typeof StyleMeter !== 'undefined') StyleMeter.reset();
     if (!mapData) return;
 
     // Simpan snapshot untuk undo sebelum menerapkan map
@@ -129,6 +130,10 @@ function applyMapDataToScene(mapData) {
             colAttr.needsUpdate = true;
         }
     }
+
+    // Dataran dan jalan tanah dulu, supaya rumput dan pohon mengikuti ketinggiannya
+    PandoraPlateaus.load(mapData.plateaus);
+    setDirtStrokes(mapData.dirt);
 
     // 3. Terapkan Active Grass
     if (typeof maxGrassCapacity !== 'undefined' && typeof grassActiveStates !== 'undefined') {
@@ -251,6 +256,7 @@ function applyMapDataToScene(mapData) {
     if (Array.isArray(mapData.bushes) && typeof recreateBush === 'function') {
         mapData.bushes.forEach(bData => recreateBush(bData));
     }
+    if (window.PANDORA_RUNTIME && typeof bakeBushesForRuntime === 'function') bakeBushesForRuntime();
 
     // 7. Terapkan Kupu-kupu (Butterflies)
     if (typeof clearAllButterflies === 'function') {

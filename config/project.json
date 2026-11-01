@@ -1,10 +1,11 @@
 {
-    "name": "FOX Tree 22",
+    "name": "TheFoxssss",
     "startStageId": "lembah-suram",
     "stageOrder": [
         "lembah-suram",
         "padang-rumput",
-        "taron"
+        "taron",
+        "noxis"
     ],
     "allowedDomains": ""
 }

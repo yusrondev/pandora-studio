@@ -44,6 +44,8 @@
     ];
 
     // Daftar animasi per karakter untuk UI & Runtime
+    // Bagian salto klipnya sekitar 2,2 detik; kecepatan ini membuatnya sekitar 0,95 detik
+    const BACKFLIP_DEFAULT_SPEED = 2.35;
     const CHARACTER_ANIMATIONS = {
         hero: [
             { key: 'punch1', label: 'Punch 1 (Pukulan 1)', type: 'combat', defaultDamage: 25 },
@@ -60,6 +62,7 @@
             { key: 'walk', label: 'Walk (Berjalan Maju)', type: 'preview', defaultDamage: 0 },
             { key: 'backward', label: 'Backward (Berjalan Mundur)', type: 'preview', defaultDamage: 0 },
             { key: 'run', label: 'Run (Berlari Cepat)', type: 'preview', defaultDamage: 0 },
+            { key: 'backflip', label: 'Backflip (Mundur dari Bos)', type: 'preview', defaultDamage: 0 },
             { key: 'jump', label: 'Jump Sprint (Lompat Lari)', type: 'preview', defaultDamage: 0 },
             { key: 'jumpNormal', label: 'Jump Normal (Lompat di Tempat)', type: 'preview', defaultDamage: 0 },
             { key: 'block', label: 'Block / Shield (Bertahan)', type: 'preview', defaultDamage: 0 },
@@ -385,7 +388,8 @@
                 { key: 'walk', label: 'Walk (Berjalan Maju)', type: 'preview', defaultDamage: 0 },
                 { key: 'backward', label: 'Backward (Jalan Mundur)', type: 'preview', defaultDamage: 0 },
                 { key: 'run', label: 'Run (Berlari Cepat)', type: 'preview', defaultDamage: 0 },
-                { key: 'jump', label: 'Jump Sprint (Lompat Lari)', type: 'preview', defaultDamage: 0 },
+                { key: 'backflip', label: 'Backflip (Mundur dari Bos)', type: 'preview', defaultDamage: 0 },
+            { key: 'jump', label: 'Jump Sprint (Lompat Lari)', type: 'preview', defaultDamage: 0 },
                 { key: 'jumpNormal', label: 'Jump Normal (Lompat di Tempat)', type: 'preview', defaultDamage: 0 },
                 { key: 'block', label: 'Block / Shield (Bertahan)', type: 'preview', defaultDamage: 0 },
                 { key: 'hit1', label: 'Taking Hit 1 (Terkena Pukul 1)', type: 'preview', defaultDamage: 0 },
@@ -576,7 +580,7 @@
             if (!charCfg) return null;
             if (!charCfg.animations[animKey]) {
                 charCfg.animations[animKey] = {
-                    speed: 1.0,
+                    speed: animKey === 'backflip' ? BACKFLIP_DEFAULT_SPEED : 1.0,
                     damage: 25,
                     knockback: 0.22,
                     activeStartPct: 0.10,
@@ -1044,6 +1048,7 @@
                         ? animCfg.damage
                         : ((attackKey === 'flyingKick') ? 45 : (attackKey === 'flyingPunch' ? 40 : (attackKey.startsWith('kick') ? 30 : 25)));
                     const strikeDamage = Math.round(baseDamage * (heroInstance.damageScale || 1));
+                    if (!heroInstance.isAlly && typeof StyleMeter !== 'undefined') StyleMeter.registerHit(strikeDamage);
 
                     const isCrit = (attackKey === 'flyingKick' || attackKey === 'flyingPunch' || attackKey === 'kick3' || attackKey === 'punch3');
                     const hitWorldPos = (evalRes.bestHit && evalRes.bestHit.worldCenter)

@@ -633,6 +633,7 @@ const PandoraUltimate = {
         if (window.PandoraGamePaused || (window.PandoraStageFlow && PandoraStageFlow.isTransitioning)) return;
         if (typeof CinematicPlayer !== 'undefined' && CinematicPlayer.active) return;
         if (this.ragePhase === 'intro') return;
+        PandoraBackflip.stop(wolfCharacter);
         this.menuOpen = true;
         window.PandoraUltimateCasting = true;
         window.PandoraTimeScale = ULTIMATE_MENU_TIMESCALE;

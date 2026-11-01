@@ -609,6 +609,44 @@ function clearAllBushes() {
     updateBushCountUI();
 }
 
+// Build: semak sejenis dalam satu petak digabung menjadi satu draw call. Shadernya hanya membaca data per daun.
+const BUSH_CHUNK_SIZE = 24;
+function bakeBushesForRuntime() {
+    const cells = new Map();
+    bushesList.forEach((bush) => {
+        const key = bush.material.uuid + ':' + Math.floor(bush.userData.posX / BUSH_CHUNK_SIZE) + ':' + Math.floor(bush.userData.posZ / BUSH_CHUNK_SIZE);
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(bush);
+    });
+    bushesList.length = 0;
+    cells.forEach((bushes) => {
+        const source = bushes[0].geometry;
+        const geometry = new THREE.InstancedBufferGeometry();
+        geometry.setIndex(source.getIndex());
+        geometry.setAttribute('position', source.getAttribute('position'));
+        let instances = 0;
+        ['iPos', 'iQ', 'iS', 'iC'].forEach((name) => {
+            const size = source.getAttribute(name).itemSize;
+            const parts = bushes.map(bush => bush.geometry.getAttribute(name).array);
+            const merged = new Float32Array(parts.reduce((sum, part) => sum + part.length, 0));
+            let offset = 0;
+            parts.forEach((part) => {
+                merged.set(part, offset);
+                offset += part.length;
+            });
+            geometry.setAttribute(name, new THREE.InstancedBufferAttribute(merged, size));
+            instances = merged.length / size;
+        });
+        geometry.instanceCount = instances;
+        const mesh = new THREE.Mesh(geometry, bushes[0].material);
+        mesh.frustumCulled = false;
+        mesh.userData = bushes[0].userData;
+        bushes.forEach(bush => bushesGroup.remove(bush));
+        bushesGroup.add(mesh);
+        bushesList.push(mesh);
+    });
+}
+
 function updateBushCountUI() {
     const valBadge = document.getElementById('val-bush-count');
     if (valBadge) {

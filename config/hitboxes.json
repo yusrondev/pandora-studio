@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "updatedAt": "2026-10-31T01:55:23+00:00",
+    "updatedAt": "2026-11-01T05:34:33+00:00",
     "characters": {
         "hero": {
             "hurtbox": {
@@ -280,6 +280,14 @@
                 },
                 "dead2": {
                     "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "backflip": {
+                    "speed": 2.35,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1888,6 +1896,14 @@
                 },
                 "dead2": {
                     "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "backflip": {
+                    "speed": 2.65,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,

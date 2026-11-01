@@ -95,6 +95,7 @@ const volumetricCloudShader = {
 
         uniform float uTime;
         uniform float uWindSpeed;
+        uniform float uPuffScale;
 
         void main() {
             vUv = uv;
@@ -119,8 +120,8 @@ const volumetricCloudShader = {
             );
 
             vec3 vertexPos = (instancePos.xyz + windOffset) 
-                           + cameraRight * position.x * scale.x 
-                           + cameraUp * position.y * scale.y;
+                           + cameraRight * position.x * scale.x * uPuffScale 
+                           + cameraUp * position.y * scale.y * uPuffScale;
 
             gl_Position = projectionMatrix * viewMatrix * vec4(vertexPos, 1.0);
         }
@@ -149,6 +150,8 @@ const volumetricCloudMat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false, // Penting agar tumpukan partikel transparan tidak glitch
 });
+
+volumetricCloudMat.uniforms.uPuffScale = { value: PandoraSettings.preset().cloudPuffScale || 1 };
 
 const cloudGroup = new THREE.Group();
 scene.add(cloudGroup);

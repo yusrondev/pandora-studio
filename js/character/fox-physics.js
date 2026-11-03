@@ -129,6 +129,10 @@ const CAMERA_MOUSE_PITCH = 0.0035;
 const CAMERA_STRAFE_ASSIST = 0.38;   // Radian/detik: kamera ikut sedikit saat berjalan ke samping
 const CAMERA_ASSIST_DELAY = 1.2;     // Detik setelah kamera digeser sebelum bantuan aktif lagi
 const CAMERA_BOSS_ASSIST = 1.6;      // Kecepatan menoleh pelan ke bos
+const CAMERA_BOSS_ASSIST_ANGLE = 0.45; // Bos dalam sudut ini sudah terlihat, kamera tidak perlu menoleh
+const CAMERA_BOSS_AIM_SMOOTH = 3.0;   // Arah ke bos dihaluskan, agar langkah kecil bos tidak menggoyang kamera
+const CAMERA_BOSS_NEAR = 2.0;         // Di bawah jarak ini arah ke bos berubah terlalu cepat, bantuan dimatikan
+const CAMERA_BOSS_FULL = 5.0;         // Bantuan penuh mulai jarak ini
 const CAMERA_ATTACK_ASSIST = 2.2;    // Kecepatan menoleh pelan ke musuh yang diserang
 const CAMERA_ATTACK_ASSIST_ANGLE = 0.7; // Musuh dalam sudut ini sudah cukup terlihat, kamera tidak perlu menoleh
 let userPreferredDist = PLAY_CAMERA_START_DIST;
@@ -140,13 +144,57 @@ let isCameraOccluded = false;
 // Saat fox occluded oleh bukit/rumput, kamera otomatis
 // mundur (zoom out) agar fox tetap terlihat di viewport.
 // ========================================================
-let _autoZoomOutActive = false;          // apakah sedang dalam mode auto zoom-out
-let _autoZoomOutDist = 0.0;             // tambahan jarak ekstra saat auto zoom-out
+let _autoZoomOutActive = false;          // apakah kamera sedang mendekat karena fox tertutup
+let _autoZoomOutDist = 0.0;             // jarak yang dikurangi saat fox tertutup
 let _autoZoomOccludedTimer = 0.0;       // berapa lama fox sudah occluded (debounce)
-const AUTO_ZOOM_TRIGGER_DELAY = 0.18;   // detik sebelum mulai zoom-out (menghindari false positive)
-const AUTO_ZOOM_MAX_EXTRA = 7.5;        // maksimum tambahan jarak zoom-out (meter)
-const AUTO_ZOOM_STEP_SPEED = 4.5;       // kecepatan zoom-out (m/s)
-const AUTO_ZOOM_RECOVER_SPEED = 2.2;    // kecepatan recover zoom-in (m/s)
+const AUTO_ZOOM_TRIGGER_DELAY = 0.08;   // detik sebelum mulai mendekat (menghindari false positive)
+const AUTO_ZOOM_MAX_EXTRA = 7.5;        // maksimum jarak yang dikurangi (meter)
+const AUTO_ZOOM_MIN_DIST = 1.6;         // kamera tidak mendekat lebih dari ini
+const AUTO_ZOOM_STEP_SPEED = 9.0;       // kecepatan mendekat (m/s)
+const AUTO_ZOOM_RECOVER_SPEED = 3.0;    // kecepatan kembali ke jarak semula (m/s)
+// Spring arm: benda padat di antara karakter dan kamera membuat kamera langsung maju ke depannya
+const SPRING_ARM_PADDING = 0.35;        // Jarak aman kamera dari permukaan penghalang
+const SPRING_ARM_MIN_DIST = 0.6;        // Penghalang yang sangat dekat tetap tidak boleh menelan kamera
+const SPRING_ARM_IN_RATE = 22.0;        // Maju cepat saat tertutup
+const SPRING_ARM_OUT_SPEED = 3.5;       // Kembali pelan (m/s) setelah bebas, supaya tidak tersentak
+let _springArmDist = Infinity;
+const _springArmRay = new THREE.Raycaster();
+const _springArmDir = new THREE.Vector3();
+const _springArmCandidates = [];
+
+// Jarak bebas terdekat dari titik fokus ke arah kamera: batu, batang pohon, dataran, objek impor, dan bukit
+function measureSpringArm(origin, dir, maxDist) {
+    _springArmCandidates.length = 0;
+    const near = (object) => object && object.visible !== false
+        && Math.hypot(object.position.x - origin.x, object.position.z - origin.z) < maxDist + 6;
+    if (typeof rocksList !== 'undefined') rocksList.forEach(rock => { if (near(rock)) _springArmCandidates.push(rock); });
+    if (typeof treesList !== 'undefined') treesList.forEach(tree => {
+        if (near(tree)) _springArmCandidates.push((tree.userData && tree.userData.trunkGroup) || tree);
+    });
+    if (window.PandoraPlateaus) PandoraPlateaus.meshes.forEach(mesh => _springArmCandidates.push(mesh));
+    if (Array.isArray(window.importedObjectsList)) window.importedObjectsList.forEach(item => {
+        if (item && item.root && item.hasCollision !== false && near(item.root)) _springArmCandidates.push(item.root);
+    });
+    let hit = maxDist;
+    if (_springArmCandidates.length > 0) {
+        _springArmRay.set(origin, dir);
+        _springArmRay.near = 0.25;
+        _springArmRay.far = maxDist;
+        const hits = _springArmRay.intersectObjects(_springArmCandidates, true);
+        if (hits.length > 0) hit = hits[0].distance;
+    }
+    // Bukit: titik pertama di sepanjang garis yang berada di bawah permukaan tanah
+    if (typeof getTerrainHeightFast === 'function') {
+        for (let s = 0.6; s < hit; s += 0.3) {
+            const x = origin.x + dir.x * s, y = origin.y + dir.y * s, z = origin.z + dir.z * s;
+            if (y < getTerrainHeightFast(x, z) + 0.15) {
+                hit = s;
+                break;
+            }
+        }
+    }
+    return hit;
+}
 
 // ========================================================
 // SISTEM VISUAL EAGLE VISION OUTLINE & SILUET (ASSASSIN'S CREED)
@@ -729,6 +777,7 @@ let _bossEncounter = null;
 let _bossCamRef = null;
 let _combatCamRef = null;
 let _bossCamBlend = 0.0;
+let _bossAimPos = null;
 let _combatCamBlend = 0.0;
 
 function isEnemyAlive(item) {
@@ -776,6 +825,15 @@ function turnCameraToward(targetPos, fromPos, rate, dt, deadAngle = 0) {
     if (diff > Math.PI) diff -= Math.PI * 2;
     if (Math.abs(diff) <= deadAngle) return;
     camOrbitYaw += (diff - Math.sign(diff) * deadAngle) * (1 - Math.exp(-rate * dt));
+}
+
+// Fokus kamera hanya boleh ditarik maju-mundur ke arah musuh; tarikan ke samping menggeser layar kiri-kanan
+function removeSidewaysPart(offset) {
+    const yaw = (typeof camOrbitYaw === 'number') ? camOrbitYaw : 0;
+    const rightX = Math.cos(yaw), rightZ = -Math.sin(yaw);
+    const side = offset.x * rightX + offset.z * rightZ;
+    offset.x -= rightX * side;
+    offset.z -= rightZ * side;
 }
 
 function stepEncounterBlend(value, isActive, dt) {
@@ -943,8 +1001,9 @@ function updateWolfPhysics(dt, elapsed) {
         }
     }
 
-    // Kunci kontrol saat sedang melompat di tempat (stationary jump) atau saat combat/terkena hit/shield
-    const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && wolfCharacter.isStationaryJump);
+    // Kunci kontrol saat lompat biasa (di tempat atau sambil berjalan) atau saat combat/terkena hit/shield.
+    // Hanya lompat sambil sprint yang tetap melaju.
+    const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && (wolfCharacter.isStationaryJump || wolfCharacter.activeJumpKey === 'jumpNormal'));
     const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit || wolfCharacter.isBlocking));
     const backflipStep = PandoraBackflip.update(dt, wolfCharacter, _bossEncounter, inputX, inputY, isGrounded);
     const isMovementLocked = isPlayerInCombat || isStationaryJumping || !!window.PandoraUltimateCasting || backflipStep !== null;
@@ -1740,6 +1799,7 @@ function updateWolfPhysics(dt, elapsed) {
 
     const activeBoss = findActiveBossEnemy(foxRoot);
     window.activeBossEncounter = activeBoss;
+    if (!activeBoss) _bossAimPos = null;
 
     // Lock combat melepas target di luar jangkauan; target lama tidak boleh terus menarik kamera
     let combatLockTarget = window.currentCombatLockTarget || null;
@@ -1765,6 +1825,7 @@ function updateWolfPhysics(dt, elapsed) {
             _bossCamRef.root.position.y + 0.95 * bossScale,
             _bossCamRef.root.position.z
         ).sub(playerTargetPos).multiplyScalar(0.32).clampLength(0, BOSS_FOCUS_MAX_OFFSET);
+        removeSidewaysPart(bossFocusOffset);
         currentTargetPos.addScaledVector(bossFocusOffset, bossWeight);
     }
     if (combatWeight > 0 && _combatCamRef && _combatCamRef.root) {
@@ -1779,6 +1840,7 @@ function updateWolfPhysics(dt, elapsed) {
             _combatCamRef.root.position.z
         ).sub(playerTargetPos).multiplyScalar(enemyLerpWeight);
         combatFocusOffset.y += THREE.MathUtils.clamp((distToCombatTarget - 3.0) * 0.05, 0.0, 0.35);
+        removeSidewaysPart(combatFocusOffset);
         currentTargetPos.addScaledVector(combatFocusOffset, combatWeight);
     }
 
@@ -1850,7 +1912,10 @@ function updateWolfPhysics(dt, elapsed) {
     // ========================================================
     if (!isUserHoldingCamera) {
         if (activeBoss) {
-            turnCameraToward(activeBoss.root.position, foxRoot.position, CAMERA_BOSS_ASSIST * bossWeight, dt);
+            if (!_bossAimPos) _bossAimPos = activeBoss.root.position.clone();
+            _bossAimPos.lerp(activeBoss.root.position, 1 - Math.exp(-CAMERA_BOSS_AIM_SMOOTH * dt));
+            const nearFade = THREE.MathUtils.smoothstep(foxRoot.position.distanceTo(_bossAimPos), CAMERA_BOSS_NEAR, CAMERA_BOSS_FULL);
+            turnCameraToward(_bossAimPos, foxRoot.position, CAMERA_BOSS_ASSIST * bossWeight * nearFade, dt, CAMERA_BOSS_ASSIST_ANGLE);
         } else if (isPlayerAttacking && activeCombatTarget && activeCombatTarget.root) {
             turnCameraToward(activeCombatTarget.root.position, foxRoot.position, CAMERA_ATTACK_ASSIST, dt, CAMERA_ATTACK_ASSIST_ANGLE);
         } else if (Math.abs(inputX) > 0.2) {
@@ -1920,7 +1985,8 @@ function updateWolfPhysics(dt, elapsed) {
             // Mundur perlahan sampai fox terlihat atau sampai batas maksimum
             _autoZoomOutDist = Math.min(
                 _autoZoomOutDist + AUTO_ZOOM_STEP_SPEED * dt,
-                AUTO_ZOOM_MAX_EXTRA
+                AUTO_ZOOM_MAX_EXTRA,
+                Math.max(0, effectiveTargetDist - AUTO_ZOOM_MIN_DIST)
             );
             _autoZoomOutActive = true;
         } else {
@@ -1932,17 +1998,28 @@ function updateWolfPhysics(dt, elapsed) {
             if (_autoZoomOutDist <= 0.01) _autoZoomOutActive = false;
         }
 
-        effectiveTargetDist += _autoZoomOutDist;
+        // Fox tertutup objek: kamera maju melewati penghalang, bukan mundur menjauh
+        effectiveTargetDist = Math.max(AUTO_ZOOM_MIN_DIST, effectiveTargetDist - _autoZoomOutDist);
     }
 
-    const zoomLerpRate = 4.5;
+    // Saat karakter tertutup kamera menyusul cepat; zoom biasa tetap halus
+    const zoomLerpRate = _autoZoomOutActive ? 14.0 : 4.5;
     currentCamDist += (effectiveTargetDist - currentCamDist) * Math.min(1.0, zoomLerpRate * dt);
 
-    camera.position.copy(controls.target).addScaledVector(rayDir, currentCamDist);
+    // Spring arm: maju cepat ke depan benda padat yang menutupi, lalu kembali pelan setelah bebas
+    {
+        _springArmDir.copy(rayDir).normalize();
+        const free = measureSpringArm(controls.target, _springArmDir, currentCamDist);
+        const allowed = free < currentCamDist ? Math.max(SPRING_ARM_MIN_DIST, free - SPRING_ARM_PADDING) : currentCamDist;
+        if (allowed < _springArmDist) _springArmDist += (allowed - _springArmDist) * Math.min(1, SPRING_ARM_IN_RATE * dt);
+        else _springArmDist = Math.min(allowed, _springArmDist + SPRING_ARM_OUT_SPEED * dt);
+        if (!isFinite(_springArmDist)) _springArmDist = allowed;
+    }
+    camera.position.copy(controls.target).addScaledVector(rayDir, Math.min(currentCamDist, _springArmDist));
 
-    // Saat bertarung karakter kembali ke tengah agar musuh dan karakter sama-sama terlihat
     // setViewOffset menurunkan aspect dari ukuran penuh, jadi ukurannya harus mengikuti aspect layar
-    camera.setViewOffset(camera.aspect, 1, camera.aspect * PLAY_CAMERA_SHOULDER * (1 - Math.max(bossWeight, combatWeight)), 0, camera.aspect, 1);
+    // Posisi bahu tetap saat bertemu musuh: menggeser karakter ke tengah membuat layar terasa bergoyang
+    camera.setViewOffset(camera.aspect, 1, camera.aspect * PLAY_CAMERA_SHOULDER, 0, camera.aspect, 1);
 
     // Mencegah kamera menembus lantai tanah (ground floor clamp)
     if (typeof getTerrainHeightFast === 'function') {
@@ -1953,6 +2030,7 @@ function updateWolfPhysics(dt, elapsed) {
     }
 
     camera.lookAt(controls.target);
+    PandoraHitFeedback.applyCameraShake();
 
     // ========================================================
     // 3B. SISTEM VISUAL EAGLE VISION OUTLINE & SILUET (ASSASSIN'S CREED)

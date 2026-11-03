@@ -22,6 +22,7 @@ function cinematicActorData(f, overrides) {
         moveClip: f.moveClip || '',
         clipLoop: f.clipLoop !== false,
         endRole: f.endRole || 'stay',
+        scale: f.scale || 1,
         heading: f.heading,
         waypoints: JSON.parse(JSON.stringify(f.waypoints || []))
     }, overrides || {});
@@ -1065,6 +1066,11 @@ const CinematicManager = {
         this.ensureFoxGroupAndModel(fox, 0);
     },
 
+    // Model aktor timeline hanya pratinjau editor; di Play Mode cinematic game memakai modelnya sendiri
+    actorPreviewVisible() {
+        return this.isFoxEnabled && !(typeof isPlayMode !== 'undefined' && isPlayMode);
+    },
+
     ensureFoxGroupAndModel(fox, idx = 0) {
         if (!fox) return;
         if (!fox.pathGroup) {
@@ -1077,7 +1083,7 @@ const CinematicManager = {
             fox.model = CinematicActors.createModel(fox.species || 'red');
         }
         if (fox.model && fox.model.root) {
-            fox.model.root.visible = this.isFoxEnabled;
+            fox.model.root.visible = this.actorPreviewVisible();
         }
         if (fox.pathGroup) {
             fox.pathGroup.visible = this.isFoxEnabled;
@@ -1172,6 +1178,11 @@ const CinematicManager = {
 
         const selIdle = document.getElementById('select-cinematic-fox-idle');
         if (selIdle) selIdle.value = activeFox.idlePose || 'alert';
+
+        const sliderScale = document.getElementById('slider-cinematic-fox-scale');
+        if (sliderScale) sliderScale.value = activeFox.scale || 1;
+        const valScale = document.getElementById('val-cinematic-fox-scale');
+        if (valScale) valScale.innerText = (activeFox.scale || 1).toFixed(2) + 'x';
 
         const btnDraw = document.getElementById('btn-cinematic-fox-draw');
         if (btnDraw) btnDraw.classList.toggle('active', this.isDrawingFoxMode);
@@ -1315,6 +1326,15 @@ const CinematicManager = {
         this.updateFoxPlayback(this.progress * this.duration, 0.016, performance.now() * 0.001, this.isPlaying);
     },
 
+    setFoxScale(scale) {
+        const fox = this.getActiveFox();
+        if (!fox) return;
+        fox.scale = scale;
+        CinematicActors.applyScale(fox, fox.model);
+        const valScale = document.getElementById('val-cinematic-fox-scale');
+        if (valScale) valScale.innerText = scale.toFixed(2) + 'x';
+    },
+
     setFoxIdlePose(poseKey) {
         const fox = this.getActiveFox();
         if (!fox) return;
@@ -1409,7 +1429,7 @@ const CinematicManager = {
             fox.curve = null;
             // Jika fox aktif diaktifkan, tampilkan di posisi standby
             if (fox.model && fox.model.root) {
-                fox.model.root.visible = this.isFoxEnabled;
+                fox.model.root.visible = this.actorPreviewVisible();
             }
             return;
         }
@@ -1423,7 +1443,7 @@ const CinematicManager = {
             if (fox.model && fox.model.root) {
                 fox.model.root.position.set(wp1.x, gy, wp1.z);
                 fox.model.root.rotation.y = fox.heading || 0;
-                fox.model.root.visible = true; // Selalu tampilkan rubah di titik awal jalur
+                fox.model.root.visible = this.actorPreviewVisible(); // Tampilkan rubah di titik awal jalur (kecuali saat Play Mode)
             }
             this.updateFoxLaneHintUI();
             this.renderTimelineLanePips();
@@ -1452,7 +1472,7 @@ const CinematicManager = {
 
         this.renderSingleFoxMarkersOnly(fox);
         if (fox.model && fox.model.root) {
-            fox.model.root.visible = this.isFoxEnabled;
+            fox.model.root.visible = this.actorPreviewVisible();
         }
         this.updateSingleFoxPlayback(fox, this.progress * this.duration, 0.016, 0, false, this.foxes.indexOf(fox));
         this.updateFoxLaneHintUI();
@@ -2119,6 +2139,7 @@ const CinematicManager = {
                     moveClip: sf.moveClip || '',
                     clipLoop: sf.clipLoop !== false,
                     endRole: sf.endRole || 'stay',
+                    scale: sf.scale || 1,
                     heading: sf.heading || 0,
                     waypoints: JSON.parse(JSON.stringify(sf.waypoints || [])),
                     curve: null,
@@ -2418,6 +2439,7 @@ const CinematicManager = {
         }
 
         this.isPlaying = true;
+        CinematicWorld.hide(null);
 
         // HILANGKAN SEMUA TANDA JALUR (KAMERA & SEMUA RUBAH) & SELECTOR SAAT PLAY
         if (this.pathGroup) this.pathGroup.visible = false;
@@ -2450,6 +2472,7 @@ const CinematicManager = {
         this.isPlaying = false;
         this.isPlayingAllScenes = false;
         controls.enabled = true;
+        CinematicWorld.restore();
 
         const dofOverlay = document.getElementById('cinematic-dof-overlay');
         if (dofOverlay) {
@@ -2508,6 +2531,7 @@ const CinematicManager = {
         this.progress = 0.0;
         this.updateTimelineUI();
         controls.enabled = true;
+        CinematicWorld.restore();
 
         if (typeof camera !== 'undefined' && camera && camera.fov !== 45) {
             camera.fov = 45;
@@ -2637,11 +2661,13 @@ const CinematicManager = {
             targetFov = this.waypoints[0].fov !== undefined ? this.waypoints[0].fov : 45;
         } else if (this.waypoints.length >= 2) {
             const total = this.waypoints.length;
-            const segments = this.isLooping ? total : (total - 1);
-            const globalT = THREE.MathUtils.clamp(t, 0, 1) * segments;
-            const idxA = Math.floor(globalT) % total;
-            const idxB = (idxA + 1) % total;
-            const alpha = globalT - Math.floor(globalT);
+            // Kembali ke titik pertama hanya bila jalurnya memang melingkar (Loop dengan minimal 3 titik)
+            const segments = (this.curve && this.curve.closed) ? total : (total - 1);
+            const globalT = this.waypointParam(t) * segments;
+            const segment = Math.min(segments - 1, Math.floor(globalT));
+            const idxA = segment % total;
+            const idxB = (segment + 1) % total;
+            const alpha = globalT - segment;
             const fovA = this.waypoints[idxA].fov !== undefined ? this.waypoints[idxA].fov : 45;
             const fovB = this.waypoints[idxB].fov !== undefined ? this.waypoints[idxB].fov : 45;
             targetFov = fovA + (fovB - fovA) * alpha;
@@ -2652,9 +2678,16 @@ const CinematicManager = {
         }
     },
 
+    // Posisi kamera memakai panjang jalur (getPointAt), sedangkan titik kamera ke-i berada di parameter i/(n-1).
+    // Tanpa pemetaan ini sudut/FOV titik kamera tidak tercapai tepat saat kamera tiba di titik tersebut.
+    waypointParam(u) {
+        const clamped = THREE.MathUtils.clamp(u, 0, 1);
+        return this.curve ? this.curve.getUtoTmapping(clamped) : clamped;
+    },
+
+    // t sudah di-easing oleh pemanggil; easing ulang membuat arah pandang tertinggal dan melirik ke samping
     calculateFocusTarget(t) {
-        const easedT = this.getEasedProgress(t);
-        const camPos = this.curve ? this.curve.getPointAt(easedT) : camera.position;
+        const camPos = this.curve ? this.curve.getPointAt(THREE.MathUtils.clamp(t, 0, 1)) : camera.position;
 
         // 0. Fokus Berdasarkan Angle Tiap Titik Kamera (Interpolasi Smooth Rotasi Yaw & Pitch)
         if (this.focusMode === 'angles') {
@@ -2668,11 +2701,13 @@ const CinematicManager = {
             }
 
             const total = this.waypoints.length;
-            const segments = this.isLooping ? total : (total - 1);
-            const globalT = THREE.MathUtils.clamp(t, 0, 1) * segments;
-            const idxA = Math.floor(globalT) % total;
-            const idxB = (idxA + 1) % total;
-            const alpha = globalT - Math.floor(globalT);
+            // Kembali ke titik pertama hanya bila jalurnya memang melingkar (Loop dengan minimal 3 titik)
+            const segments = (this.curve && this.curve.closed) ? total : (total - 1);
+            const globalT = this.waypointParam(t) * segments;
+            const segment = Math.min(segments - 1, Math.floor(globalT));
+            const idxA = segment % total;
+            const idxB = (segment + 1) % total;
+            const alpha = globalT - segment;
 
             const wpA = this.waypoints[idxA];
             const wpB = this.waypoints[idxB];
@@ -2787,6 +2822,8 @@ const CinematicManager = {
     // --- 6. TICK PER FRAME DARI RENDER LOOP ---
     update(dt, elapsed) {
         if (!this.isPlaying) return;
+        // Pratinjau Studio: hanya aktor timeline yang tampil, karakter lain kembali saat pause/stop
+        CinematicWorld.hide(null);
 
         // Pastikan visual jalur 3D kamera, semua rubah & semua selector selalu disembunyikan saat play
         if (this.pathGroup && this.pathGroup.visible) this.pathGroup.visible = false;
@@ -2923,6 +2960,19 @@ const CinematicManager = {
             };
             list.appendChild(item);
         });
+    },
+
+    // Selama tab Cinematic terbuka atau timeline diputar, hanya aktor Actor Track yang tampil di canvas.
+    // Di Play Mode urusan ini milik CinematicPlayer; sisa sembunyi dari editor dikembalikan.
+    syncWorldVisibility() {
+        if (typeof isPlayMode !== 'undefined' && isPlayMode) {
+            if (CinematicWorld.hidden && !(window.CinematicPlayer && CinematicPlayer.active)) CinematicWorld.restore();
+            return;
+        }
+        if (!this.bottomPanelEl) this.bottomPanelEl = document.getElementById('cinematic-bottom-panel');
+        const tabOpen = !!(this.bottomPanelEl && this.bottomPanelEl.classList.contains('visible'));
+        if (tabOpen || this.isPlaying) CinematicWorld.hide(null);
+        else CinematicWorld.restore();
     },
 
     toggleBottomPanel(forceState) {
@@ -3437,6 +3487,11 @@ const CinematicManager = {
         const selectFoxIdle = document.getElementById('select-cinematic-fox-idle');
         if (selectFoxIdle) {
             selectFoxIdle.addEventListener('change', (e) => this.setFoxIdlePose(e.target.value));
+        }
+
+        const sliderFoxScale = document.getElementById('slider-cinematic-fox-scale');
+        if (sliderFoxScale) {
+            sliderFoxScale.addEventListener('input', (e) => this.setFoxScale(parseFloat(e.target.value)));
         }
 
         const btnSnapWp1 = document.getElementById('btn-fox-snap-wp1');

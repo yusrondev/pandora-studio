@@ -1,0 +1,49 @@
+{
+    "name": "Stage 5",
+    "environment": {
+        "canvasSize": 80,
+        "planeColor": "#cbb6b8",
+        "showGrid": true,
+        "skyPreset": "day",
+        "sunAzimuth": 300,
+        "sunElevation": 45,
+        "windSpeed": 1,
+        "leafFall": 1
+    },
+    "terrain": {
+        "heights": null,
+        "colors": null
+    },
+    "trees": [],
+    "rocks": [],
+    "flowers": [],
+    "ferns": [],
+    "bushes": [],
+    "butterflies": [],
+    "foxes": [],
+    "itemBoxes": [],
+    "portals": [],
+    "playerSpawn": {
+        "x": 0,
+        "z": 0,
+        "rotY": 0
+    },
+    "importedObjects": [],
+    "water": {
+        "level": 0.02,
+        "mask": null,
+        "outerOcean": true
+    },
+    "fog": null,
+    "activeGrass": [],
+    "cinematic": null,
+    "character": "red-mature",
+    "meta": {
+        "treeCount": 0,
+        "version": "1.0"
+    },
+    "id": "stage-5",
+    "filename": "stage-5.json",
+    "updatedAt": "2026-11-03T14:31:44+00:00",
+    "createdAt": "2026-11-03T14:31:44+00:00"
+}

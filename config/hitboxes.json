@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "updatedAt": "2026-11-01T05:34:33+00:00",
+    "updatedAt": "2026-11-03T12:57:23+00:00",
     "characters": {
         "hero": {
             "hurtbox": {
@@ -1879,7 +1879,7 @@
                     "hitboxes": []
                 },
                 "jumpNormal": {
-                    "speed": 1,
+                    "speed": 2.4,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,

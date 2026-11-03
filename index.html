@@ -879,6 +879,11 @@
                             </div>
                             <select id="select-cinematic-fox-idle" class="cinematic-mini-select" style="width:100%; box-sizing:border-box; max-width:100%;" title="Idle Pose"></select>
                             <select id="select-cinematic-fox-moveclip" class="cinematic-mini-select" style="width:100%; box-sizing:border-box;" title="Klip saat aktor bergerak di jalurnya"></select>
+                            <label style="display:flex; align-items:center; gap:5px; font-size:10px; color:var(--text-muted);" title="Ukuran aktor ini di cinematic; ikut terbawa bila aktor menjadi musuh atau boss">
+                                <span>Ukuran</span>
+                                <input type="range" id="slider-cinematic-fox-scale" min="0.3" max="5" step="0.05" value="1" style="flex:1; min-width:0;">
+                                <span id="val-cinematic-fox-scale" style="min-width:34px; text-align:right;">1.00x</span>
+                            </label>
                             <label style="display:flex; align-items:center; gap:5px; font-size:10px; color:var(--text-muted);" title="Ulangi klip diam. Matikan untuk klip sekali main, misalnya serangan atau mati">
                                 <input type="checkbox" id="toggle-cinematic-fox-loop" checked>
                                 <span>Ulangi klip diam</span>
@@ -3358,6 +3363,8 @@
     <script src="js/items/item-system.js"></script>
     <script src="js/character/fox-ai.js"></script>
     <script src="js/character/combat-hud.js"></script>
+    <script src="js/character/hit-feedback.js"></script>
+    <script src="js/character/soul-absorb.js"></script>
     <script src="js/editor/glb-importer.js"></script>
     <script src="js/character/mobile-controls.js"></script>
     <script src="js/character/player-spawn.js"></script>

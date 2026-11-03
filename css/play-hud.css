@@ -1292,38 +1292,111 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
 .style-hits.pop b { animation: style-hit-pop 0.16s ease-out; }
 @keyframes style-hit-pop { from { transform: scale(1.35); } to { transform: scale(1); } }
 
-/* Layar pemuatan saat pindah stage lewat portal */
+/* Transisi portal: pendar ember mengembang dari tengah, lalu layar tenggelam ke hitam tinta */
+#stage-fade-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 900000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 55%, #1b140d 0%, #0c0907 55%, #050403 100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.42s ease-in 0.12s;
+}
+#stage-fade-overlay.active { opacity: 1; transition: opacity 0.3s ease-out 0.24s; }
+.stage-fade-iris {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 30vmax;
+    height: 30vmax;
+    margin: -15vmax 0 0 -15vmax;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(232, 196, 131, 0.55) 0%, rgba(208, 112, 36, 0.32) 26%, rgba(90, 38, 12, 0.18) 48%, rgba(5, 4, 3, 0) 70%);
+    transform: scale(0);
+    opacity: 0;
+    pointer-events: none;
+}
+#stage-fade-overlay.active .stage-fade-iris { animation: stage-fade-iris 0.7s ease-in forwards; }
+@keyframes stage-fade-iris {
+    0% { transform: scale(0.1); opacity: 0; }
+    35% { opacity: 1; }
+    100% { transform: scale(6); opacity: 0; }
+}
+
+/* Bara kecil yang melayang naik di balik layar pemuatan */
+.stage-fade-ember {
+    position: absolute;
+    bottom: -4vh;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #f0a64a;
+    box-shadow: 0 0 6px 1px rgba(232, 140, 50, 0.75);
+    opacity: 0;
+    animation: stage-fade-ember linear infinite;
+}
+#stage-fade-overlay:not(.active) .stage-fade-ember { animation-play-state: paused; }
+@keyframes stage-fade-ember {
+    0% { transform: translate(0, 0); opacity: 0; }
+    12% { opacity: 0.9; }
+    70% { opacity: 0.55; }
+    100% { transform: translate(var(--drift, 20px), -78vh); opacity: 0; }
+}
+
+/* Layar pemuatan: segel, nama stage, dan garis emas yang memanjang seperti title card daerah */
 .stage-travel {
+    position: relative;
     display: flex;
     flex-direction: column;
-    width: min(420px, 62vw);
-    gap: 9px;
+    align-items: center;
+    width: min(520px, 76vw);
+    color: #e8c483;
+    animation: stage-travel-in 0.6s ease-out both;
 }
-.stage-travel-bar {
+@keyframes stage-travel-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.stage-travel-title {
+    min-height: 1.2em;
+    font: 700 clamp(22px, 3.4vw, 40px) 'Pandora Title', 'Cinzel', Georgia, serif;
+    letter-spacing: 0.2em;
+    margin-right: -0.2em;
+    text-transform: uppercase;
+    text-align: center;
+    white-space: nowrap;
+    text-shadow: 0 2px 2px #000, 0 0 26px rgba(208, 112, 36, 0.55);
+}
+.stage-travel-rule {
     position: relative;
-    height: 3px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.16);
+    align-self: stretch;
+    height: 1px;
+    margin: 16px 0 12px;
+    background: linear-gradient(90deg, transparent, rgba(232, 196, 131, 0.18), transparent);
 }
-.stage-travel-bar i { display: block; width: 0; height: 100%; background: #e6e2d6; transition: width 0.2s linear; }
-.stage-travel-bar b {
+.stage-travel-rule i {
     position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 22%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
-    will-change: transform;
-    animation: stage-travel-shine 1.5s ease-in-out infinite;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, #e8c483 22%, #f6ddb0 50%, #e8c483 78%, transparent);
+    box-shadow: 0 0 8px rgba(232, 160, 70, 0.55);
+    transform: scaleX(0);
+    transition: transform 0.25s ease-out;
 }
-@keyframes stage-travel-shine { from { transform: translateX(-100%); } to { transform: translateX(460%); } }
 .stage-travel-meta {
     display: flex;
-    justify-content: space-between;
-    color: #c9c5b8;
-    font: 500 11px 'Inter', 'Segoe UI', sans-serif;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    align-items: baseline;
+    gap: 14px;
+    color: #cdb99b;
+}
+.stage-travel-meta span:first-child {
+    font: italic 500 clamp(15px, 1.5vw, 19px) 'Pandora Serif', 'Cormorant Garamond', Georgia, serif;
+    letter-spacing: 0.12em;
+}
+.stage-travel-meta span:last-child {
+    font: 600 11px 'Pandora Title', 'Cinzel', Georgia, serif;
+    letter-spacing: 0.2em;
+    color: #9c8a6c;
 }
 
 /* Di perangkat sentuh, blur di atas canvas yang terus bergerak sangat memboroskan GPU */

@@ -14,6 +14,7 @@ const RAGE_SECONDS = 7;
 const RAGE_INTRO_TIMESCALE = 0.15;  // Sekeliling melambat selama animasi rage
 const RAGE_ATTACK_SPEED = 2;
 const FLAME_PER_HAND = 280;
+const FLAME_BONES = ['RightHand', 'LeftHand', 'RightFoot', 'LeftFoot']; // Tangan dan kaki sama-sama terbakar saat Rage
 const FLAME_MIN_SIZE = 0.09;
 const FLAME_SIZE_RANGE = 0.13;
 const FLAME_EMBER_CHANCE = 0.06;   // Sebagian kecil menjadi bara yang terbang lebih tinggi
@@ -263,11 +264,11 @@ const PandoraUltimate = {
         return burst;
     },
 
-    // ---------- Api di kedua tangan ----------
-    // Partikel hidup di koordinat dunia, jadi api tertinggal di belakang tangan saat berlari
+    // ---------- Api di kedua tangan dan kaki ----------
+    // Partikel hidup di koordinat dunia, jadi api tertinggal di belakang tangan dan kaki saat berlari
     buildFlames() {
         if (this.flames) return;
-        const count = (FLAME_PER_HAND + 1) * 2;
+        const count = (FLAME_PER_HAND + 1) * FLAME_BONES.length;
         const positions = new Float32Array(count * 3);
         const data = new Float32Array(count * 3);
         const velocities = new Float32Array(count * 3);
@@ -294,7 +295,7 @@ const PandoraUltimate = {
         scene.add(points);
         this.flames = {
             points, positions, data, velocities, lifetimes, count, emitting: false, time: 0,
-            hands: [{ bone: null, current: new THREE.Vector3(), last: new THREE.Vector3() }, { bone: null, current: new THREE.Vector3(), last: new THREE.Vector3() }]
+            hands: FLAME_BONES.map(() => ({ bone: null, current: new THREE.Vector3(), last: new THREE.Vector3() }))
         };
     },
 
@@ -302,7 +303,7 @@ const PandoraUltimate = {
         const flames = this.flames;
         if (!flames) return;
         const resolver = window.PandoraHitboxSystem;
-        ['RightHand', 'LeftHand'].forEach((name, i) => {
+        FLAME_BONES.forEach((name, i) => {
             const hand = flames.hands[i];
             hand.bone = resolver && resolver.resolveBone ? resolver.resolveBone(wolfCharacter, name) : null;
             if (hand.bone) {
@@ -311,7 +312,7 @@ const PandoraUltimate = {
             }
         });
         for (let i = 0; i < flames.count; i++) {
-            const hand = flames.hands[i % 2];
+            const hand = flames.hands[i % flames.hands.length];
             flames.positions.set([hand.current.x, hand.current.y, hand.current.z], i * 3);
             flames.lifetimes[i] = 0.25 + Math.random() * 0.35;
             flames.data[i * 3] = Math.random();
@@ -332,12 +333,12 @@ const PandoraUltimate = {
             hand.bone.getWorldPosition(hand.current);
         });
         const { positions, data, velocities, lifetimes, count } = flames;
-        const glowStart = count - 2;
+        const glowStart = count - flames.hands.length;
         let alive = false;
         for (let i = 0; i < count; i++) {
-            const hand = flames.hands[i % 2];
+            const hand = flames.hands[i % flames.hands.length];
             const p = i * 3;
-            // Dua partikel terakhir adalah pendar lembut yang menempel di tangan
+            // Partikel terakhir tiap sumber adalah pendar lembut yang menempel di tangan atau kaki
             if (i >= glowStart) {
                 positions[p] = hand.current.x;
                 positions[p + 1] = hand.current.y;

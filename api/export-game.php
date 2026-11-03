@@ -440,7 +440,7 @@ $gameScripts = [
     'js/character/attachment-system.js', 'js/character/hitbox-system.js', 'js/character/fox-model.js',
     'js/character/fox-stats.js', 'js/character/fox-physics.js', 'js/character/fox-spawner.js',
     'js/items/plasma-weapon.js', 'js/items/item-box-manager.js', 'js/items/item-system.js', 'js/character/fox-ai.js',
-    'js/character/combat-hud.js', 'js/character/mobile-controls.js', 'js/character/player-spawn.js',
+    'js/character/combat-hud.js', 'js/character/hit-feedback.js', 'js/character/soul-absorb.js', 'js/character/mobile-controls.js', 'js/character/player-spawn.js',
     'js/character/play-mode.js', 'js/character/backflip.js', 'js/character/barrier.js', 'js/character/ultimate-system.js', 'js/core/render-loop.js', 'js/environment/portal-manager.js', 'js/environment/trigger-manager.js',
     'js/core/stage-loader.js', 'js/runtime/game-runtime.js'
 ];

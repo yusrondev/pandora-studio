@@ -29,6 +29,7 @@ const CinematicActors = {
 
     createModel(species) {
         const model = window.createEnemyFoxTreeModel(this.resolveSpecies(species));
+        model._baseScale = model.root.scale.x;
         model._cinKey = null;
         model._cinAction = null;
         scene.add(model.root);
@@ -102,9 +103,17 @@ const CinematicActors = {
         };
     },
 
+    // Ukuran aktor dari timeline, dikalikan ukuran bawaan modelnya
+    applyScale(actor, model) {
+        if (!model || !model.root) return;
+        const size = (model._baseScale || 1) * (actor.scale || 1);
+        if (Math.abs(model.root.scale.x - size) > 0.0001) model.root.scale.setScalar(size);
+    },
+
     // Satu langkah aktor: posisi dari jalur, klip dari pilihan scene
     apply(actor, model, t, dt, isPlaying) {
         if (!model || !model.root) return;
+        this.applyScale(actor, model);
         const state = this.sample(actor, t);
         if (state) {
             const y = (typeof getTerrainHeightFast === 'function') ? getTerrainHeightFast(state.x, state.z) : 0;
@@ -119,6 +128,52 @@ const CinematicActors = {
     }
 };
 window.CinematicActors = CinematicActors;
+
+// Selama cinematic hanya aktor timeline yang tampil: pemain, musuh spawner, bunshin, dan aktor sisa
+// cinematic sebelumnya disembunyikan, lalu dikembalikan persis seperti semula untuk gameplay.
+const CinematicWorld = {
+    hidden: null,
+
+    targets() {
+        const list = [];
+        if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.root) list.push(wolfCharacter.root);
+        const foxes = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) ? spawnedFoxesList : [];
+        foxes.forEach((fox) => {
+            if (fox && fox.root) list.push(fox.root);
+            if (fox && fox.ai && fox.ai.ringGroup) list.push(fox.ai.ringGroup);
+        });
+        if (window.FoxAIManager && Array.isArray(FoxAIManager.agents)) {
+            FoxAIManager.agents.forEach((agent) => {
+                if (agent && agent.root) list.push(agent.root);
+                if (agent && agent.ringGroup) list.push(agent.ringGroup);
+            });
+        }
+        if (window.PandoraUltimate && Array.isArray(PandoraUltimate.pool)) {
+            PandoraUltimate.pool.forEach((model) => { if (model && model.root) list.push(model.root); });
+        }
+        if (window.CinematicPlayer && Array.isArray(CinematicPlayer.props)) {
+            CinematicPlayer.props.forEach((prop) => { if (prop.model && prop.model.root) list.push(prop.model.root); });
+        }
+        return list;
+    },
+
+    // Dipanggil tiap frame selama cinematic, karena kode lain bisa menampilkan karakter lagi
+    hide(keep) {
+        if (!this.hidden) this.hidden = new Map();
+        this.targets().forEach((object) => {
+            if (keep && (object === keep.root || object === keep.ringGroup)) return;
+            if (!this.hidden.has(object)) this.hidden.set(object, object.visible);
+            object.visible = false;
+        });
+    },
+
+    restore() {
+        if (!this.hidden) return;
+        this.hidden.forEach((visible, object) => { object.visible = visible; });
+        this.hidden = null;
+    }
+};
+window.CinematicWorld = CinematicWorld;
 
 const SUBTITLE_STYLE_ALIAS = { capsule: 'ink', shadow: 'whisper', gold: 'ember', comic: 'parchment' };
 

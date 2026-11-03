@@ -1,11 +1,12 @@
 {
-    "name": "TheFoxssss",
+    "name": "Red",
     "startStageId": "lembah-suram",
     "stageOrder": [
         "lembah-suram",
         "padang-rumput",
         "taron",
-        "noxis"
+        "noxis",
+        "stage-5"
     ],
     "allowedDomains": ""
 }

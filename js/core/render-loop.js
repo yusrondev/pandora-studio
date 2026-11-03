@@ -336,6 +336,9 @@ function animate() {
     if (typeof CinematicPlayer !== 'undefined') {
         CinematicPlayer.tick(delta);
     }
+    if (typeof CinematicManager !== 'undefined') {
+        CinematicManager.syncWorldVisibility();
+    }
 
     if (typeof CinematicPlayer !== 'undefined' && CinematicPlayer.active) {
         CinematicPlayer.update(delta);
@@ -349,7 +352,8 @@ function animate() {
             camera.position.y = 0.6;
             controls.update();
         }
-        if (typeof CinematicManager !== 'undefined' && CinematicManager.isFoxEnabled && wolfCharacter && wolfCharacter.root && wolfCharacter.root.visible) {
+        // Aktor tetap hidup walau karakter pemain disembunyikan saat tab Cinematic terbuka
+        if (typeof CinematicManager !== 'undefined' && CinematicManager.isFoxEnabled && !isPlayMode) {
             CinematicManager.updateIdleFox(delta, elapsedTime);
         }
     }
@@ -386,6 +390,8 @@ function animate() {
     PandoraSunMotes.update(realDelta);
     PandoraGroundCover.update(realDelta);
     PandoraBarrier.update(realDelta);
+    PandoraHitFeedback.update(realDelta);
+    PandoraSoulAbsorb.update(realDelta);
     PandoraLightShafts.update(realDelta);
     const updatesDone = performance.now();
 

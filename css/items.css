@@ -587,6 +587,48 @@ body.play-mode-active .item-slot-hud.visible {
     opacity: 0.85;
 }
 
+/* Kilatan saat terkena pukulan: tepi merah menyala lalu memudar, makin kuat untuk damage besar */
+.player-damage-vignette.hit-pulse { animation: player-hit-pulse 0.5s ease-out; }
+@keyframes player-hit-pulse {
+    0% { opacity: var(--hit-strength, 0.9); }
+    18% { opacity: var(--hit-strength, 0.9); }
+    100% { opacity: 0; }
+}
+
+/* Busur merah yang menunjuk arah datangnya serangan */
+#hit-direction {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 52vmin;
+    height: 52vmin;
+    margin: -26vmin 0 0 -26vmin;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+    transform: rotate(var(--hit-angle, 0rad));
+    background: radial-gradient(circle at 50% 0%, rgba(255, 70, 50, 0.95) 0, rgba(220, 30, 20, 0.6) 7%, rgba(180, 20, 10, 0) 18%);
+    -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%, #000 66%, transparent 70%);
+    mask: radial-gradient(circle, transparent 58%, #000 60%, #000 66%, transparent 70%);
+}
+#hit-direction.show { animation: hit-direction 0.7s ease-out; }
+@keyframes hit-direction {
+    0% { opacity: 1; }
+    40% { opacity: 0.9; }
+    100% { opacity: 0; }
+}
+
+/* Bar HP bergetar saat terkena pukulan */
+.player-combat-hud.hit-shake .player-bars-column { animation: player-hud-shake 0.32s ease-out; }
+@keyframes player-hud-shake {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-5px, 2px); }
+    40% { transform: translate(4px, -2px); }
+    60% { transform: translate(-3px, 1px); }
+    80% { transform: translate(2px, 0); }
+}
+
 /* Panel pickup */
 .pickup-type-switch { display: flex; gap: 6px; margin-bottom: 8px; }
 .pickup-type-btn {
@@ -624,20 +666,30 @@ body.play-mode-active .item-slot-hud.visible {
     top: 16%;
     left: 50%;
     z-index: 9000;
-    padding: 8px 18px;
+    padding: 10px 28px;
     max-width: 86vw;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.72);
-    border: 1px solid rgba(168, 53, 42, 0.8);
-    border-radius: 3px;
-    color: #f0e6da;
-    font: 500 14px/1.4 'Inter', 'Segoe UI', sans-serif;
+    transform: translateX(-50%) translateY(-6px);
+    background: radial-gradient(ellipse at center, rgba(60, 10, 8, 0.86), rgba(8, 3, 3, 0.86));
+    border-top: 1px solid rgba(214, 120, 90, 0.75);
+    border-bottom: 1px solid rgba(214, 120, 90, 0.75);
+    box-shadow: 0 0 24px rgba(168, 53, 42, 0.45);
+    color: #f6e4d4;
+    font: 500 17px/1.35 'Pandora Serif', 'Cormorant Garamond', Georgia, serif;
+    letter-spacing: 0.03em;
     text-align: center;
+    text-shadow: 0 0 10px rgba(168, 53, 42, 0.9);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s linear;
+    transition: opacity 0.25s ease, transform 0.25s ease;
 }
-#portal-locked-hint.visible { opacity: 1; }
+#portal-locked-hint::before,
+#portal-locked-hint::after {
+    content: '\2726';
+    margin: 0 10px;
+    color: #e0896a;
+    font-size: 12px;
+}
+#portal-locked-hint.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* Ultimate */
 .pickup-dot.mana { background: #2f8cff; box-shadow: 0 0 6px #2f8cff; }

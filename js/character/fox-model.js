@@ -2020,7 +2020,9 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.activeJumpKey = key;
             this.jumpTimer = 0.0;
 
-            const rate = useNormal ? JUMP_NORMAL_RATE : JUMP_RUN_RATE;
+            // Kecepatan dari Hitbox Studio dipakai persis seperti pratinjaunya; 1 berarti belum diatur
+            const configured = getCharacterAttackSpeedMultiplier(this, key) / (this.attackSpeedBoost || 1);
+            const rate = configured !== 1 ? configured : (useNormal ? JUMP_NORMAL_RATE : JUMP_RUN_RATE);
             action.timeScale = rate;
             const clip = action.getClip();
             this.jumpDuration = Math.max(0.1, clip.duration / rate - JUMP_BLEND_OUT);

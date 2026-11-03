@@ -10,6 +10,7 @@ const BACKFLIP_INPUT = 0.55;
 const BACKFLIP_POSE_ANGLE = 0.3;     // Radian dari pose awal: penanda salto sudah mulai
 const BACKFLIP_LEAD_IN = 0.08;       // Detik klip sebelum dan sesudah salto, agar masuknya tidak patah
 const BACKFLIP_TURN_RATE = 25;
+const BACKFLIP_ON_BACK_INPUT = false;  // Mundur di dekat bos kini berjalan/berlari biasa; animasinya tetap ada untuk Hitbox Studio
 
 const PandoraBackflip = {
     clip: null,
@@ -135,6 +136,7 @@ const PandoraBackflip = {
 
     // Dipanggil tiap frame dari fisika pemain; menghasilkan pergeseran frame ini
     update(dt, character, boss, inputX, inputY, grounded) {
+        if (!BACKFLIP_ON_BACK_INPUT && !this.active) return null;
         if (!this.clip) {
             this.load();
             return null;

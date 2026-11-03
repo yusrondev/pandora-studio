@@ -35,14 +35,8 @@ const PlayerHealthState = {
         this.lastDamageTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
         this.updateHUD();
 
-        // Flash vignette merah
-        const dmgVignette = document.getElementById('player-damage-vignette');
-        if (dmgVignette) {
-            dmgVignette.classList.add('active');
-            setTimeout(() => {
-                if (dmgVignette) dmgVignette.classList.remove('active');
-            }, 300);
-        }
+        // Hit-stop, kamera bergetar, tubuh berkedip, percikan, arah serangan, dan kilatan layar
+        if (window.PandoraHitFeedback) PandoraHitFeedback.trigger(amount, attackerPos);
 
         if (this.current <= 0) {
             this.isDead = true;

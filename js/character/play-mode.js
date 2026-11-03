@@ -248,8 +248,10 @@ function startPlayMode() {
         if (CinematicManager.pathGroup) CinematicManager.pathGroup.visible = false;
         if (CinematicManager.previewMarker) CinematicManager.previewMarker.visible = false;
         if (CinematicManager.foxes) {
+            // Model aktor timeline hanya pratinjau editor; cinematic di game membuat model sendiri
             CinematicManager.foxes.forEach(f => {
                 if (f && f.pathGroup) f.pathGroup.visible = false;
+                if (f && f.model && f.model.root) f.model.root.visible = false;
             });
         }
         if (CinematicManager.foxPreviewMarker) CinematicManager.foxPreviewMarker.visible = false;
@@ -587,6 +589,7 @@ function stopPlayMode() {
         if (CinematicManager.foxes && CinematicManager.isFoxEnabled && !CinematicManager.isPlaying) {
             CinematicManager.foxes.forEach(f => {
                 if (f && f.pathGroup) f.pathGroup.visible = true;
+                if (f && f.model && f.model.root) f.model.root.visible = true;
             });
         }
     }

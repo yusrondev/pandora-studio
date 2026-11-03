@@ -65,6 +65,7 @@ const CinematicPlayer = {
             if (typeof wolfCharacter.resetAnimation === 'function') wolfCharacter.resetAnimation();
         }
         CinematicFX.setSkipHint('Esc  lewati');
+        CinematicWorld.hide(this.dyingAgent);
         this.enterScene();
     },
 
@@ -117,10 +118,12 @@ const CinematicPlayer = {
     },
 
     // Yaw/pitch/FOV di antara dua titik kamera terdekat
-    waypointAngles(scene_, u) {
+    // u adalah posisi menurut panjang jalur; titik kamera ke-i ada di parameter kurva i/(n-1)
+    waypointAngles(scene_, u, curve = this.curve) {
         const wps = scene_.waypoints;
         if (wps.length === 1) return { yaw: wps[0].yaw || 0, pitch: wps[0].pitch || 0, fov: wps[0].fov || 45 };
-        const global = u * (wps.length - 1);
+        const param = curve ? curve.getUtoTmapping(Math.min(1, Math.max(0, u))) : u;
+        const global = param * (wps.length - 1);
         const i = Math.min(wps.length - 2, Math.floor(global));
         const a = wps[i];
         const b = wps[i + 1];
@@ -160,6 +163,7 @@ const CinematicPlayer = {
 
     update(dt) {
         if (!this.active || !this.scenes.length) return;
+        CinematicWorld.hide(this.dyingAgent);
         const scene_ = this.scenes[this.index];
         this.time += dt;
         const duration = Math.max(0.1, scene_.duration || 10);
@@ -225,7 +229,11 @@ const CinematicPlayer = {
                 return;
             }
             const root = entry.model.root;
-            const final = { species: data.species, x: root.position.x, z: root.position.z, heading: root.rotation.y, role: data.endRole || 'stay', clip: data.idlePose, name: data.name };
+            let role = data.endRole || 'stay';
+            // Aktor yang sama dengan karakter pemain dan dibiarkan tetap di stage adalah pemain itu sendiri;
+            // meninggalkannya sebagai model terpisah membuat pemain terlihat kembar setelah cinematic
+            if (role === 'stay' && !playerFinal && typeof currentFoxSpeciesKey !== 'undefined' && data.species === currentFoxSpeciesKey) role = 'player';
+            const final = { species: data.species, x: root.position.x, z: root.position.z, heading: root.rotation.y, role, clip: data.idlePose, name: data.name, scale: data.scale || 1 };
             if (final.role === 'player') playerFinal = final;
             else if (final.role !== 'hide') finals.push(final);
             scene.remove(root);
@@ -237,6 +245,7 @@ const CinematicPlayer = {
         this.dyingAgent = null;
 
         this.active = false;
+        CinematicWorld.restore();
         document.body.classList.remove('cinematic-playing');
         CinematicFX.clear();
         if (camera.fov !== 45) {
@@ -248,13 +257,44 @@ const CinematicPlayer = {
         this.handCameraToPlayer();
     },
 
+    // Musuh spawner yang masih hidup dengan karakter yang sama dengan aktor; dipakai sekali per aktor
+    findSpawnedTwin(actor, claimed) {
+        const foxes = (typeof spawnedFoxesList !== 'undefined' && Array.isArray(spawnedFoxesList)) ? spawnedFoxesList : [];
+        const registry = window.PandoraHeroRegistry;
+        const hero = registry && Array.isArray(registry.characters) ? registry.characters.find(c => c.id === actor.species) : null;
+        const keys = [actor.species, hero && hero.spawnerKey].filter(Boolean);
+        return foxes.find(fox => fox && fox.root && !claimed.has(fox) && keys.includes(fox.species)
+            && !(fox.ai && fox.ai.isDead) && !(fox.model && fox.model.isDead)) || null;
+    },
+
+    // Aktor yang sama dengan musuh spawner adalah musuh itu sendiri: musuhnya dipindah ke posisi akhir aktor,
+    // bukan dibuat lagi, supaya tidak muncul dua musuh kembar setelah cinematic
+    moveTwinToActor(fox, a) {
+        const y = (typeof getTerrainHeightFast === 'function') ? getTerrainHeightFast(a.x, a.z) : 0;
+        fox.root.position.set(a.x, y, a.z);
+        fox.root.rotation.y = a.heading;
+        if (fox.ai && fox.ai.spawnOrigin) fox.ai.spawnOrigin.copy(fox.root.position);
+        if (a.role === 'boss' && !fox.isBoss) {
+            fox.isBoss = true;
+            if (fox.ai) fox.ai.isBoss = true;
+        }
+    },
+
     realizeFinal(final) {
         if (!final) return;
+        const claimed = new Set();
         final.actors.forEach(a => {
+            const twin = this.findSpawnedTwin(a, claimed);
+            if (twin) {
+                claimed.add(twin);
+                this.moveTwinToActor(twin, a);
+                return;
+            }
             if (a.role === 'enemy' || a.role === 'boss') {
                 this.spawnFighter(a);
             } else {
                 const model = CinematicActors.createModel(a.species);
+                CinematicActors.applyScale(a, model);
                 const y = (typeof getTerrainHeightFast === 'function') ? getTerrainHeightFast(a.x, a.z) : 0;
                 model.root.position.set(a.x, y, a.z);
                 model.root.rotation.y = a.heading;
@@ -275,7 +315,7 @@ const CinematicPlayer = {
     },
 
     spawnFighter(a) {
-        spawnFoxAtLocation(a.species, 'idle', a.x, a.z, a.heading, 1.0);
+        spawnFoxAtLocation(a.species, 'idle', a.x, a.z, a.heading, a.scale || 1);
         const fox = spawnedFoxesList[spawnedFoxesList.length - 1];
         if (!fox) return;
         const isBoss = a.role === 'boss';
@@ -307,6 +347,8 @@ const CinematicPlayer = {
             clearTimeout(this._slowmoTimer);
             this._slowmoTimer = setTimeout(() => { window.PandoraTimeScale = 1; }, ENEMY_DEATH_SLOWMO_MS);
             if (typeof BossKillCam !== 'undefined') BossKillCam.start(agent);
+            // Roh boss naik dari tubuhnya lalu terserap ke kendi pemain
+            if (window.PandoraSoulAbsorb) PandoraSoulAbsorb.start(agent);
             setTimeout(() => {
                 if (typeof isPlayMode === 'undefined' || !isPlayMode || !agent.isDead) return;
                 if (window.itemBoxManagerInstance) itemBoxManagerInstance.dropBossReward(agent.root.position);
@@ -391,6 +433,7 @@ const CinematicPlayer = {
 
     reset() {
         this.active = false;
+        CinematicWorld.restore();
         this.actors.forEach(entry => scene.remove(entry.model.root));
         this.actors.clear();
         this.clearProps();

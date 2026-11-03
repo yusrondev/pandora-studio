@@ -5,8 +5,15 @@
    ========================================================= */
 
 const PORTAL_DEFAULT_RADIUS = 1.6;
-const PORTAL_COLOR_OPEN = { gate: 0x8b6cff, veil: 0x6ee7ff };
-const PORTAL_COLOR_LOCKED = { gate: 0x55555f, veil: 0xa8352a };
+// Warna api: luar (gate), tengah (veil), dan inti panas (core)
+const PORTAL_COLOR_OPEN = { gate: 0xff4a0c, veil: 0xff9a2e, core: 0xfff1c2 };
+const PORTAL_COLOR_LOCKED = { gate: 0x4a0d06, veil: 0x8a2410, core: 0xc4552a };
+const PORTAL_GATE_RADIUS = 1.25;
+const PORTAL_GATE_HEIGHT = 1.85;  // Seluruh pita api berada di atas tanah
+const PORTAL_RENDER_ORDER = 950;  // Digambar setelah laut dan objek transparan lain, supaya tidak tertimpa
+const PORTAL_FLAMES = 1100;   // Lidah api yang menyusun cincin
+const PORTAL_SPARKS = 280;    // Bara yang terlempar keluar dan melayang naik
+const PORTAL_FLASH_TIME = 0.6;
 
 class PortalManagerClass {
     constructor() {
@@ -22,25 +29,138 @@ class PortalManagerClass {
 
     _buildVisual(portal) {
         const root = new THREE.Group();
+        const uniforms = {
+            uTime: { value: 0 },
+            uGate: { value: new THREE.Color(PORTAL_COLOR_OPEN.gate) },
+            uVeil: { value: new THREE.Color(PORTAL_COLOR_OPEN.veil) },
+            uCore: { value: new THREE.Color(PORTAL_COLOR_OPEN.core) },
+            uEnergy: { value: 1 },     // 1 terbuka, rendah saat terkunci: api mengecil jadi bara yang membara
+            uFlash: { value: 0 },      // Semburan sesaat saat pemain melangkah masuk
+            uSelected: { value: 0 },
+            uNoise: groundCoverUniforms.uCoverNoise,
+            uPointScale: { value: renderer.domElement.height * 0.5 }
+        };
+        // Cahaya ditumpuk tanpa memutihkan latar terang: warna dikali alfa, alfa tulis dibuat rendah
+        const glowBlend = { blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor };
+        const material = (vertexShader, fragmentShader, extra) => new THREE.ShaderMaterial(Object.assign({
+            uniforms, vertexShader, fragmentShader, transparent: true, depthWrite: false, toneMapped: false
+        }, extra || {}));
 
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0x8b6cff });
-        const gate = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.09, 12, 48), ringMat);
-        gate.position.y = 1.4;
+        // Inti cincin: garis api panas yang berkedip, sebagian tertutup lidah api
+        const gate = new THREE.Mesh(new THREE.TorusGeometry(PORTAL_GATE_RADIUS, 0.07, 12, 96), material(`
+            varying float vAngle;
+            varying vec3 vNormal;
+            void main() {
+                vAngle = atan(position.y, position.x);
+                vNormal = normalize(normalMatrix * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }`, `
+            uniform float uTime, uEnergy, uFlash;
+            uniform vec3 uGate, uVeil, uCore;
+            uniform sampler2D uNoise;
+            varying float vAngle;
+            varying vec3 vNormal;
+            void main() {
+                float flicker = texture2D(uNoise, vec2(vAngle / 6.2832 * 4.0 + uTime * 0.25, uTime * 0.4)).r;
+                float facing = abs(vNormal.z);
+                float heat = clamp(flicker * 0.9 + facing * 0.5, 0.0, 1.0);
+                vec3 color = mix(uVeil, uCore, smoothstep(0.45, 0.9, heat));
+                color *= 0.75 + 0.55 * uEnergy + uFlash;
+                float alpha = (0.75 + 0.25 * facing) * (0.55 + 0.45 * uEnergy);
+                gl_FragColor = vec4(color, alpha);
+            }`));
+        gate.position.y = PORTAL_GATE_HEIGHT;
+        gate.renderOrder = PORTAL_RENDER_ORDER + 1;
         root.add(gate);
 
-        const veil = new THREE.Mesh(
-            new THREE.CircleGeometry(1.2, 40),
-            new THREE.MeshBasicMaterial({ color: 0x6ee7ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false })
-        );
-        veil.position.y = 1.4;
+        // Tengah portal: gelap seperti lorong, dengan pendar api di tepinya dan riak panas samar
+        const veil = new THREE.Mesh(new THREE.CircleGeometry(PORTAL_GATE_RADIUS - 0.04, 64), material(`
+            varying vec2 vPos;
+            void main() {
+                vPos = position.xy / ${(PORTAL_GATE_RADIUS - 0.04).toFixed(2)};
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }`, `
+            uniform float uTime, uEnergy, uFlash;
+            uniform vec3 uGate, uVeil, uCore;
+            uniform sampler2D uNoise;
+            varying vec2 vPos;
+            void main() {
+                float r = length(vPos);
+                float a = atan(vPos.y, vPos.x);
+                float t = uTime * (0.3 + 0.7 * uEnergy);
+                float swirl = a / 6.2832 + 0.18 / (r + 0.3) - t * 0.05;
+                float haze = texture2D(uNoise, vec2(swirl * 2.0, r * 0.7 - t * 0.08)).r;
+                float rim = smoothstep(0.55, 1.0, r);
+                vec3 color = mix(vec3(0.02, 0.008, 0.004), uGate * 0.55, rim * (0.5 + haze * 0.6));
+                color += uVeil * smoothstep(0.8, 0.95, haze) * 0.25 * (1.0 - r);
+                color = mix(color, uCore, uFlash * (1.0 - r));
+                float alpha = smoothstep(1.0, 0.9, r) * (0.72 + 0.18 * haze) * (0.6 + 0.4 * uEnergy);
+                gl_FragColor = vec4(color, clamp(alpha + uFlash * 0.3, 0.0, 1.0));
+            }`, { side: THREE.DoubleSide }));
+        veil.position.y = PORTAL_GATE_HEIGHT;
+        veil.renderOrder = PORTAL_RENDER_ORDER;
         root.add(veil);
 
-        const floor = new THREE.Mesh(
-            new THREE.RingGeometry(0.94, 1.0, 48),
-            new THREE.MeshBasicMaterial({ color: 0x8b6cff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false })
-        );
+
+        // Pita api tebal di sepanjang cincin: tepinya compang-camping dan terus menjalar keluar
+        const fireBand = new THREE.Mesh(new THREE.RingGeometry(PORTAL_GATE_RADIUS - 0.24, PORTAL_GATE_RADIUS + 0.42, 160, 6), material(`
+            varying vec2 vPolar;
+            void main() {
+                vPolar = vec2(atan(position.y, position.x) / 6.2832 + 0.5, (length(position.xy) - ${(PORTAL_GATE_RADIUS - 0.24).toFixed(2)}) / 0.66);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }`, `
+            uniform float uTime, uEnergy, uFlash;
+            uniform vec3 uGate, uVeil, uCore;
+            uniform sampler2D uNoise;
+            varying vec2 vPolar;
+            void main() {
+                float t = uTime;
+                float n1 = texture2D(uNoise, vec2(vPolar.x * 5.0, vPolar.y * 0.9 - t * 0.9)).r;
+                float n2 = texture2D(uNoise, vec2(vPolar.x * 13.0 + 0.3, vPolar.y * 1.8 - t * 1.6)).g;
+                float wobble = (n1 - 0.5) * 0.34 + (n2 - 0.5) * 0.18;
+                // Pusat pita sedikit di luar garis cincin; makin bertenaga makin tebal
+                float thickness = 0.16 + 0.12 * uEnergy + uFlash * 0.12;
+                float flame = 1.0 - abs(vPolar.y - 0.36 - wobble) / thickness;
+                flame = clamp(flame + (n2 - 0.5) * 0.35, 0.0, 1.0);
+                if (flame < 0.04) discard;
+                vec3 color = mix(uGate, uVeil, smoothstep(0.1, 0.5, flame));
+                color = mix(color, uCore, smoothstep(0.6, 0.95, flame) * (0.6 + 0.4 * uEnergy) + uFlash * 0.4);
+                float alpha = smoothstep(0.04, 0.35, flame) * (0.6 + 0.4 * uEnergy);
+                gl_FragColor = vec4(color, alpha);
+            }`, { side: THREE.DoubleSide }));
+        fireBand.position.y = PORTAL_GATE_HEIGHT;
+        fireBand.renderOrder = PORTAL_RENDER_ORDER + 2;
+        root.add(fireBand);
+
+        // Lidah api dan bara, dihitung di GPU dari waktu sehingga tidak ada pembaruan CPU per frame
+        const fire = this._buildFire(uniforms);
+        fire.renderOrder = PORTAL_RENDER_ORDER + 3;
+        fire.position.y = PORTAL_GATE_HEIGHT;
+        root.add(fire);
+
+        // Tanah diterangi cahaya api, tanpa simbol apa pun
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material(`
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }`, `
+            uniform float uTime, uEnergy, uFlash, uSelected;
+            uniform vec3 uGate, uVeil;
+            varying vec2 vUv;
+            void main() {
+                float r = length(vUv - 0.5) * 2.0;
+                float flicker = 0.85 + 0.15 * sin(uTime * 9.0) * sin(uTime * 5.3);
+                float light = pow(max(0.0, 1.0 - r), 2.0) * (0.45 * uEnergy * flicker + uFlash * 0.6);
+                float ring = uSelected * smoothstep(0.86, 0.92, r) * smoothstep(1.0, 0.94, r);
+                vec3 color = mix(uVeil, vec3(1.0), ring);
+                float alpha = light + ring * 0.8;
+                if (alpha < 0.005) discard;
+                gl_FragColor = vec4(color * alpha, alpha * 0.4);
+            }`, Object.assign({ side: THREE.DoubleSide }, glowBlend)));
         floor.rotation.x = -Math.PI / 2;
-        floor.position.y = 0.04;
+        floor.position.y = 0.05;
+        floor.renderOrder = PORTAL_RENDER_ORDER - 1;
         root.add(floor);
 
         root.userData.isPortal = true;
@@ -50,15 +170,110 @@ class PortalManagerClass {
         portal.gate = gate;
         portal.veil = veil;
         portal.floor = floor;
+        portal.uniforms = uniforms;
         this.group.add(root);
         this._applyTransform(portal);
+    }
+
+    _buildFire(uniforms) {
+        const quality = Math.max(0.35, PandoraSettings.preset().grassFraction);
+        const flames = Math.round(PORTAL_FLAMES * quality);
+        const sparks = Math.round(PORTAL_SPARKS * quality);
+        const count = flames + sparks;
+        const seeds = new Float32Array(count * 4);
+        for (let i = 0; i < count; i++) {
+            seeds[i * 4] = Math.random() * Math.PI * 2;
+            seeds[i * 4 + 1] = Math.random();
+            seeds[i * 4 + 2] = Math.random();
+            seeds[i * 4 + 3] = i < flames ? 0 : 1; // 0 = lidah api, 1 = bara
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+        geometry.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 4));
+        const points = new THREE.Points(geometry, new THREE.ShaderMaterial(Object.assign({
+            uniforms,
+            transparent: true,
+            depthWrite: false,
+            toneMapped: false,
+            vertexShader: `
+                attribute vec4 aSeed;
+                uniform float uTime, uEnergy, uFlash, uPointScale;
+                uniform sampler2D uNoise;
+                varying float vLife;
+                varying float vAlpha;
+                varying float vSpark;
+                void main() {
+                    float R = ${PORTAL_GATE_RADIUS.toFixed(2)};
+                    float speed = aSeed.z;
+                    vec3 p;
+                    float size;
+                    if (aSeed.w < 0.5) {
+                        // Lidah api: lahir di cincin, menjalar sedikit keluar dan naik sambil bergolak
+                        float life = fract(aSeed.y + uTime * (0.9 + speed * 0.9));
+                        float angle = aSeed.x + uTime * 0.06;
+                        float turbulence = texture2D(uNoise, vec2(angle / 6.2832 * 3.0, uTime * 0.6 - life)).r - 0.5;
+                        float radius = R + (speed - 0.5) * 0.14 + life * (0.06 + speed * 0.2) + turbulence * 0.12 * life;
+                        p = vec3(cos(angle) * radius, sin(angle) * radius, (fract(aSeed.x * 7.13) - 0.5) * 0.2);
+                        p.y += life * life * (0.3 + speed * 0.3);
+                        p.x += turbulence * 0.1 * life;
+                        vLife = life;
+                        vSpark = 0.0;
+                        vAlpha = smoothstep(0.0, 0.08, life) * (1.0 - smoothstep(0.55, 1.0, life));
+                        size = (0.36 + speed * 0.32) * (1.0 - life * 0.35) * (0.55 + 0.45 * uEnergy);
+                    } else {
+                        // Bara: terlempar keluar dari cincin lalu melayang naik, berkelip, dan padam
+                        float life = fract(aSeed.y + uTime * (0.25 + speed * 0.3));
+                        float angle = aSeed.x;
+                        vec3 dir = normalize(vec3(cos(angle), sin(angle), (fract(aSeed.x * 3.7) - 0.5) * 1.4));
+                        float reach = life * (0.5 + speed * 1.6) * (0.4 + 0.6 * uEnergy + uFlash * 2.0);
+                        p = vec3(cos(angle) * R, sin(angle) * R, 0.0) + dir * reach;
+                        p.y += life * life * (0.8 + speed * 0.6);
+                        p.x += sin(uTime * 3.0 + aSeed.x * 11.0) * 0.08 * life;
+                        vLife = life;
+                        vSpark = 1.0;
+                        float twinkle = 0.6 + 0.4 * sin(uTime * 18.0 + aSeed.x * 40.0);
+                        vAlpha = smoothstep(0.0, 0.05, life) * (1.0 - smoothstep(0.6, 1.0, life)) * twinkle;
+                        size = 0.05 + speed * 0.05;
+                    }
+                    vAlpha *= 0.45 + 0.55 * uEnergy;
+                    vec4 view = modelViewMatrix * vec4(p, 1.0);
+                    gl_Position = projectionMatrix * view;
+                    gl_PointSize = size * uPointScale / -view.z;
+                }`,
+            fragmentShader: `
+                uniform vec3 uGate, uVeil, uCore;
+                varying float vLife;
+                varying float vAlpha;
+                varying float vSpark;
+                void main() {
+                    vec2 c = gl_PointCoord - 0.5;
+                    float d = length(c) * 2.0;
+                    if (d > 1.0 || vAlpha <= 0.001) discard;
+                    float soft = vSpark > 0.5 ? pow(1.0 - d, 2.0) : (1.0 - d) * (1.0 - d * 0.6);
+                    // Putih panas, lalu jingga, lalu merah tua saat hampir padam
+                    vec3 color = mix(uCore, uVeil, smoothstep(0.0, 0.35, vLife));
+                    color = mix(color, uGate, smoothstep(0.35, 0.8, vLife));
+                    if (vSpark > 0.5) color = mix(uCore, uVeil, vLife);
+                    // Warna pekat, bukan cahaya tumpuk: di siang hari yang terang api tetap jingga, tidak memutih
+                    float alpha = soft * vAlpha * (vSpark > 0.5 ? 1.0 : 0.55);
+                    gl_FragColor = vec4(color, alpha);
+                }`
+        })));
+        points.frustumCulled = false;
+        points.raycast = () => {};
+        return points;
+    }
+
+    // Kilatan pada gerbang saat pemain melangkah masuk
+    flash(portal) {
+        if (portal) portal.flashTime = PORTAL_FLASH_TIME;
     }
 
     _applyTransform(portal) {
         const y = (typeof getTerrainHeightFast === 'function') ? getTerrainHeightFast(portal.x, portal.z) : 0;
         portal.root.position.set(portal.x, y, portal.z);
         portal.root.rotation.y = THREE.MathUtils.degToRad(portal.rotY || 0);
-        portal.floor.scale.set(portal.radius, portal.radius, 1);
+        portal.floor.scale.set(portal.radius * 1.4, portal.radius * 1.4, 1);
     }
 
     create(data) {
@@ -153,12 +368,23 @@ class PortalManagerClass {
     tick(delta, elapsed) {
         const aliveBosses = isPlayMode ? this.aliveBossCount() : 0;
         const colors = aliveBosses > 0 ? PORTAL_COLOR_LOCKED : PORTAL_COLOR_OPEN;
+        const locked = aliveBosses > 0;
         for (let i = 0; i < this.portals.length; i++) {
             const p = this.portals[i];
-            p.veil.material.opacity = 0.26 + Math.sin(elapsed * 2.4) * 0.08;
-            p.veil.material.color.setHex(colors.veil);
-            p.gate.material.color.setHex(colors.gate);
-            p.floor.material.color.setHex(p.id === this.selectedId && !isPlayMode ? 0xffffff : colors.gate);
+            const u = p.uniforms;
+            u.uTime.value = elapsed;
+            // Warna dan tenaga berpindah pelan, bukan langsung, saat boss terakhir tumbang
+            const blend = Math.min(1, delta * 3);
+            u.uGate.value.lerp(new THREE.Color(colors.gate), blend);
+            u.uVeil.value.lerp(new THREE.Color(colors.veil), blend);
+            u.uCore.value.lerp(new THREE.Color(colors.core), blend);
+            u.uEnergy.value += ((locked ? 0.3 : 1) - u.uEnergy.value) * blend;
+            u.uSelected.value = p.id === this.selectedId && !isPlayMode ? 0.6 : 0;
+            p.flashTime = Math.max(0, (p.flashTime || 0) - delta);
+            u.uFlash.value = Math.pow(p.flashTime / PORTAL_FLASH_TIME, 2);
+            // Gerbang sedikit membesar saat kilatan
+            const pop = 1 + u.uFlash.value * 0.12;
+            p.gate.scale.setScalar(pop);
         }
         if (!isPlayMode || !wolfCharacter || !wolfCharacter.root) {
             this.showLockedHint(0);
@@ -181,6 +407,7 @@ class PortalManagerClass {
             this.armed = true;
         } else if (this.armed && inside.targetStageId && aliveBosses === 0) {
             this.armed = false;
+            this.flash(inside);
             PandoraStageFlow.travelThroughPortal(inside);
         }
     }
@@ -201,12 +428,22 @@ const PandoraStageFlow = {
         if (!this._fadeEl) {
             const el = document.createElement('div');
             el.id = 'stage-fade-overlay';
-            el.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .35s linear;z-index:900000;display:flex;align-items:center;justify-content:center;color:#ddd;font-size:15px;letter-spacing:.04em;';
+            el.innerHTML = '<div class="stage-fade-iris"></div>';
+            // Bara yang melayang naik, posisi dan waktunya acak supaya tidak berbaris
+            for (let i = 0; i < 16; i++) {
+                const ember = document.createElement('i');
+                ember.className = 'stage-fade-ember';
+                ember.style.left = (4 + Math.random() * 92) + '%';
+                ember.style.animationDuration = (5 + Math.random() * 6).toFixed(2) + 's';
+                ember.style.animationDelay = (-Math.random() * 8).toFixed(2) + 's';
+                ember.style.setProperty('--drift', ((Math.random() - 0.5) * 120).toFixed(0) + 'px');
+                el.appendChild(ember);
+            }
             document.body.appendChild(el);
             this._fadeEl = el;
         }
-        this._fadeEl.style.opacity = toBlack ? '1' : '0';
-        return new Promise(resolve => setTimeout(resolve, 380));
+        this._fadeEl.classList.toggle('active', !!toBlack);
+        return new Promise(resolve => setTimeout(resolve, toBlack ? 560 : 420));
     },
 
     async fetchStage(stageId) {
@@ -308,18 +545,23 @@ const PandoraStageFlow = {
     showTravelLoader() {
         const box = document.createElement('div');
         box.className = 'stage-travel';
-        box.innerHTML = '<div class="stage-travel-bar"><i></i><b></b></div><div class="stage-travel-meta"><span></span><span></span></div>';
+        box.innerHTML = '<div class="stage-travel-title"></div><div class="stage-travel-rule"><i></i></div><div class="stage-travel-meta"><span></span><span></span></div>';
         this._fadeEl.appendChild(box);
-        const fill = box.querySelector('i');
-        const [label, percent] = box.querySelectorAll('span');
+        const fill = box.querySelector('.stage-travel-rule i');
+        const title = box.querySelector('.stage-travel-title');
+        const [label, percent] = box.querySelectorAll('.stage-travel-meta span');
         const paint = () => new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
         let shown = 0;
         return {
-            update(value, text) {
+            update(value) {
                 shown = Math.max(shown, value);
-                fill.style.width = (shown * 100).toFixed(1) + '%';
+                fill.style.transform = 'scaleX(' + shown.toFixed(3) + ')';
                 percent.textContent = Math.round(shown * 100) + '%';
-                if (text) label.textContent = text;
+                label.textContent = 'Memuat';
+            },
+            // Nama stage tujuan
+            setTitle(name) {
+                title.textContent = (name || '').trim();
             },
             paint,
             remove() {
@@ -340,19 +582,21 @@ const PandoraStageFlow = {
             : null;
         window.PandoraGamePaused = true;
         const loader = this.showTravelLoader();
-        loader.update(0.05, 'Membaca stage');
+        loader.setTitle(window.PortalPanel && PortalPanel.stageName ? PortalPanel.stageName(portal.targetStageId) : '');
+        loader.update(0.05);
         await loader.paint();
         // Galat saat pindah tidak boleh meninggalkan pemain di layar hitam yang terkunci
         try {
             const entered = await this.enterStage(portal.targetStageId, spawn, async (stage) => {
-                loader.update(0.25, 'Membangun ' + (stage.name || 'stage'));
+                if (stage.name) loader.setTitle(stage.name);
+                loader.update(0.25);
                 await loader.paint();
             });
             if (entered) {
-                loader.update(0.45, 'Memuat karakter dan objek');
+                loader.update(0.45);
                 await loader.paint();
                 await this.prepareStage(progress => loader.update(0.45 + progress * 0.45));
-                loader.update(1, 'Siap');
+                loader.update(1);
                 await loader.paint();
             }
         } catch (err) {

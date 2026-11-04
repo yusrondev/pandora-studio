@@ -1307,6 +1307,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
 
         startBlock() {
             if (this.isBlocking || this.isDead || this.isTakingHit || this.isFlyingPunch || this.isFlyingKick) return;
+            // Animasi lompat (biasa maupun sambil lari) wajib selesai dulu
+            if (this.isJumping) return;
 
             // Cek Stamina: Jika stamina habis atau exhausted, tidak bisa block
             if (typeof FoxStaminaState !== 'undefined') {
@@ -1509,8 +1511,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 this.onBlockHit(attackerPos);
                 return;
             }
-            // Rage Mode dan backflip: damage tetap masuk, tetapi tubuh tidak tersentak
-            if (this.rageActive || this.isBackflipping) return;
+            // Rage Mode, backflip, dan lompat: damage tetap masuk, tetapi tubuh tidak tersentak
+            if (this.rageActive || this.isBackflipping || this.isJumping) return;
             // Super-Armor Animasi: Saat mengeksekusi flyingPunch (Run + Punch) atau flyingKick,
             // jangan menginterupsi / membatalkan animasi walaupun Fox tetap menerima damage HP dari AI enemy
             if (this.isFlyingPunch || this.isFlyingKick) {
@@ -1603,6 +1605,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
         triggerKick() {
             if (this.isBackflipping) return;
             if (this.isDead || this.isTakingHit) return;
+            // Animasi lompat (biasa maupun sambil lari) wajib selesai dulu
+            if (this.isJumping) return;
 
             // KUNCI ANTI-SPAM FLYING KICK / FLYING PUNCH:
             // Selama animasi flyingKick atau flyingPunch sedang berjalan, abaikan semua input spam klik!
@@ -1820,6 +1824,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
         triggerPunch() {
             if (this.isBackflipping) return;
             if (this.isDead || this.isTakingHit) return;
+            // Animasi lompat (biasa maupun sambil lari) wajib selesai dulu
+            if (this.isJumping) return;
 
             // KUNCI ANTI-SPAM FLYING PUNCH / FLYING KICK:
             // Selama animasi flyingPunch atau flyingKick sedang berjalan, abaikan semua input spam klik!

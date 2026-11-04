@@ -511,6 +511,8 @@ const PandoraStageFlow = {
         // Siluet karakter yang tertutup rintangan baru tampil saat bermain; shadernya perlu ikut dikompilasi
         if (typeof ensureFoxEagleVisionSystem === 'function') ensureFoxEagleVisionSystem(wolfCharacter);
         if (window.itemBoxManagerInstance) itemBoxManagerInstance.ensureScanTwins(wolfCharacter);
+        // Batch instanced pakis/rumpun dibangun sekarang agar shader instancing-nya ikut dikompilasi
+        if (typeof flushFernBatches === 'function') flushFernBatches();
         const culled = [];
         scene.traverse((object) => {
             if (object.frustumCulled) {
@@ -585,6 +587,7 @@ const PandoraStageFlow = {
         loader.setTitle(window.PortalPanel && PortalPanel.stageName ? PortalPanel.stageName(portal.targetStageId) : '');
         loader.update(0.05);
         await loader.paint();
+        let arrived = false;
         // Galat saat pindah tidak boleh meninggalkan pemain di layar hitam yang terkunci
         try {
             const entered = await this.enterStage(portal.targetStageId, spawn, async (stage) => {
@@ -598,12 +601,17 @@ const PandoraStageFlow = {
                 await this.prepareStage(progress => loader.update(0.45 + progress * 0.45));
                 loader.update(1);
                 await loader.paint();
+                arrived = true;
             }
         } catch (err) {
             console.error('[StageFlow] Gagal pindah stage:', err);
         } finally {
             window.PandoraGamePaused = false;
             this.isTransitioning = false;
+            // Pemain tampil seolah melompat keluar dari portal saat layar kembali terbuka
+            if (arrived && typeof wolfCharacter !== 'undefined' && wolfCharacter && typeof wolfCharacter.triggerLanding === 'function') {
+                wolfCharacter.triggerLanding();
+            }
             await this._fade(false);
             loader.remove();
         }

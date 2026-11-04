@@ -29,6 +29,7 @@ window.ENEMY_COMBAT_CONFIG = ENEMY_COMBAT_CONFIG;
 let FoxAIManager = null;
 
 const BOSS_DEATH_FADE_DELAY_MS = 1950;
+const HIT_FLASH_COLOR = new THREE.Color(0xffffff);
 
 class FoxAIAgent {
     constructor(foxRecord) {
@@ -63,6 +64,8 @@ class FoxAIAgent {
         this.isFadingOut = false;
         this.fadeTimer = 0.0;
         this.fadeDuration = 1.8; // Fadeout 1.8 detik sebelum menghilang sepenuhnya
+        this.hitFlashTimer = 0.0;
+        this.hitFlashDuration = 0.18; // Durasi blink putih saat terkena damage
         this.state = 'IDLE'; // 'IDLE', 'SEEK_BOX', 'COMBAT_ENGAGE', 'HIT_STUN'
         this.hitStunTimer = 0;
         this.shootCooldown = 1.0 + Math.random() * 0.8;
@@ -289,6 +292,7 @@ class FoxAIAgent {
         const dmgVal = Math.max(1, Math.round(Number(amount) || 0));
         this.health = Math.max(0, this.health - dmgVal);
         if (this.fox) this.fox.health = this.health;
+        this.triggerHitFlash();
 
         // Tampilkan Floating Damage Text tepat di area tubuh enemy yang terkena serangan dari Player
         if (typeof CombatHUD !== 'undefined' && CombatHUD && typeof CombatHUD.spawnFloatingDamage === 'function') {
@@ -307,6 +311,50 @@ class FoxAIAgent {
         }
 
         this.takeHit(attackerPos);
+    }
+
+    // Blink putih pada seluruh mesh enemy sebagai feedback visual terkena damage
+    triggerHitFlash() {
+        if (!this.root) return;
+        this.root.traverse(child => {
+            if (!child.isMesh || !child.material) return;
+            // Clone material agar flash tidak bocor ke enemy lain yang berbagi material
+            if (!child.userData.hasUniqueFadeMat) {
+                child.material = Array.isArray(child.material)
+                    ? child.material.map(m => m.clone())
+                    : child.material.clone();
+                child.userData.hasUniqueFadeMat = true;
+            }
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(m => {
+                if (m.userData.hitFlashBase) return;
+                m.userData.hitFlashBase = m.emissive
+                    ? { emissive: m.emissive.clone(), intensity: m.emissiveIntensity }
+                    : (m.color ? { color: m.color.clone() } : null);
+            });
+        });
+        this.hitFlashTimer = this.hitFlashDuration;
+    }
+
+    updateHitFlash(dt) {
+        if (this.hitFlashTimer <= 0 || !this.root) return;
+        this.hitFlashTimer = Math.max(0, this.hitFlashTimer - dt);
+        const t = this.hitFlashTimer / this.hitFlashDuration;
+        const k = t * t; // Puncak putih di awal lalu memudar cepat
+        this.root.traverse(child => {
+            if (!child.isMesh || !child.material) return;
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(m => {
+                const base = m.userData.hitFlashBase;
+                if (!base) return;
+                if (base.emissive) {
+                    m.emissive.copy(base.emissive).lerp(HIT_FLASH_COLOR, k);
+                    m.emissiveIntensity = base.intensity + (1.0 - base.intensity) * k;
+                } else if (base.color) {
+                    m.color.copy(base.color).lerp(HIT_FLASH_COLOR, k);
+                }
+            });
+        });
     }
 
     die(attackerPos = null) {
@@ -1098,6 +1146,8 @@ class FoxAIAgent {
             if (this.ringGroup) this.ringGroup.visible = false;
             return;
         }
+
+        this.updateHitFlash(dt);
 
         if (this.isDead) {
             this.currentSpeed = 0;

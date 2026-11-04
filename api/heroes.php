@@ -80,6 +80,7 @@ function mapCharacterFbxSlots($fbxFiles, $allowFallbackFirstAsIdle = true) {
         'block'       => ['block.fbx', 'shield.fbx', 'guard.fbx'],
         'jump'        => ['jump-withrun.fbx', 'jump_withrun.fbx', 'jump.fbx'],
         'jumpNormal'  => ['jump-normal.fbx', 'jump_normal.fbx', 'backflip.fbx'],
+        'landing'     => ['landing.fbx', 'land.fbx'],
         'kick1'       => ['kick1.fbx', 'kick_1.fbx', 'kick-1.fbx'],
         'kick2'       => ['kick2.fbx', 'kick_2.fbx', 'kick-2.fbx'],
         'kick3'       => ['kick3.fbx', 'kick_3.fbx', 'kick-3.fbx'],

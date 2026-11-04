@@ -94,6 +94,59 @@ function getJumpClipPhases(clip) {
     return phases;
 }
 
+// Kapan pose mendarat sudah tenang (Hips kembali ke tinggi akhirnya setelah titik terendah). Sisa klip
+// hanya berdiri diam, jadi kontrol dikembalikan di sini agar pemain tidak menunggu.
+function getLandingSettleTime(clip) {
+    const hips = clip.tracks.find(t => t.name.toLowerCase().includes('hips.position'));
+    if (!hips || hips.times.length < 3) return clip.duration;
+    const n = hips.times.length;
+    const y = (i) => hips.values[i * 3 + 1];
+    const finalY = y(n - 1);
+    let low = 0;
+    for (let i = 1; i < n; i++) if (y(i) < y(low)) low = i;
+    for (let i = low; i < n; i++) {
+        if (Math.abs(y(i) - finalY) < 0.02) return Math.min(clip.duration, hips.times[i] + 0.1);
+    }
+    return clip.duration;
+}
+
+// Root motion klip lompat (Hips bergerak maju di dalam animasi, mis. jump-withrun Mixamo non in-place).
+// X/Z Hips dikunci ke frame pertama agar tidak snapback saat klip selesai; geser maju dipindah ke root dunia.
+const JUMP_ROOT_MOTION_MIN = 0.05;
+const jumpRootMotionCache = new WeakMap();
+function getJumpRootMotion(clip) {
+    if (jumpRootMotionCache.has(clip)) return jumpRootMotionCache.get(clip);
+    let rm = null;
+    const hips = clip.tracks.find(t => t.name.toLowerCase().includes('hips.position'));
+    if (hips && hips.times.length > 1) {
+        const v = hips.values;
+        const origX = v[0];
+        const origZ = v[2];
+        const lastZ = v[(hips.times.length - 1) * 3 + 2] - origZ;
+        if (Math.abs(lastZ) >= JUMP_ROOT_MOTION_MIN) {
+            const z = new Float32Array(hips.times.length);
+            for (let i = 0; i < hips.times.length; i++) {
+                z[i] = v[i * 3 + 2] - origZ;
+                v[i * 3] = origX;
+                v[i * 3 + 2] = origZ;
+            }
+            rm = { times: Float32Array.from(hips.times), z, totalZ: z[z.length - 1] };
+        }
+    }
+    jumpRootMotionCache.set(clip, rm);
+    return rm;
+}
+
+function sampleRootMotionZ(rm, t) {
+    const { times, z, totalZ } = rm;
+    if (t <= times[0]) return 0;
+    if (t >= times[times.length - 1]) return totalZ;
+    let i = 0;
+    while (i < times.length - 1 && times[i + 1] < t) i++;
+    const alpha = (t - times[i]) / (times[i + 1] - times[i]);
+    return z[i] + alpha * (z[i + 1] - z[i]);
+}
+
 function sanitizeAnimationClipForModel(clip, rootModel) {
     if (!clip || !rootModel) return clip;
     const existingNodeNames = new Set();
@@ -2034,6 +2087,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
             action.play();
 
             this.jumpImpulsePending = !useNormal;
+            this.jumpRootMotion = useNormal ? null : getJumpRootMotion(clip);
+            this.jumpRootMotionPrevTime = 0.0;
             if (!useNormal) {
                 const phases = getJumpClipPhases(clip);
                 this.jumpLiftoffAt = phases.liftoff / rate;
@@ -2046,7 +2101,74 @@ function createWolfCharacterModel(speciesKey = 'red') {
          * Dipanggil seketika saat karakter menyentuh tanah (landing).
          * Mengembalikan kontrol dan me-reset status jump agar pemain bisa langsung jump lagi tanpa jeda tersedat.
          */
+        /**
+         * Mendarat setelah keluar dari portal (landing.fbx): klip dimulai dari pose melayang lalu jatuh
+         * ke tanah, jadi diputar di tempat dengan gerakan terkunci sampai selesai.
+         * Mengembalikan false jika karakter tidak punya klip landing.
+         */
+        triggerLanding() {
+            const action = this.actions && this.actions.landing;
+            if (!action || this.isDead) return false;
+            if (this.isPunching) this.cancelPunch();
+            if (this.isKicking) this.cancelKick();
+
+            if (this.actions.idle2) this.actions.idle2.stop();
+            if (this.actions.idle3) this.actions.idle3.stop();
+            this.idleTimer = 0.0;
+            this.activeIdleKey = null;
+            this.idleCycleTimer = 0.0;
+
+            // Pose melayang tampil seketika saat layar terbuka, tanpa berbaur dari idle
+            Object.keys(this.targetWeights).forEach(k => {
+                this.targetWeights[k] = 0.0;
+                this.currentWeights[k] = 0.0;
+                if (this.actions[k] && this.actions[k] !== action) this.actions[k].setEffectiveWeight(0.0);
+            });
+            this.targetWeights.landing = 1.0;
+            this.currentWeights.landing = 1.0;
+
+            this.isJumping = true;
+            this.isStationaryJump = true;
+            this.activeJumpKey = 'landing';
+            this.jumpTimer = 0.0;
+            this.jumpImpulsePending = false;
+            this.jumpRootMotion = null;
+
+            const rate = getCharacterAttackSpeedMultiplier(this, 'landing') / (this.attackSpeedBoost || 1);
+            action.timeScale = rate;
+            this.jumpDuration = Math.max(0.1, getLandingSettleTime(action.getClip()) / rate);
+            action.reset();
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            action.enabled = true;
+            action.setEffectiveWeight(1.0);
+            action.play();
+            return true;
+        },
+
+        // Geser root dunia mengikuti langkah maju Hips di dalam klip lompat (root motion)
+        _applyJumpRootMotion(toTime) {
+            const rm = this.jumpRootMotion;
+            if (!rm || !this.root) return;
+            const prevTime = this.jumpRootMotionPrevTime || 0.0;
+            if (toTime <= prevTime) return;
+            const deltaZ = sampleRootMotionZ(rm, toTime) - sampleRootMotionZ(rm, prevTime);
+            this.jumpRootMotionPrevTime = toTime;
+            if (Math.abs(deltaZ) <= 0.00001) return;
+            const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.root.rotation.y);
+            const dispWorld = deltaZ * (this.baseScale || 1.85);
+            this.root.position.addScaledVector(fwd, dispWorld);
+            if (!this.isAlly && typeof camera !== 'undefined' && camera) camera.position.addScaledVector(fwd, dispWorld);
+            if (typeof controls !== 'undefined' && controls && controls.target) controls.target.addScaledVector(fwd, dispWorld);
+        },
+
         onLanded() {
+            // Tuntaskan sisa langkah maju klip agar karakter berhenti di posisi akhir animasi
+            if (this.jumpRootMotion && this.actions.jump) {
+                this._applyJumpRootMotion(this.actions.jump.getClip().duration);
+            }
+            this.jumpRootMotion = null;
+            this.jumpRootMotionPrevTime = 0.0;
             this.isJumping = false;
             this.isStationaryJump = false;
             this.jumpImpulsePending = false;
@@ -2054,6 +2176,7 @@ function createWolfCharacterModel(speciesKey = 'red') {
             this.targetWeights.jump = 0.0;
             this.targetWeights.jumpRun = 0.0;
             this.targetWeights.jumpNormal = 0.0;
+            this.targetWeights.landing = 0.0;
 
             // Reset total cooldown timer idle sama seperti kick dan punch:
             // Variasi idle2 dan idle3 DIKUNCI MATI (stop & weight 0.0),
@@ -2566,6 +2689,10 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 this.targetWeights.jump = (jKey === 'jump') ? 1.0 : 0.0;
                 this.targetWeights.jumpRun = (jKey === 'jump') ? 1.0 : 0.0;
                 this.targetWeights.jumpNormal = (jKey === 'jumpNormal') ? 1.0 : 0.0;
+                this.targetWeights.landing = (jKey === 'landing') ? 1.0 : 0.0;
+                if (jKey === 'jump' && this.actions.jump) {
+                    this._applyJumpRootMotion(this.actions.jump.time);
+                }
                 this.targetWeights.walk = 0.0;
                 this.targetWeights.backward = 0.0;
                 this.targetWeights.run = 0.0;
@@ -2751,11 +2878,13 @@ function createWolfCharacterModel(speciesKey = 'red') {
             }
 
             const blendSpeed = this.isTakingHit ? 35.0 : (this.isBlocking ? 28.0 : ((this.isKicking || this.isPunching) ? 28.0 : (isMoving ? 18.0 : (isGrounded ? 12.0 : 16.0))));
-            for (const key of ['idle', 'idle2', 'idle3', 'walk', 'backward', 'run', 'jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'hit1', 'hit2', 'block']) {
+            // Landing yang terpotong (hit, mati, dsb.) tidak boleh tertinggal ter-blend
+            if (!(this.isJumping && this.activeJumpKey === 'landing')) this.targetWeights.landing = 0.0;
+            for (const key of ['idle', 'idle2', 'idle3', 'walk', 'backward', 'run', 'jump', 'jumpRun', 'jumpNormal', 'landing', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'hit1', 'hit2', 'block']) {
                 if (this.actions[key]) {
                     this.currentWeights[key] = THREE.MathUtils.lerp(
-                        this.currentWeights[key],
-                        this.targetWeights[key],
+                        this.currentWeights[key] || 0,
+                        this.targetWeights[key] || 0,
                         Math.min(1.0, blendSpeed * dt)
                     );
                     this.actions[key].setEffectiveWeight(this.currentWeights[key]);
@@ -4095,9 +4224,10 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                 });
 
                 // Pasang klip aksi kombat & lompat (LoopOnce)
-                ['jump', 'jumpRun', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'hit1', 'hit2', 'dead1', 'dead2'].forEach(k => {
+                ['jump', 'jumpNormal', 'kick1', 'kick2', 'kick3', 'flyingKick', 'punch1', 'punch2', 'punch3', 'flyingPunch', 'hit1', 'hit2', 'dead1', 'dead2'].forEach(k => {
                     if (this.clips[k]) {
                         const sanitized = sanitizeAnimationClipForModel(this.clips[k], modelClone);
+                        if (k === 'jump') getJumpRootMotion(sanitized); // Kunci X/Z Hips sejak awal, juga saat jatuh bebas
                         const act = mixer.clipAction(sanitized);
                         act.setLoop(THREE.LoopOnce, 1);
                         act.clampWhenFinished = true;
@@ -4106,6 +4236,9 @@ window.createEnemyCharacterModel = createEnemyFoxTreeModel;
                         instance.actions[k] = act;
                     }
                 });
+
+                // jumpRun selalu alias action jump; action terpisah akan diam di frame terakhir lalu ikut ter-blend
+                if (instance.actions.jump) instance.actions.jumpRun = instance.actions.jump;
 
                 // Pasang klip ekstra kustom jika ada
                 Object.keys(this.clips).forEach(k => {

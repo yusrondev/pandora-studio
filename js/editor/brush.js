@@ -167,6 +167,15 @@ function handleBrushAction(event) {
         }
 
         const grassBrush = selectGrassBrush.value;
+        // Rumpun rumput tinggi berbunga berupa objek 3D (disimpan di sistem pakis)
+        if (typeof isReedType === 'function' && isReedType(grassBrush)) {
+            const radius = parseFloat(sliderGrassRadius.value) || 4.0;
+            // Kepadatan 180 (default) di radius 4 ≈ 8 rumpun per tanam; Tinggi Rumput meninggikan helai
+            const density = parseInt(sliderGrassDensity.value) || 180;
+            const count = Math.max(1, Math.min(20, Math.round(radius * radius * 0.5 * density / 180)));
+            placeFernsAt(hitPoint, grassBrush, { radius, count, heightScale: userGrassHeightSetting });
+            return;
+        }
         if (grassBrush !== 'none') {
             const radius = parseFloat(sliderGrassRadius.value);
             const userDensitySetting = parseInt(sliderGrassDensity.value);
@@ -186,6 +195,7 @@ function handleBrushAction(event) {
 
             if (grassBrush === 'remove') {
                 removeGrassInRadius(hitPoint, radius);
+                if (typeof removeFernsInRadius === 'function') removeFernsInRadius(hitPoint, radius, true);
             } else {
                 const currentCount = instancedGrassMesh ? instancedGrassMesh.count : maxGrassCapacity;
                 for (let i = 0; i < currentCount; i++) {
@@ -446,6 +456,7 @@ function handleCanvasPointerDown(e) {
                 isRightMouseDown = true;
                 const radius = parseFloat(sliderGrassRadius.value) || 4.0;
                 removeGrassInRadius(groundHits[0].point, radius);
+                if (typeof removeFernsInRadius === 'function') removeFernsInRadius(groundHits[0].point, radius, true);
             }
             if (e.stopPropagation) e.stopPropagation();
             return;
@@ -917,6 +928,8 @@ function updateBrushReticle(hitPoint, normal) {
         if (grassBrush === 'remove') colorHex = 0xef4444;       // Merah hapus rumput
         else if (grassBrush === 'spawn_yellow' || grassBrush === 'spawn_yellow_mix') colorHex = 0xfacc15; // Kuning emas padang rumput
         else if (grassBrush === 'spawn_white') colorHex = 0xf8fafc; // Putih salju
+        else if (grassBrush === 'spawn_reed_crocosmia') colorHex = 0xf97316; // Jingga bunga montbretia
+        else if (grassBrush === 'spawn_reed_golden') colorHex = 0xfbbf24;    // Kuning daylily
         else colorHex = 0x10b981;                               // Hijau zamrud rumput segar
     } else if (rockBrush !== 'none') {
         radius = (typeof sliderRockRadius !== 'undefined') ? (parseFloat(sliderRockRadius.value) || 4.0) : 4.0;
@@ -1029,6 +1042,9 @@ function handleCanvasPointerMove(e) {
             if (selectButterflyBrush.value === 'remove' || Math.random() > 0.78) {
                 handleBrushAction(e);
             }
+        } else if (typeof isReedType === 'function' && isReedType(selectGrassBrush.value)) {
+            // Rumpun reed jauh lebih berat dari helai rumput instanced, jadi drag ditanam lebih jarang
+            if (Math.random() > 0.65) handleBrushAction(e);
         } else {
             handleBrushAction(e);
         }
@@ -1040,6 +1056,7 @@ function handleCanvasPointerMove(e) {
         if (selectGrassBrush.value !== 'none') {
             const radius = parseFloat(sliderGrassRadius.value) || 4.0;
             removeGrassInRadius(hitPoint, radius);
+            if (typeof removeFernsInRadius === 'function') removeFernsInRadius(hitPoint, radius, true);
         } else if (selectRoadBrush.value !== 'none') {
             const radius = parseFloat(sliderRoadRadius.value) || 4.0;
             paintRoadOnTerrain(hitPoint, 'remove', radius);

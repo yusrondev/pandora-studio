@@ -1,7 +1,8 @@
 {
-    "name": "Red",
-    "startStageId": "lembah-suram",
+    "name": "RedFox",
+    "startStageId": "from-zero",
     "stageOrder": [
+        "from-zero",
         "lembah-suram",
         "padang-rumput",
         "taron",

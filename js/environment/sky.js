@@ -9,7 +9,9 @@ const skyShader = {
         uTopColor: { value: new THREE.Color(0x1878ec) },      // Atas: Biru langit pekat kaya saturasi
         uMidColor: { value: new THREE.Color(0x56b6fb) },      // Tengah: Biru cerah anime
         uBottomColor: { value: new THREE.Color(0xb8ecff) },   // Bawah (Horizon): Biru muda terang bercahaya
-        uSunPosition: { value: new THREE.Vector3(-25, 12, 25) }
+        uSunPosition: { value: new THREE.Vector3(-25, 12, 25) },
+        uSunColor: { value: new THREE.Color(0xfffae6) },
+        uSunIntensity: { value: 1.0 } // 0 saat malam (bulan memakai sprite)
     },
     vertexShader: `
         varying vec3 vWorldPosition;
@@ -24,7 +26,13 @@ const skyShader = {
         uniform vec3 uMidColor;
         uniform vec3 uBottomColor;
         uniform vec3 uSunPosition;
+        uniform vec3 uSunColor;
+        uniform float uSunIntensity;
         varying vec3 vWorldPosition;
+
+        // Cakram matahari ~1.1 derajat (sedikit dibesarkan dari aslinya 0.53 agar terbaca di layar game)
+        #define SUN_COS_OUTER 0.99982
+        #define SUN_COS_INNER 0.99992
 
         void main() {
             vec3 dir = normalize(vWorldPosition);
@@ -40,11 +48,24 @@ const skyShader = {
             vec3 skyColor = mix(uBottomColor, uMidColor, hHorizon);
             skyColor = mix(skyColor, uTopColor, hZenith);
 
-            // Sentuhan pendar cahaya matahari lembut di langit (Atmospheric Solar Halo)
             vec3 sunDir = normalize(uSunPosition);
             float sunDot = max(0.0, dot(dir, sunDir));
-            vec3 sunHalo = vec3(1.0, 0.95, 0.85) * pow(sunDot, 18.0) * 0.22;
-            skyColor += sunHalo;
+
+            // Warna matahari memerah saat rendah (cahaya menembus atmosfer lebih tebal)
+            float sunHigh = smoothstep(-0.02, 0.45, sunDir.y);
+            vec3 sunTint = mix(vec3(1.0, 0.55, 0.22), vec3(1.0, 0.96, 0.88), sunHigh) * mix(vec3(1.0), uSunColor, 0.5);
+
+            // Hamburan Mie: inti terang rapat, aureole menengah, dan pendar lebar yang mencerahkan langit sekitar
+            float mie = pow(sunDot, 6000.0) * 1.2 + pow(sunDot, 600.0) * 0.28 + pow(sunDot, 40.0) * 0.12 + pow(sunDot, 6.0) * 0.06;
+            // Cakrawala di sisi matahari ikut lebih terang dan hangat
+            float horizonGlow = pow(sunDot, 4.0) * (1.0 - smoothstep(0.0, 0.35, h)) * 0.28;
+            skyColor += sunTint * (mie + horizonGlow) * uSunIntensity;
+
+            // Cakram matahari HDR dengan limb darkening; tone mapping membuatnya putih menyilaukan bertepi hangat
+            float disc = smoothstep(SUN_COS_OUTER, SUN_COS_INNER, sunDot);
+            float limb = sqrt(max(0.0, 1.0 - pow((1.0 - sunDot) / (1.0 - SUN_COS_OUTER), 2.0)));
+            vec3 discColor = sunTint * (6.0 + 6.0 * limb);
+            skyColor = mix(skyColor, discColor, disc * uSunIntensity * smoothstep(-0.03, 0.0, dir.y));
 
             gl_FragColor = vec4(skyColor, 1.0);
         }
@@ -326,12 +347,15 @@ const sunSpriteMat = new THREE.SpriteMaterial({
     transparent: true,
     depthWrite: false,
     depthTest: true,
+    fog: false, // Berada 500m jauhnya; tanpa ini kabut menelan bulan hingga pudar
     opacity: 0.95
 });
 
+// Siang/sore: matahari digambar oleh shader langit; sprite ini dipakai untuk bulan saat malam
 const sunSprite = new THREE.Sprite(sunSpriteMat);
 sunSprite.scale.set(130, 130, 1);
 sunSprite.renderOrder = -1;
+sunSprite.visible = false;
 scene.add(sunSprite);
 
 // ==========================================
@@ -742,6 +766,8 @@ function applySkyPreset(presetKey) {
         sunSprite.material.map = moonTexture;
         sunSprite.material.color.setHex(0xd0e8ff);
         sunSprite.scale.set(95, 95, 1);
+        sunSprite.visible = true;
+        skyMat.uniforms.uSunIntensity.value = 0.0;
     } else {
         cloudGroup.visible = true;
         cloudInstancedMesh.visible = true;
@@ -750,7 +776,11 @@ function applySkyPreset(presetKey) {
         sunSprite.material.map = sunTexture;
         sunSprite.material.color.setHex(p.sunColor);
         sunSprite.scale.set(130, 130, 1);
+        // Matahari siang/sore digambar langsung oleh shader langit
+        sunSprite.visible = false;
+        skyMat.uniforms.uSunIntensity.value = 1.0;
     }
+    skyMat.uniforms.uSunColor.value.setHex(p.sunColor);
     sunSprite.material.needsUpdate = true;
 
     document.getElementById('slider-azimuth').value = p.azimuth;

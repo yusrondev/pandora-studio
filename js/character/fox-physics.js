@@ -1003,7 +1003,8 @@ function updateWolfPhysics(dt, elapsed) {
 
     // Kunci kontrol saat lompat biasa (di tempat atau sambil berjalan) atau saat combat/terkena hit/shield.
     // Hanya lompat sambil sprint yang tetap melaju.
-    const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && (wolfCharacter.isStationaryJump || wolfCharacter.activeJumpKey === 'jumpNormal'));
+    // Klip lompat dengan root motion sudah memajukan karakter sendiri, jadi laju sprint ikut dikunci.
+    const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && (wolfCharacter.isStationaryJump || wolfCharacter.activeJumpKey === 'jumpNormal' || wolfCharacter.jumpRootMotion));
     const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit || wolfCharacter.isBlocking));
     const backflipStep = PandoraBackflip.update(dt, wolfCharacter, _bossEncounter, inputX, inputY, isGrounded);
     const isMovementLocked = isPlayerInCombat || isStationaryJumping || !!window.PandoraUltimateCasting || backflipStep !== null;

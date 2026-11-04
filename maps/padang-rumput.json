@@ -41137,6 +41137,8 @@
         }
     ],
     "rockMoss": [],
+    "plateaus": [],
+    "dirt": [],
     "rocks": [
         {
             "posX": 15.145215413733775,
@@ -1093207,8 +1093209,8 @@
         {
             "id": "portal-1793458052828-1",
             "name": "Portal 1",
-            "x": 2.7,
-            "z": 33.2,
+            "x": 2.2,
+            "z": 30.7,
             "rotY": 0,
             "radius": 1.6,
             "targetStageId": "taron",
@@ -1093247,6 +1093249,7 @@
                         "moveClip": "",
                         "clipLoop": true,
                         "endRole": "stay",
+                        "scale": 1,
                         "heading": 0,
                         "waypoints": []
                     }
@@ -1093672,6 +1093675,6 @@
         "version": "1.0"
     },
     "filename": "padang-rumput.json",
-    "updatedAt": "2026-11-01T01:09:46+00:00",
-    "createdAt": "2026-11-01T01:09:46+00:00"
+    "updatedAt": "2026-11-04T15:50:59+00:00",
+    "createdAt": "2026-11-04T15:50:59+00:00"
 }

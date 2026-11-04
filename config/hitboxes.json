@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "updatedAt": "2026-11-03T12:57:23+00:00",
+    "updatedAt": "2026-11-04T15:45:51+00:00",
     "characters": {
         "hero": {
             "hurtbox": {
@@ -1679,11 +1679,11 @@
                     ]
                 },
                 "punch3": {
-                    "speed": 1.5,
+                    "speed": 2.05,
                     "damage": 30,
                     "knockback": 0.28,
-                    "activeStartPct": 0.32,
-                    "activeEndPct": 0.43,
+                    "activeStartPct": 0.43,
+                    "activeEndPct": 0.48,
                     "hitboxes": [
                         {
                             "id": "hb_red-mature_punch3_main",
@@ -1871,7 +1871,7 @@
                     "hitboxes": []
                 },
                 "jump": {
-                    "speed": 1,
+                    "speed": 2,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,

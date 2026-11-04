@@ -19,27 +19,42 @@ const PandoraPostFX = {
     sun: new THREE.Vector3(),
 
     enabled() {
-        return isPlayMode && PandoraSettings.preset().postFx === true && renderer.capabilities.isWebGL2;
+        const mode = PandoraSettings.preset().postFx;
+        if (!isPlayMode) return false;
+        if (mode === 'lite') return true;
+        return mode === true && renderer.capabilities.isWebGL2;
     },
 
-    ensureTargets(width, height) {
-        if (this.target && this.target.width === width && this.target.height === height) return;
+    // Versi ponsel: tanpa MSAA, berkas cahaya di 1/4 resolusi dengan sampel lebih sedikit, tanpa bloom
+    isLite() {
+        return PandoraSettings.preset().postFx === 'lite';
+    },
+
+    ensureTargets(width, height, lite) {
+        if (this.target && this.target.width === width && this.target.height === height && this.targetLite === lite) return;
         if (this.target) {
             this.target.dispose();
             this.lightTarget.dispose();
             this.blurTarget.dispose();
         }
         // Encoding sama dengan layar agar shader dunia tidak perlu dikompilasi ulang
-        this.target = new THREE.WebGLMultisampleRenderTarget(width, height, {
+        const colorOptions = {
             minFilter: THREE.LinearFilter,
             magFilter: THREE.LinearFilter,
             format: THREE.RGBAFormat,
             encoding: renderer.outputEncoding
-        });
-        this.target.samples = 4;
+        };
+        if (lite) {
+            this.target = new THREE.WebGLRenderTarget(width, height, colorOptions);
+        } else {
+            this.target = new THREE.WebGLMultisampleRenderTarget(width, height, colorOptions);
+            this.target.samples = 4;
+        }
+        this.targetLite = lite;
+        const shift = lite ? 2 : 1;
         const lightOptions = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
-        this.lightTarget = new THREE.WebGLRenderTarget(Math.max(1, width >> 1), Math.max(1, height >> 1), lightOptions);
-        this.blurTarget = new THREE.WebGLRenderTarget(Math.max(1, width >> 1), Math.max(1, height >> 1), lightOptions);
+        this.lightTarget = new THREE.WebGLRenderTarget(Math.max(1, width >> shift), Math.max(1, height >> shift), lightOptions);
+        this.blurTarget = new THREE.WebGLRenderTarget(Math.max(1, width >> shift), Math.max(1, height >> shift), lightOptions);
     },
 
     makeMaterial(vertexShader, fragmentShader, uniforms) {
@@ -56,9 +71,9 @@ const PandoraPostFX = {
             }
         `;
         // rgb = bloom bagian sangat terang, alpha = berkas cahaya
-        const light = this.makeMaterial(fullscreenVertex, `
-            #define SHAFT_TAPS 40
-            #define BLOOM_TAPS 8
+        const lightFragment = (shaftTaps, bloomTaps) => `
+            #define SHAFT_TAPS ${shaftTaps}
+            #define BLOOM_TAPS ${bloomTaps}
             uniform sampler2D tColor;
             uniform vec2 uTexel;
             uniform vec2 uSun;
@@ -92,14 +107,18 @@ const PandoraPostFX = {
                     }
                     shaft = shaft / total * uFacing;
                 }
-                gl_FragColor = vec4(bloom / float(BLOOM_TAPS), shaft);
+                gl_FragColor = vec4(bloom / max(1.0, float(BLOOM_TAPS)), shaft);
             }
-        `, {
+        `;
+        const lightUniforms = () => ({
             tColor: { value: null },
             uTexel: { value: new THREE.Vector2() },
             uSun: { value: new THREE.Vector2() },
             uFacing: { value: 0 }
         });
+        const light = this.makeMaterial(fullscreenVertex, lightFragment(40, 8), lightUniforms());
+        // Ponsel: separuh sampel berkas (pita diredam blur + resolusi 1/4) dan tanpa bloom
+        const lightLite = this.makeMaterial(fullscreenVertex, lightFragment(20, 0), lightUniforms());
         // Blur dua arah melebur pengacakan menjadi berkas yang halus
         const blur = this.makeMaterial(fullscreenVertex, `
             uniform sampler2D tLight;
@@ -151,6 +170,19 @@ const PandoraPostFX = {
                 color = screen(color, vec3(1.0, 0.95, 0.84) * light.a * uStrength.y);
                 float dist = length((vUv - uSun.xy) * vec2(uAspect, 1.0));
                 color = screen(color, vec3(1.0, 0.94, 0.82) * exp(-dist * dist * 5.0) * uStrength.z * vVisible);
+                // Lens flare: bayangan lensa samar di garis matahari -> tengah layar, hanya saat matahari terlihat
+                vec3 flare = vec3(0.0);
+                vec2 axis = vec2(0.5) - uSun.xy;
+                for (int i = 0; i < 4; i++) {
+                    float t = float(i) == 0.0 ? 0.55 : (float(i) == 1.0 ? 1.15 : (float(i) == 2.0 ? 1.55 : 1.9));
+                    float r = float(i) == 0.0 ? 0.035 : (float(i) == 1.0 ? 0.08 : (float(i) == 2.0 ? 0.025 : 0.12));
+                    vec3 tint = float(i) == 0.0 ? vec3(1.0, 0.8, 0.5) : (float(i) == 1.0 ? vec3(0.55, 0.85, 1.0) : (float(i) == 2.0 ? vec3(1.0, 0.65, 0.4) : vec3(0.5, 1.0, 0.75)));
+                    float d = length((vUv - (uSun.xy + axis * t)) * vec2(uAspect, 1.0));
+                    flare += tint * smoothstep(r, r * 0.55, d) * 0.06;
+                }
+                // Halo cincin tipis mengelilingi matahari
+                flare += vec3(1.0, 0.9, 0.75) * smoothstep(0.02, 0.0, abs(dist - 0.32)) * 0.035;
+                color = screen(color, flare * vVisible);
                 gl_FragColor = vec4(color, 1.0);
             }
         `, {
@@ -164,7 +196,7 @@ const PandoraPostFX = {
         const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), light);
         mesh.frustumCulled = false;
         quadScene.add(mesh);
-        this.quad = { scene: quadScene, camera: new THREE.Camera(), mesh, light, blur, composite };
+        this.quad = { scene: quadScene, camera: new THREE.Camera(), mesh, light, lightLite, blur, composite };
         return this.quad;
     },
 
@@ -172,8 +204,10 @@ const PandoraPostFX = {
         const size = renderer.getDrawingBufferSize(new THREE.Vector2());
         const width = Math.max(1, size.x);
         const height = Math.max(1, size.y);
-        this.ensureTargets(width, height);
+        const lite = this.isLite();
+        this.ensureTargets(width, height, lite);
         const quad = this.getQuad();
+        const lightMat = lite ? quad.lightLite : quad.light;
 
         renderer.setRenderTarget(this.target);
         renderer.render(scene, camera);
@@ -185,17 +219,18 @@ const PandoraPostFX = {
         const sunU = this.sun.x * 0.5 + 0.5;
         const sunV = this.sun.y * 0.5 + 0.5;
 
-        quad.mesh.material = quad.light;
-        quad.light.uniforms.tColor.value = this.target.texture;
-        quad.light.uniforms.uTexel.value.set(1 / width, 1 / height);
-        quad.light.uniforms.uSun.value.set(sunU, sunV);
-        quad.light.uniforms.uFacing.value = facing;
+        quad.mesh.material = lightMat;
+        lightMat.uniforms.tColor.value = this.target.texture;
+        lightMat.uniforms.uTexel.value.set(1 / width, 1 / height);
+        lightMat.uniforms.uSun.value.set(sunU, sunV);
+        lightMat.uniforms.uFacing.value = facing;
         renderer.setRenderTarget(this.lightTarget);
         renderer.render(quad.scene, quad.camera);
 
         quad.mesh.material = quad.blur;
-        const texelX = 2 / width;
-        const texelY = 2 / height;
+        // Satu texel target cahaya (1/2 atau 1/4 layar)
+        const texelX = (lite ? 4 : 2) / width;
+        const texelY = (lite ? 4 : 2) / height;
         quad.blur.uniforms.tLight.value = this.lightTarget.texture;
         quad.blur.uniforms.uDirection.value.set(texelX, 0);
         renderer.setRenderTarget(this.blurTarget);

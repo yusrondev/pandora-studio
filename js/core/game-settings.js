@@ -8,11 +8,13 @@ const PANDORA_IS_PHONE = window.matchMedia && window.matchMedia('(pointer: coars
 // foliageShadow mematikan pembacaan bayangan per piksel; coverPower < 0.5 berarti helai tidak diperbesar penuh saat dikurangi.
 const PHONE_LOW = { grassFar: 28, shadowTreeFar: 14, leafFraction: 0.32, shafts: 0.15, shadowSize: 512, cloudFraction: 0.08, cloudPuffScale: 1.5, grassFraction: 0.22, foliageShadow: false, coverPower: 0.32, fogFraction: 0.35 };
 const PHONE_LOWEST = { grassFar: 22, shadowTreeFar: 10, leafFraction: 0.22, maxDpr: 0.7, cloudFraction: 0.05, cloudPuffScale: 1.7, grassFraction: 0.14, foliageShadow: false, coverPower: 0.28, shadowDynamicEvery: 3, fogFraction: 0.25 };
+// postFx: true = versi PC penuh; 'lite' = versi ponsel (tanpa MSAA, berkas cahaya 1/4 resolusi, tanpa bloom)
+const PHONE_POST_FX = PANDORA_IS_PHONE ? 'lite' : true;
 const GRAPHICS_PRESETS = {
     low:    { label: 'Rendah', shadowDynamicEvery: 2, grassFar: 36, shadowTreeFar: 24, leafFraction: 0.55, shafts: 0.3, maxDpr: 0.85, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.25, grassFraction: 0.4,  waterDepthEvery: 12, antialias: false, gpu: 'default', ...(PANDORA_IS_PHONE ? PHONE_LOW : {}) },
-    medium: { label: 'Sedang', grassFar: 54, shadowTreeFar: 38, leafFraction: 0.8, shafts: 0.6, maxDpr: 1.0,  shadowSize: 1024, shadowEvery: 3, cloudFraction: 0.65, grassFraction: 0.7,  waterDepthEvery: 4, antialias: false, gpu: 'default' },
-    high:   { label: 'Tinggi', grassFar: 90, shadowTreeFar: 60, postFx: !PANDORA_IS_PHONE, leafFraction: 1, shafts: 1, maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
-    ultra:  { label: 'Ultra', grassFar: 140, shadowTreeFar: 90,  postFx: !PANDORA_IS_PHONE, leafFraction: 1, shafts: 1, maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 1, antialias: true,  gpu: 'high-performance' },
+    medium: { label: 'Sedang', grassFar: 54, shadowTreeFar: 38, postFx: PANDORA_IS_PHONE ? 'lite' : false, leafFraction: 0.8, shafts: 0.6, maxDpr: 1.0,  shadowSize: 1024, shadowEvery: 3, cloudFraction: 0.65, grassFraction: 0.7,  waterDepthEvery: 4, antialias: false, gpu: 'default' },
+    high:   { label: 'Tinggi', grassFar: 90, shadowTreeFar: 60, postFx: PHONE_POST_FX, leafFraction: 1, shafts: 1, maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
+    ultra:  { label: 'Ultra', grassFar: 140, shadowTreeFar: 90,  postFx: PHONE_POST_FX, leafFraction: 1, shafts: 1, maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 1, antialias: true,  gpu: 'high-performance' },
     auto:   { label: 'Rekomendasi' } // Isinya salah satu tingkat AUTO_QUALITY_LEVELS, dipilih dari FPS perangkat
 };
 
@@ -22,7 +24,7 @@ const AUTO_QUALITY_LEVELS = [
     GRAPHICS_PRESETS.low,
     { label: 'Rendah+', grassFar: 44, shadowTreeFar: 30, leafFraction: 0.7, shafts: 0.45, maxDpr: 1.0, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.5, grassFraction: 0.55, waterDepthEvery: 5, antialias: false, gpu: 'default' },
     GRAPHICS_PRESETS.medium,
-    { label: 'Sedang+', grassFar: 68, shadowTreeFar: 45, leafFraction: 0.9, shafts: 0.8, maxDpr: 1.25, shadowSize: 2048, shadowEvery: 3, cloudFraction: 0.85, grassFraction: 0.85, waterDepthEvery: 3, antialias: true, gpu: 'high-performance' },
+    { label: 'Sedang+', grassFar: 68, shadowTreeFar: 45, postFx: PANDORA_IS_PHONE ? 'lite' : false, leafFraction: 0.9, shafts: 0.8, maxDpr: 1.25, shadowSize: 2048, shadowEvery: 3, cloudFraction: 0.85, grassFraction: 0.85, waterDepthEvery: 3, antialias: true, gpu: 'high-performance' },
     GRAPHICS_PRESETS.high,
     GRAPHICS_PRESETS.ultra
 ];

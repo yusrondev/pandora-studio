@@ -252,6 +252,10 @@
 }
 
 /* Controls layout inside overflow dropdown */
+.toolbar-overflow-content > * {
+    flex-shrink: 0 !important;
+}
+
 .toolbar-overflow-content .toolbar-group {
     display: flex !important;
     align-items: center !important;

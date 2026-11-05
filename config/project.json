@@ -1,13 +1,6 @@
 {
     "name": "RedFox",
-    "startStageId": "from-zero",
-    "stageOrder": [
-        "from-zero",
-        "lembah-suram",
-        "padang-rumput",
-        "taron",
-        "noxis",
-        "stage-5"
-    ],
+    "startStageId": "",
+    "stageOrder": [],
     "allowedDomains": ""
 }

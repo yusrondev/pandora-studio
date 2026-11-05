@@ -23,6 +23,9 @@ const PlayerHealthState = {
     takeDamage(amount = 15, attackerPos = null) {
         if (this.isDead || (typeof isPlayMode !== 'undefined' && !isPlayMode)) return;
 
+        // Dodge: i-frame selama berguling, serangan lewat begitu saja
+        if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.isDodging) return;
+
         // Pastikan saat shield ini aktif karakter TIDAK BISA DISERANG (kebal terhadap damage HP)
         if (typeof wolfCharacter !== 'undefined' && wolfCharacter && wolfCharacter.isBlocking) {
             if (typeof wolfCharacter.onBlockHit === 'function') {
@@ -196,6 +199,13 @@ const StaminaGauge = {
         this.el.style.transform = `translate3d(${Math.max(0, Math.min(maxX, this.screenX)).toFixed(1)}px, ${Math.max(0, Math.min(maxY, this.screenY)).toFixed(1)}px, 0)`;
     },
 
+    // Di luar Play Mode update() tidak dipanggil, jadi kelas 'visible' harus dilepas sendiri
+    hide() {
+        if (this.el) this.el.classList.remove('visible', 'critical');
+        this.screenX = null;
+        this.screenY = null;
+    },
+
     update() {
         if (!this.el) this.build();
         const now = performance.now();
@@ -219,13 +229,13 @@ const StaminaGauge = {
 
 // Penghitung hit dan peringkat gaya bertarung di sisi kanan layar
 const STYLE_RANKS = [
-    { letter: 'D', score: 8 },
-    { letter: 'C', score: 24 },
-    { letter: 'B', score: 44 },
-    { letter: 'A', score: 68 },
-    { letter: 'S', score: 98 },
-    { letter: 'SS', score: 134 },
-    { letter: 'SSS', score: 176 }
+    { letter: 'D', word: 'Dasar', score: 8 },
+    { letter: 'C', word: 'Cekatan', score: 24 },
+    { letter: 'B', word: 'Brutal', score: 44 },
+    { letter: 'A', word: 'Agresif', score: 68 },
+    { letter: 'S', word: 'Sadis', score: 98 },
+    { letter: 'SS', word: 'Super Sadis', score: 134 },
+    { letter: 'SSS', word: 'Sangat Sadis!', score: 176 }
 ];
 const STYLE_MAX_SCORE = 220;
 const STYLE_HIT_SCORE = 5;
@@ -246,8 +256,10 @@ const StyleMeter = {
     build() {
         this.el = document.createElement('div');
         this.el.id = 'style-meter';
-        this.el.innerHTML = '<div class="style-rank"></div><div class="style-bar"><i></i></div><div class="style-hits"><b>0</b><span>HIT</span></div>';
+        this.el.innerHTML = '<div class="style-rank"></div><div class="style-word"></div><div class="style-bar"><i></i></div><div class="style-hits"><b>0</b><span>HIT</span></div>';
         this.rankEl = this.el.querySelector('.style-rank');
+        this.wordEl = this.el.querySelector('.style-word');
+        this.hitLabel = this.el.querySelector('.style-hits span');
         this.barEl = this.el.querySelector('.style-bar i');
         this.hitsWrap = this.el.querySelector('.style-hits');
         this.hitsEl = this.el.querySelector('.style-hits b');
@@ -271,6 +283,8 @@ const StyleMeter = {
 
     // Hanya serangan pemain sendiri yang dihitung, bukan bunshin
     registerHit(damage) {
+        // Pratinjau di editor (cinematic, Hitbox) tidak boleh memunculkan penghitung
+        if (typeof isPlayMode === 'undefined' || !isPlayMode) return;
         if (!this.el) this.build();
         if (this.sinceHit > STYLE_COMBO_SECONDS) this.hits = 0;
         this.hits++;
@@ -278,6 +292,7 @@ const StyleMeter = {
         const comboBonus = 1 + Math.min(1, this.hits * 0.04);
         this.score = Math.min(STYLE_MAX_SCORE, this.score + (STYLE_HIT_SCORE + (damage || 0) * 0.1) * comboBonus);
         this.hitsEl.textContent = this.hits;
+        this.hitLabel.textContent = this.hits > 1 ? 'HITS' : 'HIT';
         this.replay(this.hitsWrap, 'pop');
         this.renderRank();
     },
@@ -297,8 +312,18 @@ const StyleMeter = {
         this.rankIndex = index;
         if (index < 0) return;
         this.rankEl.textContent = STYLE_RANKS[index].letter;
+        this.wordEl.textContent = STYLE_RANKS[index].word;
         this.el.dataset.rank = STYLE_RANKS[index].letter;
-        if (rising) this.replay(this.rankEl, 'rise');
+        if (rising) {
+            this.replay(this.rankEl, 'rise');
+            this.replay(this.wordEl, 'rise');
+        }
+    },
+
+    // Di luar Play Mode update() tidak dipanggil, jadi penghitung harus disembunyikan dan direset sendiri
+    hide() {
+        if (this.el) this.el.classList.remove('visible', 'has-rank');
+        this.reset();
     },
 
     update() {
@@ -401,6 +426,8 @@ const CombatHUD = {
     },
 
     onPlayModeStop() {
+        StaminaGauge.hide();
+        StyleMeter.hide();
         if (!this.playerHUD) this.init();
         if (this.playerHUD) this.playerHUD.style.display = 'none';
         if (this.bossContainer) {
@@ -419,6 +446,8 @@ const CombatHUD = {
     update(dt, elapsed) {
         const inPlay = (typeof isPlayMode !== 'undefined' && isPlayMode);
         if (!inPlay) {
+            StaminaGauge.hide();
+            StyleMeter.hide();
             if (this.bossContainer && this.bossContainer.classList.contains('visible')) {
                 this.bossContainer.classList.remove('visible');
                 this.bossContainer.style.display = 'none';

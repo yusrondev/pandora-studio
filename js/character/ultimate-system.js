@@ -6,6 +6,7 @@
 const ULTIMATE_MAX_ORBS = 3;
 const ULTIMATE_REGEN_SECONDS = 45;  // Waktu mengisi satu orb, jauh lebih lambat dari stamina
 const ULTIMATE_MENU_TIMESCALE = 0.06;
+const ULTIMATE_TIME_RECOVER = 0.25;  // Detik nyata: dunia kembali dari gerak lambat secara halus, tidak melompat
 const BUNSHIN_COST = 2;
 const BUNSHIN_PER_CAST = 2;
 const BUNSHIN_MAX = 6;              // Melewati batas, yang tertua digantikan
@@ -212,6 +213,38 @@ const PandoraUltimate = {
             scene.add(model.root);
             this.pool.push(model);
         }
+        await this.prewarmPool();
+    },
+
+    // Bunshin disimpan tersembunyi, dan renderer.compile() melewati objek tersembunyi. Tanpa ini shader
+    // (termasuk varian bayangan), tekstur, dan geometri bunshin baru dikirim ke GPU saat pertama kali
+    // muncul, terasa sebagai macet sesaat. Dipanggil di balik layar loading (prepareStage).
+    async prewarmPool() {
+        const deadline = performance.now() + 15000;
+        while (this.pool.some(model => !model.mixer) && performance.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        if (!wolfCharacter || !wolfCharacter.root || typeof renderer === 'undefined') return;
+        // Kabut cukup untuk satu kali cast penuh sudah tersedia sejak awal
+        while (this.bursts.length < BUNSHIN_PER_CAST * 2) this.createBurst().points.visible = false;
+
+        const player = wolfCharacter.root;
+        const shown = [];
+        this.pool.forEach((model, i) => {
+            model.root.position.set(player.position.x + (i - BUNSHIN_MAX / 2) * 0.6, player.position.y, player.position.z);
+            model.root.visible = true;
+            model.root.traverse((child) => { if (child.isMesh) { shown.push([child, child.frustumCulled]); child.frustumCulled = false; } });
+            if (window.PandoraHitboxSystem && PandoraHitboxSystem.ensureBoneCache) PandoraHitboxSystem.ensureBoneCache(model);
+        });
+        this.bursts.forEach(burst => { burst.points.visible = true; });
+        renderer.compile(scene, camera);
+        const prevShadow = renderer.shadowMap.needsUpdate;
+        renderer.shadowMap.needsUpdate = true;
+        renderer.render(scene, camera);
+        renderer.shadowMap.needsUpdate = prevShadow;
+        shown.forEach(([mesh, culled]) => { mesh.frustumCulled = culled; });
+        this.pool.forEach((model) => { model.root.visible = false; });
+        this.bursts.forEach(burst => { burst.points.visible = false; });
     },
 
     buildFog() {
@@ -452,6 +485,13 @@ const PandoraUltimate = {
         }
     },
 
+    // Kecepatan animasi umum (jutsu, rageMode) dari Hitbox Studio; 1 bila belum diatur
+    generalAnimSpeed(animKey) {
+        const charKey = (wolfCharacter && (wolfCharacter.speciesKey || wolfCharacter.charKey)) || 'hero';
+        const config = window.PandoraHitboxSystem ? PandoraHitboxSystem.getAnimationConfig(charKey, animKey) : null;
+        return config && config.speed > 0 ? config.speed : 1;
+    },
+
     // ---------- Rage Mode ----------
     startRage() {
         if (!wolfCharacter || PlayerHealthState.isDead) return;
@@ -464,17 +504,21 @@ const PandoraUltimate = {
         if (this.rageClip && wolfCharacter.mixer) {
             window.PandoraUltimateCasting = true;
             if (wolfCharacter.castAction) wolfCharacter.castAction.stop();
-            const target = wolfCharacter.modelMesh || wolfCharacter.meshContainer || wolfCharacter.root;
-            const clip = sanitizeAnimationClipForModel(this.rageClip, target);
-            const action = wolfCharacter.mixer.clipAction(clip);
+            if (!wolfCharacter.actions.rageIntro) {
+                const target = wolfCharacter.modelMesh || wolfCharacter.meshContainer || wolfCharacter.root;
+                wolfCharacter.actions.rageIntro = wolfCharacter.mixer.clipAction(sanitizeAnimationClipForModel(this.rageClip, target));
+            }
+            const action = wolfCharacter.actions.rageIntro;
+            const clip = action.getClip();
             action.reset();
             action.setLoop(THREE.LoopOnce, 1);
             action.clampWhenFinished = true;
-            action.timeScale = 1 / RAGE_INTRO_TIMESCALE;
+            const speed = this.generalAnimSpeed('rageMode');
+            action.timeScale = speed / RAGE_INTRO_TIMESCALE;
             action.play();
             wolfCharacter.castAction = action;
             wolfCharacter.castTarget = 1;
-            this.rageTimer = clip.duration;
+            this.rageTimer = clip.duration / speed;
             window.PandoraTimeScale = RAGE_INTRO_TIMESCALE;
         }
     },
@@ -634,6 +678,8 @@ const PandoraUltimate = {
         if (window.PandoraGamePaused || (window.PandoraStageFlow && PandoraStageFlow.isTransitioning)) return;
         if (typeof CinematicPlayer !== 'undefined' && CinematicPlayer.active) return;
         if (this.ragePhase === 'intro') return;
+        // L1 menunggu dodge selesai
+        if (window.PandoraDodge && PandoraDodge.isBusy(wolfCharacter)) return;
         PandoraBackflip.stop(wolfCharacter);
         this.menuOpen = true;
         window.PandoraUltimateCasting = true;
@@ -652,7 +698,7 @@ const PandoraUltimate = {
         if (confirmed && this.unavailableReason(option)) return;
         this.menuOpen = false;
         window.PandoraUltimateCasting = false;
-        window.PandoraTimeScale = 1;
+        this.timeRecover = ULTIMATE_TIME_RECOVER;
         if (this.elements) this.elements.menu.classList.remove('open');
         BossKillCam.release();
         this.endPose();
@@ -666,12 +712,17 @@ const PandoraUltimate = {
     // Pose jutsu berjalan dengan kecepatan normal walau seluruh dunia sedang melambat
     startPose() {
         if (!this.jutsuClip || !wolfCharacter.mixer) return;
-        const target = wolfCharacter.modelMesh || wolfCharacter.meshContainer || wolfCharacter.root;
-        const action = wolfCharacter.mixer.clipAction(sanitizeAnimationClipForModel(this.jutsuClip, target));
+        // Aksi disimpan per karakter: membuat salinan klip & aksi baru tiap menu dibuka menumpuk di mixer
+        // dan memicu jeda garbage collection
+        if (!wolfCharacter.actions.jutsuPose) {
+            const target = wolfCharacter.modelMesh || wolfCharacter.meshContainer || wolfCharacter.root;
+            wolfCharacter.actions.jutsuPose = wolfCharacter.mixer.clipAction(sanitizeAnimationClipForModel(this.jutsuClip, target));
+        }
+        const action = wolfCharacter.actions.jutsuPose;
         action.reset();
         action.setLoop(THREE.LoopOnce, 1);
         action.clampWhenFinished = true;
-        action.timeScale = 1 / ULTIMATE_MENU_TIMESCALE;
+        action.timeScale = this.generalAnimSpeed('jutsu') / ULTIMATE_MENU_TIMESCALE;
         action.play();
         wolfCharacter.castAction = action;
         wolfCharacter.castTarget = 1;
@@ -696,6 +747,12 @@ const PandoraUltimate = {
             model.root.position.set(x, getTerrainHeightFast(x, z), z);
             model.root.rotation.y = root.rotation.y;
             model.root.scale.copy(root.scale);
+            // Pose sisa pemanggilan sebelumnya (setengah memukul, atau T-pose saat pertama) tidak boleh
+            // terlihat di frame pertama bunshin muncul
+            model.isPunching = false;
+            model.isKicking = false;
+            model.isTakingHit = false;
+            if (typeof model.resetAnimation === 'function') model.resetAnimation();
             this.spawnFog(model.root.position);
             this.bunshins.push({
                 model, root: model.root, slot,
@@ -805,7 +862,12 @@ const PandoraUltimate = {
     updateBunshin(ally, dt) {
         if (ally.reveal > 0) {
             ally.reveal -= dt;
-            if (ally.reveal <= 0) ally.root.visible = true;
+            // Animasi tetap berjalan di balik kabut, jadi saat tubuh muncul posenya sudah idle yang benar
+            this.withoutPlayerStamina(() => ally.model.updateAnimation(dt, 0, false, true, 0));
+            if (ally.reveal <= 0) {
+                ally.root.updateMatrixWorld(true);
+                ally.root.visible = true;
+            }
             return;
         }
         ally.life -= dt;
@@ -889,6 +951,13 @@ const PandoraUltimate = {
         if (this.menuOpen) {
             if (PlayerHealthState.isDead || !BossKillCam.active) this.closeMenu(false);
             else window.PandoraTimeScale = ULTIMATE_MENU_TIMESCALE;
+        } else if (this.timeRecover > 0) {
+            // Intro Rage mengatur waktunya sendiri
+            this.timeRecover = this.ragePhase === 'intro' ? 0 : Math.max(0, this.timeRecover - realDelta);
+            if (this.ragePhase !== 'intro') {
+                const k = THREE.MathUtils.smootherstep(1 - this.timeRecover / ULTIMATE_TIME_RECOVER, 0, 1);
+                window.PandoraTimeScale = THREE.MathUtils.lerp(ULTIMATE_MENU_TIMESCALE, 1, k);
+            }
         }
         this.updateRage(dt, realDelta);
         this.updateGhost(dt, realDelta);
@@ -913,11 +982,13 @@ const PandoraUltimate = {
     // Play Mode dimulai atau berhenti: bunshin hilang; energi hanya penuh lagi saat uji ulang di Studio
     resetForPlay() {
         if (this.menuOpen) this.closeMenu(false);
+        this.timeRecover = 0;
         this.endRage();
         this.endGhost();
         this.bunshins.forEach(ally => this.release(ally));
         this.bunshins = [];
-        if (!window.PANDORA_RUNTIME) {
+        // Build & Play Demo: energi tidak penuh lagi saat bangkit. Penuh hanya di awal sesi demo.
+        if (!(window.PandoraGameSession ? PandoraGameSession.rulesActive() : !!window.PANDORA_RUNTIME)) {
             this.orbs = ULTIMATE_MAX_ORBS;
             this.regen = 0;
             this.renderOrbs();

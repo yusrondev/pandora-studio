@@ -496,6 +496,9 @@
             wrapper.name = 'SocketWrapper_' + (att.id || 'unnamed');
             wrapper.userData.isAttachmentSocket = true;
             wrapper.userData.attachmentId = att.id;
+            wrapper.userData.bone = att.bone || '';
+            // Kendi penampung roh musuh bos (soul-absorb.js): hanya satu per karakter
+            wrapper.userData.isSoulJar = !!att.soulJar;
 
             // Terapkan Transform Lokal (Posisi, Rotasi Euler dlm derajat, Skala)
             const p = att.position || [0, 0, 0];
@@ -578,8 +581,8 @@
                     .then(onModelReady)
                     .catch(onModelError);
             } else {
-                // Tidak ada sumber — sembunyikan placeholder
-                placeholderMesh.visible = false;
+                // Tidak ada sumber (file belum diunggah). Di Studio/game tidak ada placeholder sama sekali.
+                if (placeholderMesh) placeholderMesh.visible = false;
             }
 
             return wrapper;
@@ -661,14 +664,20 @@
 
             attachments.forEach(att => {
                 if (att.enabled === false) return;
-                const bone = this.resolveBone(characterInstance, att.bone || 'RightHand');
-                const meshWrapper = this.createAttachmentMesh(att);
-                if (bone) {
-                    bone.add(meshWrapper);
-                    characterInstance._attachedSockets.push(meshWrapper);
-                } else if (characterInstance.root) {
-                    characterInstance.root.add(meshWrapper);
-                    characterInstance._attachedSockets.push(meshWrapper);
+                // Satu attachment rusak tidak boleh menggagalkan pembuatan karakter: dulu galat di sini
+                // membuat karakter tidak pernah masuk scene, sehingga Play Demo berjalan tanpa karakter.
+                try {
+                    const bone = this.resolveBone(characterInstance, att.bone || 'RightHand');
+                    const meshWrapper = this.createAttachmentMesh(att);
+                    if (bone) {
+                        bone.add(meshWrapper);
+                        characterInstance._attachedSockets.push(meshWrapper);
+                    } else if (characterInstance.root) {
+                        characterInstance.root.add(meshWrapper);
+                        characterInstance._attachedSockets.push(meshWrapper);
+                    }
+                } catch (err) {
+                    console.warn('[AttachmentSystem] Attachment dilewati:', att.name || att.id, err);
                 }
             });
         }

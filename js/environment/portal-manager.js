@@ -486,6 +486,7 @@ const PandoraStageFlow = {
         const deadline = performance.now() + STAGE_READY_TIMEOUT_MS;
         if (typeof ensureRockAssets === 'function') await ensureRockAssets();
         if (window.PandoraBackflip) await PandoraBackflip.load();
+        if (window.PandoraDodge) await PandoraDodge.load();
         // Bunshin, pose, dan kabut disiapkan sekarang supaya L1 tidak tersendat saat bertarung
         if (window.PandoraUltimate && wolfCharacter) await PandoraUltimate.prepare();
         const total = () => spawnedFoxesList.length + 1;

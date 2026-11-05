@@ -267,71 +267,73 @@ function initMobileControls() {
         btnKick.addEventListener('click', (e) => doKick(e, false));
     }
 
-    // 5B. SHIELD / BLOCK BUTTON (TANGKISAN PERTAHANAN)
+    // 5B. TOMBOL O: DODGE (guling ke arah analog, netral = ke depan). Setara tombol Q di keyboard.
     if (btnShield) {
-        let lastShieldTouchTime = 0;
+        let lastDodgeTouchTime = 0;
+        const pressDodge = () => {
+            btnShield.classList.add('active');
+            setTimeout(() => { btnShield.classList.remove('active'); }, 180);
+            if (window.PandoraDodge) PandoraDodge.request();
+        };
         btnShield.addEventListener('touchstart', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            lastShieldTouchTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            btnShield.classList.add('active');
-            if (typeof startWolfBlock === 'function') {
-                startWolfBlock();
-            }
+            lastDodgeTouchTime = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            pressDodge();
             if (navigator.vibrate) navigator.vibrate(20);
         }, { passive: false });
 
         btnShield.addEventListener('touchend', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            btnShield.classList.remove('active');
-            if (typeof stopWolfBlock === 'function') {
-                stopWolfBlock();
-            }
         }, { passive: false });
-
-        btnShield.addEventListener('touchcancel', () => {
-            btnShield.classList.remove('active');
-            if (typeof stopWolfBlock === 'function') {
-                stopWolfBlock();
-            }
-        });
 
         btnShield.addEventListener('click', (e) => {
             e.preventDefault();
             const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-            if (now - lastShieldTouchTime < 450) return; // Sudah diproses oleh touchstart
-            btnShield.classList.add('active');
-            setTimeout(() => { btnShield.classList.remove('active'); }, 180);
-            if (typeof triggerWolfBlock === 'function') {
-                triggerWolfBlock();
-            }
+            if (now - lastDodgeTouchTime < 450) return; // Sudah diproses oleh touchstart
+            pressDodge();
         });
     }
 }
 
 // Harus dipanggil langsung dari klik pemain: browser menolak fullscreen di luar gestur.
 // iPhone tidak mendukung keduanya, jadi petunjuk "putar perangkat" menjadi cadangan.
+// Hanya yang dinyalakan di sini yang dimatikan lagi saat keluar: fullscreen yang sudah dipasang
+// pemain sebelum masuk demo (tombol Fullscreen / F) tetap dipertahankan.
+let mobileGameViewOwnsFullscreen = false;
+let mobileGameViewOwnsOrientation = false;
+
 async function enterMobileGameView() {
     if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
     try {
         const root = document.documentElement;
         if (!document.fullscreenElement && root.requestFullscreen) {
             await root.requestFullscreen({ navigationUI: 'hide' });
+            mobileGameViewOwnsFullscreen = true;
         }
         if (screen.orientation && screen.orientation.lock) {
             await screen.orientation.lock('landscape');
+            mobileGameViewOwnsOrientation = true;
         }
     } catch (err) { /* browser menolak: pemain memutar perangkat sendiri */ }
 }
 window.enterMobileGameView = enterMobileGameView;
 
+// Pemain keluar dari fullscreen sendiri di tengah demo: fullscreen yang dipasang setelahnya bukan milik demo
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) mobileGameViewOwnsFullscreen = false;
+});
+
 function exitMobileGameView() {
-    if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
-    if (screen.orientation && screen.orientation.unlock) {
+    if (mobileGameViewOwnsOrientation && screen.orientation && screen.orientation.unlock) {
         try { screen.orientation.unlock(); } catch (err) { /* tidak didukung */ }
     }
-    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    mobileGameViewOwnsOrientation = false;
+    if (mobileGameViewOwnsFullscreen && document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+    }
+    mobileGameViewOwnsFullscreen = false;
 }
 window.exitMobileGameView = exitMobileGameView;
 

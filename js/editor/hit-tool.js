@@ -561,9 +561,66 @@
     // ===================================================================
     // 3. MANAJEMEN ANIMASI PADA KARAKTER PENYERANG & DUMMY
     // ===================================================================
+    // Animasi umum hero/general (dodge, jutsu, rage-mode, dan file baru) tidak termasuk set klip karakter,
+    // jadi aksinya dibuat saat pertama dipilih. Diputar di tempat (X/Z pinggul dikunci) agar mudah diatur.
+    const generalClipCache = {};
+    function ensureGeneralAction(instance, animKey) {
+        if (!instance || !instance.mixer || !instance.actions) return Promise.resolve(false);
+        if (instance.actions[animKey]) return Promise.resolve(true);
+        const entry = HS.getGeneralAnimation ? HS.getGeneralAnimation(animKey) : null;
+        if (!entry) return Promise.resolve(false);
+
+        const target = instance.modelMesh || instance.meshContainer || instance.root;
+        if (animKey === 'dodge' && window.PandoraDodge) {
+            // Klip yang sama persis dengan di game (root motion sudah dipisah)
+            return PandoraDodge.load().then(() => {
+                if (!PandoraDodge.clip) return false;
+                PandoraDodge.getAction(instance);
+                return true;
+            });
+        }
+        if (!generalClipCache[animKey]) {
+            generalClipCache[animKey] = PandoraAssetCache.loadFBX(entry.generalFile).then((object) => {
+                const source = object && object.animations && object.animations[0];
+                if (!source) return null;
+                const clip = source.clone();
+                clip.name = animKey;
+                const hips = clip.tracks.find(t => /hips\.position$/i.test(t.name));
+                if (hips && hips.values.length >= 3) {
+                    const x0 = hips.values[0];
+                    const z0 = hips.values[2];
+                    for (let i = 0; i < hips.times.length; i++) {
+                        hips.values[i * 3] = x0;
+                        hips.values[i * 3 + 2] = z0;
+                    }
+                }
+                return clip;
+            }).catch((err) => {
+                console.warn('[HitTool] Animasi general gagal dimuat:', entry.generalFile, err);
+                return null;
+            });
+        }
+        return generalClipCache[animKey].then((clip) => {
+            if (!clip || !instance.mixer) return false;
+            if (!instance.actions[animKey]) {
+                instance.actions[animKey] = instance.mixer.clipAction(sanitizeAnimationClipForModel(clip, target));
+            }
+            return true;
+        });
+    }
+
     function playSelectedAnimationOnAttacker(resetTime = true) {
         const attacker = getAttackerInstance();
         if (!attacker || !attacker.actions) return;
+
+        if (!attacker.actions[activeAnimKey] && HS.getGeneralAnimation && HS.getGeneralAnimation(activeAnimKey)) {
+            const requested = activeAnimKey;
+            ensureGeneralAction(attacker, requested).then((ok) => {
+                if (ok && activeAnimKey === requested) playSelectedAnimationOnAttacker(true);
+                else if (!ok) showToast('Animasi general gagal dimuat: ' + requested, '#ef4444');
+            });
+            return;
+        }
 
         // Backflip dimuat terpisah dari animasi karakter, jadi aksinya dibuat saat pertama dipilih
         if (activeAnimKey === 'backflip' && !attacker.actions.backflip && attacker.mixer) {
@@ -1331,6 +1388,11 @@
         const attacker = getAttackerInstance();
         if (!attacker) return;
 
+        if (attacker.actions && !attacker.actions[animKey] && HS.getGeneralAnimation && HS.getGeneralAnimation(animKey)) {
+            ensureGeneralAction(attacker, animKey).then((ok) => { if (ok) playAttachmentTestAnimation(animKey); });
+            return;
+        }
+
         // Reset posisi root ke tanah (y = 0) saat animasi jalan
         if (attacker.root) {
             attacker.root.position.set(0, 0, 0);
@@ -1972,6 +2034,8 @@
             lblSource.innerHTML = `<strong>[${ext}]</strong> ${src}`;
         }
         if (chkVis) chkVis.checked = att.visible !== false;
+        const chkJar = document.getElementById('chk-att-soul-jar');
+        if (chkJar) chkJar.checked = !!att.soulJar;
 
         if (updateInputs) {
             const pos = att.position || [0, 0, 0];
@@ -2624,6 +2688,23 @@
                     refreshAttachmentMeshesInStudio();
                     renderAttachmentUI();
                 }
+            });
+        }
+
+        // Kendi Roh: tujuan roh musuh bos. Hanya satu per karakter, jadi yang lain dilepas.
+        const chkAttJar = document.getElementById('chk-att-soul-jar');
+        if (chkAttJar) {
+            chkAttJar.addEventListener('change', () => {
+                const attList = getActiveCharacterAttachments();
+                const att = attList.find(a => a.id === selectedAttachmentId);
+                if (!att) return;
+                attList.forEach(a => {
+                    if (a === att) a.soulJar = chkAttJar.checked;
+                    else delete a.soulJar;
+                });
+                if (!att.soulJar) delete att.soulJar;
+                refreshAttachmentMeshesInStudio();
+                renderAttachmentUI();
             });
         }
 

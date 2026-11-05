@@ -85,6 +85,50 @@
         ]
     };
 
+    // ── Animasi umum dari hero/general ──
+    // Semua file di hero/general yang belum punya slot (walk, run, block, hit, dead, flying kick/punch sudah ada)
+    // ikut dikelola di Hitbox Studio. Daftarnya dibaca dari PandoraHeroRegistry.general (hasil pindai
+    // api/heroes.php), jadi file baru yang ditaruh di folder itu otomatis muncul.
+    const GENERAL_ANIMATION_INFO = {
+        dodge: { label: 'Dodge (Guling, Tombol O / Q)', used: true },
+        jutsu: { label: 'Jutsu (Pose Diam Menu L1)', used: true },
+        rageMode: { label: 'Rage Mode (Intro Mode Amarah)', used: true }
+    };
+
+    function generalAnimKeyFromFile(file) {
+        const base = String(file).split('/').pop().replace(/\.fbx$/i, '');
+        return base.toLowerCase().replace(/[^a-z0-9]+([a-z0-9])/g, (_, c) => c.toUpperCase()).replace(/[^a-zA-Z0-9]/g, '');
+    }
+
+    function getGeneralExtraAnimations() {
+        const general = (typeof window !== 'undefined' && window.PandoraHeroRegistry) ? window.PandoraHeroRegistry.general : null;
+        if (!general || !Array.isArray(general.files)) return [];
+        const slotted = new Set(Object.values(general.slots || {}));
+        const basePath = general.basePath || 'hero/general/';
+        const list = [];
+        general.files.forEach((file) => {
+            if (slotted.has(file)) return;
+            const key = generalAnimKeyFromFile(file);
+            if (!key || list.some(x => x.key === key)) return;
+            const info = GENERAL_ANIMATION_INFO[key];
+            list.push({
+                key,
+                label: info ? `${info.label} (general/${file})` : `${key} (general/${file}, belum dipakai di game)`,
+                type: 'preview',
+                defaultDamage: 0,
+                generalFile: basePath + file
+            });
+        });
+        return list;
+    }
+
+    // Daftar dasar per karakter + animasi umum. Musuh foxtree punya set klip sendiri.
+    function withGeneralAnimations(cKey, baseList) {
+        if (cKey === 'enemy-foxtree') return baseList;
+        const extras = getGeneralExtraAnimations().filter(extra => !baseList.some(item => item.key === extra.key));
+        return extras.length ? baseList.concat(extras) : baseList;
+    }
+
     function normalizeCharKey(charKey) {
         if (!charKey) return 'hero';
         const lower = String(charKey).trim().toLowerCase();
@@ -370,7 +414,7 @@
         getCharacterAnimations(charKey) {
             const cKey = normalizeCharKey(charKey);
             if (CHARACTER_ANIMATIONS[cKey]) {
-                return CHARACTER_ANIMATIONS[cKey];
+                return withGeneralAnimations(cKey, CHARACTER_ANIMATIONS[cKey]);
             }
             // Buat daftar animasi dinamis untuk karakter baru (seperti tharon, taurus, atau folder hero baru)
             const baseList = [
@@ -416,7 +460,12 @@
             }
 
             CHARACTER_ANIMATIONS[cKey] = baseList;
-            return baseList;
+            return withGeneralAnimations(cKey, baseList);
+        },
+
+        // Entri animasi umum (hero/general) untuk satu kunci, atau null
+        getGeneralAnimation(animKey) {
+            return getGeneralExtraAnimations().find(item => item.key === animKey) || null;
         },
 
         mergeConfig(incoming) {
@@ -580,7 +629,7 @@
             if (!charCfg) return null;
             if (!charCfg.animations[animKey]) {
                 charCfg.animations[animKey] = {
-                    speed: animKey === 'backflip' ? BACKFLIP_DEFAULT_SPEED : 1.0,
+                    speed: animKey === 'backflip' ? BACKFLIP_DEFAULT_SPEED : (animKey === 'dodge' ? 1.15 : 1.0),
                     damage: 25,
                     knockback: 0.22,
                     activeStartPct: 0.10,

@@ -1511,8 +1511,8 @@ function createWolfCharacterModel(speciesKey = 'red') {
                 this.onBlockHit(attackerPos);
                 return;
             }
-            // Rage Mode, backflip, dan lompat: damage tetap masuk, tetapi tubuh tidak tersentak
-            if (this.rageActive || this.isBackflipping || this.isJumping) return;
+            // Rage Mode, backflip, dodge, dan lompat: tubuh tidak tersentak (dodge juga kebal damage)
+            if (this.rageActive || this.isBackflipping || this.isDodging || this.isJumping) return;
             // Super-Armor Animasi: Saat mengeksekusi flyingPunch (Run + Punch) atau flyingKick,
             // jangan menginterupsi / membatalkan animasi walaupun Fox tetap menerima damage HP dari AI enemy
             if (this.isFlyingPunch || this.isFlyingKick) {
@@ -4576,24 +4576,70 @@ window.preloadAllGameAssets = function(onComplete) {
     const fillEl = document.getElementById('asset-loader-fill');
     const statusEl = document.getElementById('asset-loader-status');
     const pctEl = document.getElementById('asset-loader-pct');
+    const timeEl = document.getElementById('asset-loader-time');
+    const cacheEl = document.getElementById('asset-loader-cache');
+    const gpuEl = document.getElementById('asset-loader-gpu');
 
+    let shownPct = 0;
     const updateUI = (text, pct) => {
-        if (fillEl) fillEl.style.width = pct + '%';
-        if (pctEl) pctEl.innerText = Math.round(pct) + '%';
-        if (statusEl) statusEl.innerText = text;
+        // Beberapa manager melapor bersamaan: bar tidak boleh mundur
+        shownPct = Math.max(shownPct, pct || 0);
+        if (fillEl) fillEl.style.width = shownPct + '%';
+        if (pctEl) pctEl.innerText = Math.round(shownPct) + '%';
+        if (statusEl && text) statusEl.innerText = text;
+        if (loaderOverlay) loaderOverlay.setAttribute('aria-valuenow', String(Math.round(shownPct)));
     };
 
-    updateUI('Memuat Mesh & Rig Karakter Red Fox...', 15);
+    // Daftar tugas splash: spinner saat berjalan, centang saat selesai
+    const setTask = (name, state) => {
+        const el = loaderOverlay && loaderOverlay.querySelector('[data-task="' + name + '"]');
+        if (!el) return;
+        el.classList.toggle('active', state === 'active');
+        el.classList.toggle('done', state === 'done');
+    };
+    const track = (name, promise) => {
+        setTask(name, 'active');
+        return Promise.resolve(promise).then(
+            (value) => { setTask(name, 'done'); return value; },
+            (err) => { setTask(name, 'done'); throw err; }
+        );
+    };
+
+    const startedAt = performance.now();
+    const clock = setInterval(() => {
+        const sec = Math.floor((performance.now() - startedAt) / 1000);
+        if (timeEl) timeEl.textContent = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+    }, 250);
+
+    // Nama GPU di footer, seperti splash aplikasi desktop
+    try {
+        const gl = (typeof renderer !== 'undefined' && renderer.getContext) ? renderer.getContext() : null;
+        const info = gl && gl.getExtension('WEBGL_debug_renderer_info');
+        const gpu = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL) || '') : '';
+        if (gpuEl && gpu) {
+            // "ANGLE (Vendor, ANGLE Metal Renderer: Nama GPU, Versi)" -> "Nama GPU"
+            const parts = gpu.replace(/^ANGLE \((.*)\)$/, '$1').split(',').map(x => x.trim());
+            const name = (parts.length > 1 ? parts[1] : parts[0])
+                .replace(/^.*Renderer:\s*/i, '')
+                .replace(/\s+(Direct3D|OpenGL|Vulkan|Metal).*$/i, '')
+                .trim();
+            gpuEl.textContent = (name || gpu) + ' \u00b7 WebGL';
+            gpuEl.title = gpu;
+        }
+    } catch (e) { /* info GPU tidak tersedia */ }
+
+    setTask('engine', 'done');
+    updateUI('Memuat mesh & rig karakter utama...', 15);
 
     Promise.all([
-        window.HeroAssetManager.load((status, p) => {
+        track('hero', window.HeroAssetManager.load((status, p) => {
             updateUI(status, p);
-        }),
-        window.EnemyFoxTreeAssetManager.load(),
-        window.GeneralTakingAssetManager.load(),
-        window.GeneralDeadAssetManager.load()
+        })),
+        track('enemy', window.EnemyFoxTreeAssetManager.load()),
+        track('anim', Promise.all([window.GeneralTakingAssetManager.load(), window.GeneralDeadAssetManager.load()]))
     ]).then(() => {
-        updateUI('Menyiapkan Instance Karakter Red Fox...', 95);
+        setTask('scene', 'active');
+        updateUI('Menyiapkan instance karakter...', 95);
         if (!window.PANDORA_RUNTIME && (typeof wolfCharacter === 'undefined' || !wolfCharacter)) {
             if (typeof createWolfCharacterModel === 'function') {
                 window.wolfCharacter = createWolfCharacterModel('red');
@@ -4618,7 +4664,10 @@ window.preloadAllGameAssets = function(onComplete) {
             });
         }
         const isCached = Boolean(window.PandoraAssetCache && window.PandoraAssetCache.stats.cacheHits > 0);
-        updateUI(isCached ? 'Semua Asset Siap Digunakan! ⚡ (Loaded from Cache)' : 'Semua Asset Siap Digunakan!', 100);
+        setTask('scene', 'done');
+        clearInterval(clock);
+        if (cacheEl) cacheEl.textContent = isCached ? 'Dari cache' : '';
+        updateUI('Siap', 100);
         setTimeout(() => {
             if (loaderOverlay) {
                 loaderOverlay.classList.add('fade-out');
@@ -4630,7 +4679,9 @@ window.preloadAllGameAssets = function(onComplete) {
         }, 350);
     }).catch(err => {
         console.error('[Preloader] Error preloading assets:', err);
-        updateUI('Memuat selesai dengan beberapa catatan.', 100);
+        clearInterval(clock);
+        ['hero', 'enemy', 'anim', 'scene'].forEach(name => setTask(name, 'done'));
+        updateUI('Selesai dengan beberapa catatan (lihat console)', 100);
         setTimeout(() => {
             if (loaderOverlay) {
                 loaderOverlay.classList.add('fade-out');

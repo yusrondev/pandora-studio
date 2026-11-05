@@ -31,9 +31,33 @@
                     0.23
                 ],
                 "visible": true
+            },
+            {
+                "id": "att_mw2z5otp",
+                "name": "tripo_pbr_model_a9d66224-b957-41df-9482-d89a7e656bcb_meshopt",
+                "fileName": "tripo_pbr_model_a9d66224-b957-41df-9482-d89a7e656bcb_meshopt.glb",
+                "fileType": "glb",
+                "fileUrl": "",
+                "bone": "Head",
+                "position": [
+                    -0.004,
+                    0.152,
+                    0.048
+                ],
+                "rotation": [
+                    6.3,
+                    0,
+                    0
+                ],
+                "scale": [
+                    0.35,
+                    0.35,
+                    0.35
+                ],
+                "visible": true
             }
         ],
         "taurus": []
     },
-    "updatedAt": "2026-10-31T12:27:06+00:00"
+    "updatedAt": "2026-11-05T03:20:56+00:00"
 }

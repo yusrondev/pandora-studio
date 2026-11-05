@@ -409,6 +409,26 @@ if (btnClearAllWater) {
     });
 }
 
+// Tekstur air: klasik stilistik atau shader laut realistis (lihat realOceanGLSL di water-manager.js)
+const WATER_STYLE_HINTS = {
+    classic: 'Air toska bergaya kartun, warna seragam.',
+    ocean: 'Laut dalam: biru pekat, pantulan langit asli, kilau matahari, cahaya tembus di puncak ombak, buih searah angin.',
+    lagoon: 'Laguna dangkal: jernih toska, dasar terlihat, kaustik cahaya di perairan dangkal.'
+};
+const selectWaterStyle = document.getElementById('select-water-style');
+const hintWaterStyle = document.getElementById('hint-water-style');
+window.refreshWaterStyleHint = refreshWaterStyleHint;
+function refreshWaterStyleHint() {
+    if (hintWaterStyle && selectWaterStyle) hintWaterStyle.textContent = WATER_STYLE_HINTS[selectWaterStyle.value] || '';
+}
+if (selectWaterStyle) {
+    selectWaterStyle.addEventListener('change', () => {
+        if (typeof saveState === 'function') saveState();
+        if (typeof setWaterStyle === 'function') setWaterStyle(selectWaterStyle.value);
+        refreshWaterStyleHint();
+    });
+}
+
 const checkOuterOcean = document.getElementById('check-outer-ocean');
 if (checkOuterOcean) {
     checkOuterOcean.addEventListener('change', () => {

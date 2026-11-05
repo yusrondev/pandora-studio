@@ -477,17 +477,19 @@ window.addEventListener('keydown', (e) => {
 
     if (e.key === 'Escape' || e.key === 'Esc') {
         e.preventDefault();
-        if (typeof isPlayMode !== 'undefined' && isPlayMode) {
-            stopPlayMode();
-            return;
-        }
+        // Saat Play Demo, Esc membuka menu jeda (ditangani play-mode.js), sama seperti build
+        if (typeof isPlayMode !== 'undefined' && isPlayMode) return;
         cancelAllSelections();
         return;
     }
 
+    // P hanya memulai Play Demo; keluar lewat menu jeda (Esc / tombol jeda) seperti di build
     if (!isTyping && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
-        togglePlayMode();
+        if (typeof isPlayMode !== 'undefined' && !isPlayMode) {
+            if (window.PandoraGameSession) PandoraGameSession.startDemo();
+            else togglePlayMode();
+        }
         return;
     }
 
@@ -813,7 +815,15 @@ function initToolbarOverflowManager() {
         'btn-redo',
         'btn-undo',
         'btn-reset-camera',
-        'btn-hand-mode'
+        'btn-hand-mode',
+        // Layar sempit (mobile): tombol aksi utama ikut masuk ke menu titik tiga
+        // supaya tidak terpotong / tertutup tombol overflow.
+        'btn-toggle-right-sidebar',
+        'btn-toggle-cinematic-dock',
+        'btn-toggle-left-sidebar',
+        'btn-player-spawn-tool',
+        'btn-open-generate',
+        'toolbar-group-character'
     ];
 
     const candidates = candidateIds.map(id => document.getElementById(id)).filter(Boolean);
@@ -823,37 +833,16 @@ function initToolbarOverflowManager() {
         const marker = document.createComment(`overflow-slot-${el.id || idx}`);
         el.parentNode.insertBefore(marker, el);
         el._overflowMarker = marker;
-        el._originalToolbarWidth = el.offsetWidth || 80;
     });
 
     const overflowedItems = [];
 
-    function updateOriginalWidths() {
-        candidates.forEach(el => {
-            if (el.parentNode === toolbar && el.offsetWidth > 0) {
-                el._originalToolbarWidth = el.offsetWidth;
-            }
-        });
-    }
-
-    const candidateOrderMap = {
-        'toolbar-group-sky': 1,
-        'toolbar-group-azimuth': 2,
-        'toolbar-group-elevation': 3,
-        'toolbar-group-wind': 4,
-        'toolbar-group-leaves': 5,
-        'btn-toggle-fullscreen': 6,
-        'btn-cancel-esc': 7,
-        'btn-redo': 8,
-        'btn-undo': 9,
-        'btn-reset-camera': 10,
-        'btn-hand-mode': 11,
-        'btn-toggle-battle-mode': 12
-    };
-
+    // Urutkan isi dropdown mengikuti urutan asli di toolbar (posisi marker)
     function sortOverflowContent() {
-        const items = Array.from(overflowContent.children);
-        items.sort((a, b) => (candidateOrderMap[a.id] || 99) - (candidateOrderMap[b.id] || 99));
+        const items = Array.from(overflowContent.children).filter(el => el._overflowMarker);
+        items.sort((a, b) =>
+            (a._overflowMarker.compareDocumentPosition(b._overflowMarker) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1
+        );
         items.forEach(item => overflowContent.appendChild(item));
     }
 
@@ -874,31 +863,30 @@ function initToolbarOverflowManager() {
     }
 
     function checkOverflow() {
-        updateOriginalWidths();
-
-        // 1. If content exceeds visible width, progressively move candidates into dropdown
-        let safetyCounter = 0;
-        while (toolbar.scrollWidth > toolbar.clientWidth + 2 && safetyCounter < candidates.length) {
-            safetyCounter++;
-            const itemToMove = candidates.find(c => c.parentNode === toolbar);
-            if (!itemToMove) break;
-
-            overflowBtn.style.display = 'inline-flex';
-            overflowContent.appendChild(itemToMove);
-            overflowedItems.push(itemToMove);
-        }
-
-        // 2. If window grew wider, test if the last overflowed item can fit back
+        // 1. Kembalikan semua item ke slot aslinya di toolbar, lalu ukur ulang.
+        //    (scrollWidth tidak pernah lebih kecil dari clientWidth, jadi sisa ruang
+        //    tidak bisa diukur selama item masih di dropdown.)
         while (overflowedItems.length > 0) {
-            const lastItem = overflowedItems[overflowedItems.length - 1];
-            const neededWidth = (lastItem._originalToolbarWidth || 60) + 14;
-            const availableSpace = toolbar.clientWidth - toolbar.scrollWidth;
+            const item = overflowedItems.pop();
+            item._overflowMarker.parentNode.insertBefore(item, item._overflowMarker);
+        }
+        ['divider-env-1', 'divider-env-2'].forEach(id => {
+            const d = document.getElementById(id);
+            if (d) d.style.display = '';
+        });
+        overflowBtn.style.display = 'none';
+        toolbar.classList.remove('has-overflow');
 
-            if (availableSpace >= neededWidth) {
-                lastItem._overflowMarker.parentNode.insertBefore(lastItem, lastItem._overflowMarker);
-                overflowedItems.pop();
-            } else {
-                break;
+        // 2. Jika tidak muat, tampilkan tombol titik tiga (memesan ruang di kanan)
+        //    lalu pindahkan kandidat satu per satu sampai toolbar muat.
+        if (toolbar.scrollWidth > toolbar.clientWidth + 2) {
+            overflowBtn.style.display = 'inline-flex';
+            toolbar.classList.add('has-overflow');
+            for (const item of candidates) {
+                if (toolbar.scrollWidth <= toolbar.clientWidth + 2) break;
+                if (item.parentNode !== toolbar) continue;
+                overflowContent.appendChild(item);
+                overflowedItems.push(item);
             }
         }
 
@@ -978,7 +966,16 @@ function initToolbarOverflowManager() {
         }
     });
 
-    window.addEventListener('resize', checkOverflow);
+    let resizeTimer = 0;
+    const scheduleCheck = () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(checkOverflow, 50);
+    };
+    window.addEventListener('resize', scheduleCheck);
+    // Lebar toolbar tetap (fixed, full width) sehingga memindahkan item tidak memicu loop.
+    if (typeof ResizeObserver === 'function') {
+        new ResizeObserver(scheduleCheck).observe(toolbar);
+    }
 
     // Initial checks
     setTimeout(checkOverflow, 50);

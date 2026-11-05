@@ -96,13 +96,22 @@ const PandoraSoulAbsorb = {
         scene.add(this.points);
     },
 
+    // Kendi: attachment yang ditandai "Kendi Roh" di 3D Attachment. Tanpa tanda, pakai attachment di
+    // tulang punggung (kendi digendong di punggung), bukan sembarang attachment seperti helm atau senjata.
+    findJarSocket(root) {
+        const sockets = [];
+        root.traverse((child) => {
+            if (child.userData && child.userData.isAttachmentSocket && child.visible && child.userData.visualObject) sockets.push(child);
+        });
+        return sockets.find(s => s.userData.isSoulJar)
+            || sockets.find(s => /spine|back|chest/i.test(s.userData.bone || (s.parent && s.parent.name) || ''))
+            || null;
+    },
+
     // Titik masuk roh: puncak kendi bila ada, selain itu punggung atas pemain
     findMouth(target) {
         const root = wolfCharacter.root;
-        let socket = null;
-        root.traverse((child) => {
-            if (!socket && child.userData && child.userData.isAttachmentSocket && child.visible && child.userData.visualObject) socket = child;
-        });
+        const socket = this.findJarSocket(root);
         if (socket) {
             const box = new THREE.Box3().setFromObject(socket.userData.visualObject);
             if (!box.isEmpty()) {

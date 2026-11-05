@@ -581,7 +581,6 @@ body.play-mode-active #viewport-container { border-radius: 0; }
 .pandora-modal-header { background: #262626 !important; border-bottom: 1px solid #1a1a1a !important; padding: 5px 10px !important; }
 
 /* Layar pemuatan: splash flat */
-.pandora-asset-loader { background: var(--bl-window); }
 
 /* --- Project, Stage & Portal --- */
 .project-text-input {

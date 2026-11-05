@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "updatedAt": "2026-11-04T15:45:51+00:00",
+    "updatedAt": "2026-11-05T07:44:10+00:00",
     "characters": {
         "hero": {
             "hurtbox": {
@@ -288,6 +288,38 @@
                 },
                 "backflip": {
                     "speed": 2.35,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "flyingKickOld": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "dodge": {
+                    "speed": 1.15,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "jutsu": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "rageMode": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,
@@ -1904,6 +1936,38 @@
                 },
                 "backflip": {
                     "speed": 2.65,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "flyingKickOld": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "dodge": {
+                    "speed": 2.2,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "jutsu": {
+                    "speed": 1,
+                    "damage": 25,
+                    "knockback": 0.22,
+                    "activeStartPct": 0.1,
+                    "activeEndPct": 0.88,
+                    "hitboxes": []
+                },
+                "rageMode": {
+                    "speed": 1,
                     "damage": 25,
                     "knockback": 0.22,
                     "activeStartPct": 0.1,

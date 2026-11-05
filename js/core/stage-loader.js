@@ -377,6 +377,8 @@ function applyMapDataToScene(mapData) {
                 if (v) v.innerText = mapData.water.waveChop.toFixed(2);
             }
         }
+        // Map lama tanpa pilihan tekstur tetap memakai air klasik
+        if (typeof setWaterStyle === 'function') setWaterStyle(mapData.water.style || 'classic');
         if (typeof mapData.water.outerOcean === 'boolean' && typeof setOuterOceanEnabled === 'function') {
             setOuterOceanEnabled(mapData.water.outerOcean);
             const c = document.getElementById('check-outer-ocean');

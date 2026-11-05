@@ -5,28 +5,9 @@
    ========================================================= */
 (function () {
     const DOWNLOAD_CONCURRENCY = 6;
-    const DEATH_QUOTE_FADE_MS = 320;
-    const DEATH_QUOTE_MIN_MS = 3000;    // Waktu baca kata-kata saat layar gelap
-    const LEAF_COUNT = 16;
     const BACKGROUND_DOWNLOAD_PAUSE_MS = 400;
-
-    const DEATH_QUOTES = [
-        'Pedang yang patah pernah mengenal api. Tempa dirimu sekali lagi.',
-        'Tanah tidak menghina yang jatuh. Ia hanya menunggu kau berdiri.',
-        'Luka adalah guru yang tidak pernah meminta bayaran dua kali.',
-        'Petarung sejati dihitung dari berapa kali ia bangkit, bukan dari berapa kali ia menang.',
-        'Angin tidak bertanya pada daun yang gugur. Ia hanya membawanya lebih jauh.',
-        'Musuh terbesar tidak berdiri di depanmu. Ia berbisik agar kau berhenti.',
-        'Setiap kekalahan mengajarkan satu langkah yang belum kau kuasai.',
-        'Yang kuat bukan yang tidak pernah takut, tetapi yang tetap melangkah.',
-        'Hari ini tubuhmu rebah. Tekadmu tidak diminta ikut rebah.',
-        'Sungai tidak melawan batu. Ia terus datang sampai batu itu berubah.',
-        'Kehormatan seorang petarung lahir saat tak ada lagi yang menyaksikan.',
-        'Diam sejenak di dalam gelap. Dari sanalah langkah berikutnya bermula.',
-        'Gunung tak pernah didaki oleh mereka yang pulang di tanjakan pertama.',
-        'Tarik napas. Genggam lagi. Perang belum menyebut namamu untuk terakhir kali.'
-    ];
-    const RESPAWN_DELAY_MS = 4200; // Memberi waktu kamera kematian selesai sebelum layar gelap
+    // Gugur/bangkit, menu jeda, dan layar pemuatan ada di js/core/game-session.js (dipakai juga Play Demo Studio)
+    const Session = window.PandoraGameSession;
 
     // Karakter ditentukan tiap stage, jadi tombol ganti karakter 1-9 dimatikan
     window.addEventListener('keydown', (e) => {
@@ -62,60 +43,8 @@
             })
         );
         screen.append(title, menu);
-        addFallingLeaves(screen);
+        Session.addFallingLeaves(screen);
         document.body.appendChild(screen);
-    }
-
-    // Esc atau tombol jeda di layar sentuh: jeda dengan panel pengaturan
-    function bindPauseMenu() {
-        const openPause = () => {
-            if (SettingsPanel.isOpen || !isPlayMode) return;
-            if (typeof CinematicPlayer !== 'undefined' && CinematicPlayer.active) return;
-            window.PandoraGamePaused = true;
-            SettingsPanel.actions = [
-                { label: 'Keluar ke Judul', run: () => location.reload() },
-                { label: 'Lanjutkan', primary: true, run: () => SettingsPanel.close() }
-            ];
-            SettingsPanel.onClose = () => { window.PandoraGamePaused = false; };
-            SettingsPanel.open();
-        };
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                e.stopImmediatePropagation();
-                openPause();
-            }
-        });
-        const pauseBtn = document.createElement('button');
-        pauseBtn.type = 'button';
-        pauseBtn.id = 'btn-game-pause';
-        pauseBtn.innerHTML = '<i></i><i></i>';
-        pauseBtn.classList.toggle('touch', typeof isTouchDevice === 'function' && isTouchDevice());
-        pauseBtn.addEventListener('click', openPause);
-        document.body.appendChild(pauseBtn);
-    }
-
-    // Dedaunan terhembus dari pojok kanan atas. Hanya animasi CSS (transform), jadi tetap
-    // bergerak mulus walau thread utama sedang sibuk mengurai model FBX.
-    function addFallingLeaves(host) {
-        const layer = document.createElement('div');
-        layer.className = 'leaf-layer';
-        for (let i = 0; i < LEAF_COUNT; i++) {
-            const leaf = document.createElement('div');
-            leaf.className = 'leaf-path';
-            leaf.style.setProperty('--leaf-dur', (5.5 + Math.random() * 5).toFixed(2) + 's');
-            leaf.style.setProperty('--leaf-delay', (-Math.random() * 10).toFixed(2) + 's');
-            leaf.style.setProperty('--leaf-x', (-70 - Math.random() * 60).toFixed(1) + 'vw');
-            leaf.style.setProperty('--leaf-y', (70 + Math.random() * 55).toFixed(1) + 'vh');
-            leaf.style.top = (-8 + Math.random() * 16).toFixed(1) + 'vh';
-            leaf.style.right = (-10 + Math.random() * 34).toFixed(1) + 'vw';
-            const body = document.createElement('i');
-            body.style.setProperty('--leaf-spin', (2.2 + Math.random() * 3).toFixed(2) + 's');
-            body.style.setProperty('--leaf-size', (13 + Math.random() * 15).toFixed(1) + 'px');
-            body.style.opacity = (0.35 + Math.random() * 0.5).toFixed(2);
-            leaf.appendChild(body);
-            layer.appendChild(leaf);
-        }
-        host.insertBefore(layer, host.firstChild);
     }
 
     // ---------- Pemuatan bertahap ----------
@@ -186,97 +115,6 @@
         }
     };
 
-    // ---------- Layar gelap: kata-kata ----------
-    function createQuoteText() {
-        const text = document.createElement('div');
-        text.className = 'quote-text';
-        text.textContent = DEATH_QUOTES[Math.floor(Math.random() * DEATH_QUOTES.length)];
-        return text;
-    }
-
-    function showDeathQuote() {
-        const el = document.createElement('div');
-        el.id = 'death-quote';
-        const text = createQuoteText();
-        const rule = document.createElement('div');
-        rule.className = 'death-quote-rule';
-        el.append(text, rule);
-        document.body.appendChild(el);
-        return el;
-    }
-
-    // Layar pemuatan setelah "Mulai": bar, status, dan persen. Kilau pada bar adalah animasi CSS, jadi tetap bergerak saat
-    // thread utama sibuk mengurai model dan angka persennya sedang tertahan.
-    function showLoadingView(cover) {
-        const el = document.createElement('div');
-        el.className = 'game-loading';
-        const bar = document.createElement('div');
-        bar.className = 'game-loading-bar';
-        const fill = document.createElement('i');
-        bar.append(fill, document.createElement('b'));
-        const meta = document.createElement('div');
-        meta.className = 'game-loading-meta';
-        const status = document.createElement('span');
-        const percent = document.createElement('span');
-        meta.append(status, percent);
-        el.append(bar, meta);
-        cover.append(el);
-
-        let value = 0;
-        let cap = 0;
-        const render = () => {
-            fill.style.width = value.toFixed(1) + '%';
-            percent.textContent = Math.floor(value) + '%';
-        };
-        // Tahap tanpa angka pasti tetap merayap pelan, tetapi tidak pernah melewati batas tahapnya
-        const creep = setInterval(() => {
-            if (value < cap) value += (cap - value) * 0.03;
-            render();
-        }, 100);
-        render();
-        return {
-            phase(label, nextCap) { status.textContent = label; cap = nextCap; },
-            reach(target) { value = Math.max(value, target); render(); },
-            finish() {
-                clearInterval(creep);
-                status.textContent = 'Siap';
-                value = 100;
-                render();
-            }
-        };
-    }
-
-    function watchPlayerDeath(flow) {
-        let respawnTimer = null;
-        setInterval(() => {
-            const dead = typeof PlayerHealthState !== 'undefined' && PlayerHealthState.isDead;
-            if (dead && !respawnTimer && !flow.isTransitioning) {
-                respawnTimer = setTimeout(async () => {
-                    // Timer baru dilepas setelah pemain hidup kembali. Status mati masih true selama
-                    // fade, jadi melepasnya lebih awal membuat respawn kedua terpicu saat pemain sudah hidup.
-                    await flow._fade(true);
-                    const quote = showDeathQuote();
-                    await new Promise(resolve => setTimeout(resolve, DEATH_QUOTE_MIN_MS));
-                    try {
-                        flow.respawnInPlace();
-                    } finally {
-                        // Quote hilang lebih dulu supaya tidak pernah menimpa permainan yang sudah berjalan
-                        quote.classList.add('hide');
-                        await new Promise(resolve => setTimeout(resolve, DEATH_QUOTE_FADE_MS));
-                        quote.remove();
-                        await flow._fade(false);
-                        respawnTimer = null;
-                    }
-                }, RESPAWN_DELAY_MS);
-            }
-        }, 500);
-    }
-
-    function revealGame(cover) {
-        cover.classList.add('hide');
-        setTimeout(() => cover.remove(), 700);
-    }
-
     async function boot() {
         const res = await fetch('data/project.json');
         const project = await res.json();
@@ -322,7 +160,7 @@
         });
 
         showTitleScreen(project.name, async () => {
-            loadingView = showLoadingView(cover);
+            loadingView = Session.showLoadingView(cover);
             loadingView.reach(loadState.value);
             loadingView.phase(loadState.label, loadState.cap);
             const ok = await stagePrepared;
@@ -334,9 +172,8 @@
             }
             loadingView.finish();
             await new Promise(resolve => setTimeout(resolve, 200));
-            revealGame(cover);
-            watchPlayerDeath(PandoraStageFlow);
-            bindPauseMenu();
+            Session.revealCover(cover);
+            Session.beginRuntime();
         });
         stageAssetsReady.then(() => StageLoader.laterStages(startStage));
     }

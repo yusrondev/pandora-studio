@@ -114,7 +114,7 @@ function renderWaterDepthPass(renderer, scene, camera) {
 
     const target = getWaterDepthTarget(Math.max(1, width >> 1), Math.max(1, height >> 1));
 
-    const hidden = [waterMesh, outerOceanMesh, islandCliffMesh,
+    const hidden = [waterMesh, waterAbsorbMesh, outerOceanMesh, islandCliffMesh,
         (typeof cloudGroup !== 'undefined') ? cloudGroup : null,
         (typeof instancedGrassMesh !== 'undefined') ? instancedGrassMesh : null,
         (typeof grassChunksGroup !== 'undefined') ? grassChunksGroup : null,
@@ -386,6 +386,333 @@ vec3 oceanSkyFast(vec3 d, vec3 sunDir, vec3 skyTint){
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0); }
 `;
 
+// ============================================================
+// NORMAL MAP AIR BUATAN SENDIRI (tanpa file aset)
+// Spektrum gelombang berarah: banyak gelombang menyebar di sekitar arah angin (sumbu +X tekstur),
+// amplitudo tinggi ~ k^-1.7 sehingga riak pendek makin kecil. Vektor gelombang dibulatkan ke bilangan
+// bulat per ubin, jadi tekstur menyambung tanpa jahitan di semua sisi. Normal dihitung analitik dari
+// gradien tinggi. Alpha = tinggi (0..1) untuk variasi buih.
+// cos(a + b) dipisah per baris & kolom (cos a cos b - sin a sin b), jadi pembuatannya hanya perkalian.
+// ============================================================
+const WATER_NORMAL_SIZE = 256;     // Riak terhalus 0.19 m ~ 5 piksel; cukup tajam dan dibuat ~4x lebih cepat dari 512
+const WATER_NORMAL_TILE_METERS = 9.0;   // Satu ubin tekstur = 9 m permukaan air (lapisan pertama)
+let waterNormalTexture = null;
+
+function buildWaterNormalTexture(size = WATER_NORMAL_SIZE) {
+    let seed = 0x9e3779b9;
+    const rand = () => {
+        seed = (seed + 0x6d2b79f5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const waves = [];
+    const used = new Set();
+    for (let tries = 0; waves.length < 64 && tries < 600; tries++) {
+        const r = 2.0 * Math.pow(24.0, rand());                  // 2..48 siklus per ubin (4.5 m .. 0.19 m)
+        const spread = 0.35 + 0.55 * (r / 48);                    // Riak pendek lebih acak arahnya
+        const ang = (rand() + rand() - 1.0) * Math.PI * spread;   // Terkumpul di sekitar arah angin
+        const m = Math.round(r * Math.cos(ang));
+        const n = Math.round(r * Math.sin(ang));
+        const key = m + ',' + n;
+        if ((m === 0 && n === 0) || used.has(key)) continue;
+        used.add(key);
+        const k = Math.hypot(m, n);
+        waves.push({ m, n, amp: Math.pow(k, -1.7) * (0.75 + 0.5 * rand()), phase: rand() * Math.PI * 2 });
+    }
+
+    const N = size * size;
+    const gx = new Float32Array(N), gy = new Float32Array(N), h = new Float32Array(N);
+    const cx = new Float32Array(size), sx = new Float32Array(size), cy = new Float32Array(size), sy = new Float32Array(size);
+    const TAU = Math.PI * 2;
+    for (const w of waves) {
+        for (let i = 0; i < size; i++) {
+            const a = w.phase + TAU * w.m * i / size;
+            cx[i] = Math.cos(a); sx[i] = Math.sin(a);
+            const b = TAU * w.n * i / size;
+            cy[i] = Math.cos(b); sy[i] = Math.sin(b);
+        }
+        const kx = TAU * w.m, ky = TAU * w.n;   // Per ubin; skala diatur saat normalisasi
+        for (let y = 0; y < size; y++) {
+            const row = y * size, cyy = cy[y], syy = sy[y];
+            for (let x = 0; x < size; x++) {
+                const s = sx[x] * cyy + cx[x] * syy;    // sin(a + b)
+                const c = cx[x] * cyy - sx[x] * syy;    // cos(a + b)
+                const idx = row + x;
+                h[idx] += w.amp * s;
+                gx[idx] += w.amp * kx * c;
+                gy[idx] += w.amp * ky * c;
+            }
+        }
+    }
+
+    // Kemiringan rata-rata (rms) dibuat ~0.32, cukup tajam tanpa membuat normal terbalik
+    let sum = 0, hMin = Infinity, hMax = -Infinity;
+    for (let i = 0; i < N; i++) {
+        sum += gx[i] * gx[i] + gy[i] * gy[i];
+        if (h[i] < hMin) hMin = h[i];
+        if (h[i] > hMax) hMax = h[i];
+    }
+    const slopeScale = 0.32 / Math.sqrt(sum / N);
+    const data = new Uint8Array(N * 4);
+    for (let i = 0; i < N; i++) {
+        const nx = -gx[i] * slopeScale, ny = -gy[i] * slopeScale;
+        const inv = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+        data[i * 4]     = Math.round((nx * inv * 0.5 + 0.5) * 255);
+        data[i * 4 + 1] = Math.round((ny * inv * 0.5 + 0.5) * 255);
+        data[i * 4 + 2] = Math.round((inv * 0.5 + 0.5) * 255);
+        data[i * 4 + 3] = Math.round((h[i] - hMin) / (hMax - hMin) * 255);
+    }
+    const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    tex.needsUpdate = true;
+    return tex;
+}
+
+// Dibuat sekali saat tekstur realistis pertama kali dipakai (~beberapa puluh ms)
+function ensureWaterNormalTexture() {
+    if (!waterNormalTexture) {
+        waterNormalTexture = buildWaterNormalTexture();
+        if (waterMat && waterMat.uniforms && waterMat.uniforms.uWaterNormalTex) waterMat.uniforms.uWaterNormalTex.value = waterNormalTexture;
+    }
+    return waterNormalTexture;
+}
+window.buildWaterNormalTexture = buildWaterNormalTexture;
+
+// ============================================================
+// TEKSTUR AIR REALISTIS (Laut Lepas / Laguna Tropis)
+// Kaidah air laut: Fresnel F0 0.02, penyerapan Beer-Lambert (merah terserap lebih dulu), hamburan volume,
+// pantulan kubah langit asli, kilau matahari GGX yang melebar di kejauhan, riak arah angin dengan dispersi
+// gravitasi-kapiler, cahaya tembus di puncak ombak, kaustik dangkal, buih whitecap & pantai, kabut cakrawala.
+// ============================================================
+const realOceanGLSL = `
+uniform float uWaterStyle;      // 0 klasik, 1 laut lepas, 2 laguna tropis
+uniform vec3  uSkyTop;
+uniform vec3  uSkyMid;
+uniform vec3  uSkyBottom;
+uniform float uSkySunIntensity;
+uniform vec2  uWindDir;
+uniform float uWaterLevelY;
+uniform sampler2D uWaterNormalTex;
+uniform float uWaterNormalTile;
+
+vec3 roLin(vec3 c){ return pow(max(c, vec3(0.0)), vec3(2.2)); }
+
+// Koefisien penyerapan per meter (merah terserap paling cepat). Dipakai juga oleh pass penyerapan.
+vec3 roSigma(){ return uWaterStyle > 1.5 ? vec3(0.30, 0.045, 0.040) : vec3(0.50, 0.110, 0.075); }
+
+// Panjang lintasan cahaya di dalam air. Sinar dibiaskan ke arah normal (Snell, n = 1.33), jadi lintasan
+// = kedalaman / cos(sudut bias). Lebih mulus daripada depth buffer 16-bit; depth buffer hanya dipakai bila
+// ada objek (batu, karakter) yang lebih dekat daripada dasar.
+float roPath(float vertDepth, float bufferDepth, vec3 V, vec3 N){
+    float cosI = clamp(abs(dot(V, N)), 0.0, 1.0);
+    float cosT = sqrt(max(0.0, 1.0 - (1.0 - cosI * cosI) / 1.769));
+    float path = vertDepth / max(cosT, 0.2);
+    if (bufferDepth < vertDepth - 0.05) path = min(path, bufferDepth);
+    return path;
+}
+
+// Radiansi langit identik dengan shader kubah langit (sky.js), dalam ruang linear
+vec3 roSky(vec3 d, vec3 L){
+    float h = d.y;
+    vec3 c = mix(uSkyBottom, uSkyMid, smoothstep(-0.06, 0.28, h));
+    c = mix(c, uSkyTop, smoothstep(0.18, 0.85, h));
+    float sd = max(dot(d, L), 0.0);
+    float sunHigh = smoothstep(-0.02, 0.45, L.y);
+    vec3 tint = mix(vec3(1.0, 0.55, 0.22), vec3(1.0, 0.96, 0.88), sunHigh);
+    float mie = pow(sd, 600.0) * 0.28 + pow(sd, 40.0) * 0.12 + pow(sd, 6.0) * 0.06
+              + pow(sd, 4.0) * (1.0 - smoothstep(0.0, 0.35, h)) * 0.28;
+    c += tint * mie * uSkySunIntensity;
+    return roLin(c);
+}
+
+// Pantulan langit + lapisan awan tipis (kubah langit juga berawan). Riak permukaan baru terbaca jelas
+// bila ada variasi di langit yang dipantulkan, seperti air sungguhan.
+vec3 roSkyReflect(vec3 d, vec3 L){
+    vec3 c = roSky(d, L);
+    float h = max(d.y, 0.02);
+    vec2 cp = d.xz / (h + 0.18) * 1.4 + uTime * vec2(0.010, 0.004);
+    float cloud = smoothstep(0.45, 0.80, ofbm(cp)) * smoothstep(0.02, 0.22, d.y);
+    vec3 cloudCol = roLin(mix(uSkyBottom, vec3(1.0), 0.65)) * mix(0.35, 1.0, uSkySunIntensity);
+    return mix(c, cloudCol, cloud * 0.6);
+}
+
+// Riak detail searah angin. Panjang gelombang 7.5 m s.d. ~0.1 m; kecepatan dari dispersi gravitasi-kapiler
+// (w^2 = g k (1 + k^2 sigma/(rho g))). Bentuk puncak runcing-lembah landai seperti trochoid.
+// Oktaf yang lebih kecil dari ukuran piksel di kejauhan dipudarkan agar tidak berkedip.
+vec3 roWaves(vec2 p, float t, float dist, float strength){
+    vec2 w = normalize(uWindDir);
+    float base = atan(w.y, w.x);
+    vec2 g = vec2(0.0);
+    float h = 0.0;
+    for(int i = 0; i < 14; i++){
+        float fi = float(i);
+        float L = 7.5 * pow(0.74, fi);
+        float k = 6.28318 / L;
+        float ang = base + (ohash(vec2(fi, 1.7)) - 0.5) * (0.9 + fi * 0.07);
+        vec2 d = vec2(cos(ang), sin(ang));
+        float omega = sqrt(9.81 * k * (1.0 + k * k * 7.4e-6));
+        float A = L * 0.0105;
+        float ph = dot(d, p) * k - omega * t * uSpeed + ohash(vec2(fi, 9.2)) * 6.28318;
+        float fadeO = 1.0 - smoothstep(L * 12.0, L * 48.0, dist);
+        float e = exp(1.6 * (sin(ph) - 1.0));
+        h += A * e * fadeO;
+        g += d * (k * A * e * 1.6 * cos(ph)) * fadeO;
+    }
+    return vec3(g, h) * strength;
+}
+
+// Riak halus dari normal map buatan sendiri: dua lapisan beda skala & arah, digeser searah angin.
+// Mipmap menghaluskan otomatis di kejauhan. Mengembalikan gradien tinggi (dh/dx, dh/dz) di ruang dunia.
+vec2 roNormalSlope(vec3 n){ n = n * 2.0 - 1.0; return -n.xy / max(n.z, 0.25); }
+vec2 roNormalDetail(vec2 p, float t){
+    vec2 w = normalize(uWindDir);
+    vec2 perp = vec2(-w.y, w.x);
+    vec2 uv = vec2(dot(p, w), dot(p, perp)) / uWaterNormalTile;
+    // Lapisan 1: ubin penuh, bergerak searah angin
+    vec2 s1 = roNormalSlope(texture2D(uWaterNormalTex, uv + vec2(t * 0.045, 0.0) * uSpeed).xyz);
+    // Lapisan 2: 0.43x ukuran, diputar ~37 derajat, bergerak lebih lambat ke arah lain (memecah pola ulang)
+    const mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
+    vec2 uv2 = rot * uv * 2.3 + vec2(0.37, 0.61);
+    vec2 s2 = rot * roNormalSlope(texture2D(uWaterNormalTex, uv2 + vec2(t * 0.028, -t * 0.019) * uSpeed).xyz);
+    vec2 g = s1 * 0.62 + s2 * 0.38;
+    // Dari ruang angin ke ruang dunia; gradien per ubin dibagi ukuran ubin tidak perlu karena sudah kemiringan
+    return w * g.x + perp * g.y;
+}
+
+// Kaustik: jaring cahaya dari permukaan yang membiaskan sinar matahari ke dasar
+float roCaustic(vec2 p, float t){
+    float c1 = 1.0 - abs(onoise(p * 1.7 + t * vec2(0.21, 0.13)) * 2.0 - 1.0);
+    float c2 = 1.0 - abs(onoise(om2 * p * 2.3 - t * vec2(0.17, -0.19)) * 2.0 - 1.0);
+    return pow(c1 * c2, 6.0) * 3.2;
+}
+
+// Hasil premultiplied (rgb sudah dikali alpha), sesuai blending material
+vec4 realOcean(vec2 q, vec3 V, float dist, vec3 geoN, float pathLen, float vertDepth, float shadowMap,
+               vec2 wakeSlope, float wakeH, float wakeFoam, float crestJ, float shoreAllowed, float maskAlpha,
+               float absorbPass){
+    bool lagoon = uWaterStyle > 1.5;
+    vec3 L = normalize(uSunDir);
+    float sunVis = smoothstep(-0.04, 0.12, L.y);
+    // Malam: matahari diganti cahaya bulan yang jauh lebih redup
+    vec3 sunRad = roLin(uSunColor) * mix(0.22, 3.0, uSkySunIntensity) * sunVis;
+    vec3 ambient = mix(roLin(uSkyMid), roLin(uSkyBottom), 0.5);
+
+    // ── Normal: ombak besar (vertex) + riak arah angin + jejak karakter ──
+    // Di kejauhan riak kecil tidak terlihat per piksel; kekasaran GGX di bawah yang menggantikannya
+    float farFade = exp(-dist * 0.010);
+    float strength = clamp(0.35 + uAmp * 0.55 + uChop * 0.30, 0.30, 1.40) * mix(0.18, 1.0, farFade);
+    // Riak arah angin analitik (gelombang menengah) + normal map (riak halus)
+    vec3 dw = roWaves(q, uTime, dist, strength * 0.75);
+    vec2 nd = roNormalDetail(q, uTime) * strength * mix(0.45, 0.85, farFade);
+    vec3 N = normalize(geoN + vec3(-dw.x - nd.x + wakeSlope.x * 0.85, 0.0, -dw.y - nd.y + wakeSlope.y * 0.85));
+    // ── Fresnel Schlick air (F0 = 0.02) & pantulan langit ──
+    // Takaran pantul/tembus memakai normal ombak (sama dengan pass penyerapan, agar energinya pas);
+    // arah pantulan memakai normal riak sehingga detail permukaan terbaca.
+    float F = 0.02 + 0.98 * pow(1.0 - max(dot(geoN, V), 0.0), 5.0);
+    vec3 R = reflect(-V, N);
+    R.y = max(abs(R.y), 0.01);
+    vec3 refl = roSkyReflect(normalize(R), L) * mix(0.8, 1.0, shadowMap);
+
+    // ── Kilau matahari: GGX, makin kasar di kejauhan sehingga jalur kilau melebar ──
+    vec3 H = normalize(L + V);
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotH = max(dot(N, H), 0.0);
+    float LdotH = max(dot(L, H), 0.0);
+    float rough = mix(0.035, 0.22, 1.0 - farFade) + wakeFoam * 0.10;
+    float a2 = rough * rough;
+    float dd = NdotH * NdotH * (a2 - 1.0) + 1.0;
+    float D = a2 / (3.14159 * dd * dd);
+    float Fh = 0.02 + 0.98 * pow(1.0 - LdotH, 5.0);
+    // Kerlip glitter hanya di dekat kamera (di jauh sudah tercakup kekasaran GGX)
+    // Kilau matahari di laut berupa banyak titik kecil, bukan bercak besar
+    float glint = 0.55 + pow(onoise(q * 21.0 + uTime * vec2(1.3, 0.7)), 10.0) * 2.5 * farFade * farFade * farFade;
+    vec3 spec = sunRad * 0.6 * (D * Fh / (4.0 * max(LdotH * LdotH, 0.05))) * NdotL * shadowMap * glint;
+
+    // ── Volume air: penyerapan Beer-Lambert + hamburan ──
+    vec3 sigma   = roSigma();
+    vec3 scatter = lagoon ? vec3(0.010, 0.075, 0.082) : vec3(0.0032, 0.019, 0.040);
+    float path = clamp(roPath(vertDepth, pathLen, V, geoN), 0.0, 80.0);
+    vec3 T = exp(-sigma * path * 1.35);
+    float sunInWater = 0.35 + 0.65 * max(dot(geoN, L), 0.0);
+    vec3 lightIn = sunRad * sunInWater * shadowMap + ambient * 0.9;
+    vec3 inscatter = scatter * lightIn * 0.32 * (1.0 - T);
+
+    // ── Cahaya tembus di puncak ombak saat menghadap matahari (subsurface scattering) ──
+    float back = pow(clamp(dot(V, normalize(vec3(-L.x, -0.12, -L.z))), 0.0, 1.0), 4.0);
+    float crest = clamp((uAmp > 0.01 ? (vH - uWaterLevelY) / (uAmp * 1.6) : 0.0) + dw.z * 2.2 + wakeH * 2.5, 0.0, 1.0);
+    vec3 sssTint = lagoon ? vec3(0.035, 0.34, 0.27) : vec3(0.018, 0.22, 0.19);
+    vec3 sss = sssTint * sunRad * (back * 0.85 + 0.10) * crest * (1.0 - F) * shadowMap;
+
+    // ── Kaustik di dasar perairan dangkal (terlihat menembus air) ──
+    vec3 caustics = vec3(0.0);
+    float shallowK = 1.0 - smoothstep(0.0, lagoon ? 4.5 : 2.6, vertDepth);
+    if (shallowK > 0.001) {
+        float c = roCaustic(q * 0.9 + dw.xy * 0.35, uTime * uSpeed);
+        caustics = c * sunRad * shallowK * shadowMap * T * (lagoon ? 0.17 : 0.11);
+    }
+
+    // ── Komposisi permukaan (radiansi linear) ──
+    vec3 col = (1.0 - F) * (inscatter + caustics + sss) + F * refl + spec;
+    // Dengan pass penyerapan, latar sudah dikali (1-F)*T per kanal; di sini hanya cahaya yang ditambahkan.
+    // Tanpa pass itu (laut luar yang dalam), latar ditutup rata.
+    float alpha = absorbPass > 0.5 ? 0.0 : 1.0 - (1.0 - F) * dot(T, vec3(0.2, 0.5, 0.3));
+
+    // ── Buih: whitecap memanjang searah angin, jejak karakter, garis pantai ──
+    vec2 wd = normalize(uWindDir);
+    vec2 fq = vec2(dot(q, wd), dot(q, vec2(-wd.y, wd.x)));
+    float streak = ofbm(vec2(fq.x * 0.32, fq.y * 1.45) - vec2(uTime * 0.06 * uSpeed, 0.0));
+    float lace = mix(0.5, ofbm(q * 2.6 + uTime * 0.07), farFade);
+    streak = mix(0.5, streak, sqrt(farFade));
+    float whitecap = smoothstep(0.30, 0.85, crestJ * 1.10 + dw.z * 1.5)
+                   * smoothstep(0.38, 0.66, lace * 0.55 + streak * 0.60);
+    float foam = max(whitecap, wakeFoam * smoothstep(0.22, 0.60, lace));
+    if (shoreAllowed > 0.0) {
+        float d = clamp(pathLen, 0.0, 80.0);
+        // Hanya di garis pantai: buih kontak tipis + 2-3 garis ombak yang datang, bukan seluruh perairan dangkal
+        float edge = exp(-d * 16.0);
+        float bands = smoothstep(0.62, 1.0, sin(d * 11.0 - uTime * 2.4 * uSpeed + lace * 3.0)) * exp(-d * 4.0);
+        float shore = clamp(edge * 0.95 + bands * 0.7, 0.0, 1.0) * smoothstep(0.30, 0.64, lace + 0.15 * edge);
+        foam = max(foam, shore * shoreAllowed);
+    }
+    // Buih di bawah permukaan memberi rona toska di sekitar buih
+    float under = smoothstep(0.05, 0.6, foam) * 0.5;
+    col += (lagoon ? vec3(0.05, 0.30, 0.28) : vec3(0.03, 0.18, 0.20)) * lightIn * 0.18 * under;
+    alpha = max(alpha, under * 0.6);
+    vec3 foamCol = vec3(0.86) * (sunRad * max(dot(geoN, L), 0.25) * shadowMap + ambient * 1.2) * 0.42;
+    col = mix(col, foamCol, foam);
+    alpha = mix(alpha, 1.0, foam);
+
+    // ── Kabut cakrawala: permukaan jauh menyatu dengan langit di horizon ──
+    float hz = smoothstep(260.0, 520.0, dist);
+    col = mix(col, roSky(normalize(vec3(-V.x, 0.02, -V.z)), L), hz * 0.7);
+    alpha = mix(alpha, 1.0, hz);
+
+    // Tonemap lembut hanya di area terang (kilau & buih)
+    vec3 knee = smoothstep(vec3(0.7), vec3(1.9), col);
+    col = clamp(mix(col, 1.0 - exp(-col), knee), 0.0, 1.0);
+    alpha = clamp(alpha, 0.0, 1.0);
+    vec3 enc = pow(col, vec3(1.0 / 2.2));
+    vec3 rgb;
+    if (absorbPass > 0.5) {
+        // Blending terjadi di sRGB, padahal cahaya seharusnya dijumlah di ruang linear. Tambahan sRGB
+        // dihitung terhadap perkiraan latar yang sudah diredam (dasar pasir/tanah ~0.3), supaya
+        // latar + cahaya tidak menjadi terlalu terang. Bagian yang tertutup buih memakai warna penuh.
+        vec3 B = (1.0 - F) * T * 0.30;
+        vec3 added = max(pow(col + B, vec3(1.0 / 2.2)) - pow(B, vec3(1.0 / 2.2)), 0.0);
+        rgb = mix(added, enc, alpha);
+    } else {
+        rgb = enc * alpha;
+    }
+    // Premultiplied: hasil = rgb + latar * (1 - alpha)
+    return vec4(rgb, alpha) * maskAlpha;
+}
+`;
+
 // Nilai awal sudut matahari identik dengan ocean.html (22 derajat)
 const defaultOceanSunEl = THREE.MathUtils.degToRad(22);
 const defaultOceanSunDir = new THREE.Vector3(
@@ -436,8 +763,25 @@ const waterMat = new THREE.ShaderMaterial({
             // Kelvin wake / trail dari rubah
             uOceanTrailPos: { value: oceanTrailPos },
             uOceanTrailDir: { value: oceanTrailDir },
+            // Tekstur air (lihat realOceanGLSL). Warna langit berbagi objek uniform dengan kubah langit,
+            // jadi pantulan selalu sama dengan langit yang terlihat.
+            uWaterStyle: { value: 0 },
+            uSkyTop:    (typeof skyMat !== 'undefined') ? skyMat.uniforms.uTopColor : { value: new THREE.Color(0x1878ec) },
+            uSkyMid:    (typeof skyMat !== 'undefined') ? skyMat.uniforms.uMidColor : { value: new THREE.Color(0x56b6fb) },
+            uSkyBottom: (typeof skyMat !== 'undefined') ? skyMat.uniforms.uBottomColor : { value: new THREE.Color(0xb8ecff) },
+            uSkySunIntensity: (typeof skyMat !== 'undefined') ? skyMat.uniforms.uSunIntensity : { value: 1.0 },
+            // Searah komponen utama ombak Gerstner supaya riak dan alun bergerak sejalan
+            uWindDir: { value: new THREE.Vector2(Math.cos(0.5), Math.sin(0.5)) },
+            uWaterLevelY: { value: 0.0 },
+            // Normal map air buatan sendiri (buildWaterNormalTexture); placeholder datar sampai dibuat
+            uWaterNormalTex: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([128, 128, 255, 128]), 1, 1, THREE.RGBAFormat); t.needsUpdate = true; return t; })() },
+            uWaterNormalTile: { value: WATER_NORMAL_TILE_METERS },
         }
     ),
+    // rgb keluaran shader sudah dikali alpha (premultiplied)
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
     // ============================================================
     // VERTEX SHADER — Gerstner Wave Displacement (100% ocean.html)
     // ============================================================
@@ -554,6 +898,7 @@ const waterMat = new THREE.ShaderMaterial({
         varying vec2 vBaseUV;
 
         ${oceanCommonGLSL}
+        ${realOceanGLSL}
 
         void main() {
             // ── MASK CHECK (super-smooth multi-sample anti-aliased shoreline) ───
@@ -638,7 +983,9 @@ const waterMat = new THREE.ShaderMaterial({
             vec2 dt = (mdN(q * 0.7 + uTime * vec2(0.25, 0.10)) + mdN(q * 1.6 - uTime * vec2(0.18, -0.20))) * 0.5;
             float fade = exp(-dist * 0.014);
             float rough = 0.18 * fade + 0.20 * wakeFoam;
-            vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.85 + dt.x * rough, 0.0, wakeSlope.y * 0.85 + dt.y * rough));
+            // Riak halus dari normal map buatan sendiri, juga untuk tekstur Klasik (air brush & laut luar)
+            vec2 nmd = roNormalDetail(q, uTime) * (0.55 * fade + 0.15) * clamp(0.5 + uAmp * 0.5, 0.4, 1.2);
+            vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.85 + dt.x * rough - nmd.x, 0.0, wakeSlope.y * 0.85 + dt.y * rough - nmd.y));
 
             // ── FRESNEL & SUN (100% ocean.html) ──────────────────────
             vec3 R = reflect(-V, N);
@@ -667,6 +1014,16 @@ const waterMat = new THREE.ShaderMaterial({
             // Bayangan kontak lembut rubah dihilangkan untuk mencegah bayangan ganda (double shadow)
             // Tiga.js directional shadow map (sceneShadow) sudah merender siluet 3D rubah secara presisi
             float shadow = waveShadow * sceneShadow;
+
+            // ── TEKSTUR AIR REALISTIS (Laut Lepas / Laguna Tropis) ──
+            if (uWaterStyle > 0.5) {
+                float borderDist = min(min(baseUV.x, 1.0 - baseUV.x), min(baseUV.y, 1.0 - baseUV.y)) * uGroundSize;
+                // Air yang menyambung ke laut luar di tepi kanvas bukan bibir pantai
+                float shoreOk = smoothstep(0.0, 1.5, borderDist);
+                gl_FragColor = realOcean(q, V, dist, normalize(vNormal), contactDepth, max(0.0, waterDepth), sceneShadow,
+                                         wakeSlope, wakeWaveH, wakeFoam, vCrestFoam, shoreOk, smoothstep(0.005, 0.35, dynamicMask), 1.0);
+                return;
+            }
 
             // ── BODY COLOR & LIT & SSS (Mengikuti suasana: Siang, Sore, Malam) ──────
             vec3 deep    = uWaterDeepColor;
@@ -762,7 +1119,7 @@ const waterMat = new THREE.ShaderMaterial({
             // Buih ombak pantai berkilau di atas air transparan tanpa pernah melubangi air
             float edgeAlpha = clamp(baseAlpha + shorelineFoam * 0.88, 0.0, 1.0);
 
-            gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), edgeAlpha);
+            gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)) * edgeAlpha, edgeAlpha);
         }
     `
 });
@@ -772,6 +1129,103 @@ waterMesh.position.y = 0.0;
 waterMesh.renderOrder = 2;
 waterMesh.receiveShadow = true; // Menerima bayangan dari pohon, bebatuan, dan karakter rubah
 scene.add(waterMesh);
+
+// ── PASS PENYERAPAN (tekstur realistis) ──
+// Blending biasa hanya bisa meredupkan latar secara rata. Air sungguhan menyerap merah jauh lebih cepat
+// daripada hijau-biru (Beer-Lambert), jadi dasar dangkal tampak toska dan yang dalam biru. Pass murah ini
+// mengalikan latar dengan transmitansi per kanal sebelum shader air menambahkan pantulan, hamburan, dan buih.
+const waterAbsorbMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    fog: false,
+    // Berbagi objek uniform air (waktu, ombak, mask, kedalaman) kecuali uniform lampu & bayangan:
+    // material ini tidak memakai lampu, dan ikut membawa uniform bayangan membuat three.js sesekali
+    // mengunggah data bayangan yang belum terisi.
+    uniforms: Object.fromEntries(Object.entries(waterMat.uniforms).filter(([key]) => !(key in THREE.UniformsLib.lights))),
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.ZeroFactor,
+    blendDst: THREE.SrcColorFactor,
+    vertexShader: waterMat.vertexShader
+        .replace('#include <shadowmap_pars_vertex>', '')
+        .replace('#include <shadowmap_vertex>', ''),
+    fragmentShader: `
+        #include <common>
+        #include <packing>
+
+        uniform float uTime, uAmp, uSpeed, uChop;
+        uniform sampler2D uWaterMask;
+        uniform sampler2D uSceneDepth;
+        uniform sampler2D uTerrainHeightMap;
+        uniform vec2  uResolution;
+        uniform float uCameraNear;
+        uniform float uCameraFar;
+        uniform float uGroundSize;
+        uniform vec3  uSunDir;
+        uniform vec3  uSunColor;
+
+        varying vec3 vWorldPos;
+        varying vec3 vNormal;
+        varying float vH;
+        varying float vCrestFoam;
+        varying vec2 vBaseUV;
+
+        ${oceanCommonGLSL}
+        ${realOceanGLSL}
+
+        void main() {
+            if (uWaterStyle < 0.5) discard;
+            // Mask identik dengan shader air (tepi harus berimpit persis)
+            vec2 baseUV = vBaseUV;
+            if (baseUV.x < 0.0 || baseUV.x > 1.0 || baseUV.y < 0.0 || baseUV.y > 1.0) discard;
+            vec4 rawSample = texture2D(uWaterMask, baseUV);
+            if (max(rawSample.r, rawSample.a) <= 0.005) discard;
+            vec2 orgWarp = vec2(
+                onoise(vWorldPos.xz * 0.45 + uTime * 0.12) - 0.5,
+                onoise(vWorldPos.zx * 0.45 - uTime * 0.10) - 0.5
+            ) * (1.6 / uGroundSize);
+            vec2 smoothUV = clamp(baseUV + orgWarp, 0.0, 1.0);
+            float texel = 1.0 / 1024.0;
+            float maskVal = texture2D(uWaterMask, smoothUV).r * 0.40
+                + (texture2D(uWaterMask, smoothUV + vec2(texel, 0.0)).r + texture2D(uWaterMask, smoothUV - vec2(texel, 0.0)).r
+                 + texture2D(uWaterMask, smoothUV + vec2(0.0, texel)).r + texture2D(uWaterMask, smoothUV - vec2(0.0, texel)).r) * 0.15;
+            if (maskVal <= 0.005) discard;
+            float shoreEdgeFactor = smoothstep(0.005, 0.08, maskVal) * smoothstep(0.40, 0.10, maskVal);
+            float tideWave = sin(uTime * 1.8 * uSpeed - maskVal * 18.0 + onoise(vWorldPos.xz * 0.7) * 3.2);
+            float dynamicMask = clamp(maskVal + tideWave * 0.032 * clamp(uAmp, 0.2, 1.2) * shoreEdgeFactor, 0.0, 1.0);
+            if (dynamicMask <= 0.005) discard;
+
+            float terrainH = sampleTerrainHeightSmooth(uTerrainHeightMap, baseUV, float(${terrainGridStride}));
+            float waterDepth = vH - terrainH;
+            if (waterDepth < -0.05) discard;
+
+            // Panjang lintasan cahaya di dalam air: dari depth buffer (batu, tanah, objek), atau kedalaman tegak
+            vec2 screenUV = gl_FragCoord.xy / uResolution;
+            float sceneDepthRaw = texture2D(uSceneDepth, screenUV).r;
+            float vertDepth = max(0.0, waterDepth);
+            float bufferDepth = vertDepth;
+            if (sceneDepthRaw > 0.0001 && sceneDepthRaw < 0.9999) {
+                float sceneViewZ = perspectiveDepthToViewZ(sceneDepthRaw, uCameraNear, uCameraFar);
+                float waterViewZ = perspectiveDepthToViewZ(gl_FragCoord.z, uCameraNear, uCameraFar);
+                float depthDiff = waterViewZ - sceneViewZ;
+                if (depthDiff >= -0.05) bufferDepth = min(bufferDepth, max(0.0, depthDiff));
+            }
+
+            vec3 V = normalize(cameraPosition - vWorldPos);
+            vec3 Ng = normalize(vNormal);
+            float F = 0.02 + 0.98 * pow(1.0 - max(dot(Ng, V), 0.0), 5.0);
+            vec3 T = exp(-roSigma() * min(roPath(vertDepth, bufferDepth, V, Ng), 80.0) * 1.35);
+            float maskAlpha = smoothstep(0.005, 0.35, dynamicMask);
+            // Latar di framebuffer berada di sRGB: (latar * T)^(1/2.2) = latar^(1/2.2) * T^(1/2.2)
+            gl_FragColor = vec4(mix(vec3(1.0), pow((1.0 - F) * T, vec3(1.0 / 2.2)), maskAlpha), 1.0);
+        }
+    `
+});
+const waterAbsorbMesh = new THREE.Mesh(waterGeo, waterAbsorbMat);
+waterAbsorbMesh.renderOrder = 1.9;   // Sebelum air (2): latar diredam dulu, baru cahaya air ditambahkan
+waterAbsorbMesh.visible = false;
+waterAbsorbMesh.frustumCulled = false;
+scene.add(waterAbsorbMesh);
 
 // ============================================================
 // PARTIKEL PERCIKAN AIR / WATER SPLASH SYSTEM (100% ocean.html)
@@ -1019,6 +1473,7 @@ function clearAllWater() {
 function setWaterLevel(y) {
     waterCurrentLevel = y;
     waterMesh.position.y = y;
+    if (waterMat.uniforms.uWaterLevelY) waterMat.uniforms.uWaterLevelY.value = y;
     if (outerOceanMesh) {
         outerOceanMesh.position.y = y;
     }
@@ -1070,6 +1525,26 @@ function setWaterParam(param, val) {
 // Menjadikan kanvas tampak seperti pulau alami di tengah samudra
 // Menggunakan Ocean Engine yang sama + Dinding Tebing Pantai
 // ============================================================
+// ── TEKSTUR AIR (opsi di panel Brush Air) ──
+// classic: toska stilistik (bawaan lama), ocean: laut lepas realistis, lagoon: laguna tropis realistis
+const WATER_STYLES = { classic: 0, ocean: 1, lagoon: 2 };
+let currentWaterStyle = 'classic';
+function setWaterStyle(style) {
+    if (!(style in WATER_STYLES)) style = 'classic';
+    currentWaterStyle = style;
+    if (style !== 'classic') ensureWaterNormalTexture();
+    if (waterMat && waterMat.uniforms && waterMat.uniforms.uWaterStyle) waterMat.uniforms.uWaterStyle.value = WATER_STYLES[style];
+    waterAbsorbMesh.visible = style !== 'classic' && waterMesh.visible;
+    const select = document.getElementById('select-water-style');
+    if (select && select.value !== style) select.value = style;
+    if (typeof window.refreshWaterStyleHint === 'function') window.refreshWaterStyleHint();
+}
+function getWaterStyle() {
+    return currentWaterStyle;
+}
+window.setWaterStyle = setWaterStyle;
+window.getWaterStyle = getWaterStyle;
+
 let outerOceanMesh = null;
 let islandCliffMesh = null;
 let isOuterOceanEnabled = true;
@@ -1289,6 +1764,7 @@ function initOuterOcean() {
             varying vec2 vBaseXZ;
 
             ${oceanCommonGLSL}
+            ${realOceanGLSL}
 
             void main() {
                 // Jarak ke batas pulau (canvas): 0.0 di tebing pulau, membesar ke laut lepas
@@ -1338,7 +1814,9 @@ function initOuterOcean() {
                 vec2 dt = (mdN(q * 0.7 + uTime * vec2(0.25, 0.10)) + mdN(q * 1.6 - uTime * vec2(0.18, -0.20))) * 0.5;
                 float fade = exp(-dist * 0.014);
                 float rough = 0.18 * fade + 0.20 * wakeFoam;
-                vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.85 + dt.x * rough, 0.0, wakeSlope.y * 0.85 + dt.y * rough));
+                // Riak halus dari normal map buatan sendiri, juga untuk tekstur Klasik (air brush & laut luar)
+                vec2 nmd = roNormalDetail(q, uTime) * (0.55 * fade + 0.15) * clamp(0.5 + uAmp * 0.5, 0.4, 1.2);
+                vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.85 + dt.x * rough - nmd.x, 0.0, wakeSlope.y * 0.85 + dt.y * rough - nmd.y));
 
                 // ── FRESNEL & SUN (100% ocean.html) ──────────────────────
                 vec3 R = reflect(-V, N);
@@ -1365,6 +1843,15 @@ function initOuterOcean() {
                 #endif
 
                 float shadow = waveShadow * sceneShadow;
+
+                // ── TEKSTUR AIR REALISTIS: laut luar memakai shader yang sama dengan air brush ──
+                if (uWaterStyle > 0.5) {
+                    // Laut lepas dalam; kontak dengan tebing pulau tetap berbuih
+                    float cliffDepth = min(contactDepth, 60.0);
+                    gl_FragColor = realOcean(q, V, dist, normalize(vNormal), cliffDepth, 40.0, sceneShadow,
+                                             wakeSlope, wakeWaveH, wakeFoam, vCrestFoam, 1.0, 1.0, 0.0);
+                    return;
+                }
 
                 // ── BODY COLOR & LIT & SSS (Mengikuti suasana: Siang, Sore, Malam) ──────
                 vec3 deep    = uWaterDeepColor;
@@ -1406,7 +1893,11 @@ function initOuterOcean() {
                 gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
             }
         `,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        // Sama dengan air brush: rgb premultiplied (klasik selalu alpha 1, jadi tidak berubah)
+        blending: THREE.CustomBlending,
+        blendSrc: THREE.OneFactor,
+        blendDst: THREE.OneMinusSrcAlphaFactor
     });
 
     outerOceanMesh = new THREE.Mesh(outerGeo, outerMat);
@@ -1553,6 +2044,8 @@ let lastFoxCalcTime = 0;
 function updateWater(delta, elapsedTime) {
     if (!waterMat || !waterMat.uniforms) return;
     const u = waterMat.uniforms;
+    // Normal map dipakai semua tekstur air (Klasik juga); dibuat sekali saat air pertama kali diperbarui
+    if (!waterNormalTexture) ensureWaterNormalTexture();
 
     if (outerOceanMesh && outerOceanMesh.position.y !== waterCurrentLevel) {
         outerOceanMesh.position.y = waterCurrentLevel;
@@ -1735,6 +2228,7 @@ function updateWaterCanvasSize(newSize) {
         waterGeo = new THREE.PlaneGeometry(waterGroundSize, waterGroundSize, waterSegments, waterSegments);
         waterGeo.rotateX(-Math.PI / 2);
         waterMesh.geometry = waterGeo;
+        waterAbsorbMesh.geometry = waterGeo;
     }
 
     // 2. Update water material uniform

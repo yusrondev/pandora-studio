@@ -441,10 +441,10 @@ $gameScripts = [
     'js/character/fox-stats.js', 'js/character/fox-physics.js', 'js/character/fox-spawner.js',
     'js/items/plasma-weapon.js', 'js/items/item-box-manager.js', 'js/items/item-system.js', 'js/character/fox-ai.js',
     'js/character/combat-hud.js', 'js/character/hit-feedback.js', 'js/character/soul-absorb.js', 'js/character/mobile-controls.js', 'js/character/player-spawn.js',
-    'js/character/play-mode.js', 'js/character/backflip.js', 'js/character/barrier.js', 'js/character/ultimate-system.js', 'js/core/render-loop.js', 'js/environment/portal-manager.js', 'js/environment/trigger-manager.js',
-    'js/core/stage-loader.js', 'js/runtime/game-runtime.js'
+    'js/character/play-mode.js', 'js/character/backflip.js', 'js/character/dodge.js', 'js/character/barrier.js', 'js/character/ultimate-system.js', 'js/core/render-loop.js', 'js/environment/portal-manager.js', 'js/environment/trigger-manager.js',
+    'js/core/stage-loader.js', 'js/core/game-session.js', 'js/runtime/game-runtime.js'
 ];
-$gameStyles = ['css/base.css', 'css/icons.css', 'css/play-hud.css', 'css/items.css', 'css/cinematic-fx.css', 'css/settings-panel.css', 'css/mobile-controls.css', 'css/game-runtime.css'];
+$gameStyles = ['css/base.css', 'css/icons.css', 'css/play-hud.css', 'css/items.css', 'css/cinematic-fx.css', 'css/settings-panel.css', 'css/mobile-controls.css', 'css/game-session.css', 'css/game-runtime.css'];
 $vendorScripts = ['three.min.js', 'OrbitControls.js', 'fflate.min.js', 'FBXLoader.js', 'SkeletonUtils.js', 'gsap.min.js'];
 if ($hasAttachments) {
     array_splice($vendorScripts, 2, 0, ['GLTFLoader.js', 'DRACOLoader.js', 'meshopt_decoder.js', 'meshopt_simplifier.js']);

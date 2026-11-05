@@ -403,7 +403,8 @@ rockTheme: typeof rockParams !== 'undefined' ? rockParams.currentTheme : undefin
             waveAmp: (typeof waterMat !== 'undefined' && waterMat && waterMat.uniforms && waterMat.uniforms.uAmp) ? waterMat.uniforms.uAmp.value : 0.70,
             waveSpeed: (typeof waterMat !== 'undefined' && waterMat && waterMat.uniforms && waterMat.uniforms.uSpeed) ? waterMat.uniforms.uSpeed.value : 1.00,
             waveChop: (typeof waterMat !== 'undefined' && waterMat && waterMat.uniforms && waterMat.uniforms.uChop) ? waterMat.uniforms.uChop.value : 0.80,
-            outerOcean: (typeof isOuterOceanEnabled !== 'undefined') ? isOuterOceanEnabled : true
+            outerOcean: (typeof isOuterOceanEnabled !== 'undefined') ? isOuterOceanEnabled : true,
+            style: (typeof getWaterStyle === 'function') ? getWaterStyle() : 'classic'
         },
         fog: typeof exportFogData === 'function' ? exportFogData() : null,
         activeGrass: activeGrass,

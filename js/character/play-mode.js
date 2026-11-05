@@ -1,7 +1,13 @@
 
 let lastKickTriggerTime = 0;
+// Selama dodge semua aksi lain menunggu sampai guling selesai
+function isPlayerDodging() {
+    return !!(window.PandoraDodge && PandoraDodge.isBusy(window.wolfCharacter));
+}
+window.isPlayerDodging = isPlayerDodging;
+
 function triggerWolfKick() {
-    if (window.PandoraUltimateCasting) return;
+    if (window.PandoraUltimateCasting || isPlayerDodging()) return;
     // Satu klik fisik bisa memicu pointerdown + mousedown + contextmenu sekaligus:
     // hanya event pertama dalam 40ms yang dihitung agar jumlah klik untuk combo akurat.
     const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
@@ -17,7 +23,7 @@ window.triggerWolfKick = triggerWolfKick;
 
 let lastPunchTriggerTime = 0;
 function triggerWolfPunch() {
-    if (window.PandoraUltimateCasting) return;
+    if (window.PandoraUltimateCasting || isPlayerDodging()) return;
     // Debounce 40ms agar pointerdown + mousedown fisik dihitung tepat 1x klik per input
     const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     if (now - lastPunchTriggerTime < 40) return;
@@ -32,6 +38,7 @@ window.triggerWolfPunch = triggerWolfPunch;
 
 function startWolfBlock() {
     if (window.PandoraBackflip && PandoraBackflip.active) return;
+    if (isPlayerDodging()) return;
     if (window.PandoraUltimateCasting) return;
     const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
     if (char && typeof char.startBlock === 'function') {
@@ -49,6 +56,7 @@ function stopWolfBlock() {
 window.stopWolfBlock = stopWolfBlock;
 
 function triggerWolfBlock() {
+    if (isPlayerDodging()) return;
     const char = (typeof wolfCharacter !== 'undefined' && wolfCharacter) ? wolfCharacter : window.wolfCharacter;
     if (char && typeof char.triggerBlock === 'function') {
         char.triggerBlock();
@@ -186,6 +194,7 @@ window.addEventListener('contextmenu', (e) => {
 /* Play mode actions & start/stop */
 
 function triggerWolfJump() {
+    if (isPlayerDodging()) return;
     keys.space = true;
     setTimeout(() => { keys.space = false; }, 120);
 }
@@ -203,7 +212,7 @@ function startPlayMode() {
     if (typeof cancelAllSelections === 'function') cancelAllSelections();
 
     // Pastikan menu overflow tertutup
-    const overflowDropdown = document.getElementById('toolbar-overflow-menu');
+    const overflowDropdown = document.getElementById('toolbar-overflow-dropdown');
     if (overflowDropdown) overflowDropdown.classList.remove('open');
     const overflowBtn = document.getElementById('btn-toolbar-overflow');
     if (overflowBtn) overflowBtn.classList.remove('active');
@@ -277,6 +286,8 @@ function startPlayMode() {
         wolfCharacter = createWolfCharacterModel(targetSpecies);
         scene.add(wolfCharacter.root);
     }
+    // Ganti karakter yang gagal di tengah jalan bisa meninggalkan root di luar scene
+    if (wolfCharacter.root && !wolfCharacter.root.parent) scene.add(wolfCharacter.root);
     window.wolfCharacter = wolfCharacter;
     window.currentFoxSpeciesKey = currentFoxSpeciesKey;
 
@@ -460,6 +471,10 @@ function startPlayMode() {
         window.itemBoxManagerInstance.resetForPlay();
     }
     if (window.PandoraUltimate) PandoraUltimate.resetForPlay();
+    if (window.PandoraDodge) {
+        PandoraDodge.stop(wolfCharacter);
+        PandoraDodge.load();
+    }
 
     if (window.plasmaWeaponInstance && typeof window.plasmaWeaponInstance.prewarm === 'function') {
         window.plasmaWeaponInstance.prewarm(renderer, scene, camera);
@@ -483,8 +498,13 @@ function startPlayMode() {
 
 function stopPlayMode() {
     if (window.PandoraBackflip) PandoraBackflip.stop(wolfCharacter);
+    if (window.PandoraDodge) PandoraDodge.stop(wolfCharacter);
+    const transitioning = !!(window.PandoraStageFlow && PandoraStageFlow.isTransitioning);
     // Game hasil generate tidak punya mode editor untuk dituju
-    if (window.PANDORA_RUNTIME && !(window.PandoraStageFlow && PandoraStageFlow.isTransitioning)) return;
+    if (window.PANDORA_RUNTIME && !transitioning) return;
+    // Sesi Play Demo berakhir (bukan pindah stage / bangkit): aturan build dilepas sebelum pickup,
+    // energi, dan stage Studio dipulihkan di bawah
+    if (!transitioning && window.PandoraGameSession) PandoraGameSession.onDemoEnded();
 
     isPlayMode = false;
     keys.w = false;
@@ -712,8 +732,16 @@ function togglePlayMode() {
 const btnPlayMode = document.getElementById('btn-play-mode');
 if (btnPlayMode) {
     btnPlayMode.addEventListener('click', () => {
-        if (!isPlayMode && typeof enterMobileGameView === 'function') enterMobileGameView();
-        togglePlayMode();
+        if (isPlayMode) {
+            if (window.PandoraGameSession) PandoraGameSession.exitDemo();
+            else stopPlayMode();
+            return;
+        }
+        // Fullscreen ponsel harus diminta langsung dari klik
+        if (typeof enterMobileGameView === 'function') enterMobileGameView();
+        // Alur yang sama dengan tombol "Mulai" di build: tunggu semua model siap di balik layar pemuatan
+        if (window.PandoraGameSession) PandoraGameSession.startDemo();
+        else startPlayMode();
     });
 }
 
@@ -748,9 +776,13 @@ if (selectPlayCharacter) {
 window.addEventListener('keydown', (e) => {
     if (!isPlayMode) return;
     if (e.key === 'Escape') {
-        stopPlayMode();
+        // Sama seperti build: Esc membuka menu jeda (Pengaturan + Keluar dari Demo / Lanjutkan)
+        if (window.PandoraGameSession) PandoraGameSession.openPause();
+        else stopPlayMode();
         return;
     }
+    // Build: karakter ditentukan per stage, ganti karakter dengan angka tidak tersedia
+    if (window.PandoraGameSession && PandoraGameSession.rulesActive()) return;
     // Abaikan jika fokus sedang berada pada form input/textarea
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
         return;

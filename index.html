@@ -23,26 +23,50 @@
     <link rel="stylesheet" href="css/blender-inspector.css">
     <link rel="stylesheet" href="css/cinematic-fx.css">
     <link rel="stylesheet" href="css/settings-panel.css">
+    <link rel="stylesheet" href="css/game-session.css">
     <link rel="stylesheet" href="css/mobile-controls.css">
     <link rel="stylesheet" href="css/desktop-shell.css">
     <script src="js/editor/desktop-shell.js"></script>
 </head>
 
 <body data-app="studio">
-    <!-- PANDORA STARTUP ASSET PRELOADER (MEMUAT ASSET HERO RED FOX & ENEMY) -->
-    <div id="pandora-asset-loader" class="pandora-asset-loader">
-        <div class="loader-content">
-            <div class="loader-brand">
-                
-                <div class="loader-title">PANDORA STUDIO</div>
-                <div class="loader-subtitle">MEMUAT ASSET HERO & ANIMASI RED FOX</div>
+    <!-- PANDORA STARTUP SPLASH (desktop studio): asset karakter dimuat sebelum editor dibuka -->
+    <div id="pandora-asset-loader" class="pandora-asset-loader" role="progressbar" aria-label="Memuat Pandora Studio" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="psplash">
+            <div class="psplash-art" aria-hidden="true">
+                <div class="psplash-sun"></div>
+                <div class="psplash-ridge far"></div>
+                <div class="psplash-ridge near"></div>
+                <div class="psplash-floor"><i></i></div>
+                <div class="psplash-brand">
+                    <svg class="psplash-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                        <line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                    <div>
+                        <div class="psplash-name">Pandora <b>Studio</b></div>
+                        <div class="psplash-tag">Game Studio 3D &middot; Map &middot; Karakter &middot; Sinematik</div>
+                    </div>
+                </div>
             </div>
-            <div class="loader-track">
-                <div id="asset-loader-fill" class="loader-fill" style="width: 0%;"></div>
+            <div class="psplash-body">
+                <ul class="psplash-tasks" id="asset-loader-tasks">
+                    <li data-task="engine" class="active">Engine 3D &amp; renderer</li>
+                    <li data-task="hero">Karakter utama</li>
+                    <li data-task="enemy">Karakter musuh</li>
+                    <li data-task="anim">Animasi umum</li>
+                    <li data-task="scene">Menyiapkan scene</li>
+                </ul>
+                <div class="psplash-status-row">
+                    <span id="asset-loader-status" class="psplash-status">Menyiapkan engine 3D...</span>
+                    <span id="asset-loader-pct" class="psplash-pct">0%</span>
+                </div>
+                <div class="psplash-track"><div id="asset-loader-fill" class="psplash-fill" style="width: 0%;"></div></div>
             </div>
-            <div class="loader-status-row">
-                <span id="asset-loader-status" class="loader-status">Menyiapkan Engine 3D...</span>
-                <span id="asset-loader-pct" class="loader-pct">0%</span>
+            <div class="psplash-foot">
+                <span id="asset-loader-gpu">WebGL &middot; three.js r128</span>
+                <span><span id="asset-loader-cache"></span><span id="asset-loader-time">00:00</span></span>
             </div>
         </div>
     </div>
@@ -504,7 +528,7 @@
 
         <!-- CONTROLS & RECOVERY HINT -->
         <div class="fox-stamina-hint">
-            <span><kbd>Shift</kbd> Lari &bull; <kbd>Klik Kiri</kbd> Pukul &bull; <kbd>Klik Kanan</kbd> Tendang &bull; <kbd>Q</kbd> Shield / Block &bull; <kbd>Space</kbd> Lompat</span>
+            <span><kbd>Shift</kbd> Lari &bull; <kbd>Klik Kiri</kbd> Pukul &bull; <kbd>Klik Kanan</kbd> Tendang &bull; <kbd>Q</kbd> Dodge &bull; <kbd>Space</kbd> Lompat</span>
             <span><kbd>1-5</kbd> Ganti Karakter</span>
         </div>
     </div>
@@ -525,7 +549,7 @@
         <div class="mobile-action-buttons">
 
             <!-- Shield Button (Tangkisan / Pertahanan Karakter) -->
-            <button type="button" id="btn-mobile-shield" class="mobile-action-btn mobile-shield-btn" title="Shield / Block (Q)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><circle cx="12" cy="12" r="8"/></svg></button>
+            <button type="button" id="btn-mobile-shield" class="mobile-action-btn mobile-shield-btn" title="Dodge / Guling (Q)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><circle cx="12" cy="12" r="8"/></svg></button>
 
             <!-- Kick Button (Tendangan Melee) -->
             <button type="button" id="btn-mobile-kick" class="mobile-action-btn mobile-kick-btn" title="Kick (Tendangan)"><svg class="pad-symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 4 21 20 3 20"/></svg></button>
@@ -1931,6 +1955,20 @@
                                 <span id="val-water-level" class="val-badge">0.0</span>
                             </label>
                             <input type="range" id="slider-water-level" min="-2.0" max="3.0" step="0.05" value="0.0">
+                        </div>
+
+                        <!-- TEKSTUR AIR -->
+                        <div class="control-group" style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(6,182,212,0.18);">
+                            <label style="font-weight:600; color:#06b6d4; font-size:11px; letter-spacing:.04em; text-transform:uppercase;">⟡ Tekstur Air</label>
+                        </div>
+                        <div class="control-group">
+                            <label for="select-water-style"><span>Gaya Permukaan</span></label>
+                            <select id="select-water-style" title="Berlaku untuk seluruh air di stage ini, termasuk lautan di sekeliling pulau">
+                                <option value="classic">Klasik (Toska Stilistik)</option>
+                                <option value="ocean">Laut Lepas Realistis</option>
+                                <option value="lagoon">Laguna Tropis Realistis</option>
+                            </select>
+                            <div id="hint-water-style" style="font-size:10px; color:#8f8f8f; margin-top:4px; line-height:1.35;">Air toska bergaya kartun, warna seragam.</div>
                         </div>
 
                         <!-- OCEAN WAVE CONTROLS -->
@@ -3425,11 +3463,13 @@
     <script src="js/environment/trigger-manager.js"></script>
     <script src="js/character/play-mode.js"></script>
     <script src="js/character/backflip.js"></script>
+    <script src="js/character/dodge.js"></script>
     <script src="js/character/barrier.js"></script>
     <script src="js/character/ultimate-system.js"></script>
     <script src="js/core/render-loop.js"></script>
     <script src="js/editor/ui-handlers.js"></script>
     <script src="js/core/stage-loader.js"></script>
+    <script src="js/core/game-session.js"></script>
     <script src="js/editor/map-storage.js"></script>
     <script src="js/editor/project-panel.js"></script>
     <script src="js/editor/cinematic.js"></script>

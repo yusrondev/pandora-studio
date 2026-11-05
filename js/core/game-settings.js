@@ -342,7 +342,9 @@ const SettingsPanel = {
             FPS_LIMIT_OPTIONS.map(v => ({ label: v === 0 ? 'Bebas' : String(v), value: v })),
             values.fpsLimit,
             v => PandoraSettings.set('fpsLimit', v)));
-        if (!window.PANDORA_RUNTIME) {
+        // Build dan Play Demo tidak punya mode editor
+        const gameRules = window.PANDORA_RUNTIME || (window.PandoraGameSession && PandoraGameSession.rulesActive());
+        if (!gameRules) {
             body.appendChild(this.segment('FPS editor',
                 EDITOR_FPS_OPTIONS.map(v => ({ label: String(v), value: v })),
                 values.editorFps,

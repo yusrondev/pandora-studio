@@ -57,10 +57,8 @@ window.addEventListener('keydown', (e) => {
     }
     if (k === 'q' || code === 'KeyQ') {
         keys.q = true;
-        // Barrier sekali tekan: auto-repeat dari tombol yang ditahan diabaikan
-        if (!e.repeat && typeof startWolfBlock === 'function') {
-            startWolfBlock();
-        }
+        // Q = tombol O: dodge sekali tekan, auto-repeat dari tombol yang ditahan diabaikan
+        if (!e.repeat && window.PandoraDodge) PandoraDodge.request();
     }
     if (k === 'c' || code === 'KeyC') {
         manualProne = !manualProne;
@@ -96,12 +94,7 @@ window.addEventListener('keyup', (e) => {
     if (k === 'd' || k === 'arrowright' || code === 'KeyD') keys.d = false;
     if (k === 'shift' || code === 'ShiftLeft' || code === 'ShiftRight') keys.shift = false;
     if (k === ' ' || code === 'Space') keys.space = false;
-    if (k === 'q' || code === 'KeyQ') {
-        keys.q = false;
-        if (typeof stopWolfBlock === 'function') {
-            stopWolfBlock();
-        }
-    }
+    if (k === 'q' || code === 'KeyQ') keys.q = false;
 
     // FIX BUG: Saat pemain melepas tombol gerak, reset idleTimer seketika ke 0.0
     // sehingga variasi idle lanjutan TIDAK AKAN PERNAH langsung muncul
@@ -118,9 +111,10 @@ window.addEventListener('keyup', (e) => {
 const PLAY_CAMERA_START_DIST = 3.5;
 const PLAY_CAMERA_START_PITCH = 6.0;
 const PLAY_CAMERA_PITCH = 6.0;       // Sudut normal: setinggi bahu, hampir datar
-// Karakter di kiri layar, arah depan lapang. Yang digeser gambarnya, bukan posisi kamera,
+// Kamera tengah (simetris, gaya action RPG seperti Wukong): karakter tepat di tengah layar.
+// Isi > 0 untuk kamera bahu: gambarnya yang digeser (terhadap lebar layar), bukan posisi kamera,
 // karena yaw kamera dihitung ulang dari posisi kamera tiap frame.
-const PLAY_CAMERA_SHOULDER = 0.13;   // Terhadap lebar layar
+const PLAY_CAMERA_SHOULDER = 0.0;
 // Kamera hanya digerakkan pemain. Bantuan otomatisnya kecil dan langsung mengalah saat kamera digeser.
 const PLAY_CAMERA_MIN_PITCH = -12.0; // Bisa melihat ke atas, ke tajuk pohon dan langit
 const PLAY_CAMERA_MAX_PITCH = 55.0;
@@ -1007,7 +1001,7 @@ function updateWolfPhysics(dt, elapsed) {
     const isStationaryJumping = !!(wolfCharacter && wolfCharacter.isJumping && (wolfCharacter.isStationaryJump || wolfCharacter.activeJumpKey === 'jumpNormal' || wolfCharacter.jumpRootMotion));
     const isPlayerInCombat = !!(wolfCharacter && (wolfCharacter.isKicking || wolfCharacter.isPunching || wolfCharacter.isTakingHit || wolfCharacter.isBlocking));
     const backflipStep = PandoraBackflip.update(dt, wolfCharacter, _bossEncounter, inputX, inputY, isGrounded);
-    const isMovementLocked = isPlayerInCombat || isStationaryJumping || !!window.PandoraUltimateCasting || backflipStep !== null;
+    let isMovementLocked = isPlayerInCombat || isStationaryJumping || !!window.PandoraUltimateCasting || backflipStep !== null;
 
     // Vektor arah pandangan kamera pada bidang horizontal (XZ ground plane)
     let camFwd;
@@ -1033,6 +1027,12 @@ function updateWolfPhysics(dt, elapsed) {
     if (moveDirLen > 0.0001) {
         moveWorldDir.normalize();
     }
+
+    // Dodge (O / Q): arah analog relatif kamera, netral = ke depan. Selama berguling gerak biasa dikunci
+    // dan root dipindah mengikuti root motion klip.
+    const dodgeDir = (inputMag > DODGE_INPUT_DEADZONE && moveDirLen > 0.0001) ? moveWorldDir : null;
+    const dodgeStep = PandoraDodge.update(dt, wolfCharacter, dodgeDir, isGrounded);
+    if (dodgeStep !== null) isMovementLocked = true;
 
     // Auto-Lock target musuh terdekat untuk orientasi pertarungan & kamera
     const combatTarget = getCombatLockTarget(foxRoot, 9.5, 12.0);
@@ -1152,6 +1152,10 @@ function updateWolfPhysics(dt, elapsed) {
     if (backflipStep) {
         foxRoot.position.addScaledVector(PandoraBackflip.direction, backflipStep);
         camera.position.addScaledVector(PandoraBackflip.direction, backflipStep);
+    }
+    if (dodgeStep) {
+        foxRoot.position.addScaledVector(PandoraDodge.direction, dodgeStep);
+        camera.position.addScaledVector(PandoraDodge.direction, dodgeStep);
     }
 
     // Realistic Knockback horizontal displacement & friction
@@ -1719,7 +1723,7 @@ function updateWolfPhysics(dt, elapsed) {
         }
 
         // Jump diperbolehkan meskipun sedang memukul atau menendang (jump akan meng-cancel aksi tersebut)
-        if (window.PandoraUltimateCasting || PandoraBackflip.active) keys.space = false;
+        if (window.PandoraUltimateCasting || PandoraBackflip.active || PandoraDodge.active) keys.space = false;
         if (keys.space && isGrounded && !(wolfCharacter && wolfCharacter.isJumping)) {
             const hasWalkRunInput = Boolean(keys.w || keys.s || (typeof mobileJoystickForward !== 'undefined' && Math.abs(mobileJoystickForward) > 0.18));
             const isSprinting = (huntBlend > 0.4 && Math.abs(currentSpeed) > 1.8);
@@ -1911,7 +1915,8 @@ function updateWolfPhysics(dt, elapsed) {
     // BANTUAN KAMERA, HANYA SAAT PEMAIN TIDAK SEDANG MENGGESER KAMERA
     // Karakter berbelok tidak memutar kamera, jadi arah analog selalu sama dengan arah di layar.
     // ========================================================
-    if (!isUserHoldingCamera) {
+    // Selama dodge kamera tetap di sudut terakhirnya: tidak ada bantuan menoleh
+    if (!isUserHoldingCamera && !PandoraDodge.active) {
         if (activeBoss) {
             if (!_bossAimPos) _bossAimPos = activeBoss.root.position.clone();
             _bossAimPos.lerp(activeBoss.root.position, 1 - Math.exp(-CAMERA_BOSS_AIM_SMOOTH * dt));
@@ -2019,8 +2024,11 @@ function updateWolfPhysics(dt, elapsed) {
     camera.position.copy(controls.target).addScaledVector(rayDir, Math.min(currentCamDist, _springArmDist));
 
     // setViewOffset menurunkan aspect dari ukuran penuh, jadi ukurannya harus mengikuti aspect layar
-    // Posisi bahu tetap saat bertemu musuh: menggeser karakter ke tengah membuat layar terasa bergoyang
-    camera.setViewOffset(camera.aspect, 1, camera.aspect * PLAY_CAMERA_SHOULDER, 0, camera.aspect, 1);
+    if (PLAY_CAMERA_SHOULDER !== 0) {
+        camera.setViewOffset(camera.aspect, 1, camera.aspect * PLAY_CAMERA_SHOULDER, 0, camera.aspect, 1);
+    } else if (camera.view && camera.view.enabled) {
+        camera.clearViewOffset();
+    }
 
     // Mencegah kamera menembus lantai tanah (ground floor clamp)
     if (typeof getTerrainHeightFast === 'function') {

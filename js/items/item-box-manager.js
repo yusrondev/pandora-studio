@@ -298,7 +298,7 @@ class ItemBoxManager {
         if (this.boxes.some(b => Math.hypot(b.baseX - x, b.baseZ - z) < PICKUP_MIN_SPACING)) return null;
 
         const key = this.stageKey + ':' + type + ':' + x.toFixed(2) + ',' + z.toFixed(2);
-        if (window.PANDORA_RUNTIME && this.collectedKeys.has(key)) return null;
+        if ((window.PandoraGameSession ? PandoraGameSession.rulesActive() : !!window.PANDORA_RUNTIME) && this.collectedKeys.has(key)) return null;
 
         const box = {
             ...this.buildVisual(type),
@@ -385,10 +385,10 @@ class ItemBoxManager {
         this.updateCountUI();
     }
 
-    // Tiap Play Mode dimulai atau berhenti. Di Studio semua pickup kembali agar stage bisa diuji lagi;
-    // di build yang sudah diambil tetap hilang, termasuk saat pemain gugur dan hidup kembali.
+    // Tiap Play Mode dimulai atau berhenti. Di Studio (di luar Play Demo) semua pickup kembali agar stage bisa diuji lagi;
+    // di build dan selama Play Demo yang sudah diambil tetap hilang, termasuk saat pemain gugur dan hidup kembali.
     resetForPlay() {
-        if (!window.PANDORA_RUNTIME) {
+        if (!(window.PandoraGameSession ? PandoraGameSession.rulesActive() : !!window.PANDORA_RUNTIME)) {
             this.respawnAll();
             return;
         }
@@ -589,7 +589,7 @@ class ItemBoxManager {
     collectBox(box) {
         box.isActive = false;
         box.group.visible = false;
-        if (window.PANDORA_RUNTIME && !box.isDrop) this.collectedKeys.add(box.key);
+        if ((window.PandoraGameSession ? PandoraGameSession.rulesActive() : !!window.PANDORA_RUNTIME) && !box.isDrop) this.collectedKeys.add(box.key);
         if (box.type === 'mana') {
             PandoraUltimate.addOrbs(1);
         } else {

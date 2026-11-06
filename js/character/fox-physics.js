@@ -2378,6 +2378,10 @@ window.updateLegArticulation = updateLegArticulation;
         return out;
     }
 
+    const _sharedColliders = new Map();
+    const _triPool = [];
+    let _triPoolUsed = 0;
+
     function getOrBuildCollider(item) {
         if (!item || !item.root) return null;
         if (item._meshCollider) return item._meshCollider;
@@ -2405,10 +2409,25 @@ window.updateLegArticulation = updateLegArticulation;
             return item._meshCollider;
         }
 
-        const stride = rawTriCount > 35000 ? Math.ceil(rawTriCount / 35000) : 1;
+        // Ubin/objek hasil clone memakai geometri yang sama: satu collider (ruang lokal root) dipakai bersama
+        const shareKey = meshes.map(mesh => {
+            mesh.updateMatrixWorld(true);
+            _relMat.multiplyMatrices(_invMat, mesh.matrixWorld);
+            return mesh.geometry.uuid + ':' + Array.from(_relMat.elements, v => Math.round(v * 1e4)).join(',');
+        }).join('|');
+        const shared = _sharedColliders.get(shareKey);
+        if (shared) {
+            item._meshCollider = shared;
+            return shared;
+        }
+
+        // Semua segitiga dipakai sampai batas besar. Melewati segitiga (stride) membuat lubang di lantai,
+        // tempat kaki tiba-tiba tembus ke tanah di bawahnya.
+        const stride = rawTriCount > 250000 ? Math.ceil(rawTriCount / 250000) : 1;
         const tempVerts = [];
         const tempMinY = [];
         const tempMaxY = [];
+        const tempSteep = [];
 
         let minX = Infinity, minY = Infinity, minZ = Infinity;
         let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
@@ -2456,6 +2475,8 @@ window.updateLegArticulation = updateLegArticulation;
                 tempVerts.push(_vA.x, _vA.y, _vA.z, _vB.x, _vB.y, _vB.z, _vC.x, _vC.y, _vC.z);
                 tempMinY.push(tMinY);
                 tempMaxY.push(tMaxY);
+                // Miring/tegak (dinding) vs datar (lantai/atap), sama dengan ambang 0.78 di loop dinding
+                tempSteep.push(Math.abs(cy) / Math.sqrt(cx * cx + cy * cy + cz * cz) <= 0.78 ? 1 : 0);
             }
         }
 
@@ -2468,10 +2489,12 @@ window.updateLegArticulation = updateLegArticulation;
         const verts = new Float32Array(tempVerts);
         const triMinY = new Float32Array(tempMinY);
         const triMaxY = new Float32Array(tempMaxY);
+        const triSteep = new Uint8Array(tempSteep);
 
         // Bangun 2D Spatial Hash Grid (24 x 24) di ruang lokal XZ objek
-        const gridCols = 24;
-        const gridRows = 24;
+        // Mesh padat dapat grid lebih rapat supaya query kecil di bawah kaki hanya membuka sedikit segitiga
+        const gridCols = Math.max(24, Math.min(96, Math.round(Math.sqrt(triCount / 6))));
+        const gridRows = gridCols;
         const pad = 0.01;
         minX -= pad; maxX += pad;
         minY -= pad; maxY += pad;
@@ -2507,8 +2530,23 @@ window.updateLegArticulation = updateLegArticulation;
         }
 
         const cells = new Array(gridCols * gridRows);
+        // Rentang Y tiap sel: query dinding (di atas mata kaki) melewati sel lantai rata tanpa membuka isinya
+        const cellMinY = new Float32Array(gridCols * gridRows);
+        const cellMaxY = new Float32Array(gridCols * gridRows);
+        const cellSteepMaxY = new Float32Array(gridCols * gridRows);
         for (let c = 0; c < cellBuckets.length; c++) {
-            cells[c] = cellBuckets[c].length > 0 ? new Uint32Array(cellBuckets[c]) : null;
+            const bucket = cellBuckets[c];
+            cells[c] = bucket.length > 0 ? new Uint32Array(bucket) : null;
+            let lo = Infinity, hi = -Infinity, steepHi = -Infinity;
+            for (let k = 0; k < bucket.length; k++) {
+                const t = bucket[k];
+                if (triMinY[t] < lo) lo = triMinY[t];
+                if (triMaxY[t] > hi) hi = triMaxY[t];
+                if (triSteep[t] && triMaxY[t] > steepHi) steepHi = triMaxY[t];
+            }
+            cellMinY[c] = lo;
+            cellMaxY[c] = hi;
+            cellSteepMaxY[c] = steepHi;
         }
 
         item._meshCollider = {
@@ -2520,14 +2558,23 @@ window.updateLegArticulation = updateLegArticulation;
             gridCols,
             gridRows,
             cells,
+            cellMinY,
+            cellMaxY,
+            cellSteepMaxY,
+            triSteep,
             stamp: new Uint32Array(triCount),
             currentStamp: 1
         };
+        if (_sharedColliders.size > 64) _sharedColliders.clear();
+        _sharedColliders.set(shareKey, item._meshCollider);
         return item._meshCollider;
     }
 
-    function queryWorldTriangles(item, collider, worldMinX, worldMaxX, worldMinY, worldMaxY, worldMinZ, worldMaxZ, outTris) {
+    // flatMinWorldY (opsional, query dinding): segitiga DATAR di bawah tinggi ini dilewati sebelum ditransformasi,
+    // karena loop dinding juga mengabaikannya (lantai/anak tangga yang masih bisa didaki). Hanya untuk objek tegak.
+    function queryWorldTriangles(item, collider, worldMinX, worldMaxX, worldMinY, worldMaxY, worldMinZ, worldMaxZ, outTris, padY = 0.25, flatMinWorldY = null) {
         outTris.length = 0;
+        _triPoolUsed = 0; // hasil query sebelumnya tidak dipakai lagi setelah query baru
         const matWorld = item.root.matrixWorld;
         const te = matWorld.elements;
 
@@ -2546,7 +2593,7 @@ window.updateLegArticulation = updateLegArticulation;
 
         const localRadX = halfWorldXZ / sx;
         const localRadZ = halfWorldXZ / sz;
-        const localPadY = 0.25 / sy;
+        const localPadY = padY / sy;
 
         const qMinX = Math.min(_localFoot.x, _localHead.x) - localRadX;
         const qMaxX = Math.max(_localFoot.x, _localHead.x) + localRadX;
@@ -2560,7 +2607,10 @@ window.updateLegArticulation = updateLegArticulation;
             return outTris;
         }
 
-        const { gridCols, gridRows, cells, verts, triMinY, triMaxY, stamp } = collider;
+        const { gridCols, gridRows, cells, cellMinY, cellMaxY, cellSteepMaxY, triSteep, verts, triMinY, triMaxY, stamp } = collider;
+        // Objek tegak (hanya rotasi Y + skala): y lokal = (y dunia - posisi) / skala Y
+        const upright = flatMinWorldY !== null && triSteep && Math.abs(te[5] / sy) > 0.999;
+        const localFlatMin = upright ? (flatMinWorldY - te[13]) / sy : -Infinity;
         let curStamp = (collider.currentStamp + 1) | 0;
         if (curStamp >= 0x7fffffff) {
             stamp.fill(0);
@@ -2582,12 +2632,15 @@ window.updateLegArticulation = updateLegArticulation;
             for (let gx = gx0; gx <= gx1; gx++) {
                 const bucket = cells[rowOff + gx];
                 if (!bucket) continue;
+                if (cellMinY && (cellMaxY[rowOff + gx] < qMinY || cellMinY[rowOff + gx] > qMaxY)) continue;
+                if (upright && cellSteepMaxY[rowOff + gx] < qMinY && cellMaxY[rowOff + gx] < localFlatMin) continue;
                 for (let k = 0; k < bucket.length; k++) {
                     const t = bucket[k];
                     if (stamp[t] === curStamp) continue;
                     stamp[t] = curStamp;
 
                     if (triMaxY[t] < qMinY || triMinY[t] > qMaxY) continue;
+                    if (upright && !triSteep[t] && triMaxY[t] < localFlatMin) continue;
 
                     const base = t * 9;
                     const lax = verts[base], lay = verts[base + 1], laz = verts[base + 2];
@@ -2619,13 +2672,17 @@ window.updateLegArticulation = updateLegArticulation;
                     if (nLen < 1e-8) continue;
                     nx /= nLen; ny /= nLen; nz /= nLen;
 
-                    outTris.push({
-                        ax, ay, az,
-                        bx, by, bz,
-                        cx, cy, cz,
-                        wMinY, wMaxY,
-                        nx, ny, nz
-                    });
+                    // Objek segitiga dipakai ulang dari pool: query di lantai padat bisa mengambil ribuan segitiga
+                    // per frame, dan objek baru untuk masing-masing membuat GC tersendat.
+                    let o = _triPool[_triPoolUsed];
+                    if (!o) { o = {}; _triPool.push(o); }
+                    _triPoolUsed++;
+                    o.ax = ax; o.ay = ay; o.az = az;
+                    o.bx = bx; o.by = by; o.bz = bz;
+                    o.cx = cx; o.cy = cy; o.cz = cz;
+                    o.wMinY = wMinY; o.wMaxY = wMaxY;
+                    o.nx = nx; o.ny = ny; o.nz = nz;
+                    outTris.push(o);
                 }
             }
         }
@@ -2633,6 +2690,29 @@ window.updateLegArticulation = updateLegArticulation;
     }
 
     const _candidateTris = [];
+
+    // Tinggi permukaan tertinggi tepat di (x, z) dalam rentang [minY, maxY]: proyeksi XZ + barycentric.
+    // Dinding tegak (proyeksi XZ ~ nol) otomatis terlewati.
+    function surfaceHeightUnder(tris, x, z, minY, maxY) {
+        let best = -999;
+        for (let t = 0; t < tris.length; t++) {
+            const tri = tris[t];
+            if (Math.abs(tri.ny) < 0.2) continue;
+            if (tri.wMaxY < minY || tri.wMinY > maxY) continue;
+            const v0x = tri.bx - tri.ax, v0z = tri.bz - tri.az;
+            const v1x = tri.cx - tri.ax, v1z = tri.cz - tri.az;
+            const den = v0x * v1z - v1x * v0z;
+            if (Math.abs(den) < 1e-12) continue;
+            const px = x - tri.ax, pz = z - tri.az;
+            const u = (px * v1z - v1x * pz) / den;
+            const v = (v0x * pz - px * v0z) / den;
+            const eps = 1e-5;
+            if (u < -eps || v < -eps || u + v > 1 + eps) continue;
+            const h = tri.ay + u * (tri.by - tri.ay) + v * (tri.cy - tri.ay);
+            if (h >= minY && h <= maxY && h > best) best = h;
+        }
+        return best;
+    }
 
     window.PandoraGLBCollision = {
         prebuild: getOrBuildCollider,
@@ -2657,6 +2737,42 @@ window.updateLegArticulation = updateLegArticulation;
             let bestSupportY = -999;
             let hitWall = false;
 
+            // 1. Pijakan: tinggi permukaan TEPAT di bawah telapak kaki (sinar vertikal ke segitiga), bukan titik
+            //    tertinggi di sekitar kaki. Cara lama membuat kaki melayang di atas tonjolan/ukiran lantai dan
+            //    kehilangan pijakan di segitiga miring (lalu tembus ke tanah di bawah lantai).
+            //    Semua objek dicek di titik tengah dulu (kotak query sangat kecil, lantai padat tidak perlu dibuka
+            //    seluruhnya). Cincin sampel hanya bila TIDAK ADA objek di bawah kaki (celah sambungan / tepi), supaya
+            //    batu ubin tetangga yang lebih tinggi tidak ikut terambil di sambungan.
+            const ringR = 0.14 * scaleFactor;
+            const supMinY = rootPos.y - 0.45;
+            const supMaxY = rootPos.y + maxStepUp + 0.05;
+            for (let pass = 0; pass < 2 && bestSupportY < -900; pass++) {
+                const r = pass === 0 ? 0.01 : ringR + 0.02;
+                for (let i = 0; i < list.length; i++) {
+                    const item = list[i];
+                    if (!item || item.hasCollision === false || !item.root || !item.root.visible) continue;
+                    item.root.updateMatrixWorld(true);
+                    const collider = getOrBuildCollider(item);
+                    if (!collider || collider.triCount === 0) continue;
+                    const supTris = queryWorldTriangles(
+                        item, collider,
+                        rootPos.x - r, rootPos.x + r, supMinY, supMaxY, rootPos.z - r, rootPos.z + r,
+                        _candidateTris
+                    );
+                    if (supTris.length === 0) continue;
+                    if (pass === 0) {
+                        const h = surfaceHeightUnder(supTris, rootPos.x, rootPos.z, supMinY, supMaxY);
+                        if (h > bestSupportY) bestSupportY = h;
+                    } else {
+                        for (let k = 0; k < 8; k++) {
+                            const ang = k * Math.PI * 0.25;
+                            const h = surfaceHeightUnder(supTris, rootPos.x + Math.cos(ang) * ringR, rootPos.z + Math.sin(ang) * ringR, supMinY, supMaxY);
+                            if (h > bestSupportY) bestSupportY = h;
+                        }
+                    }
+                }
+            }
+
             for (let i = 0; i < list.length; i++) {
                 const item = list[i];
                 if (!item || item.hasCollision === false || !item.root || !item.root.visible) continue;
@@ -2665,50 +2781,25 @@ window.updateLegArticulation = updateLegArticulation;
                 const collider = getOrBuildCollider(item);
                 if (!collider || collider.triCount === 0) continue;
 
+                const effBaseY = Math.max(rootPos.y, bestSupportY > -900 ? bestSupportY : rootPos.y);
+
+                // Dinding: hanya segitiga yang menjulang di atas mata kaki (loop di bawah melewati yang lebih rendah)
                 const queryR = maxRadius + 0.35;
                 const tris = queryWorldTriangles(
                     item,
                     collider,
                     rootPos.x - queryR,
                     rootPos.x + queryR,
-                    rootPos.y - 0.45,
+                    effBaseY + 0.22 * scaleFactor,
                     rootPos.y + charHeight + 0.20,
                     rootPos.z - queryR,
                     rootPos.z + queryR,
-                    _candidateTris
+                    _candidateTris,
+                    0,
+                    effBaseY + maxStepUp
                 );
 
                 if (tris.length === 0) continue;
-
-                // 1. Deteksi pijakan permukaan atas (jembatan / tangga / platform GLB)
-                const footSampleR = maxRadius * 0.68;
-                const footSampleRSq = footSampleR * footSampleR;
-                for (let t = 0; t < tris.length; t++) {
-                    const tri = tris[t];
-                    if (Math.abs(tri.ny) < 0.68) continue;
-                    if (tri.wMinY > rootPos.y + maxStepUp + 0.05 || tri.wMaxY < rootPos.y - 0.45) continue;
-
-                    closestPointOnTriangle(
-                        rootPos.x, rootPos.y + 0.25 * scaleFactor, rootPos.z,
-                        tri.ax, tri.ay, tri.az,
-                        tri.bx, tri.by, tri.bz,
-                        tri.cx, tri.cy, tri.cz,
-                        _closestPt
-                    );
-
-                    const dx = rootPos.x - _closestPt.x;
-                    const dz = rootPos.z - _closestPt.z;
-                    if (dx * dx + dz * dz <= footSampleRSq) {
-                        const py = _closestPt.y;
-                        if (py <= rootPos.y + maxStepUp + 0.05 && py >= rootPos.y - 0.45) {
-                            if (py > bestSupportY) {
-                                bestSupportY = py;
-                            }
-                        }
-                    }
-                }
-
-                const effBaseY = Math.max(rootPos.y, bestSupportY > -900 ? bestSupportY : rootPos.y);
 
                 // 2. Iterasi resolusi tabrakan dinding / tiang / lengkungan (3 iterasi agar licin di sudut)
                 for (let iter = 0; iter < 3; iter++) {

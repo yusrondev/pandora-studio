@@ -460,7 +460,7 @@ function createGenshinPineTree(foliageMat, initialLeafCount = 3100, curvature = 
 
     const Y0 = 2.3, Y1 = 8.3;
     const sunDirVec = (typeof sunLight !== 'undefined' && sunLight.position)
-        ? sunLight.position.clone().normalize()
+        ? (typeof getSunDirection === 'function' ? getSunDirection() : sunLight.position.clone().sub(sunLight.target.position).normalize())
         : new THREE.Vector3(-6, 10, 7).normalize();
     const sunH = new THREE.Vector3(sunDirVec.x, 0, sunDirVec.z).normalize();
 

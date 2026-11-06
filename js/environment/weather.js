@@ -12,10 +12,19 @@ const WEATHER_RAIN_BOX = 38;        // Lebar kotak hujan di sekitar kamera (m)
 const WEATHER_RAIN_HEIGHT = 22;
 const WEATHER_SNOW_BOX = 30;
 const WEATHER_SNOW_HEIGHT = 16;
-const WEATHER_SPLASH_COUNT = 160;
+const WEATHER_SPLASH_COUNT = 260;
+// Intensitas 0..1 = gerimis sampai deras (sama seperti sebelumnya), di atas 1 = badai.
+// Buffer partikel dibuat untuk intensitas maksimum; intensitas memilih sebagian butir yang aktif.
+const WEATHER_MAX_INTENSITY = 1.6;
+const WEATHER_LEVELS = [            // Label slider di Studio
+    { upTo: 0.3, rain: 'Gerimis', snow: 'Tipis' },
+    { upTo: 0.65, rain: 'Sedang', snow: 'Sedang' },
+    { upTo: 1.05, rain: 'Deras', snow: 'Lebat' },
+    { upTo: Infinity, rain: 'Badai', snow: 'Badai Salju' }
+];
 const WEATHER_SPLASH_LIFE = 0.32;
 const WEATHER_RATES = {             // Per detik: naik / turun
-    precip: [0.6, 0.6],             // Hujan/salju yang terlihat turun
+    precip: [0.9, 0.9],             // Hujan/salju yang terlihat turun
     wet: [1 / 6, 1 / 40],           // Basah cepat, kering lama
     puddle: [1 / 16, 1 / 70],
     snow: [1 / 22, 1 / 50],
@@ -159,8 +168,8 @@ const PandoraWeather = {
         const frac = preset && typeof preset.grassFraction === 'number' ? preset.grassFraction : 1;
         const phone = typeof PANDORA_IS_PHONE !== 'undefined' && PANDORA_IS_PHONE;
         return {
-            rain: Math.round((phone ? 2600 : 6500) * (0.45 + 0.55 * frac)),
-            snow: Math.round((phone ? 1800 : 4200) * (0.45 + 0.55 * frac))
+            rain: Math.round((phone ? 2600 : 6500) * (0.45 + 0.55 * frac) * WEATHER_MAX_INTENSITY),
+            snow: Math.round((phone ? 1800 : 4200) * (0.45 + 0.55 * frac) * WEATHER_MAX_INTENSITY)
         };
     },
 
@@ -264,7 +273,7 @@ const PandoraWeather = {
     set(type, intensity, instant) {
         if (!['clear', 'rain', 'snow'].includes(type)) type = 'clear';
         this.type = type;
-        if (typeof intensity === 'number' && isFinite(intensity)) this.intensity = Math.max(0.05, Math.min(1, intensity));
+        if (typeof intensity === 'number' && isFinite(intensity)) this.intensity = Math.max(0.05, Math.min(WEATHER_MAX_INTENSITY, intensity));
         if (type !== 'clear') this.ensureBuilt();
         if (instant) {
             const t = this.targets();
@@ -283,10 +292,11 @@ const PandoraWeather = {
 
     targets() {
         const i = this.intensity;
+        const storm = Math.max(0, i - 1);   // Bagian di atas "deras"
         const rain = this.type === 'rain', snow = this.type === 'snow';
         return {
             precip: rain || snow ? i : 0,
-            overcast: rain ? 0.35 + i * 0.5 : (snow ? 0.25 + i * 0.35 : 0),
+            overcast: rain ? Math.min(1, 0.35 + Math.min(1, i) * 0.5 + storm * 0.35) : (snow ? Math.min(1, 0.25 + Math.min(1, i) * 0.35 + storm * 0.4) : 0),
             wet: rain ? 1 : 0,
             puddle: rain ? Math.min(1, 0.35 + i * 0.75) : 0,
             snow: snow ? Math.min(1, 0.25 + i * 0.85) : 0
@@ -323,6 +333,8 @@ const PandoraWeather = {
         }
         if (typeof skyMat === 'undefined' || !skyMat) return;
         const u = skyMat.uniforms;
+        // Awan di shader langit menutup langit dan menjadi kelabu tebal saat hujan/salju
+        if (u.uCloudOvercast) u.uCloudOvercast.value = Math.min(1, k * (snowy ? 0.85 : 1.0));
         // Langit & awan menuju abu-abu mendung. Hujan lebat: langit kelabu gelap, awan tebal kelabu
         const targets = snowy ? [
             [u.uTopColor, 0x9aabbd], [u.uMidColor, 0xbcc6d1], [u.uBottomColor, 0xdce2e9]
@@ -378,7 +390,7 @@ const PandoraWeather = {
             src.start();
             this.audio = { gain, ctx };
         }
-        if (this.audio) this.audio.gain.gain.setTargetAtTime(level * 0.16, this.audio.ctx.currentTime, 0.4);
+        if (this.audio) this.audio.gain.gain.setTargetAtTime(Math.min(1.4, level) * 0.16, this.audio.ctx.currentTime, 0.4);
     },
 
     // ---------- Genangan: riak & percikan dari langkah karakter ----------
@@ -455,7 +467,7 @@ const PandoraWeather = {
         this.splash.visible = amount > 0.01 || anyAlive;
         if (amount <= 0.01) return;
         // Percikan muncul di depan kamera, di tanah (bukan di atas air: air punya riak sendiri)
-        this.splashTimer += dt * amount * 320;
+        this.splashTimer += dt * amount * 320;   // Badai (amount > 1) otomatis lebih banyak percikan
         const fwd = new THREE.Vector3();
         camera.getWorldDirection(fwd);
         fwd.y = 0;
@@ -488,6 +500,11 @@ const PandoraWeather = {
         if (!mat || mat.userData.weatherPatched || mat.userData.noWeather) return false;
         if (!(mat.isMeshStandardMaterial || mat.isMeshPhongMaterial || mat.isMeshLambertMaterial || mat.isMeshToonMaterial)) return false;
         if (typeof groundMat !== 'undefined' && mat === groundMat) return false;
+        // userData bisa diganti kode lain setelah dipasang; penanda di fungsinya mencegah pembungkusan ganda
+        if (mat.onBeforeCompile && mat.onBeforeCompile.__pandoraWeather) {
+            mat.userData.weatherPatched = true;
+            return false;
+        }
         mat.userData.weatherPatched = true;
         const prevCompile = mat.onBeforeCompile;
         const prevKey = mat.customProgramCacheKey;
@@ -495,6 +512,8 @@ const PandoraWeather = {
             if (prevCompile) prevCompile.call(this, shader, renderer);
             shader.uniforms.uSnowCover = WEATHER_UNIFORMS.uSnowCover;
             shader.uniforms.uWetness = WEATHER_UNIFORMS.uWetness;
+            // Shader sudah berisi kode cuaca (material salinan yang ikut membawa pembungkus lama)
+            if (shader.fragmentShader.includes('varying vec3 vWeatherNormal;')) return;
             // Salju dikunci ke TUBUH, bukan ke dunia:
             // - normal dari pose istirahat (sebelum animasi tulang) yang hanya diputar oleh objeknya, jadi
             //   batas salju tidak bergeser saat lengan/badan berayun;
@@ -558,8 +577,10 @@ const PandoraWeather = {
                     roughnessFactor = mix(roughnessFactor, roughnessFactor * 0.7, uWetness * (1.0 - wSnow));`);
             }
         };
+        mat.onBeforeCompile.__pandoraWeather = true;
         mat.customProgramCacheKey = function () {
-            return (prevKey ? prevKey.call(this) : '') + '|weather2';
+            const base = prevKey ? prevKey.call(this) : '';
+            return base.includes('|weather2') ? base : base + '|weather2';
         };
         mat.needsUpdate = true;
         return true;
@@ -612,22 +633,27 @@ const PandoraWeather = {
         const windSlider = document.getElementById('slider-wind-speed');
         const wind = windSlider ? parseFloat(windSlider.value) || 1 : 1;
 
+        // Di atas "deras": butir lebih cepat & panjang, angin kencang berembus (gust), lebih pekat
+        const storm = Math.max(0, this.precip - 1) / (WEATHER_MAX_INTENSITY - 1);
+        const gust = 1 + storm * (1.6 + Math.sin(this.time * 0.7) * 0.6 + Math.sin(this.time * 2.3) * 0.25);
         const rainAmount = this.type === 'rain' ? this.precip : 0;
         this.rain.visible = rainAmount > 0.01;
         if (this.rain.visible) {
             const u = this.rain.material.uniforms;
-            u.uAmount.value = rainAmount;
+            u.uAmount.value = rainAmount / WEATHER_MAX_INTENSITY;
             u.uCenter.value.copy(center);
-            u.uWind.value.set(1.4 * wind, 0.7 * wind);
+            u.uWind.value.set(1.4 * wind * gust, 0.7 * wind * gust);
+            u.uSpeedScale.value = 1 + storm * 0.45;
+            u.uOpacity.value = 0.55 + storm * 0.2;
         }
         const snowAmount = this.type === 'snow' ? this.precip : 0;
         this.snow.visible = snowAmount > 0.01;
         if (this.snow.visible) {
             const u = this.snow.material.uniforms;
-            u.uAmount.value = snowAmount;
+            u.uAmount.value = snowAmount / WEATHER_MAX_INTENSITY;
             u.uCenter.value.copy(center);
             u.uPixelScale.value = pixelScale;
-            u.uWind.value.set(1.0 * wind, 0.5 * wind);
+            u.uWind.value.set(1.0 * wind * gust * (1 + storm * 2.5), 0.5 * wind * gust * (1 + storm * 2.5));
         }
         this.splash.material.uniforms.uPixelScale.value = pixelScale;
         this.updateWalkers(dt);
@@ -647,9 +673,15 @@ window.PandoraWeather = PandoraWeather;
     const slider = document.getElementById('slider-weather-intensity');
     const label = document.getElementById('val-weather-intensity');
     if (!select) return;
+    if (slider) slider.max = String(WEATHER_MAX_INTENSITY);
     const refresh = () => {
         if (slider) slider.disabled = select.value === 'clear';
-        if (label && slider) label.textContent = Math.round(parseFloat(slider.value) * 100) + '%';
+        if (label && slider) {
+            const v = parseFloat(slider.value);
+            const level = WEATHER_LEVELS.find(l => v <= l.upTo);
+            label.textContent = select.value === 'clear' ? Math.round(v * 100) + '%' : (select.value === 'snow' ? level.snow : level.rain);
+            label.title = `Intensitas ${Math.round(v * 100)}%`;
+        }
     };
     select.addEventListener('change', () => {
         PandoraWeather.set(select.value, slider ? parseFloat(slider.value) : undefined);

@@ -1,6 +1,6 @@
 {
     "name": "Pandora Game",
-    "startStageId": "garden",
+    "startStageId": "taron",
     "stageOrder": [
         "garden",
         "noxis",

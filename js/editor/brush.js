@@ -133,12 +133,23 @@ function handleBrushAction(event) {
 
         const roadBrush = selectRoadBrush.value;
         if (roadBrush !== 'none') {
+            if (roadBrush === 'road_stone_floor') {
+                if (typeof spawnStoneFloorGrid === 'function') {
+                    spawnStoneFloorGrid(hitPoint);
+                }
+                return;
+            }
             const roadRad = parseFloat(sliderRoadRadius.value);
             if (roadBrush === 'road_earth' || roadBrush === 'road_snow') {
                 paintDirt(hitPoint, roadRad, parseFloat(document.getElementById('slider-dirt-thickness').value), false, roadBrush === 'road_snow' ? 1 : 0);
             } else {
                 paintRoadOnTerrain(hitPoint, roadBrush, roadRad);
-                if (roadBrush === 'remove') paintDirt(hitPoint, roadRad, 1, true);
+                if (roadBrush === 'remove') {
+                    paintDirt(hitPoint, roadRad, 1, true);
+                    if (typeof removeStoneFloorInRadius === 'function') {
+                        removeStoneFloorInRadius(hitPoint, roadRad);
+                    }
+                }
             }
             if (roadBrush !== 'remove' && typeof removeGrassInRadius === 'function') {
                 removeGrassInRadius(hitPoint, roadRad * 0.85);
@@ -523,14 +534,27 @@ function handleCanvasPointerDown(e) {
             return;
         }
 
-        // 3. Mode Road Brush: Klik kanan = hapus jalan setapak kembali ke rumput
+        // 3. Mode Road Brush: Klik kanan = hapus jalan setapak kembali ke rumput / hapus lantai batu
         if (selectRoadBrush.value !== 'none') {
+            let hitPoint = null;
             const groundHits = raycaster.intersectObject(ground);
-            if (groundHits.length > 0) {
+            if (groundHits.length > 0) hitPoint = groundHits[0].point;
+
+            if (window.PandoraImportedObjects) {
+                const importedHits = raycaster.intersectObject(PandoraImportedObjects.container(), true);
+                if (importedHits.length > 0 && (!hitPoint || (groundHits.length > 0 && importedHits[0].distance < groundHits[0].distance))) {
+                    hitPoint = importedHits[0].point;
+                }
+            }
+
+            if (hitPoint) {
                 saveState();
                 isRightMouseDown = true;
                 const radius = parseFloat(sliderRoadRadius.value) || 4.0;
-                paintRoadOnTerrain(groundHits[0].point, 'remove', radius);
+                paintRoadOnTerrain(hitPoint, 'remove', radius);
+                if (typeof removeStoneFloorInRadius === 'function') {
+                    removeStoneFloorInRadius(hitPoint, selectRoadBrush.value === 'road_stone_floor' ? 4.0 : radius);
+                }
             }
             if (e.stopPropagation) e.stopPropagation();
             return;
@@ -811,12 +835,24 @@ function updateBrushReticle(hitPoint, normal) {
         else if (sculptMode === 'lower') colorHex = 0xf97316;  // Oranye merah (Turunkan lembah)
         else colorHex = 0xeab308;                              // Kuning emas (Ratakan tanah)
     } else if (roadBrush !== 'none') {
-        radius = parseFloat(sliderRoadRadius.value) || 4.0;
-        if (roadBrush === 'road_clay') colorHex = 0xb46b3f;      // Terakota tanah liat PBR
-        else if (roadBrush === 'road_green') colorHex = 0x84cc16; // Hijau berlumut
-        else if (roadBrush === 'road_snow') colorHex = 0xe0f2fe;  // Putih salju
-        else if (roadBrush === 'remove') colorHex = 0xef4444;     // Merah hapus jalan
-        else colorHex = 0xf59e0b;                                 // Amber jalan tanah coklat
+        if (roadBrush === 'road_stone_floor') {
+            const sz = (typeof StoneFloorBrush !== 'undefined' && StoneFloorBrush.getGridSize) ? StoneFloorBrush.getGridSize() : 4;
+            const TILE = (typeof StoneFloorBrush !== 'undefined' && StoneFloorBrush.getActiveTileSize) ? StoneFloorBrush.getActiveTileSize() : 3.50;
+            // Radius reticle mengikuti ukuran ubin dan grid (sz * TILE) / 2
+            radius = (sz * TILE) * 0.5;
+            colorHex = 0x38bdf8;
+            const snapX = Math.round(hitPoint.x / TILE) * TILE;
+            const snapZ = Math.round(hitPoint.z / TILE) * TILE;
+            brushReticleGroup.position.set(snapX, hitPoint.y + 0.05, snapZ);
+            brushReticleGroup.quaternion.identity(); // Selalu datar horizontal
+        } else {
+            radius = parseFloat(sliderRoadRadius.value) || 4.0;
+            if (roadBrush === 'road_clay') colorHex = 0xb46b3f;      // Terakota tanah liat PBR
+            else if (roadBrush === 'road_green') colorHex = 0x84cc16; // Hijau berlumut
+            else if (roadBrush === 'road_snow') colorHex = 0xe0f2fe;  // Putih salju
+            else if (roadBrush === 'remove') colorHex = 0xef4444;     // Merah hapus jalan
+            else colorHex = 0xf59e0b;                                 // Amber jalan tanah coklat
+        }
     } else if (waterBrush !== 'none') {
         radius = (typeof sliderWaterRadius !== 'undefined') ? (parseFloat(sliderWaterRadius.value) || 4.0) : 4.0;
         if (waterBrush === 'remove') colorHex = 0xef4444;        // Merah hapus air
@@ -960,6 +996,9 @@ function handleCanvasPointerMove(e) {
             const radius = parseFloat(sliderRoadRadius.value) || 4.0;
             paintRoadOnTerrain(hitPoint, 'remove', radius);
             paintDirt(hitPoint, radius, 1, true);
+            if (typeof removeStoneFloorInRadius === 'function') {
+                removeStoneFloorInRadius(hitPoint, selectRoadBrush.value === 'road_stone_floor' ? 4.0 : radius);
+            }
         } else if (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') {
             const radius = (typeof sliderWaterRadius !== 'undefined') ? (parseFloat(sliderWaterRadius.value) || 4.0) : 4.0;
             if (typeof paintWaterAt === 'function') {
@@ -999,6 +1038,7 @@ window.addEventListener('mouseleave', () => {
     lastFernSingleDragPos = null;
     if (typeof resetWaterStroke === 'function') resetWaterStroke();
     if (typeof endFogStroke === 'function') endFogStroke();
+    if (typeof resetStoneFloorStroke === 'function') resetStoneFloorStroke();
 });
 
 // Update ukuran reticle saat slider radius digeser
@@ -1114,6 +1154,7 @@ function handleCanvasPointerUp(e) {
     lastFernSingleDragPos = null;
     if (typeof resetWaterStroke === 'function') resetWaterStroke();
     if (typeof endFogStroke === 'function') endFogStroke();
+    if (typeof resetStoneFloorStroke === 'function') resetStoneFloorStroke();
     updateToolControlsState();
 
     // Penempatan sekali klik: hanya jika klik cepat, bukan seret kamera

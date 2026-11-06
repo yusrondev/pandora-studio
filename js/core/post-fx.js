@@ -78,10 +78,18 @@ const PandoraPostFX = {
             uniform vec2 uTexel;
             uniform vec2 uSun;
             uniform float uFacing;
+            uniform float uAspect;
             varying vec2 vUv;
-            float skyMask(vec3 c) {
+            // Sumber berkas: langit TERBUKA yang terang di sekitar matahari (cakram, aureole, celah biru).
+            // Badan awan putih tidak dihitung (kecerahannya di bawah ambang), jadi berkas keluar dari sela
+            // awan dan dedaunan, bukan dari seluruh awan. Makin jauh dari matahari makin lemah.
+            float skyMask(vec2 uv, vec3 c) {
                 float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
-                return max(smoothstep(0.72, 0.92, luma), smoothstep(0.06, 0.2, c.b - c.r) * 0.8);
+                vec2 d = (uv - uSun) * vec2(uAspect, 1.0);
+                float near = exp(-dot(d, d) * 3.5);
+                float bright = smoothstep(0.88, 0.995, luma);
+                float blueGap = smoothstep(0.08, 0.22, c.b - c.r) * smoothstep(0.35, 0.6, luma) * 0.35;
+                return max(bright, blueGap) * mix(0.25, 1.0, near);
             }
             void main() {
                 vec3 bloom = vec3(0.0);
@@ -101,7 +109,7 @@ const PandoraPostFX = {
                     float total = 0.0;
                     for (int i = 0; i < SHAFT_TAPS; i++) {
                         uv += step;
-                        shaft += skyMask(texture2D(tColor, uv).rgb) * decay;
+                        shaft += skyMask(uv, texture2D(tColor, uv).rgb) * decay;
                         total += decay;
                         decay *= 0.965;
                     }
@@ -114,7 +122,8 @@ const PandoraPostFX = {
             tColor: { value: null },
             uTexel: { value: new THREE.Vector2() },
             uSun: { value: new THREE.Vector2() },
-            uFacing: { value: 0 }
+            uFacing: { value: 0 },
+            uAspect: { value: 1 }
         });
         const light = this.makeMaterial(fullscreenVertex, lightFragment(40, 8), lightUniforms());
         // Ponsel: separuh sampel berkas (pita diredam blur + resolusi 1/4) dan tanpa bloom
@@ -141,12 +150,13 @@ const PandoraPostFX = {
             varying float vVisible;
             void main() {
                 vUv = uv;
-                // Flare meredup saat matahari tertutup daun; cukup dinilai sekali di verteks
+                // Flare hanya saat CAKRAM matahari terlihat (putih jenuh). Awan putih atau daun di depannya
+                // lebih redup dari cakram, jadi flare ikut padam. Cukup dinilai sekali di verteks.
                 float visible = 0.0;
                 for (int x = -1; x <= 1; x++) {
                     for (int y = -1; y <= 1; y++) {
-                        vec3 c = texture2D(tColor, uSun.xy + vec2(float(x), float(y)) * 0.012).rgb;
-                        visible += smoothstep(0.55, 0.85, dot(c, vec3(0.2126, 0.7152, 0.0722)));
+                        vec3 c = texture2D(tColor, uSun.xy + vec2(float(x), float(y)) * 0.005).rgb;
+                        visible += smoothstep(0.93, 0.995, min(c.r, min(c.g, c.b)));
                     }
                 }
                 vVisible = visible / 9.0 * uSun.z;
@@ -224,6 +234,7 @@ const PandoraPostFX = {
         lightMat.uniforms.uTexel.value.set(1 / width, 1 / height);
         lightMat.uniforms.uSun.value.set(sunU, sunV);
         lightMat.uniforms.uFacing.value = facing;
+        lightMat.uniforms.uAspect.value = width / height;
         renderer.setRenderTarget(this.lightTarget);
         renderer.render(quad.scene, quad.camera);
 

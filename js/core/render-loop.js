@@ -165,7 +165,32 @@ const ShadowCache = {
 };
 ShadowCache.install();
 
+// Area peta bayangan saat bermain mengikuti resolusi peta: tiap texel paling besar ~5-6 cm. Dengan area tetap
+// 90 m, peta 512-1024 (preset ponsel) = 9-18 cm per texel: lebih lebar dari kaki & lengan karakter, sehingga
+// bayangannya bolong-bolong berganti-ganti saat berjalan. normalBias mengikuti ukuran texel (bayangan tidak
+// terlepas dari kaki, tanpa jerawat bayangan).
+const SHADOW_EXTENT_EDITOR = 45;
+const SHADOW_NORMAL_BIAS_EDITOR = 0.07;
+function applyShadowExtent(isGameplay) {
+    const size = sunLight.shadow.mapSize.x || 1024;
+    const extent = isGameplay ? THREE.MathUtils.clamp(size * 0.026, 16, SHADOW_EXTENT_EDITOR) : SHADOW_EXTENT_EDITOR;
+    const cam = sunLight.shadow.camera;
+    if (cam.right === extent && applyShadowExtent.gameplay === isGameplay) return;
+    applyShadowExtent.gameplay = isGameplay;
+    cam.left = -extent;
+    cam.right = extent;
+    cam.top = extent;
+    cam.bottom = -extent;
+    cam.updateProjectionMatrix();
+    const texel = (extent * 2) / size;
+    sunLight.shadow.normalBias = isGameplay ? Math.min(SHADOW_NORMAL_BIAS_EDITOR, texel * 0.8) : SHADOW_NORMAL_BIAS_EDITOR;
+    // Dasar bayangan statis (pohon/batu) harus dipanggang ulang dengan area baru
+    ShadowCache.lightX = NaN;
+    renderer.shadowMap.needsUpdate = true;
+}
+
 function updateShadowSchedule(isGameplay) {
+    applyShadowExtent(isPlayMode);
     const every = isPlayMode ? (PandoraSettings.preset().shadowDynamicEvery || 1) : (isGameplay ? PandoraSettings.preset().shadowEvery : SHADOW_UPDATE_EVERY_EDITOR);
     if (frameCounter % every !== 0) return;
     renderer.shadowMap.needsUpdate = true;
@@ -288,12 +313,14 @@ function animate() {
         updateWater(delta, elapsedTime);
     }
     if (window.PandoraWeather) PandoraWeather.update(delta);
+    if (window.PandoraImportBatcher) PandoraImportBatcher.update(delta);
     if (typeof updateFog === 'function') {
         updateFog(delta, elapsedTime);
     }
 
     if (typeof updateAllSpawnedFoxesAnimation === 'function') {
         updateAllSpawnedFoxesAnimation(delta, elapsedTime);
+        if (window.PandoraFootGrounding) PandoraFootGrounding.update();
     }
 
     if (typeof SelectionOutlineManager !== 'undefined') {

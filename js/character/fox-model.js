@@ -4703,3 +4703,69 @@ if (typeof window !== 'undefined') {
         });
     }
 }
+// =========================================================
+// PENAPAKAN KAKI OTOMATIS
+// yOffset model (0.05) ditulis dalam satuan lokal model, lalu dikali skala root karakter (1.85), sehingga
+// telapak melayang ~9 cm di atas titik pijak. Di rumput celahnya tertutup helai, di ubin 3D / lantai rata
+// terlihat jelas. Di sini titik terendah telapak dalam pose idle diukur sekali per jenis model (skinning
+// di CPU), lalu model diturunkan tepat sebesar itu: telapak menempel di permukaan pijak, untuk hero, musuh,
+// boss, maupun bunshin, berapa pun skalanya.
+// =========================================================
+const PandoraFootGrounding = {
+    offsets: new Map(),   // geometry.uuid mesh berkulit -> jarak telapak ke titik asal modelMesh (satuan induk)
+    _v: new THREE.Vector3(),
+    _inv: new THREE.Matrix4(),
+
+    apply(model) {
+        if (!model || model._feetGrounded || !model.modelMesh || !model.mixer) return;
+        const mesh = model.modelMesh;
+        const parent = mesh.parent;
+        if (!parent) return;
+        // Animator harus sudah berjalan: di frame awal pose masih pose ikatan mentah (telapak jauh di bawah)
+        if (!(model.mixer.time > 0.3) || (model.root && !model.root.visible)) return;
+        // Ukur saat pose idle (atau setelah ~2 detik bila karakter langsung bergerak)
+        model._groundWait = (model._groundWait || 0) + 1;
+        const weights = model.currentWeights;
+        if (weights && typeof weights.idle === 'number' && weights.idle < 0.9 && model._groundWait < 120) return;
+
+        let skinned = null;
+        mesh.traverse((o) => { if (!skinned && o.isSkinnedMesh && o.geometry && o.geometry.attributes.position) skinned = o; });
+        if (!skinned) { model._feetGrounded = true; return; }
+
+        const key = skinned.geometry.uuid;
+        let sole = this.offsets.get(key);
+        if (sole === undefined) {
+            parent.updateMatrixWorld(true);
+            this._inv.copy(parent.matrixWorld).invert();
+            let minY = Infinity;
+            const v = this._v;
+            mesh.traverse((o) => {
+                if (!o.isSkinnedMesh || !o.geometry.attributes.position) return;
+                const pos = o.geometry.attributes.position;
+                for (let i = 0; i < pos.count; i += 2) {
+                    v.fromBufferAttribute(pos, i);
+                    o.boneTransform(i, v);
+                    v.applyMatrix4(o.matrixWorld).applyMatrix4(this._inv);
+                    if (v.y < minY) minY = v.y;
+                }
+            });
+            sole = minY - mesh.position.y;
+            this.offsets.set(key, sole);
+        }
+        // Batas aman: model dengan titik asal yang aneh tidak digeser
+        if (isFinite(sole) && Math.abs(sole) < 0.5) mesh.position.y = -sole;
+        model._feetGrounded = true;
+    },
+
+    // Dipanggil tiap frame dari render loop; setelah semua karakter tertapak biayanya hampir nol
+    update() {
+        if (typeof wolfCharacter !== 'undefined' && wolfCharacter) this.apply(wolfCharacter);
+        if (typeof FoxAIManager !== 'undefined' && FoxAIManager.agents) {
+            FoxAIManager.agents.forEach((agent) => { if (agent && agent.model) this.apply(agent.model); });
+        }
+        if (window.PandoraUltimate && PandoraUltimate.bunshins) {
+            PandoraUltimate.bunshins.forEach((b) => { if (b) this.apply(b.model || b); });
+        }
+    }
+};
+window.PandoraFootGrounding = PandoraFootGrounding;

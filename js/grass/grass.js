@@ -275,6 +275,15 @@ const genshinGrassShader = {
             gl_Position = projectionMatrix * mvPosition;
 
             #include <shadowmap_vertex>
+            // Bayangan dibaca dekat PANGKAL helai, bukan di tiap titik helai. Saat matahari rendah (sore) ujung
+            // helai setinggi 30 cm membaca peta bayangan bergeser >1 m ke arah matahari, sehingga banyak ujung
+            // tetap terang di dalam bayangan karakter: bayangan di rumput tampak bolong-bolong saat berlari.
+            #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+                vec4 grassRootWorld = modelMatrix * instanceMatrix * vec4(position.x, 0.0, position.z, 1.0);
+                vec4 grassShadowWorld = mix(grassRootWorld, worldPosition, 0.2);
+                grassShadowWorld.y += directionalLightShadows[0].shadowNormalBias;
+                vDirectionalShadowCoord[0] = directionalShadowMatrix[0] * grassShadowWorld;
+            #endif
             #include <fog_vertex>
         }
     `,

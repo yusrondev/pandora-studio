@@ -464,7 +464,7 @@ $hasAttachments = true;
 
 // --- Engine: hanya file gameplay ---
 $gameScripts = [
-    'js/core/asset-cache.js', 'js/core/random.js', 'js/core/game-settings.js', 'js/core/scene.js', 'js/core/ktx2-support.js', 'js/core/cinematic-shared.js', 'js/core/cinematic-player.js', 'js/core/imported-objects.js', 'js/core/boss-kill-cam.js', 'js/core/post-fx.js', 'js/runtime/game-shim.js',
+    'js/core/asset-cache.js', 'js/core/random.js', 'js/core/game-settings.js', 'js/core/scene.js', 'js/core/ktx2-support.js', 'js/core/cinematic-shared.js', 'js/core/cinematic-player.js', 'js/core/imported-objects.js', 'js/core/imported-batcher.js', 'js/core/boss-kill-cam.js', 'js/core/post-fx.js', 'js/runtime/game-shim.js',
     'js/environment/sky.js', 'js/terrain/terrain.js', 'js/water/water-manager.js', 'js/environment/fog-manager.js', 'js/environment/weather.js',
     'js/trees/foliage-materials.js', 'js/trees/falling-leaves.js', 'js/trees/tree-generators.js', 'js/trees/reference-conifer.js', 'js/grass/grass.js',
     'js/rocks/rock-manager.js', 'js/terrain/terrain-shapes.js', 'js/flowers/flower-manager.js', 'js/ferns/fern-manager.js', 'js/bushes/bush-manager.js',

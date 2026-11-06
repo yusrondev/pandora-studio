@@ -1,0 +1,43 @@
+{
+    "activeId": "floor_1793952161329_549",
+    "models": [
+        {
+            "id": "default_stone_floor",
+            "name": "Batu Klasik (Garden)",
+            "file": "assets/imported/69ab65c708bfc610331ef699.glb",
+            "baseName": "stone_floor",
+            "scale": 0.00916018575191774,
+            "tileSize": 3.5,
+            "yOffset": 0.04,
+            "isBuiltin": true
+        },
+        {
+            "id": "floor_1793945989474_908",
+            "name": "ubin",
+            "file": "assets/imported/c8a94defb6f7a69349925786.glb",
+            "baseName": "ubin",
+            "scale": 5,
+            "tileSize": 5,
+            "yOffset": 0.04,
+            "isBuiltin": false,
+            "originalBytes": 27659852,
+            "compressedBytes": 1452012,
+            "triangles": 20000
+        },
+        {
+            "id": "floor_1793952161329_549",
+            "name": "ubin batu",
+            "file": "assets/imported/82bc344a14c0108be901ee29.glb",
+            "baseName": "ubin_batu",
+            "scale": 1,
+            "tileSize": 1,
+            "yOffset": 0.04,
+            "isBuiltin": false,
+            "originalBytes": 7173648,
+            "compressedBytes": 888828,
+            "triangles": 9192
+        }
+    ],
+    "version": 1,
+    "updatedAt": "2026-11-06T08:02:41+00:00"
+}

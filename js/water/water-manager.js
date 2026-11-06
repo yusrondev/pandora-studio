@@ -2142,7 +2142,9 @@ function updateWater(delta, elapsedTime) {
 
     // 2. Sinkronisasi posisi & warna matahari realtime mengikuti sudut matahari in-game
     if (typeof sunLight !== 'undefined' && sunLight && u.uSunDir && !oceanSunManual) {
-        u.uSunDir.value.copy(sunLight.position).normalize();
+        // Arah asli matahari (posisi lampu bergeser mengikuti pemain untuk bayangan)
+        if (typeof getSunDirection === 'function') getSunDirection(u.uSunDir.value);
+        else u.uSunDir.value.copy(sunLight.position).sub(sunLight.target.position).normalize();
         if (u.uSunColor && sunLight.color) {
             u.uSunColor.value.copy(sunLight.color);
         }

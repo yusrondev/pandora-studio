@@ -620,6 +620,23 @@ const CombatHUD = {
             const enemyId = fox.id || ('fox_' + i);
             activeIds.add(enemyId);
 
+            // Bar hanya tampil saat pemain masuk radius deteksi musuh itu (atau musuh sedang dikunci)
+            const isTargetLocked = !!(
+                typeof window.currentCombatLockTarget !== 'undefined' &&
+                window.currentCombatLockTarget &&
+                (window.currentCombatLockTarget.root === fox.root || window.currentCombatLockTarget === fox)
+            );
+            const radius = (fox.ai && fox.ai.detectionRadius) || fox.detectionRadius || 18;
+            if (playerPos && !isTargetLocked) {
+                const dx = fox.root.position.x - playerPos.x;
+                const dz = fox.root.position.z - playerPos.z;
+                if (dx * dx + dz * dz > radius * radius) {
+                    const el = this.overheadBarPool.get(enemyId);
+                    if (el) el.style.display = 'none';
+                    continue;
+                }
+            }
+
             // Ambil posisi tepat di atas kepala musuh (mengikuti tulang Head + margin proporsional, atau fallback 1.24m)
             const scaleM = fox.scaleMultiplier || 1.0;
             const headPos = fox.root.position.clone();
@@ -659,8 +676,8 @@ const CombatHUD = {
             if (!barEl) {
                 barEl = document.createElement('div');
                 barEl.className = 'enemy-overhead-bar';
+                // Musuh biasa hanya menampilkan bar HP (nama hanya untuk boss di bar atas)
                 barEl.innerHTML = `
-                    <div class="enemy-overhead-name">${fox.name || 'FoxTree'}</div>
                     <div class="enemy-overhead-track">
                         <div class="enemy-overhead-fill" style="width: 100%;"></div>
                     </div>
@@ -675,11 +692,6 @@ const CombatHUD = {
             barEl.style.top = `${Math.round(pxY)}px`;
             barEl.style.transform = 'translate(-50%, -100%)';
 
-            const nameEl = barEl.querySelector('.enemy-overhead-name');
-            if (nameEl && nameEl.innerText !== (fox.name || 'FoxTree')) {
-                nameEl.innerText = fox.name || 'FoxTree';
-            }
-
             const fillEl = barEl.querySelector('.enemy-overhead-fill');
             if (fillEl) {
                 const pct = Math.max(0, Math.min(100, (curHp / maxHp) * 100));
@@ -687,11 +699,6 @@ const CombatHUD = {
             }
 
             // Visual feedback lock-on reticle untuk musuh yang sedang terkunci
-            const isTargetLocked = !!(
-                typeof window.currentCombatLockTarget !== 'undefined' &&
-                window.currentCombatLockTarget &&
-                (window.currentCombatLockTarget.root === fox.root || window.currentCombatLockTarget === fox)
-            );
             barEl.classList.toggle('target-locked', isTargetLocked);
         }
 

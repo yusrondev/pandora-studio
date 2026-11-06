@@ -224,14 +224,7 @@ class GLBImporterManager {
     // Tanpa file di project, objek hanya hidup sampai halaman ditutup dan tidak bisa ikut ke build
     async storeModelFile(arrayBuffer) {
         try {
-            const res = await fetch('api/upload-model.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-pandora-model' },
-                body: arrayBuffer
-            });
-            const json = await res.json();
-            if (!json.success) throw new Error(json.error);
-            return json.file;
+            return await window.PandoraModelUpload.upload(arrayBuffer);
         } catch (err) {
             console.error('[GLBImporter] Gagal menyimpan file model:', err);
             alert('File 3D gagal disimpan ke project, jadi tidak akan tersimpan bersama map: ' + err.message);

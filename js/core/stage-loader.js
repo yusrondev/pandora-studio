@@ -97,6 +97,13 @@ function applyMapDataToScene(mapData) {
             updateSunPosition();
         }
 
+        // Bentuk awan stage (map lama tanpa data awan = kumulus)
+        if (window.PandoraClouds) {
+            const clouds = env.clouds || { shape: 'cumulus', coverage: 0 };
+            PandoraClouds.set(clouds.shape, clouds.coverage || 0, true);
+            if (typeof window.refreshCloudControls === 'function') window.refreshCloudControls();
+        }
+
         // Cuaca stage: langsung sesuai simpanan (genangan & salju sudah terbentuk saat stage dibuka).
         // Map lama tanpa cuaca = cerah.
         if (window.PandoraWeather) {

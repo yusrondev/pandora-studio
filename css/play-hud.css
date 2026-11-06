@@ -989,75 +989,42 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
-    width: 66px;
+    width: 46px;
     transform-origin: center bottom;
     user-select: none;
     pointer-events: none;
-    background: transparent;
-    box-shadow: none;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: geometricPrecision;
 }
 
-.enemy-overhead-name {
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.15;
-    color: #ffffff;
-    letter-spacing: 0.45px;
-    white-space: nowrap;
-    padding: 2px 7px;
-    border-radius: 4px;
-    background: rgba(10, 14, 24, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
-}
-
+/* Bar HP musuh biasa: garis tipis polos, tanpa nama/bingkai */
 .enemy-overhead-track {
     position: relative;
     width: 100%;
-    height: 5px;
-    background: rgba(15, 23, 42, 0.88);
-    border: 1px solid rgba(0, 0, 0, 0.75);
-    border-radius: 3px;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 2px;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 .enemy-overhead-fill {
     height: 100%;
-    background: linear-gradient(90deg, #ef4444 0%, #f97316 100%);
+    background: #ef4444;
+    border-radius: 2px;
     transition: width 0.15s ease-out;
 }
 
-.enemy-overhead-bar.target-locked {
-    filter: none;
-    box-shadow: none;
-}
-
-.enemy-overhead-bar.target-locked .enemy-overhead-track {
-    border-color: #f87171;
-}
-
-.enemy-overhead-bar.target-locked .enemy-overhead-name {
-    color: #fef08a;
-    font-weight: 800;
-    background: rgba(28, 10, 14, 0.84);
-    border-color: rgba(239, 68, 68, 0.65);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.98);
+.enemy-overhead-bar.target-locked .enemy-overhead-fill {
+    background: #f87171;
 }
 
 .enemy-overhead-bar.target-locked::after {
-    content: '▼';
+    content: '';
     position: absolute;
-    top: -17px;
-    font-size: 10px;
-    line-height: 1;
-    color: #ef4444;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+    top: -9px;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #ef4444;
     animation: pulseTargetLock 0.8s ease-in-out infinite alternate;
 }
 

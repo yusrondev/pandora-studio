@@ -290,6 +290,20 @@
             </select>
         </div>
 
+        <div class="toolbar-group" id="toolbar-group-clouds" data-overflow-item="clouds" title="Bentuk awan di langit dan seberapa banyak langit yang tertutup">
+            <label>
+                <span class="svg-icon" style="color:#cbd5e1;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+                    </svg>
+                </span>
+                <span>Awan</span>
+            </label>
+            <select id="select-cloud-shape" class="cinematic-mini-select" style="max-width:150px; height:22px;"></select>
+            <input type="range" id="slider-cloud-coverage" min="-0.4" max="0.4" step="0.02" value="0" title="Tutupan awan (lebih sedikit / lebih banyak dari bawaan bentuk)">
+            <span id="val-cloud-coverage" class="val-badge" style="min-width:36px; text-align:center;">0%</span>
+        </div>
+
         <div class="toolbar-group" id="toolbar-group-azimuth" data-overflow-item="azimuth" title="Posisi Sudut Matahari (Azimuth)">
             <label><span>Azim</span></label>
             <input type="range" id="slider-azimuth" min="0" max="360" value="300">
@@ -349,8 +363,8 @@
                 <option value="rain">Hujan</option>
                 <option value="snow">Salju</option>
             </select>
-            <input type="range" id="slider-weather-intensity" min="0.1" max="1" step="0.05" value="0.7" title="Intensitas cuaca">
-            <span id="val-weather-intensity" class="val-badge">70%</span>
+            <input type="range" id="slider-weather-intensity" min="0.1" max="1.6" step="0.05" value="0.7" title="Intensitas cuaca: gerimis, sedang, deras, sampai badai">
+            <span id="val-weather-intensity" class="val-badge" style="min-width:44px; text-align:center;">70%</span>
         </div>
 
         <div class="divider" id="divider-env-2"></div>
@@ -1912,6 +1926,7 @@
                             <label>Kuas Jalan</label>
                             <select id="select-road-brush">
                                 <option value="none">Off</option>
+                                <option value="road_stone_floor">Lantai Batu 3D (4x4 Stone Floor)</option>
                                 <option value="road_brown">Jalan Tanah Kecoklatan (Dirt Path)</option>
                                 <option value="road_green">Jalan Berlumut Hijau (Mossy Path)</option>
                                 <option value="road_clay">Jalan Tanah Liat (Clay PBR)</option>
@@ -1919,6 +1934,151 @@
                                 <option value="road_snow">Salju Tebal (terbelah saat dilewati)</option>
                                 <option value="remove">Hapus Jalan (Reset Rumput)</option>
                             </select>
+                        </div>
+                        <div class="spawner-card-grid road-grid" id="road-picker-grid">
+                            <button type="button" class="spawner-card active" data-value="none" title="Matikan Kuas Jalan">
+                                <div class="card-preview">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <circle cx="20" cy="20" r="13" fill="none" stroke="#64748b" stroke-width="2.5" stroke-dasharray="4 2" />
+                                        <line x1="12" y1="28" x2="28" y2="12" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Off</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="road_stone_floor" title="Lantai Batu 3D (4x4 Grid Modular)">
+                                <div class="card-preview road-stone-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <rect x="7" y="7" width="11" height="11" rx="1.5" fill="#94a3b8" stroke="#334155" stroke-width="1.2" />
+                                        <rect x="22" y="7" width="11" height="11" rx="1.5" fill="#64748b" stroke="#334155" stroke-width="1.2" />
+                                        <rect x="7" y="22" width="11" height="11" rx="1.5" fill="#64748b" stroke="#334155" stroke-width="1.2" />
+                                        <rect x="22" y="22" width="11" height="11" rx="1.5" fill="#94a3b8" stroke="#334155" stroke-width="1.2" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Lantai 3D</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="road_brown" title="Jalan Tanah Kecoklatan (Dirt Path)">
+                                <div class="card-preview road-brown-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <path d="M8 32 Q20 20 14 8 Q26 12 32 8 Q24 24 30 32 Z" fill="#8d5b36" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Tanah</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="road_green" title="Jalan Berlumut Hijau (Mossy Path)">
+                                <div class="card-preview road-green-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <path d="M8 32 Q20 20 14 8 Q26 12 32 8 Q24 24 30 32 Z" fill="#4d7c0f" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Berlumut</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="road_clay" title="Jalan Tanah Liat (Clay PBR)">
+                                <div class="card-preview road-clay-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <path d="M8 32 Q20 20 14 8 Q26 12 32 8 Q24 24 30 32 Z" fill="#b46b3f" opacity="0.9" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Tanah Liat</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="road_earth" title="Tanah Tebal (terbelah saat dilewati)">
+                                <div class="card-preview road-earth-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="22" rx="14" ry="10" fill="#451a03" />
+                                        <path d="M12 22 L28 22" stroke="#78350f" stroke-width="2.5" stroke-dasharray="3 2" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Tanah Tebal</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="road_snow" title="Salju Tebal (terbelah saat dilewati)">
+                                <div class="card-preview road-snow-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <ellipse cx="20" cy="22" rx="14" ry="10" fill="#e0f2fe" />
+                                        <path d="M12 22 L28 22" stroke="#38bdf8" stroke-width="2.5" stroke-dasharray="3 2" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Salju</span>
+                            </button>
+                            <button type="button" class="spawner-card" data-value="remove" title="Hapus Jalan (Reset Rumput)">
+                                <div class="card-preview grass-remove-bg">
+                                    <svg viewBox="0 0 40 40" class="card-svg">
+                                        <circle cx="20" cy="20" r="12" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 2" />
+                                        <line x1="13" y1="13" x2="27" y2="27" stroke="#ef4444" stroke-width="2" stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                                <span class="card-name">Hapus</span>
+                            </button>
+                        </div>
+                        <div id="road-stone-floor-controls" class="floor-lib" style="display:none;">
+                            <div class="floor-lib-head">
+                                <span class="floor-lib-title">Koleksi Model Lantai</span>
+                                <span id="val-stone-floor-count" class="floor-lib-count">0 ubin</span>
+                            </div>
+
+                            <div class="floor-lib-toolbar">
+                                <button type="button" id="btn-import-floor-glb" class="floor-lib-btn floor-lib-btn-primary" title="Import file 3D GLB/GLTF dari komputer">
+                                    <svg class="bl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    <span>Import GLB</span>
+                                </button>
+                                <button type="button" id="btn-pick-scene-floor" class="floor-lib-btn" title="Pilih model dari objek 3D yang sudah ada di map">
+                                    <svg class="bl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                                    <span>Dari Map</span>
+                                </button>
+                                <input type="file" id="input-import-floor-glb" accept=".glb,.gltf" hidden>
+                            </div>
+
+                            <!-- Baris model dirender oleh stone-floor-brush.js -->
+                            <div id="floor-models-list" class="floor-lib-list" role="listbox" aria-label="Model lantai 3D"></div>
+
+                            <div id="floor-model-params-box" class="floor-lib-section">
+                                <div class="floor-lib-section-head">
+                                    <span id="lbl-active-floor-name" class="floor-lib-section-title">Pengaturan Model</span>
+                                    <span id="lbl-active-floor-file" class="floor-lib-file">assets/...</span>
+                                </div>
+                                <div class="floor-lib-section-body">
+                                    <label class="floor-lib-prop">
+                                        <span class="floor-lib-prop-label">Ukuran Ubin</span>
+                                        <span class="floor-lib-field"><input type="number" id="in-floor-tile-size" step="0.1" min="0.2" max="25" value="3.5"><em>m</em></span>
+                                    </label>
+                                    <label class="floor-lib-prop">
+                                        <span class="floor-lib-prop-label">Skala</span>
+                                        <span class="floor-lib-field"><input type="number" id="in-floor-scale" step="0.001" min="0.0001" max="20" value="0.00916"></span>
+                                    </label>
+                                    <label class="floor-lib-prop">
+                                        <span class="floor-lib-prop-label">Offset Y</span>
+                                        <span class="floor-lib-field"><input type="number" id="in-floor-y-offset" step="0.01" min="-2" max="5" value="0.04"><em>m</em></span>
+                                    </label>
+                                    <label class="floor-lib-prop">
+                                        <span class="floor-lib-prop-label">Prefix Nama</span>
+                                        <span class="floor-lib-field floor-lib-field-text"><input type="text" id="in-floor-base-name" value="stone_floor" spellcheck="false"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="floor-lib-section">
+                                <div class="floor-lib-section-head">
+                                    <span class="floor-lib-section-title">Spawner</span>
+                                </div>
+                                <div class="floor-lib-section-body">
+                                    <div class="floor-lib-prop">
+                                        <span class="floor-lib-prop-label">Grid</span>
+                                        <div class="stone-floor-grid-group" role="radiogroup" aria-label="Ukuran grid spawner">
+                                            <button type="button" class="stone-floor-grid-btn active" data-size="4" title="16 ubin sekali klik">4×4</button>
+                                            <button type="button" class="stone-floor-grid-btn" data-size="2" title="4 ubin sekali klik">2×2</button>
+                                            <button type="button" class="stone-floor-grid-btn" data-size="1" title="1 ubin tunggal">1×1</button>
+                                        </div>
+                                    </div>
+                                    <label class="floor-lib-check">
+                                        <input type="checkbox" id="chk-stone-floor-flat" checked>
+                                        <span>Lantai selalu datar</span>
+                                    </label>
+                                    <p class="floor-lib-hint">Saat tanah ditinggikan, lantai tetap datar dan tanah menembus sela batu.</p>
+                                </div>
+                            </div>
+
+                            <div class="floor-lib-footer">
+                                <button type="button" id="btn-clear-active-stone-floor" class="floor-lib-btn floor-lib-btn-danger" title="Hapus ubin dari model yang sedang aktif">Hapus Ubin Model Ini</button>
+                                <button type="button" id="btn-clear-all-stone-floor" class="floor-lib-btn floor-lib-btn-danger" title="Hapus semua ubin lantai 3D dari map">Hapus Semua</button>
+                            </div>
                         </div>
                         <div class="shortcut-hint">
                             <span class="svg-icon" style="width:12px; height:12px; margin-top:1px;">
@@ -1928,7 +2088,7 @@
                                     <line x1="12" y1="8" x2="12.01" y2="8"></line>
                                 </svg>
                             </span>
-                            <span>Gambar jalan setapak bertekstur ala Genshin. Tekan <span class="esc-kbd">Esc</span> untuk batal.</span>
+                            <span>Gambar jalan setapak atau pasang ubin lantai batu 3D. Klik Kanan untuk menghapus. Tekan <span class="esc-kbd">Esc</span> untuk batal.</span>
                         </div>
                         <div class="control-group">
                             <label>
@@ -3425,6 +3585,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
@@ -3441,6 +3602,7 @@
     <script src="js/core/cinematic-shared.js"></script>
     <script src="js/core/cinematic-player.js"></script>
     <script src="js/core/imported-objects.js"></script>
+    <script src="js/core/imported-batcher.js"></script>
     <script src="js/core/boss-kill-cam.js"></script>
     <script src="js/core/post-fx.js"></script>
     <script src="js/environment/sky.js"></script>
@@ -3464,6 +3626,8 @@
     <script src="js/character/play-state.js"></script>
     <script src="js/editor/selection-outline.js"></script>
     <script src="js/editor/ui-controls.js"></script>
+    <script src="js/editor/model-upload.js"></script>
+    <script src="js/editor/stone-floor-brush.js"></script>
     <script src="js/editor/brush.js"></script>
     <script src="js/environment/sun.js"></script>
     <script src="js/character/fox-sound.js"></script>

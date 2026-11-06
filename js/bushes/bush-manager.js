@@ -678,7 +678,8 @@ function updateBushes(delta, elapsedTime) {
 
     // Sinkronisasi arah cahaya matahari dari sunLight
     if (typeof sunLight !== 'undefined' && sunLight.position) {
-        sharedBushUniforms.uSun.value.copy(sunLight.position).normalize();
+        if (typeof getSunDirection === 'function') getSunDirection(sharedBushUniforms.uSun.value);
+        else sharedBushUniforms.uSun.value.copy(sunLight.position).sub(sunLight.target.position).normalize();
     }
 
     // Sinkronisasi warna kabut jika scene.fog ada dan aktif di scene

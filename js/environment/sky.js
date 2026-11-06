@@ -4,14 +4,34 @@
 // ==========================================
 // Latar langit gradient Genshin Impact (Cakrawala biru muda terang, tengah biru segar, atas biru pekat)
 const skyGeo = new THREE.SphereGeometry(700, 32, 15);
+// Awan dihitung per piksel di shader langit (lapisan awan di ketinggian, diproyeksikan ke kubah):
+// FBM + domain warp, bayangan diri ke arah matahari, silver lining, dan memudar ke kabut cakrawala.
+const SKY_IS_PHONE = typeof PANDORA_IS_PHONE !== 'undefined' && PANDORA_IS_PHONE;
+const SKY_CLOUD_OCTAVES = SKY_IS_PHONE ? 4 : 5;
+const SKY_CLOUD_STEPS = SKY_IS_PHONE ? 11 : 14;
 const skyShader = {
     uniforms: {
-        uTopColor: { value: new THREE.Color(0x1878ec) },      // Atas: Biru langit pekat kaya saturasi
-        uMidColor: { value: new THREE.Color(0x56b6fb) },      // Tengah: Biru cerah anime
-        uBottomColor: { value: new THREE.Color(0xb8ecff) },   // Bawah (Horizon): Biru muda terang bercahaya
+        uTopColor: { value: new THREE.Color(0x2f6fd6) },
+        uMidColor: { value: new THREE.Color(0x6fa8e6) },
+        uBottomColor: { value: new THREE.Color(0xcfe2ef) },
         uSunPosition: { value: new THREE.Vector3(-25, 12, 25) },
         uSunColor: { value: new THREE.Color(0xfffae6) },
-        uSunIntensity: { value: 1.0 } // 0 saat malam (bulan memakai sprite)
+        uSunIntensity: { value: 1.0 }, // 0 saat malam (bulan memakai sprite)
+        // Awan (diisi PandoraClouds)
+        uCloudTime: { value: 0 },
+        uCloudCoverage: { value: 0.42 },
+        uCloudScale: { value: 1.6 },
+        uCloudStretch: { value: new THREE.Vector2(1, 1) },
+        uCloudSoftness: { value: 0.22 },
+        uCloudOpacity: { value: 1.0 },
+        uCloudWarp: { value: 0.35 },
+        uCloudAbsorb: { value: 2.2 },
+        uCloudBillow: { value: 1.0 },
+        uCloudThickness: { value: 0.45 },  // Tebal lapisan relatif terhadap ketinggian dasar awan
+        uCloudOvercast: { value: 0 },     // Hujan/salju: langit tertutup awan kelabu
+        uCloudWind: { value: new THREE.Vector2(0.012, 0.004) },
+        uCloudLit: { value: new THREE.Color(0xffffff) },
+        uCloudShade: { value: new THREE.Color(0x8f9db3) }
     },
     vertexShader: `
         varying vec3 vWorldPosition;
@@ -22,50 +42,192 @@ const skyShader = {
         }
     `,
     fragmentShader: `
+        #define CLOUD_OCTAVES ${SKY_CLOUD_OCTAVES}
+        #define CLOUD_STEPS ${SKY_CLOUD_STEPS}
         uniform vec3 uTopColor;
         uniform vec3 uMidColor;
         uniform vec3 uBottomColor;
         uniform vec3 uSunPosition;
         uniform vec3 uSunColor;
         uniform float uSunIntensity;
+        uniform float uCloudTime, uCloudCoverage, uCloudScale, uCloudSoftness, uCloudOpacity;
+        uniform float uCloudWarp, uCloudAbsorb, uCloudBillow, uCloudOvercast, uCloudThickness;
+        uniform vec2 uCloudStretch, uCloudWind;
+        uniform vec3 uCloudLit, uCloudShade;
         varying vec3 vWorldPosition;
 
         // Cakram matahari ~1.1 derajat (sedikit dibesarkan dari aslinya 0.53 agar terbaca di layar game)
         #define SUN_COS_OUTER 0.99982
         #define SUN_COS_INNER 0.99992
 
+        float cHash(vec2 p) {
+            vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+            p3 += dot(p3, p3.yzx + 33.33);
+            return fract((p3.x + p3.y) * p3.z);
+        }
+        float cNoise(vec2 p) {
+            vec2 i = floor(p), f = fract(p);
+            // Interpolasi quintic: tanpa sudut/garis lurus khas grid value noise
+            vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+            return mix(mix(cHash(i), cHash(i + vec2(1.0, 0.0)), u.x),
+                       mix(cHash(i + vec2(0.0, 1.0)), cHash(i + vec2(1.0, 1.0)), u.x), u.y);
+        }
+        // Oktaf diputar supaya pola grid noise tidak terlihat; "billow" membuat tepi bergumpal ala kumulus
+        float cFbm(vec2 p, int octaves) {
+            float a = 0.5, s = 0.0;
+            for (int i = 0; i < CLOUD_OCTAVES; i++) {
+                if (i >= octaves) break;
+                float n = cNoise(p);
+                n = mix(n, 1.0 - abs(n * 2.0 - 1.0), uCloudBillow * 0.45);
+                s += a * n;
+                p = mat2(1.6, 1.2, -1.2, 1.6) * p + 7.31;
+                a *= 0.5;
+            }
+            return s;
+        }
+        // Medan awan di titik bidang (x,z): bentuk besar dari oktaf rendah, detail frekuensi tinggi hanya
+        // menggerigiskan permukaan & tepi. detailOut dipakai untuk tekstur warna.
+        float cloudField(vec2 xz, int baseOctaves, int detailOctaves, float detailAmp, out float detailOut) {
+            vec2 uv = xz / uCloudStretch + uCloudWind * uCloudTime;
+            vec2 warp = (vec2(cNoise(uv * 0.45 + 3.1), cNoise(uv * 0.45 + 17.7)) - 0.5) * uCloudWarp * 2.2;
+            float n = cFbm(uv + warp, baseOctaves);
+            float detail = detailOctaves > 0 ? cFbm(uv * 3.7 + warp * 1.7 + 11.0, detailOctaves) : 0.5;
+            detailOut = detail;
+            return n + (detail - 0.5) * 0.16 * detailAmp;
+        }
+
         void main() {
             vec3 dir = normalize(vWorldPosition);
             float h = dir.y;
 
-            // Gradasi langit berlapis ala Genshin Impact:
-            // Bawah (Cakrawala): Biru muda terang berseri
-            // Tengah: Biru langit cerah segar
-            // Atas: Biru pekat kaya saturasi
+            // Gradasi langit: cakrawala terang berkabut, zenit biru pekat
             float hHorizon = smoothstep(-0.06, 0.28, h);
             float hZenith = smoothstep(0.18, 0.85, h);
-
             vec3 skyColor = mix(uBottomColor, uMidColor, hHorizon);
             skyColor = mix(skyColor, uTopColor, hZenith);
 
             vec3 sunDir = normalize(uSunPosition);
             float sunDot = max(0.0, dot(dir, sunDir));
-
-            // Warna matahari memerah saat rendah (cahaya menembus atmosfer lebih tebal)
             float sunHigh = smoothstep(-0.02, 0.45, sunDir.y);
             vec3 sunTint = mix(vec3(1.0, 0.55, 0.22), vec3(1.0, 0.96, 0.88), sunHigh) * mix(vec3(1.0), uSunColor, 0.5);
 
-            // Hamburan Mie: inti terang rapat, aureole menengah, dan pendar lebar yang mencerahkan langit sekitar
-            float mie = pow(sunDot, 6000.0) * 1.2 + pow(sunDot, 600.0) * 0.28 + pow(sunDot, 40.0) * 0.12 + pow(sunDot, 6.0) * 0.06;
-            // Cakrawala di sisi matahari ikut lebih terang dan hangat
+            // Hamburan Mie: pendar lebar menjadi bagian langit; inti matahari (cakram + aureole) dihitung
+            // terpisah supaya bisa TERTUTUP awan (sebelumnya cakram HDR tetap tembus awan tebal)
             float horizonGlow = pow(sunDot, 4.0) * (1.0 - smoothstep(0.0, 0.35, h)) * 0.28;
-            skyColor += sunTint * (mie + horizonGlow) * uSunIntensity;
-
-            // Cakram matahari HDR dengan limb darkening; tone mapping membuatnya putih menyilaukan bertepi hangat
-            float disc = smoothstep(SUN_COS_OUTER, SUN_COS_INNER, sunDot);
+            // Langit memucat sedikit di sekitar matahari (hamburan multi), lebih jenuh di seberangnya
+            skyColor = mix(skyColor, skyColor * vec3(0.92, 0.96, 1.04), (1.0 - sunDot) * 0.5 * hZenith);
+            skyColor += sunTint * (pow(sunDot, 6.0) * 0.06 + horizonGlow) * uSunIntensity;
+            float aureole = pow(sunDot, 600.0) * 0.28 + pow(sunDot, 40.0) * 0.12;
+            float disc = smoothstep(SUN_COS_OUTER, SUN_COS_INNER, sunDot) * smoothstep(-0.03, 0.0, dir.y);
             float limb = sqrt(max(0.0, 1.0 - pow((1.0 - sunDot) / (1.0 - SUN_COS_OUTER), 2.0)));
+            vec3 sunCore = sunTint * (aureole + pow(sunDot, 6000.0) * 1.2) * uSunIntensity;
             vec3 discColor = sunTint * (6.0 + 6.0 * limb);
-            skyColor = mix(skyColor, discColor, disc * uSunIntensity * smoothstep(-0.03, 0.0, dir.y));
+            float sunTrans = 1.0;   // Seberapa banyak cahaya matahari lolos lewat awan di piksel ini
+
+            // ---------- Awan volumetrik ringan ----------
+            // Lapisan awan setinggi y=1..1+tebal (satuan relatif, kamera di y=0). Tiap kolom (x,z) punya
+            // tutupan c; puncak awan setinggi c (kembang kol), dasar datar. Sinar pandang dilangkahkan melewati
+            // lapisan itu. Cahaya matahari = seberapa dalam titik di bawah puncak kolom ke arah matahari.
+            float cover = mix(uCloudCoverage, max(uCloudCoverage, 1.05), uCloudOvercast);
+            if (h > 0.004 && cover > 0.01 && uCloudOpacity > 0.01) {
+                float freq = uCloudScale * 1.3;
+                float thick = uCloudThickness;
+                float tStart = 1.0 / h;
+                // Lintasan dibatasi: bagian lapisan yang lebih jauh sudah tertutup awan di depannya, dan
+                // lintasan pendek berarti langkah rapat (tepi awan halus, tanpa gerigi tangga)
+                float tEnd = min(min((1.0 + thick) / h, tStart + 1.3), 34.0);
+                if (tStart < tEnd) {
+                    float dt = (tEnd - tStart) / float(CLOUD_STEPS);
+                    // Awal langkah digeser pola interleaved-gradient yang TETAP (tidak berubah tiap frame):
+                    // pita langkah hilang tanpa bintik yang berkelip seperti noise acak per frame
+                    float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+                    float t = tStart + dt * ign;
+                    // Arah sampel bayangan diri: menuju matahari, jangkauannya dibatasi di dalam awan yang sama.
+                    // Tanpa batas, matahari rendah (cot sudut besar) melompatkan sampel ke awan lain yang tak
+                    // berhubungan, sehingga cahaya awan acak (bentuk "abstrak", kelabu datar, goresan putih).
+                    vec2 sunXZdir = normalize(sunDir.xz + vec2(1e-4));
+                    float sunCot = length(sunDir.xz) / max(sunDir.y, 0.05);
+                    vec3 sunCol = sunTint * (1.25 + 0.25 * sunHigh) * uSunIntensity + uCloudLit * (1.0 - uSunIntensity) * 0.6;
+                    // Fase hamburan: dasar merata + hamburan ke depan (silver lining) yang dihitung terpisah,
+                    // karena hanya tepi TIPIS yang berpendar; massa awan tebal di depan matahari tetap gelap
+                    float phase = 0.55 + pow(sunDot, 2.0) * 0.35;
+                    // Matahari dekat cakrawala: silver lining dilunakkan (tepi tipis berderet dekat cakrawala
+                    // tampak seperti goresan putih acak)
+                    float lowSun = 1.0 - smoothstep(0.03, 0.3, sunDir.y);
+                    float forward = (pow(sunDot, 8.0) * 2.0 + pow(sunDot, 80.0) * 4.0) * mix(1.0, 0.35, lowSun);
+                    float trans = 1.0;
+                    vec3 acc = vec3(0.0);
+                    vec3 accSilver = vec3(0.0);
+                    // Detail halus hanya di awan dekat; di kejauhan detail lebih kecil dari piksel dan berkedip
+                    float detailAmp = 1.0 - smoothstep(2.0, 7.0, tStart);
+                    // Jumlah oktaf TETAP di seluruh langit (berganti per jarak memunculkan garis batas);
+                    // detail memudar halus lewat amplitudo
+                    int detailOct = CLOUD_OCTAVES - 3;
+                    int baseOct = CLOUD_OCTAVES - 1;
+                    // Ambang naik sesuai ketinggian: awan menyempit ke atas sehingga sisinya membulat (kubah),
+                    // bukan dinding tegak. Puncak tiap kolom = ketinggian saat ambang melewati nilai medan.
+                    float thr = 0.78 - cover * 0.6;
+                    float soft = uCloudSoftness * 0.75;
+                    const float TAPER = 0.2;
+                    for (int i = 0; i < CLOUD_STEPS; i++) {
+                        vec3 p = dir * t;
+                        float hy = (p.y - 1.0) / thick;              // 0 dasar .. 1 puncak lapisan
+                        float detail;
+                        float n = cloudField(p.xz * freq, baseOct, detailOct, detailAmp, detail);
+                        // Penyempitan kuadratik: sisi tegak di dasar, membulat di atas (kubah, bukan kerucut)
+                        float hc = max(hy, 0.0);
+                        float thrH = thr + hc * hc * TAPER;
+                        float c = smoothstep(thrH, thrH + soft, n);
+                        float top = sqrt(clamp((n - thr) / TAPER, 0.0, 1.0));
+                        float dens = c * smoothstep(0.0, 0.12, hy + 0.03) * (1.0 - smoothstep(0.9, 1.0, hy));
+                        if (dens > 0.01) {
+                            // Bayangan diri: puncak kolom ke arah matahari menutupi titik ini
+                            float dummy;
+                            float reach = min(thick * (1.0 - hy) * sunCot * 0.6, thick * 0.9 + 0.08);
+                            float ns = cloudField((p.xz + sunXZdir * reach) * freq, 3, 0, 0.0, dummy);
+                            float topSun = sqrt(clamp((ns - thr) / TAPER, 0.0, 1.0));
+                            float occl = max(0.0, topSun - hy) + max(0.0, top - hy) * 0.5;
+                            float sunVis = exp(-occl * uCloudAbsorb * 1.6);
+                            // Melihat ke arah matahari = melihat sisi bayangan awan: badan lebih gelap,
+                            // hanya tepi tipis yang bercahaya (silver lining di bawah)
+                            sunVis *= mix(1.0, 0.4, pow(sunDot, 3.0));
+                            // Cahaya langit: bagian atas lebih terang, dasar awan kelabu
+                            vec3 amb = mix(uCloudShade, mix(uCloudShade, uCloudLit, 0.55) + uMidColor * 0.12, hy);
+                            float detailShade = 1.0 + (detail - 0.5) * 0.28 * detailAmp;
+                            vec3 col = (amb + sunCol * sunVis * phase) * detailShade;
+                            float a = 1.0 - exp(-dens * dt * 13.0 * uCloudOpacity / thick);
+                            acc += trans * a * col;
+                            accSilver += trans * a * sunCol * sunVis * forward;
+                            trans *= 1.0 - a;
+                            if (trans < 0.02) break;
+                        }
+                        t += dt;
+                    }
+                    float alpha = 1.0 - trans;
+                    if (alpha > 0.001) {
+                        // Silver lining meredup di bagian tebal (alpha tinggi), terang di tepi tipis
+                        vec3 cloudCol = (acc + accSilver * pow(1.0 - alpha, 0.7)) / alpha;
+                        cloudCol = mix(cloudCol, cloudCol * vec3(0.94, 0.95, 1.0), uCloudOvercast * 0.5);
+                        // Perspektif udara: awan jauh larut ke warna cakrawala
+                        float haze = 1.0 - exp(-max(0.0, tStart - 1.5) * 0.16);
+                        cloudCol = mix(cloudCol, skyColor, haze * 0.75);
+                        // Awan sangat jauh memudar perlahan ke cakrawala (tanpa garis batas tajam)
+                        alpha *= smoothstep(0.004, 0.035, h) * (1.0 - haze * 0.35) * (1.0 - smoothstep(14.0, 30.0, tStart));
+                        skyColor = mix(skyColor, cloudCol, alpha);
+                        sunTrans = 1.0 - alpha;
+                    }
+                }
+            }
+            // Mendung: langit ikut kelabu rata di bawah awan
+            float overcastVeil = uCloudOvercast * 0.35 * smoothstep(-0.05, 0.25, h);
+            skyColor = mix(skyColor, mix(uCloudShade, uCloudLit * 0.85, 0.55), overcastVeil);
+            sunTrans *= 1.0 - overcastVeil * 2.5;
+            sunTrans = clamp(sunTrans, 0.0, 1.0);
+
+            // Matahari di atas awan: tertutup sesuai tebal awan (pangkat 3 = awan tebal menutup penuh, awan
+            // tipis masih menampakkan cakram redup), aureole sedikit lebih tembus seperti di dunia nyata
+            skyColor += sunCore * (sunTrans * sunTrans * 0.8 + sunTrans * 0.2);
+            skyColor = mix(skyColor, discColor, disc * uSunIntensity * sunTrans * sunTrans * sunTrans);
 
             gl_FragColor = vec4(skyColor, 1.0);
         }
@@ -265,6 +427,9 @@ function buildSkyDomeClouds() {
 }
 
 buildSkyDomeClouds();
+// Gumpalan billboard lama diganti awan di shader langit (PandoraClouds). Objeknya dibiarkan ada karena
+// dirujuk sistem lain (pengaturan grafis, pass kedalaman air), tapi tidak digambar.
+cloudGroup.visible = false;
 
 // Matahari (Sprite Diperkecil)
 // Membuat Tekstur Korona Matahari Berlapis yang Realistis
@@ -659,6 +824,7 @@ auroraGroup.visible = false;
 scene.add(auroraGroup);
 
 function updateNightSky(elapsedTime, delta) {
+    PandoraClouds.update(delta);
     if (auroraGroup && auroraGroup.visible) {
         auroraMat.uniforms.u_time.value = elapsedTime;
         auroraMesh.position.copy(camera.position);
@@ -673,10 +839,11 @@ function updateNightSky(elapsedTime, delta) {
 // Pengaturan Preset Cuaca & Waktu Ala Genshin Impact
 const skyPresets = {
     day: {
-        topColor: 0x1878ec,        // Biru pekat kaya saturasi
-        midColor: 0x56b6fb,        // Biru cerah anime
-        bottomColor: 0xb8ecff,     // Biru muda terang (cakrawala)
-        fogColor: 0xb8ecff,        // Kabut atmosfer menyatu ke cakrawala
+        // Biru langit nyata: zenit pekat, cakrawala pucat berkabut (bukan biru anime merata)
+        topColor: 0x2a63c9,
+        midColor: 0x67a3e3,
+        bottomColor: 0xc9dfee,
+        fogColor: 0xc9dfee,
         fogNear: 35,
         fogFar: 120,
         sunColor: 0xfffae6,
@@ -686,12 +853,12 @@ const skyPresets = {
         azimuth: 300,
         elevation: 45,
         cloudBase: 0xffffff,
-        cloudShadow: 0x8a9bb4
+        cloudShadow: 0x8798b3
     },
     sunset: {
-        topColor: 0x5e2b69,
-        midColor: 0xd65353,
-        bottomColor: 0xffa052,
+        topColor: 0x2d3a78,
+        midColor: 0xc8687a,
+        bottomColor: 0xffb067,
         fogColor: 0xffa052,
         fogNear: 30,
         fogFar: 110,
@@ -701,8 +868,8 @@ const skyPresets = {
         sunIntensity: 2.5,
         azimuth: 210,
         elevation: 15,
-        cloudBase: 0xffe6b3,
-        cloudShadow: 0x8a5b6b
+        cloudBase: 0xffd5a0,
+        cloudShadow: 0x6a4a66
     },
     night: {
         topColor: 0x030718,        // Obsidian navy gelap pekat
@@ -717,8 +884,8 @@ const skyPresets = {
         sunIntensity: 1.1,
         azimuth: 140,
         elevation: 55,
-        cloudBase: 0x101b2b,
-        cloudShadow: 0x08101a
+        cloudBase: 0x34445e,       // Awan diterangi bulan
+        cloudShadow: 0x0a1220
     }
 };
 
@@ -756,11 +923,13 @@ function applySkyPreset(presetKey) {
 
     volumetricCloudMat.uniforms.uBaseColor.value.setHex(p.cloudBase);
     volumetricCloudMat.uniforms.uShadowColor.value.setHex(p.cloudShadow);
+    skyMat.uniforms.uCloudLit.value.setHex(p.cloudBase);
+    skyMat.uniforms.uCloudShade.value.setHex(p.cloudShadow);
+    PandoraClouds.nightDim = presetKey === 'night' ? 0.55 : 1;
 
     // Beralih antara mode Siang/Sore vs Malam Penuh Bintang & Aurora
     if (presetKey === 'night') {
-        cloudGroup.visible = false;  // Tanpa awan di langit malam
-        cloudInstancedMesh.visible = false;
+        cloudGroup.visible = false;
         starGroup.visible = true;    // Ribuan bintang bertaburan
         auroraGroup.visible = true;  // Kubah aurora borealis volumetrik berliku-liku persis foto lampiran
         sunSprite.material.map = moonTexture;
@@ -769,8 +938,7 @@ function applySkyPreset(presetKey) {
         sunSprite.visible = true;
         skyMat.uniforms.uSunIntensity.value = 0.0;
     } else {
-        cloudGroup.visible = true;
-        cloudInstancedMesh.visible = true;
+        cloudGroup.visible = false;   // Awan kini digambar shader langit
         starGroup.visible = false;
         auroraGroup.visible = false;
         sunSprite.material.map = sunTexture;
@@ -793,6 +961,109 @@ function applySkyPreset(presetKey) {
 }
 
 window.applySkyPreset = applySkyPreset;
+
+// ==========================================
+// BENTUK AWAN (dipilih di editor, disimpan per map)
+// ==========================================
+const CLOUD_SHAPES = {
+    cumulus:       { label: 'Kumulus (Gumpalan)',       coverage: 0.47, scale: 1.5, stretch: [1.0, 1.0], softness: 0.24, opacity: 1.0,  warp: 0.35, absorb: 2.2, billow: 1.0, speed: 1.0, thickness: 0.32 },
+    towering:      { label: 'Kumulus Menjulang',        coverage: 0.45, scale: 1.0, stretch: [1.0, 1.0], softness: 0.22, opacity: 1.0,  warp: 0.45, absorb: 2.6, billow: 1.0, speed: 0.7, thickness: 0.55 },
+    stratocumulus: { label: 'Stratokumulus (Berlapis)', coverage: 0.58, scale: 2.0, stretch: [1.7, 1.0], softness: 0.28, opacity: 0.95, warp: 0.25, absorb: 1.8, billow: 0.8, speed: 1.0, thickness: 0.22 },
+    altocumulus:   { label: 'Altokumulus (Sisik)',      coverage: 0.48, scale: 4.5, stretch: [1.0, 1.0], softness: 0.20, opacity: 0.85, warp: 0.15, absorb: 1.2, billow: 1.0, speed: 0.8, thickness: 0.08 },
+    cirrus:        { label: 'Sirus (Tipis Tinggi)',     coverage: 0.45, scale: 0.8, stretch: [4.5, 0.6], softness: 0.60, opacity: 0.32, warp: 0.65, absorb: 0.3, billow: 0.0, speed: 1.6, thickness: 0.04 },
+    overcast:      { label: 'Mendung',                  coverage: 1.15, scale: 1.2, stretch: [1.3, 1.0], softness: 0.60, opacity: 1.0,  warp: 0.30, absorb: 2.6, billow: 0.5, speed: 0.9, thickness: 0.45 },
+    none:          { label: 'Tanpa Awan',               coverage: 0.0,  scale: 1.4, stretch: [1.0, 1.0], softness: 0.22, opacity: 0.0,  warp: 0.35, absorb: 2.0, billow: 1.0, speed: 1.0, thickness: 0.40 }
+};
+
+const PandoraClouds = {
+    shape: 'cumulus',
+    coverageBias: 0,     // Slider "Tutupan": -0.4 .. +0.4 dari bawaan bentuk
+    nightDim: 1,
+    current: null,
+    time: 0,
+
+    target() {
+        const base = CLOUD_SHAPES[this.shape] || CLOUD_SHAPES.cumulus;
+        const t = Object.assign({}, base);
+        if (this.shape !== 'none') t.coverage = Math.max(0, Math.min(1.2, base.coverage + this.coverageBias));
+        return t;
+    },
+
+    // instant: dipakai saat stage dimuat; di editor bentuk berganti halus ~1.5 detik
+    set(shape, coverageBias, instant) {
+        if (CLOUD_SHAPES[shape]) this.shape = shape;
+        if (typeof coverageBias === 'number' && isFinite(coverageBias)) this.coverageBias = Math.max(-0.4, Math.min(0.4, coverageBias));
+        if (instant || !this.current) this.current = this.target();
+        this.apply();
+        const select = document.getElementById('select-cloud-shape');
+        if (select && select.value !== this.shape) select.value = this.shape;
+        const slider = document.getElementById('slider-cloud-coverage');
+        if (slider && Math.abs(parseFloat(slider.value) - this.coverageBias) > 0.001) slider.value = this.coverageBias;
+    },
+
+    apply() {
+        const c = this.current, u = skyMat.uniforms;
+        u.uCloudCoverage.value = c.coverage;
+        u.uCloudScale.value = c.scale;
+        u.uCloudStretch.value.set(c.stretch[0], c.stretch[1]);
+        u.uCloudSoftness.value = c.softness;
+        u.uCloudOpacity.value = c.opacity * (this.shape === 'none' ? 1 : this.nightDim);
+        u.uCloudWarp.value = c.warp;
+        u.uCloudAbsorb.value = c.absorb;
+        u.uCloudBillow.value = c.billow;
+        u.uCloudThickness.value = c.thickness;
+    },
+
+    update(dt) {
+        if (!this.current) this.current = this.target();
+        const t = this.target();
+        const k = Math.min(1, (dt || 0) * 1.8);
+        const c = this.current;
+        ['coverage', 'scale', 'softness', 'opacity', 'warp', 'absorb', 'billow', 'speed', 'thickness'].forEach((key) => { c[key] += (t[key] - c[key]) * k; });
+        c.stretch = [c.stretch[0] + (t.stretch[0] - c.stretch[0]) * k, c.stretch[1] + (t.stretch[1] - c.stretch[1]) * k];
+        this.apply();
+        // Awan bergerak searah angin; slider angin mempercepat
+        const windSlider = document.getElementById('slider-wind-speed');
+        const wind = windSlider ? (parseFloat(windSlider.value) || 1) : 1;
+        this.time += (dt || 0) * c.speed * (0.5 + wind * 0.5);
+        skyMat.uniforms.uCloudTime.value = this.time;
+    },
+
+    serialize() {
+        return { shape: this.shape, coverage: Math.round(this.coverageBias * 100) / 100 };
+    }
+};
+window.PandoraClouds = PandoraClouds;
+window.CLOUD_SHAPES = CLOUD_SHAPES;
+PandoraClouds.set('cumulus', 0, true);
+
+// Panel Studio (elemen hanya ada di Studio)
+(function bindCloudControls() {
+    const select = document.getElementById('select-cloud-shape');
+    const slider = document.getElementById('slider-cloud-coverage');
+    const label = document.getElementById('val-cloud-coverage');
+    if (!select) return;
+    if (select.options.length === 0) {
+        Object.keys(CLOUD_SHAPES).forEach((key) => {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = CLOUD_SHAPES[key].label;
+            select.appendChild(opt);
+        });
+    }
+    select.value = PandoraClouds.shape;
+    const refresh = () => {
+        if (slider) slider.disabled = select.value === 'none';
+        if (label && slider) {
+            const v = parseFloat(slider.value);
+            label.textContent = (v > 0 ? '+' : '') + Math.round(v * 100) + '%';
+        }
+    };
+    select.addEventListener('change', () => { PandoraClouds.set(select.value); refresh(); });
+    if (slider) slider.addEventListener('input', () => { PandoraClouds.set(select.value, parseFloat(slider.value)); refresh(); });
+    refresh();
+    window.refreshCloudControls = refresh;
+})();
 
 document.getElementById('select-sky-preset').addEventListener('change', (e) => {
     applySkyPreset(e.target.value);

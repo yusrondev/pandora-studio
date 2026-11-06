@@ -232,8 +232,16 @@ function updateActiveModeHUD() {
         modeIcon = '🦊';
     } else if (selectRoadBrush && selectRoadBrush.value !== 'none') {
         const text = selectRoadBrush.options[selectRoadBrush.selectedIndex] ? selectRoadBrush.options[selectRoadBrush.selectedIndex].text : selectRoadBrush.value;
-        modeLabel = `Kuas Jalan: ${text}`;
-        modeIcon = '🛤️';
+        if (selectRoadBrush.value === 'road_stone_floor') {
+            const sz = (typeof StoneFloorBrush !== 'undefined' && StoneFloorBrush.getGridSize) ? StoneFloorBrush.getGridSize() : 4;
+            const activeModel = (typeof StoneFloorBrush !== 'undefined' && StoneFloorBrush.getActiveModel) ? StoneFloorBrush.getActiveModel() : null;
+            const modelName = activeModel ? activeModel.name : 'Lantai 3D';
+            modeLabel = `Lantai 3D: ${modelName} (${sz}x${sz} Grid)`;
+            modeIcon = '🏛️';
+        } else {
+            modeLabel = `Kuas Jalan: ${text}`;
+            modeIcon = '🛤️';
+        }
     } else if (selectGrassBrush && selectGrassBrush.value !== 'none') {
         const text = selectGrassBrush.options[selectGrassBrush.selectedIndex] ? selectGrassBrush.options[selectGrassBrush.selectedIndex].text : selectGrassBrush.value;
         modeLabel = `Kuas Rumput: ${text}`;
@@ -306,7 +314,11 @@ function updateActiveModeHUD() {
             } else if (typeof selectFogBrush !== 'undefined' && selectFogBrush && selectFogBrush.value !== 'none') {
                 actionHint = `Klik Kiri: Lukis Kabut &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
             } else if (selectRoadBrush && selectRoadBrush.value !== 'none') {
-                actionHint = `Klik Kiri: Buat Jalan &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
+                if (selectRoadBrush.value === 'road_stone_floor') {
+                    actionHint = `Klik Kiri / Geser: Pasang Lantai &bull; Klik Kanan: Hapus &bull; <span class="esc-kbd">Esc</span> selesai`;
+                } else {
+                    actionHint = `Klik Kiri: Buat Jalan &bull; Klik Kanan: Hapus &bull; Scroll: Zoom &bull; <span class="esc-kbd">Esc</span> selesai`;
+                }
             } else {
                 actionHint = `Scroll: Zoom &bull; Tekan <span class="esc-kbd">Esc</span> untuk selesai`;
             }
@@ -384,13 +396,23 @@ function updateActiveModeHUD() {
             c.classList.toggle('active', c.getAttribute('data-value') === val);
         });
     }
+    const roadGrid = document.getElementById('road-picker-grid');
+    if (roadGrid && selectRoadBrush) {
+        const val = selectRoadBrush.value;
+        roadGrid.querySelectorAll('.spawner-card').forEach(c => {
+            c.classList.toggle('active', c.getAttribute('data-value') === val);
+        });
+    }
 }
 
 function cancelAllSelections() {
     if (selectTreeMode) selectTreeMode.value = 'none';
     const sFoxMode = document.getElementById('select-fox-mode');
     if (sFoxMode) sFoxMode.value = 'none';
-    if (selectRoadBrush) selectRoadBrush.value = 'none';
+    if (selectRoadBrush) {
+        selectRoadBrush.value = 'none';
+        selectRoadBrush.dispatchEvent(new Event('change'));
+    }
     if (selectGrassBrush) selectGrassBrush.value = 'none';
     if (typeof selectRockBrush !== 'undefined' && selectRockBrush) selectRockBrush.value = 'none';
     if (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush) selectFlowerBrush.value = 'none';
@@ -584,6 +606,7 @@ setupSpawnerCardGrid('fern-picker-grid', 'select-fern-brush');
 setupSpawnerCardGrid('bush-picker-grid', 'select-bush-brush');
 setupSpawnerCardGrid('butterfly-picker-grid', 'select-butterfly-brush');
 setupSpawnerCardGrid('fog-picker-grid', 'select-fog-brush');
+setupSpawnerCardGrid('road-picker-grid', 'select-road-brush');
 
 // Tab switcher between Rumput, Jalan, Air, Bebatuan, Bunga, Pakis, Semak, Kupu-kupu, dan Kabut in Brush accordion
 const tabBrushGrass = document.getElementById('btn-tab-brush-grass');
@@ -811,6 +834,7 @@ function initToolbarOverflowManager() {
         'toolbar-group-wind',
         'toolbar-group-elevation',
         'toolbar-group-azimuth',
+        'toolbar-group-clouds',
         'toolbar-group-sky',
         'btn-cancel-esc',
         'btn-redo',

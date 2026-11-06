@@ -652,6 +652,320 @@ body.resizing-cinematic-bottom .cinematic-bottom-panel {
     background: #352121;
 }
 
+/* Road card previews */
+.spawner-card-grid.road-grid {
+    grid-template-columns: repeat(3, 1fr);
+}
+.card-preview.road-stone-bg {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+}
+.card-preview.road-brown-bg {
+    background: #3b2818;
+}
+.card-preview.road-green-bg {
+    background: #233526;
+}
+.card-preview.road-clay-bg {
+    background: #3f281e;
+}
+.card-preview.road-earth-bg {
+    background: #2a1f18;
+}
+.card-preview.road-snow-bg {
+    background: #202c38;
+}
+
+/* =========================================================
+   KOLEKSI MODEL LANTAI 3D (kuas jalan "Lantai 3D")
+   Gaya panel properti Blender: header kecil, outliner, baris label kiri + field kanan.
+   ========================================================= */
+.floor-lib {
+    margin-top: 8px;
+    background: var(--bl-panel, #2b2b2b);
+    border: 1px solid var(--bl-line, #161616);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--bl-text, #d6d6d6);
+    overflow: hidden;
+}
+.floor-lib-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    background: var(--bl-panel-head, #3d3d3d);
+    border-bottom: 1px solid var(--bl-line, #161616);
+}
+.floor-lib-title {
+    font-weight: 600;
+    color: var(--bl-text, #d6d6d6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.floor-lib-count {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--bl-text-dim, #a0a0a0);
+    font-variant-numeric: tabular-nums;
+}
+.floor-lib-toolbar {
+    display: flex;
+    gap: 2px;
+    padding: 6px 6px 4px;
+}
+.floor-lib-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 8px;
+    background: var(--bl-widget, #545454);
+    border: 1px solid var(--bl-line, #161616);
+    border-radius: 3px;
+    color: var(--bl-text, #d6d6d6);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.1s;
+}
+.floor-lib-btn .bl-icon { width: 12px; height: 12px; }
+.floor-lib-btn:hover { background: var(--bl-widget-hover, #656565); color: #fff; }
+.floor-lib-btn:active { background: var(--bl-accent, #4772b3); }
+.floor-lib-btn:focus-visible { outline: 1px solid var(--bl-accent-hi, #5680c2); outline-offset: 1px; }
+.floor-lib-toolbar .floor-lib-btn { flex: 1; }
+.floor-lib-btn-primary { background: var(--bl-accent, #4772b3); color: #fff; }
+.floor-lib-btn-primary:hover { background: var(--bl-accent-hi, #5680c2); }
+.floor-lib-btn-danger { background: var(--bl-widget-dark, #3f3f3f); color: var(--bl-text-dim, #a0a0a0); }
+.floor-lib-btn-danger:hover { background: #6b2b2b; color: #ffd4d4; }
+
+/* Outliner */
+.floor-lib-list {
+    margin: 0 6px 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    background: var(--bl-field, #1d1d1d);
+    border: 1px solid var(--bl-line, #161616);
+    border-radius: 3px;
+}
+.floor-lib-list::-webkit-scrollbar { width: 6px; }
+.floor-lib-list::-webkit-scrollbar-thumb { background: #4a4a4a; border-radius: 3px; }
+.floor-lib-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 4px 0 6px;
+    cursor: pointer;
+    color: var(--bl-text, #d6d6d6);
+}
+.floor-lib-row:nth-child(even) { background: rgba(255, 255, 255, 0.025); }
+.floor-lib-row:hover { background: rgba(255, 255, 255, 0.06); }
+.floor-lib-row.selected { background: var(--bl-accent, #4772b3); color: #fff; }
+.floor-lib-row:focus-visible { outline: 1px solid var(--bl-accent-hi, #5680c2); outline-offset: -1px; }
+.floor-lib-row-icon { color: var(--bl-orange, #e87d0d); display: flex; }
+.floor-lib-row-icon .bl-icon { width: 12px; height: 12px; }
+.floor-lib-row.selected .floor-lib-row-icon { color: #fff; }
+.floor-lib-row-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.floor-lib-row-meta {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--bl-text-dim, #a0a0a0);
+    font-variant-numeric: tabular-nums;
+}
+.floor-lib-row.selected .floor-lib-row-meta { color: rgba(255, 255, 255, 0.8); }
+.floor-lib-row-tiles {
+    flex-shrink: 0;
+    min-width: 18px;
+    padding: 0 4px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 9.5px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.floor-lib-row-del {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: inherit;
+    opacity: 0;
+    cursor: pointer;
+}
+.floor-lib-row-del .bl-icon { width: 12px; height: 12px; }
+.floor-lib-row:hover .floor-lib-row-del,
+.floor-lib-row.selected .floor-lib-row-del,
+.floor-lib-row-del:focus-visible { opacity: 0.75; }
+.floor-lib-row-del:hover { opacity: 1; background: rgba(0, 0, 0, 0.3); color: #ffb4b4; }
+.floor-lib-row-spacer { width: 20px; flex-shrink: 0; }
+.floor-lib-empty {
+    padding: 14px 8px;
+    text-align: center;
+    font-size: 10.5px;
+    color: var(--bl-text-dim, #a0a0a0);
+}
+
+/* Subpanel properti */
+.floor-lib-section {
+    margin: 0 6px 6px;
+    background: var(--bl-area, #303030);
+    border: 1px solid var(--bl-line, #161616);
+    border-radius: 3px;
+}
+.floor-lib-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 22px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--bl-line, #161616);
+}
+.floor-lib-section-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.floor-lib-file {
+    flex-shrink: 1;
+    min-width: 0;
+    font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 9.5px;
+    color: var(--bl-text-dim, #a0a0a0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.floor-lib-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 8px;
+}
+.floor-lib-prop {
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 11px;
+}
+.floor-lib-prop-label {
+    text-align: right;
+    color: var(--bl-text-dim, #a0a0a0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.floor-lib-field {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    background: var(--bl-widget-dark, #3f3f3f);
+    border: 1px solid var(--bl-line, #161616);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.floor-lib-field:hover { background: #4a4a4a; }
+.floor-lib-field:focus-within { background: var(--bl-field, #1d1d1d); border-color: var(--bl-accent, #4772b3); }
+.floor-lib-field input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 6px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--bl-text, #d6d6d6);
+    font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    text-align: center;
+    cursor: ew-resize;
+    -moz-appearance: textfield;
+}
+.floor-lib-field input::-webkit-outer-spin-button,
+.floor-lib-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.floor-lib-field input:focus { cursor: text; color: #fff; }
+.floor-lib-field-text input { text-align: left; cursor: text; }
+.floor-lib-field em {
+    padding-right: 6px;
+    font-style: normal;
+    font-size: 10px;
+    color: var(--bl-text-dim, #a0a0a0);
+}
+.floor-lib-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 3px 0 0 84px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+}
+.floor-lib-check input { width: 13px; height: 13px; margin: 0; accent-color: var(--bl-accent, #4772b3); cursor: pointer; }
+.floor-lib-hint {
+    margin: 4px 0 0 84px;
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--bl-text-dim, #a0a0a0);
+}
+.floor-lib-footer {
+    display: flex;
+    gap: 2px;
+    padding: 0 6px 6px;
+}
+.floor-lib-footer .floor-lib-btn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Grid spawner: tombol bersambung seperti enum Blender */
+.stone-floor-grid-group {
+    display: flex;
+    height: 22px;
+}
+.stone-floor-grid-btn {
+    flex: 1;
+    margin: 0;
+    padding: 0 4px;
+    background: var(--bl-widget, #545454);
+    border: 1px solid var(--bl-line, #161616);
+    border-left-width: 0;
+    border-radius: 0;
+    color: var(--bl-text, #d6d6d6);
+    font: inherit;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    user-select: none;
+}
+.stone-floor-grid-btn:first-child { border-left-width: 1px; border-radius: 3px 0 0 3px; }
+.stone-floor-grid-btn:last-child { border-radius: 0 3px 3px 0; }
+.stone-floor-grid-btn:hover { background: var(--bl-widget-hover, #656565); }
+.stone-floor-grid-btn.active { background: var(--bl-accent, #4772b3); color: #fff; }
+
+@media (pointer: coarse) {
+    .floor-lib-row { height: 34px; }
+    .floor-lib-row-del { opacity: 0.75; width: 30px; height: 30px; }
+    .floor-lib-btn, .floor-lib-field, .stone-floor-grid-group { height: 30px; }
+}
+
 /* Rock card previews */
 .spawner-card-grid.rock-grid {
     grid-template-columns: repeat(2, 1fr);

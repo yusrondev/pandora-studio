@@ -52,6 +52,13 @@ function updateSunPosition() {
     });
 }
 
+// Arah matahari yang SEBENARNYA. Jangan pakai sunLight.position.normalize(): saat bermain posisi lampu digeser
+// mengikuti pemain (area bayangan), sehingga arahnya ikut melompat dan melenceng dari matahari di langit.
+function getSunDirection(out) {
+    return (out || new THREE.Vector3()).copy(sunBasePosition).normalize();
+}
+window.getSunDirection = getSunDirection;
+
 sliderAzimuth.addEventListener('input', () => {
     if (typeof oceanSunManual !== 'undefined') oceanSunManual = false;
     updateSunPosition();

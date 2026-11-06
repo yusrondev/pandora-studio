@@ -595,6 +595,7 @@ class FoxAIAgent {
         if (this.state === 'HIT_STUN') {
             this.hitStunTimer -= dt;
             this.targetSpeed = 0;
+            this.currentSpeed = 0;   // Tidak meluncur saat terkena hit (dorongan balik ditangani knockback)
             if (this.hitStunTimer <= 0 && this.isGrounded) {
                 this.state = this.equippedItem ? 'COMBAT_ENGAGE' : 'IDLE';
             }
@@ -696,6 +697,7 @@ class FoxAIAgent {
             if (this.betweenPunchDelay > 0) {
                 this.betweenPunchDelay -= dt;
                 this.targetSpeed = 0;
+                this.currentSpeed = 0;
                 const toPlayer = new THREE.Vector3().subVectors(playerPos, this.root.position).setY(0);
                 if (toPlayer.lengthSq() > 0.001) {
                     toPlayer.normalize();
@@ -725,15 +727,10 @@ class FoxAIAgent {
                     this.turnTowardAngle(aimAngle, dt);
                 }
 
-                // AI melangkah maju dengan tegas (combat lunge) saat mengayunkan pukulan
-                // untuk menutup celah jarak sehingga kepalan tangan benar-benar mendarat di tubuh Player
-                if (distToPlayer > closeStopDist && distToPlayer <= (PUNCH_RANGE + 1.2)) {
-                    this.targetSpeed = Math.min(this.walkSpeed * 1.15, 1.75 * enemyScale);
-                    this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, this.targetSpeed, Math.min(1.0, 9.0 * dt));
-                } else {
-                    this.targetSpeed = 0;
-                    this.currentSpeed = 0;
-                }
+                // Posisi DIKUNCI selama pukulan: gerak tubuh sepenuhnya dari animasi FBX (in-place), tanpa
+                // langkah maju buatan AI. Dulu ada "combat lunge" yang menggeser musuh ke arah pemain.
+                this.targetSpeed = 0;
+                this.currentSpeed = 0;
 
                 // Batalkan pukulan jika player kabur sangat jauh (> 5.5m)
                 if (distToPlayer > (5.0 * enemyScale) && typeof this.model.cancelPunch === 'function') {
@@ -769,13 +766,17 @@ class FoxAIAgent {
                     return;
                 }
 
-                // Langkah awal saat memicu pukulan
-                if (distToPlayer > closeStopDist) {
-                    this.targetSpeed = Math.min(this.walkSpeed * 0.9, 1.2 * enemyScale);
-                } else {
-                    this.targetSpeed = 0;
-                    this.currentSpeed = 0;
+                // Pukulan baru dilepas saat sudah cukup dekat (tanpa lunge, kepalan harus sampai dari posisi
+                // diam). Masih agak jauh: melangkah mendekat dulu, SEBELUM pukulan, bukan selama pukulan.
+                const strikeDist = closeStopDist + 0.35 * Math.max(0.75, enemyScale);
+                if (distToPlayer > strikeDist) {
+                    this.targetSpeed = Math.min(this.walkSpeed * 0.6, 0.9 * enemyScale);
+                    this.state = 'COMBAT_PREPARE';
+                    return;
                 }
+                // Pukulan dimulai dari posisi diam: sisa kecepatan jalan/lari dibuang agar tidak meluncur
+                this.targetSpeed = 0;
+                this.currentSpeed = 0;
                 if (typeof this.model.triggerPunch === 'function') {
                     this.model.triggerPunch();
                     this._wasPunching = true;
@@ -1217,11 +1218,18 @@ class FoxAIAgent {
                 const distSq = dx * dx + dz * dz;
                 if (distSq < minEnemyDist * minEnemyDist && distSq > 0.0001) {
                     const d = Math.sqrt(distSq);
-                    const push = (minEnemyDist - d) * 0.5;
-                    myPos.x += (dx / d) * push;
-                    myPos.z += (dz / d) * push;
-                    oPos.x -= (dx / d) * push;
-                    oPos.z -= (dz / d) * push;
+                    const push = (minEnemyDist - d);
+                    // Musuh yang sedang memukul / terkena hit tidak ikut tergeser
+                    const isAnchored = (ai, m) => !!(ai && (ai.isPunching || ai.state === 'COMBAT_PUNCH' || ai.state === 'HIT_STUN'))
+                        || !!(m && (m.isPunching || m.isTakingHit));
+                    const meFixed = isAnchored(this, this.model);
+                    const otherFixed = isAnchored(other.ai, other.model);
+                    const myShare = meFixed ? 0 : (otherFixed ? 1 : 0.5);
+                    const otherShare = otherFixed ? 0 : (meFixed ? 1 : 0.5);
+                    myPos.x += (dx / d) * push * myShare;
+                    myPos.z += (dz / d) * push * myShare;
+                    oPos.x -= (dx / d) * push * otherShare;
+                    oPos.z -= (dz / d) * push * otherShare;
                 }
             }
         }
@@ -1237,10 +1245,15 @@ class FoxAIAgent {
             if (distSq < minPlayerDist * minPlayerDist && distSq > 0.0001) {
                 const d = Math.sqrt(distSq);
                 const push = (minPlayerDist - d);
-                myPos.x += (dx / d) * (push * 0.5);
-                myPos.z += (dz / d) * (push * 0.5);
-                pPos.x -= (dx / d) * (push * 0.5);
-                pPos.z -= (dz / d) * (push * 0.5);
+                // Musuh yang sedang memukul / terkena hit tetap di tempat (posisi mengikuti animasi);
+                // seluruh dorongan anti-tembus ditanggung pemain
+                const anchored = this.isPunching || this.state === 'COMBAT_PUNCH' || this.state === 'HIT_STUN'
+                    || (this.model && (this.model.isPunching || this.model.isTakingHit));
+                const enemyShare = anchored ? 0 : 0.5;
+                myPos.x += (dx / d) * (push * enemyShare);
+                myPos.z += (dz / d) * (push * enemyShare);
+                pPos.x -= (dx / d) * (push * (1 - enemyShare));
+                pPos.z -= (dz / d) * (push * (1 - enemyShare));
             }
         }
 

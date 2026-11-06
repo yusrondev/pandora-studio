@@ -534,7 +534,35 @@ const treeBarkGroup = new THREE.Group();
 treeBarkGroup.name = 'treeBark';
 scene.add(treeBarkGroup);
 
+// Di editor, penggabungan juga dipakai selama Play Mode lalu dikembalikan saat keluar,
+// karena pohon terpisah = 4 draw call per pohon (ratusan per frame).
+const treeBakeState = { baked: false, removed: [] };
+
+function rememberBakedMesh(mesh) {
+    if (!window.PANDORA_RUNTIME) treeBakeState.removed.push({ mesh, parent: mesh.parent });
+    mesh.parent.remove(mesh);
+}
+
+function unbakeTrees() {
+    treeBakeState.removed.forEach(({ mesh, parent }) => {
+        if (!mesh.parent && parent) parent.add(mesh);
+    });
+    treeBakeState.removed = [];
+    treeBakeState.baked = false;
+    treeBarkGroup.children.slice().forEach((mesh) => {
+        treeBarkGroup.remove(mesh);
+        mesh.geometry.dispose();
+    });
+    treeLeafGroup.children.slice().forEach((mesh) => {
+        treeLeafGroup.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.dispose();
+    });
+}
+
 function bakeTreesForRuntime() {
+    if (treeBakeState.baked) return;
+    treeBakeState.baked = true;
     treeBarkGroup.children.slice().forEach((mesh) => {
         treeBarkGroup.remove(mesh);
         mesh.geometry.dispose();
@@ -552,7 +580,7 @@ function bakeTreesForRuntime() {
             if (!cells.has(key)) cells.set(key, { material: mesh.material, meshes: [] });
             cells.get(key).meshes.push(mesh);
         });
-        barks.forEach(mesh => mesh.parent.remove(mesh));
+        barks.forEach(rememberBakedMesh);
     });
 
     const point = new THREE.Vector3();
@@ -587,7 +615,8 @@ function bakeTreesForRuntime() {
             }
             vertexOffset += source.position.count;
             indexOffset += sourceIndex.count;
-            mesh.geometry.dispose();
+            // Editor masih memerlukan geometri ini setelah Play Mode
+            if (window.PANDORA_RUNTIME) mesh.geometry.dispose();
         });
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -667,7 +696,7 @@ function bakeTreeLeaves() {
         mesh.userData.fullCount = entries.length;
         mesh.userData.isTreeLeaves = true;
         treeLeafGroup.add(mesh);
-        sources.forEach(leaves => leaves.parent && leaves.parent.remove(leaves));
+        sources.forEach(leaves => leaves.parent && rememberBakedMesh(leaves));
     });
 }
 

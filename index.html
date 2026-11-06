@@ -26,6 +26,7 @@
     <link rel="stylesheet" href="css/game-session.css">
     <link rel="stylesheet" href="css/mobile-controls.css">
     <link rel="stylesheet" href="css/desktop-shell.css">
+    <link rel="preload" as="image" href="assets/ui/studio-splash.jpg">
     <script src="js/editor/desktop-shell.js"></script>
 </head>
 
@@ -34,10 +35,6 @@
     <div id="pandora-asset-loader" class="pandora-asset-loader" role="progressbar" aria-label="Memuat Pandora Studio" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div class="psplash">
             <div class="psplash-art" aria-hidden="true">
-                <div class="psplash-sun"></div>
-                <div class="psplash-ridge far"></div>
-                <div class="psplash-ridge near"></div>
-                <div class="psplash-floor"><i></i></div>
                 <div class="psplash-brand">
                     <svg class="psplash-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -1124,6 +1121,7 @@
                     </div>
                     <button type="button" id="btn-stage-new" class="btn-action">Stage Baru</button>
                     <button type="button" id="btn-generate-game" class="btn-action btn-primary">Generate Game</button>
+                    <button type="button" id="btn-generate-apk" class="btn-action" title="Bungkus game menjadi APK Android (butuh tools/android/Setup-Android.bat)">Generate APK</button>
                     <div id="generate-status" class="generate-status"></div>
                 </div>
             </div>
@@ -1952,9 +1950,9 @@
                         <div class="control-group">
                             <label>
                                 <span>Ketinggian Air (Water Level Y)</span>
-                                <span id="val-water-level" class="val-badge">0.0</span>
+                                <span id="val-water-level" class="val-badge">-0.40</span>
                             </label>
-                            <input type="range" id="slider-water-level" min="-2.0" max="3.0" step="0.05" value="0.0">
+                            <input type="range" id="slider-water-level" min="-2.0" max="3.0" step="0.05" value="-0.4">
                         </div>
 
                         <!-- TEKSTUR AIR -->
@@ -1978,9 +1976,9 @@
                         <div class="control-group">
                             <label>
                                 <span>Tinggi Ombak (Amp)</span>
-                                <span id="val-wave-amp" class="val-badge">0.70</span>
+                                <span id="val-wave-amp" class="val-badge">0.00</span>
                             </label>
-                            <input type="range" id="slider-wave-amp" min="0.1" max="1.5" step="0.05" value="0.7">
+                            <input type="range" id="slider-wave-amp" min="0" max="1.5" step="0.05" value="0">
                         </div>
                         <div class="control-group">
                             <label>
@@ -1992,9 +1990,9 @@
                         <div class="control-group">
                             <label>
                                 <span>Ombak Tajam (Chop)</span>
-                                <span id="val-wave-chop" class="val-badge">0.80</span>
+                                <span id="val-wave-chop" class="val-badge">0.00</span>
                             </label>
-                            <input type="range" id="slider-wave-chop" min="0" max="1.2" step="0.05" value="0.8">
+                            <input type="range" id="slider-wave-chop" min="0" max="1.2" step="0.05" value="0">
                         </div>
                         <button id="btn-clear-all-water" class="btn-compact btn-full-width" style="margin-top:6px; color:#ef4444;" title="Keringkan dan hapus seluruh air di arena">
                             <span class="svg-icon">
@@ -3413,6 +3411,7 @@
     <script src="js/core/random.js"></script>
     <script src="js/core/game-settings.js"></script>
     <script src="js/core/scene.js"></script>
+    <script src="js/core/ktx2-support.js"></script>
     <script src="js/core/cinematic-shared.js"></script>
     <script src="js/core/cinematic-player.js"></script>
     <script src="js/core/imported-objects.js"></script>

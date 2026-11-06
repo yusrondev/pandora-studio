@@ -1114,7 +1114,11 @@ body:has(#cinematic-bottom-panel.visible) .fox-species-bar {
     position: relative;
     height: 210px;
     overflow: hidden;
-    background: linear-gradient(180deg, #10141d 0%, #1d1a26 42%, #4a2a1d 72%, #8a4614 100%);
+    /* Gelap di bawah supaya nama & tagline tetap terbaca di atas gambar */
+    background:
+        linear-gradient(180deg, transparent 45%, rgba(10, 9, 12, 0.72) 100%),
+        url('../assets/ui/studio-splash.jpg') center 40% / cover no-repeat,
+        #17141a;
     border-bottom: 1px solid var(--ps-line);
 }
 .psplash-sun {

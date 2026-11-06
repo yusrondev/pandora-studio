@@ -166,6 +166,7 @@ function applyMapDataToScene(mapData) {
 
     // 4. Terapkan Trees
     // Bersihkan pohon yang ada di scene
+    if (typeof unbakeTrees === 'function') unbakeTrees();
     treesList.forEach(t => scene.remove(t));
     treesList.length = 0;
 
@@ -221,7 +222,7 @@ function applyMapDataToScene(mapData) {
         });
     }
 
-    if (window.PANDORA_RUNTIME) bakeTreesForRuntime();
+    if (window.PANDORA_RUNTIME || (typeof isPlayMode !== 'undefined' && isPlayMode)) bakeTreesForRuntime();
 
     // 5. Terapkan Bebatuan (Rocks)
     if (typeof clearAllRocks === 'function') {
@@ -296,9 +297,11 @@ function applyMapDataToScene(mapData) {
                         isBoss: fox.isBoss,
                         maxHealth: fox.maxHealth,
                         health: fox.maxHealth,
-                        aiMode: fox.aiMode,
-                        detectionRadius: fox.detectionRadius
+                        aiMode: fox.aiMode
                     });
+                    // Lewat setter supaya lingkaran radius di editor ikut dibuat ulang sesuai nilai tersimpan
+                    if (typeof fox.ai.setDetectionRadius === 'function') fox.ai.setDetectionRadius(fox.detectionRadius);
+                    else fox.ai.detectionRadius = fox.detectionRadius;
                 }
             }
         });

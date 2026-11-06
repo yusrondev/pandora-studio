@@ -319,98 +319,236 @@ function getWingMaterial(theme = 'blue') {
     return mat;
 }
 
-// 3. MEMBUAT MODEL KUPU-KUPU (STATIC KECIL)
-function buildButterflyModel(theme = 'blue') {
-    const butterflyRoot = new THREE.Group();
+// 3. MODEL KUPU-KUPU
+// Semua kupu-kupu digambar bersama: badan, mata, sayap (per tema) memakai InstancedMesh dan pendarannya
+// memakai Points. Dulu satu kupu-kupu = 19 draw call (17 mesh + 2 sprite); sekarang seluruh kawanan
+// hanya beberapa draw call, jadi beban CPU per frame tidak bertambah seiring jumlah kupu-kupu.
+const BUTTERFLY_THEMES = ['blue', 'cyan'];
+const BUTTERFLY_BLOOM_OFFSET = new THREE.Vector3(0, 0.04, 0.06);
+const BUTTERFLY_BLOOM_CORE = 1.9;
+const BUTTERFLY_BLOOM_AURA = 3.6;
 
-    const bodyGroup = new THREE.Group();
+// Gabungkan beberapa geometri (posisi + normal) menjadi satu, masing-masing dengan matriksnya
+function mergeButterflyParts(parts) {
+    let vertexCount = 0;
+    let indexCount = 0;
+    parts.forEach(({ geometry }) => {
+        vertexCount += geometry.attributes.position.count;
+        indexCount += geometry.index ? geometry.index.count : geometry.attributes.position.count;
+    });
+    const positions = new Float32Array(vertexCount * 3);
+    const normals = new Float32Array(vertexCount * 3);
+    const indices = new Uint32Array(indexCount);
+    const point = new THREE.Vector3();
+    const normalMatrix = new THREE.Matrix3();
+    let vertexOffset = 0;
+    let indexOffset = 0;
+    parts.forEach(({ geometry, matrix }) => {
+        const position = geometry.attributes.position;
+        const normal = geometry.attributes.normal;
+        normalMatrix.getNormalMatrix(matrix);
+        for (let i = 0; i < position.count; i++) {
+            point.fromBufferAttribute(position, i).applyMatrix4(matrix);
+            positions.set([point.x, point.y, point.z], (vertexOffset + i) * 3);
+            point.fromBufferAttribute(normal, i).applyMatrix3(normalMatrix).normalize();
+            normals.set([point.x, point.y, point.z], (vertexOffset + i) * 3);
+        }
+        const count = geometry.index ? geometry.index.count : position.count;
+        for (let i = 0; i < count; i++) {
+            indices[indexOffset + i] = (geometry.index ? geometry.index.getX(i) : i) + vertexOffset;
+        }
+        vertexOffset += position.count;
+        indexOffset += count;
+    });
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    merged.setIndex(new THREE.BufferAttribute(indices, 1));
+    merged.computeBoundingSphere();
+    return merged;
+}
 
-    // Dada (Thorax)
-    const thorax = new THREE.Mesh(sharedThoraxGeom, sharedBodyMaterial);
-    thorax.position.set(0, 0, 0.05);
-    bodyGroup.add(thorax);
-
-    // Kepala (Head)
-    const head = new THREE.Mesh(sharedHeadGeom, sharedBodyMaterial);
-    head.position.set(0, 0.02, 0.32);
-    bodyGroup.add(head);
-
-    // Mata Kiri & Kanan
-    const leftEye = new THREE.Mesh(sharedEyeGeom, sharedEyeMaterial);
-    leftEye.position.set(0.055, 0.05, 0.36);
-    bodyGroup.add(leftEye);
-
-    const rightEye = new THREE.Mesh(sharedEyeGeom, sharedEyeMaterial);
-    rightEye.position.set(-0.055, 0.05, 0.36);
-    bodyGroup.add(rightEye);
-
-    // Perut (Abdomen)
-    const abdomenGroup = new THREE.Group();
+function createButterflyBatchGeometries() {
+    const at = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
+    const body = [
+        { geometry: sharedThoraxGeom, matrix: at(0, 0, 0.05) },
+        { geometry: sharedHeadGeom, matrix: at(0, 0.02, 0.32) },
+        { geometry: leftAntennaData.tube, matrix: new THREE.Matrix4() },
+        { geometry: rightAntennaData.tube, matrix: new THREE.Matrix4() }
+    ];
+    // Perut sedikit menekuk ke bawah, seperti pose rata-rata kepakan sebelumnya
+    const abdomen = new THREE.Matrix4().makeRotationX(-0.08);
     for (let i = 0; i < 5; i++) {
-        const seg = new THREE.Mesh(sharedSegGeoms[i], sharedBodyMaterial);
-        seg.position.set(0, -0.01 * i, -0.15 - (i * 0.11));
-        abdomenGroup.add(seg);
+        body.push({ geometry: sharedSegGeoms[i], matrix: abdomen.clone().multiply(at(0, -0.01 * i, -0.15 - (i * 0.11))) });
     }
-    bodyGroup.add(abdomenGroup);
+    const eyes = [
+        { geometry: sharedEyeGeom, matrix: at(0.055, 0.05, 0.36) },
+        { geometry: sharedEyeGeom, matrix: at(-0.055, 0.05, 0.36) },
+        { geometry: sharedAntennaTipGeom, matrix: at(leftAntennaData.tipPos.x, leftAntennaData.tipPos.y, leftAntennaData.tipPos.z) },
+        { geometry: sharedAntennaTipGeom, matrix: at(rightAntennaData.tipPos.x, rightAntennaData.tipPos.y, rightAntennaData.tipPos.z) }
+    ];
+    // Sayap kanan dicerminkan langsung di geometri (urutan segitiga dibalik), supaya matriks
+    // instance tidak bernilai negatif dan pencahayaan sisi sayap tetap benar
+    const rightWing = sharedWingGeom.clone();
+    rightWing.applyMatrix4(new THREE.Matrix4().makeScale(-1, 1, 1));
+    const index = rightWing.index;
+    for (let i = 0; i < index.count; i += 3) {
+        const second = index.getX(i + 1);
+        index.setX(i + 1, index.getX(i + 2));
+        index.setX(i + 2, second);
+    }
+    return { body: mergeButterflyParts(body), eyes: mergeButterflyParts(eyes), leftWing: sharedWingGeom, rightWing };
+}
 
-    // Antena Kiri & Kanan
-    const leftAntMesh = new THREE.Mesh(leftAntennaData.tube, sharedBodyMaterial);
-    const leftTip = new THREE.Mesh(sharedAntennaTipGeom, sharedEyeMaterial);
-    leftTip.position.copy(leftAntennaData.tipPos);
-    leftAntMesh.add(leftTip);
-    bodyGroup.add(leftAntMesh);
+const ButterflyBatch = {
+    capacity: 0,
+    meshes: null,
+    geometries: null,
+    temp: {
+        wing: new THREE.Matrix4(),
+        pivot: new THREE.Matrix4(),
+        rotation: new THREE.Matrix4(),
+        euler: new THREE.Euler(),
+        point: new THREE.Vector3()
+    },
 
-    const rightAntMesh = new THREE.Mesh(rightAntennaData.tube, sharedBodyMaterial);
-    const rightTip = new THREE.Mesh(sharedAntennaTipGeom, sharedEyeMaterial);
-    rightTip.position.copy(rightAntennaData.tipPos);
-    rightAntMesh.add(rightTip);
-    bodyGroup.add(rightAntMesh);
+    makeMesh(geometry, material, capacity) {
+        const mesh = new THREE.InstancedMesh(geometry, material, capacity);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        // Kawanan tersebar di seluruh peta; batas instance tidak diketahui, jadi tidak dipotong frustum
+        mesh.frustumCulled = false;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        mesh.count = 0;
+        butterfliesGroup.add(mesh);
+        return mesh;
+    },
 
-    butterflyRoot.add(bodyGroup);
+    makeGlow(theme, capacity, color, opacity) {
+        const geometry = new THREE.BufferGeometry();
+        const attribute = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+        attribute.setUsage(THREE.DynamicDrawUsage);
+        geometry.setAttribute('position', attribute);
+        geometry.setDrawRange(0, 0);
+        const material = new THREE.PointsMaterial({
+            map: getButterflyBloomTexture(theme),
+            color,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            opacity,
+            sizeAttenuation: true
+        });
+        const points = new THREE.Points(geometry, material);
+        points.frustumCulled = false;
+        butterfliesGroup.add(points);
+        return points;
+    },
 
-    // Sayap Kiri & Kanan (Pivot Flapping)
-    const wingMat = getWingMaterial(theme);
+    dispose() {
+        if (!this.meshes) return;
+        const m = this.meshes;
+        [m.body, m.eyes].forEach(mesh => butterfliesGroup.remove(mesh));
+        BUTTERFLY_THEMES.forEach((theme) => {
+            const t = m.themes[theme];
+            [t.leftWing, t.rightWing].forEach(mesh => butterfliesGroup.remove(mesh));
+            [t.core, t.aura].forEach((points) => {
+                butterfliesGroup.remove(points);
+                points.geometry.dispose();
+                points.material.dispose();
+            });
+        });
+        this.meshes = null;
+    },
 
-    const leftWingPivot = new THREE.Group();
-    leftWingPivot.position.set(0.065, 0.02, 0.05);
-    const leftWingMesh = new THREE.Mesh(sharedWingGeom, wingMat);
-    leftWingPivot.add(leftWingMesh);
-    butterflyRoot.add(leftWingPivot);
+    ensure(count) {
+        if (this.meshes && count <= this.capacity) return;
+        this.dispose();
+        if (!this.geometries) this.geometries = createButterflyBatchGeometries();
+        const capacity = Math.max(32, Math.ceil(count / 32) * 32);
+        const g = this.geometries;
+        const themes = {};
+        BUTTERFLY_THEMES.forEach((theme) => {
+            const wing = getWingMaterial(theme);
+            const isCyan = theme === 'cyan';
+            themes[theme] = {
+                leftWing: this.makeMesh(g.leftWing, wing, capacity),
+                rightWing: this.makeMesh(g.rightWing, wing, capacity),
+                core: this.makeGlow(theme, capacity, 0xffffff, 0.18),
+                aura: this.makeGlow(theme, capacity, isCyan ? 0x67e8f9 : 0x7dd3fc, 0.08),
+                count: 0
+            };
+        });
+        this.meshes = {
+            body: this.makeMesh(g.body, sharedBodyMaterial, capacity),
+            eyes: this.makeMesh(g.eyes, sharedEyeMaterial, capacity),
+            themes
+        };
+        this.capacity = capacity;
+    },
 
-    const rightWingPivot = new THREE.Group();
-    rightWingPivot.position.set(-0.065, 0.02, 0.05);
-    const rightWingMesh = new THREE.Mesh(sharedWingGeom, wingMat);
-    rightWingMesh.scale.set(-1, 1, 1);
-    rightWingPivot.add(rightWingMesh);
-    butterflyRoot.add(rightWingPivot);
+    // Matriks satu sayap: badan -> engsel sayap -> putaran kepakan
+    wingMatrix(root, x, flex, flap) {
+        const t = this.temp;
+        t.pivot.makeTranslation(x, 0.02, 0.05);
+        t.rotation.makeRotationFromEuler(t.euler.set(flex, 0, flap));
+        return t.wing.multiplyMatrices(root, t.pivot).multiply(t.rotation);
+    },
 
-    // 4. Bloom Fantasy Glow Sprites (Additive Bioluminescent Halo - Samar & Halus)
-    const bloomMats = getBloomMaterials(theme);
-    const bloomCore = new THREE.Sprite(bloomMats.core);
-    bloomCore.position.set(0, 0.04, 0.06);
-    bloomCore.scale.set(1.9, 1.9, 1.0);
-    butterflyRoot.add(bloomCore);
+    begin(count) {
+        this.ensure(count);
+        BUTTERFLY_THEMES.forEach((theme) => { this.meshes.themes[theme].count = 0; });
+    },
 
-    const bloomAura = new THREE.Sprite(bloomMats.aura);
-    bloomAura.position.set(0, 0.04, 0.06);
-    bloomAura.scale.set(3.6, 3.6, 1.0);
-    butterflyRoot.add(bloomAura);
+    add(index, b, flapAngle, wingFlex) {
+        const m = this.meshes;
+        const root = b.root.matrix;
+        m.body.setMatrixAt(index, root);
+        m.eyes.setMatrixAt(index, root);
+        const t = m.themes[b.theme] || m.themes.blue;
+        const k = t.count++;
+        t.leftWing.setMatrixAt(k, this.wingMatrix(root, 0.065, wingFlex, flapAngle));
+        t.rightWing.setMatrixAt(k, this.wingMatrix(root, -0.065, wingFlex, -flapAngle));
+        const p = this.temp.point.copy(BUTTERFLY_BLOOM_OFFSET).applyMatrix4(root);
+        t.core.geometry.attributes.position.setXYZ(k, p.x, p.y, p.z);
+        t.aura.geometry.attributes.position.setXYZ(k, p.x, p.y, p.z);
+    },
 
-    // Root Group dengan Skala STATIC KECIL
+    end(count) {
+        const m = this.meshes;
+        [m.body, m.eyes].forEach((mesh) => {
+            mesh.count = count;
+            mesh.visible = count > 0;
+            mesh.instanceMatrix.needsUpdate = true;
+        });
+        // Ukuran titik setara sprite lama: ukuran dunia dibagi tan(setengah FOV kamera)
+        const fov = (typeof camera !== 'undefined' && camera.isPerspectiveCamera) ? camera.fov : 50;
+        const perWorld = 1 / Math.tan(THREE.MathUtils.degToRad(fov) * 0.5);
+        const scale = butterflyParams.staticScale * perWorld;
+        BUTTERFLY_THEMES.forEach((theme) => {
+            const t = m.themes[theme];
+            [t.leftWing, t.rightWing].forEach((mesh) => {
+                mesh.count = t.count;
+                mesh.visible = t.count > 0;
+                mesh.instanceMatrix.needsUpdate = true;
+            });
+            [[t.core, BUTTERFLY_BLOOM_CORE], [t.aura, BUTTERFLY_BLOOM_AURA]].forEach(([points, size]) => {
+                points.geometry.setDrawRange(0, t.count);
+                points.geometry.attributes.position.needsUpdate = true;
+                points.material.size = size * scale;
+                points.visible = t.count > 0;
+            });
+        });
+    }
+};
+
+// Satu kupu-kupu kini hanya titik acuan (posisi + arah); bentuknya digambar oleh ButterflyBatch
+function buildButterflyModel(theme = 'blue') {
     const root = new THREE.Group();
     const staticScale = butterflyParams.staticScale; // Selalu kecil & tidak dapat diubah ukurannya
     root.scale.set(staticScale, staticScale, staticScale);
-    root.add(butterflyRoot);
-
-    return {
-        root,
-        butterflyRoot,
-        leftWingPivot,
-        rightWingPivot,
-        abdomenGroup,
-        bloomCore,
-        bloomAura
-    };
+    root.matrixAutoUpdate = false;
+    return { root, theme };
 }
 
 // 4. PENEMPATAN KUPU-KUPU DENGAN KUAS (PLACE BUTTERFLIES)
@@ -464,12 +602,6 @@ function placeButterfliesAt(intersectPoint, butterflyType = 'spawn_butterfly_blu
 
         const butterflyObj = {
             root: bRoot,
-            inner: built.butterflyRoot,
-            leftWingPivot: built.leftWingPivot,
-            rightWingPivot: built.rightWingPivot,
-            abdomenGroup: built.abdomenGroup,
-            bloomCore: built.bloomCore,
-            bloomAura: built.bloomAura,
             type: butterflyType,
             theme: theme,
             centerX: centerX,
@@ -549,12 +681,6 @@ function recreateButterfly(data) {
 
     const butterflyObj = {
         root: bRoot,
-        inner: built.butterflyRoot,
-        leftWingPivot: built.leftWingPivot,
-        rightWingPivot: built.rightWingPivot,
-        abdomenGroup: built.abdomenGroup,
-        bloomCore: built.bloomCore,
-        bloomAura: built.bloomAura,
         type: data.type || ('spawn_butterfly_' + theme),
         theme: theme,
         centerX: centerX,
@@ -580,7 +706,16 @@ function recreateButterfly(data) {
 
 // 8. ANIMASI TERBANG BERPUTAR DI DAERAH KUAS (LOOP FLIGHT PATH DI RENDER LOOP)
 function updateButterflies(delta, elapsedTime) {
-    if (!butterfliesList || butterfliesList.length === 0) return;
+    if (!butterfliesList || butterfliesList.length === 0) {
+        if (ButterflyBatch.meshes) {
+            ButterflyBatch.begin(0);
+            ButterflyBatch.end(0);
+        }
+        return;
+    }
+    // Kawanan disembunyikan (layer editor): tidak perlu dihitung
+    if (!butterfliesGroup.visible) return;
+    ButterflyBatch.begin(butterfliesList.length);
 
     for (let i = 0; i < butterfliesList.length; i++) {
         const b = butterfliesList[i];
@@ -589,16 +724,7 @@ function updateButterflies(delta, elapsedTime) {
         const flapCycle = elapsedTime * b.flapSpeed + b.phase;
         const flapBase = Math.sin(flapCycle);
         const flapAngle = (flapBase + Math.sin(flapCycle * 2) * 0.12) * 0.72;
-
-        b.leftWingPivot.rotation.z = flapAngle;
-        b.rightWingPivot.rotation.z = -flapAngle;
-
         const wingFlex = Math.cos(flapCycle) * 0.08;
-        b.leftWingPivot.rotation.x = wingFlex;
-        b.rightWingPivot.rotation.x = wingFlex;
-
-        // Gerak lentur perut
-        b.abdomenGroup.rotation.x = Math.sin(flapCycle) * 0.1 - 0.08;
 
         // 2. Lintasan Berputar-putar Halus di Area Digambar (Smooth Looped Flight Curve)
         const currentT = elapsedTime * b.flightSpeed + b.phase;
@@ -619,29 +745,20 @@ function updateButterflies(delta, elapsedTime) {
         // 3. Orientasi Hadap (Look At arah terbang ke depan) & Miring Menikung (Banking Roll)
         const deltaT = 0.04;
         const nextT = currentT + deltaT;
-        const nextRelX = Math.sin(nextT) * b.radiusX;
-        const nextRelZ = Math.sin(2 * nextT) * b.radiusZ;
-        const nextX = b.centerX + nextRelX;
-        const nextZ = b.centerZ + nextRelZ;
-        const nextTerrainY = (typeof getTerrainHeightFast === 'function')
-            ? getTerrainHeightFast(nextX, nextZ)
-            : 0;
-        const nextY = nextTerrainY + b.hoverHeight + Math.cos(nextT * 1.5) * 0.3;
+        const nextX = b.centerX + Math.sin(nextT) * b.radiusX;
+        const nextZ = b.centerZ + Math.sin(2 * nextT) * b.radiusZ;
+        // Tanah di antara dua titik yang sangat dekat dianggap sama tinggi
+        const nextY = terrainY + b.hoverHeight + Math.cos(nextT * 1.5) * 0.3;
 
         b.root.lookAt(nextX, nextY, nextZ);
 
         // Banking roll
-        const curvatureX = -Math.sin(currentT);
-        b.root.rotateZ(curvatureX * 0.32);
+        b.root.rotateZ(-Math.sin(currentT) * 0.32);
+        b.root.updateMatrix();
 
-        // 4. Pendaran Bloom Halus & Samar Mengikuti Irama Kepakan Sayap
-        if (b.bloomCore && b.bloomAura) {
-            const flapNorm = (flapBase + 1.0) * 0.5; // 0..1
-            const pulse = 0.96 + flapNorm * 0.08;
-            b.bloomCore.scale.set(1.9 * pulse, 1.9 * pulse, 1.0);
-            b.bloomAura.scale.set(3.6 * (0.97 + flapNorm * 0.06), 3.6 * (0.97 + flapNorm * 0.06), 1.0);
-        }
+        ButterflyBatch.add(i, b, flapAngle, wingFlex);
     }
+    ButterflyBatch.end(butterfliesList.length);
 }
 
 // 9. UPDATE UI COUNTER

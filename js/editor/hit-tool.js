@@ -2036,6 +2036,8 @@
         if (chkVis) chkVis.checked = att.visible !== false;
         const chkJar = document.getElementById('chk-att-soul-jar');
         if (chkJar) chkJar.checked = !!att.soulJar;
+        const chkClip = document.getElementById('chk-att-clip-body');
+        if (chkClip) chkClip.checked = !!att.clipBody;
 
         if (updateInputs) {
             const pos = att.position || [0, 0, 0];
@@ -2703,6 +2705,19 @@
                     else delete a.soulJar;
                 });
                 if (!att.soulJar) delete att.soulJar;
+                refreshAttachmentMeshesInStudio();
+                renderAttachmentUI();
+            });
+        }
+
+        // Potong Tembus: bagian tubuh yang menembus objek ini (misalnya telinga di dalam topi) disembunyikan
+        const chkAttClip = document.getElementById('chk-att-clip-body');
+        if (chkAttClip) {
+            chkAttClip.addEventListener('change', () => {
+                const att = getActiveCharacterAttachments().find(a => a.id === selectedAttachmentId);
+                if (!att) return;
+                if (chkAttClip.checked) att.clipBody = true;
+                else delete att.clipBody;
                 refreshAttachmentMeshesInStudio();
                 renderAttachmentUI();
             });

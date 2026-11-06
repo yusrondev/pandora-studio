@@ -173,7 +173,9 @@ function ensureRockAssets() {
         const buffer = window.PandoraAssetCache
             ? await PandoraAssetCache.getAssetBuffer(ROCK_MODEL_FILE)
             : await (await fetch(ROCK_MODEL_FILE)).arrayBuffer();
-        const gltf = await new Promise((resolve, reject) => new THREE.GLTFLoader().parse(buffer, '', resolve, reject));
+        const gltfLoader = new THREE.GLTFLoader();
+        if (window.PandoraKTX2) PandoraKTX2.attach(gltfLoader);
+        const gltf = await new Promise((resolve, reject) => gltfLoader.parse(buffer, '', resolve, reject));
         const meshes = [];
         gltf.scene.updateMatrixWorld(true);
         gltf.scene.traverse((child) => {

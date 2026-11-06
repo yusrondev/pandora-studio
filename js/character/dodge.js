@@ -16,7 +16,7 @@ const DODGE_TURN_TIME = 0.06;       // Detik untuk berputar ke arah guling
 const DODGE_BLEND_OUT = 0.16;       // Detik terakhir klip berbaur kembali ke idle/locomotion
 const DODGE_COOLDOWN = 0.12;        // Jeda singkat setelah selesai supaya tidak tersambung tanpa sengaja
 const DODGE_DEFAULT_SPEED = 1.15;   // Klip asli 1.63 dtk terasa lambat untuk menghindar
-const DODGE_STAMINA_COST = 22;      // Sedikit di atas tendangan (18): dodge kebal damage, jadi tidak boleh di-spam
+const DODGE_STAMINA_COST = 10;      // Lebih murah dari pukulan (12) supaya bisa sering menghindar; tetap tidak gratis
 
 const PandoraDodge = {
     clip: null,          // Klip dengan X/Z pinggul dikunci ke frame pertama
@@ -111,7 +111,8 @@ const PandoraDodge = {
     canStart(character, grounded) {
         if (!character || !character.root || !character.mixer || !this.clip) return false;
         if (this.active || this.cooldown > 0 || !grounded) return false;
-        if (character.isDead || character.isTakingHit || character.isJumping) return false;
+        // Animasi kena hit tidak menghalangi: dodge memotongnya (lihat cancelHitReaction)
+        if (character.isDead || character.isJumping) return false;
         if (typeof PlayerHealthState !== 'undefined' && PlayerHealthState.isDead) return false;
         if (window.PandoraUltimateCasting || window.PandoraGamePaused) return false;
         if (typeof CinematicPlayer !== 'undefined' && CinematicPlayer.active) return false;
@@ -128,6 +129,7 @@ const PandoraDodge = {
         if (character.isPunching && typeof character.cancelPunch === 'function') character.cancelPunch();
         if (character.isKicking && typeof character.cancelKick === 'function') character.cancelKick();
         if (character.isBlocking && typeof character.stopBlock === 'function') character.stopBlock();
+        if (character.isTakingHit) this.cancelHitReaction(character);
 
         if (moveDir) {
             this.direction.copy(moveDir);
@@ -167,6 +169,19 @@ const PandoraDodge = {
         if (typeof FoxStaminaState !== 'undefined') FoxStaminaState.consume(DODGE_STAMINA_COST);
 
         if (typeof foxSoundFX !== 'undefined' && foxSoundFX.playFootstep) foxSoundFX.playFootstep();
+    },
+
+    // Pose kena hit dilepas seketika supaya guling langsung terbaca, bukan berbaur dengan sentakan
+    cancelHitReaction(character) {
+        character.isTakingHit = false;
+        character.activeHitKey = null;
+        character.hitTimer = 0;
+        ['hit1', 'hit2'].forEach((key) => {
+            if (character.targetWeights) character.targetWeights[key] = 0;
+            if (character.currentWeights) character.currentWeights[key] = 0;
+            const action = character.actions && character.actions[key];
+            if (action) action.setEffectiveWeight(0);
+        });
     },
 
     finish(character) {

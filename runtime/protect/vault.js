@@ -12,6 +12,8 @@
     window.PANDORA_VENDOR_PATH = 'vendor/';
     window.PANDORA_BUILD_ID = CONFIG.id;
     window.PANDORA_GAME_CHARACTERS = CONFIG.characters;
+    // { 'hero/<id>/idle.fbx': [{ name, file }] }: tekstur hero yang dikeluarkan menjadi KTX2 saat Generate
+    window.PANDORA_FBX_TEXTURES = CONFIG.fbxTextures || {};
 
     const toBytes = (text) => encoder.encode(text);
     const toHex = (bytes) => Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');

@@ -1,6 +1,13 @@
 {
-    "name": "RedFox",
-    "startStageId": "",
-    "stageOrder": [],
+    "name": "PandorFoxy-new-apk",
+    "startStageId": "garden",
+    "stageOrder": [
+        "garden",
+        "noxis",
+        "padang-rumput",
+        "lembah-suram",
+        "stage-5",
+        "taron"
+    ],
     "allowedDomains": ""
 }

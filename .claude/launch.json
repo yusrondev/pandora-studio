@@ -6,6 +6,12 @@
       "runtimeExecutable": "php",
       "runtimeArgs": ["-S", "127.0.0.1:8123", "-t", "."],
       "port": 8123
+    },
+    {
+      "name": "pandora-build",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["-S", "127.0.0.1:8124", "-t", "../pandora-builds/pandorfoxy-new-apk"],
+      "port": 8124
     }
   ]
 }

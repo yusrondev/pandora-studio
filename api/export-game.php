@@ -1,8 +1,9 @@
 <?php
 /**
  * Pandora Editor - Standalone Game Exporter
- * POST { name } membuat game mandiri di <folder induk project>/pandora-builds/<slug>/
+ * POST { name, target? } membuat game mandiri di <folder induk project>/pandora-builds/<slug>/
  * berisi hanya kode gameplay, stage yang terhubung, serta karakter dan attachment yang dipakai.
+ * target "apk" sekalian membungkus build web itu menjadi <slug>.apk (lihat android-build.php).
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -26,7 +27,9 @@ const BUILD_MARKER = 'pandora-build.json';
 
 // Baris JSON dikirim bertahap selama proses; baris terakhir adalah hasilnya
 function reportProgress($value, $label) {
-    global $progressStreaming;
+    global $progressStreaming, $progressRange;
+    // Saat target APK, build web hanya mengisi sebagian bar; sisanya untuk Gradle
+    if ($progressRange) $value = $progressRange[0] + $value * ($progressRange[1] - $progressRange[0]);
     if (!$progressStreaming) {
         $progressStreaming = true;
         ini_set('zlib.output_compression', '0');
@@ -303,8 +306,16 @@ HTML;
 $payload = json_decode((string) file_get_contents('php://input'), true);
 $gameName = trim((string) ($payload['name'] ?? ''));
 if ($gameName === '') fail('Nama game wajib diisi', 400);
+$exportTarget = ($payload['target'] ?? 'web') === 'apk' ? 'apk' : 'web';
 
 $root = realpath(__DIR__ . '/..');
+if ($exportTarget === 'apk') {
+    require __DIR__ . '/android-build.php';
+    // Dicek sebelum build web agar pengguna tidak menunggu lama hanya untuk gagal di akhir
+    $androidTools = findAndroidToolchain($root);
+    if ($androidTools['missing']) fail(androidToolchainHint($androidTools['missing']), 400);
+    $progressRange = [0, 0.4];
+}
 $vendorDir = $root . '/runtime/vendor';
 if (!is_dir($vendorDir)) fail('Folder runtime/vendor tidak ditemukan');
 
@@ -431,7 +442,7 @@ $hasAttachments = true;
 
 // --- Engine: hanya file gameplay ---
 $gameScripts = [
-    'js/core/asset-cache.js', 'js/core/random.js', 'js/core/game-settings.js', 'js/core/scene.js', 'js/core/cinematic-shared.js', 'js/core/cinematic-player.js', 'js/core/imported-objects.js', 'js/core/boss-kill-cam.js', 'js/core/post-fx.js', 'js/runtime/game-shim.js',
+    'js/core/asset-cache.js', 'js/core/random.js', 'js/core/game-settings.js', 'js/core/scene.js', 'js/core/ktx2-support.js', 'js/core/cinematic-shared.js', 'js/core/cinematic-player.js', 'js/core/imported-objects.js', 'js/core/boss-kill-cam.js', 'js/core/post-fx.js', 'js/runtime/game-shim.js',
     'js/environment/sky.js', 'js/terrain/terrain.js', 'js/water/water-manager.js', 'js/environment/fog-manager.js',
     'js/trees/foliage-materials.js', 'js/trees/falling-leaves.js', 'js/trees/tree-generators.js', 'js/trees/reference-conifer.js', 'js/grass/grass.js',
     'js/rocks/rock-manager.js', 'js/terrain/terrain-shapes.js', 'js/flowers/flower-manager.js', 'js/ferns/fern-manager.js', 'js/bushes/bush-manager.js',
@@ -447,7 +458,7 @@ $gameScripts = [
 $gameStyles = ['css/base.css', 'css/icons.css', 'css/play-hud.css', 'css/items.css', 'css/cinematic-fx.css', 'css/settings-panel.css', 'css/mobile-controls.css', 'css/game-session.css', 'css/game-runtime.css'];
 $vendorScripts = ['three.min.js', 'OrbitControls.js', 'fflate.min.js', 'FBXLoader.js', 'SkeletonUtils.js', 'gsap.min.js'];
 if ($hasAttachments) {
-    array_splice($vendorScripts, 2, 0, ['GLTFLoader.js', 'DRACOLoader.js', 'meshopt_decoder.js', 'meshopt_simplifier.js']);
+    array_splice($vendorScripts, 2, 0, ['GLTFLoader.js', 'KTX2Loader.js', 'DRACOLoader.js', 'meshopt_decoder.js', 'meshopt_simplifier.js']);
 }
 
 reportProgress(0.12, 'Menyalin engine dan aset');
@@ -457,7 +468,11 @@ foreach ($vendorScripts as $file) {
     if (!is_dir($dest . '/vendor')) mkdir($dest . '/vendor', 0777, true);
     copy($vendorDir . '/' . $file, $dest . '/vendor/' . $file);
 }
-if ($hasAttachments) copyTree($vendorDir . '/draco', $dest . '/vendor/draco');
+if ($hasAttachments) {
+    copyTree($vendorDir . '/draco', $dest . '/vendor/draco');
+    // Transcoder Basis untuk tekstur KTX2 (dimuat KTX2Loader di worker)
+    copyTree($vendorDir . '/basis', $dest . '/vendor/basis');
+}
 copyTree($root . '/runtime/fonts', $dest . '/runtime/fonts');
 copyTree($root . '/runtime/deploy', $dest . '/deploy');
 copy($root . '/runtime/deploy/Deploy-ke-VPS.bat', $dest . '/Deploy-ke-VPS.bat');
@@ -579,6 +594,10 @@ $packDir = 'data/p/';
 $keyFile = 'data/' . bin2hex(random_bytes(6)) . '.bin';
 
 $allowedHosts = parseAllowedDomains($project['allowedDomains'] ?? '');
+// APK menyajikan game dari host WebView sendiri; tanpa kunci untuk host ini game menolak berjalan
+if ($exportTarget === 'apk' && $allowedHosts && !in_array(ANDROID_WEBVIEW_HOST, $allowedHosts, true)) {
+    $allowedHosts[] = ANDROID_WEBVIEW_HOST;
+}
 reportProgress(0.25, 'Memanggang animasi');
 // Animasi dipanggang lebih dulu, karena setelah terenkripsi file tidak bisa diolah lagi
 $bakeOutput = [];
@@ -591,6 +610,21 @@ if ($bakeStatus !== 0) {
 } else {
     $bakeResult = json_decode((string) end($bakeOutput), true) ?: [];
     foreach ((array) ($bakeResult['failed'] ?? []) as $failedClip) $warnings[] = 'Animasi tidak dipanggang: ' . $failedClip;
+}
+
+// Tekstur tertanam di model hero (idle.fbx) dikeluarkan menjadi KTX2; runtime memasangnya lewat PandoraKTX2
+reportProgress(0.4, 'Mengompres tekstur karakter');
+$heroTextureResult = null;
+if (is_dir($dest . '/hero') && is_file($root . '/tools/protect/node_modules/sharp/package.json')) {
+    $heroTextureOutput = [];
+    $heroTextureStatus = 1;
+    exec('node ' . escapeshellarg($root . '/tools/protect/compress-hero-textures.js') . ' ' . escapeshellarg($dest) . ' 2>&1', $heroTextureOutput, $heroTextureStatus);
+    $heroTextureResult = $heroTextureStatus === 0 ? json_decode((string) end($heroTextureOutput), true) : null;
+    if (!$heroTextureResult) {
+        $warnings[] = 'Tekstur karakter gagal dikompres, jadi memori GPU lebih besar. ' . implode(' ', array_slice($heroTextureOutput, 0, 2));
+    } else {
+        foreach ((array) $heroTextureResult['failed'] as $failedTexture) $warnings[] = 'Tekstur karakter tidak dikompres: ' . $failedTexture;
+    }
 }
 
 reportProgress(0.45, 'Mengoptimalkan attachment');
@@ -618,6 +652,21 @@ if (is_dir($dest . '/assets/imported') && is_file($root . '/tools/protect/node_m
         foreach ((array) $importResult['failed'] as $failedModel) $warnings[] = 'Objek 3D tidak dioptimalkan: ' . $failedModel;
     }
 }
+// Batu: bentuknya dipakai apa adanya (batas segitiga sangat longgar), hanya teksturnya yang dijadikan KTX2
+if (is_dir($dest . '/assets/rocks') && is_file($root . '/tools/protect/node_modules/sharp/package.json')) {
+    $rockOutput = [];
+    $rockStatus = 1;
+    exec('node ' . escapeshellarg($root . '/tools/protect/optimize-attachments.js') . ' ' . escapeshellarg($dest . '/assets/rocks') . ' 10000000 1024 2>&1', $rockOutput, $rockStatus);
+    $rockResult = $rockStatus === 0 ? json_decode((string) end($rockOutput), true) : null;
+    if (!$rockResult) $warnings[] = 'Tekstur batu gagal dikompres. ' . implode(' ', array_slice($rockOutput, 0, 2));
+}
+// Perkiraan memori GPU untuk tekstur model sebelum dan sesudah KTX2
+$textureVram = [0, 0];
+foreach ([$optimizeResult ?? null, $importResult ?? null, $rockResult ?? null, $heroTextureResult] as $stat) {
+    if (!is_array($stat)) continue;
+    $textureVram[0] += (int) ($stat['vramBeforeMB'] ?? 0);
+    $textureVram[1] += (int) ($stat['vramAfterMB'] ?? 0);
+}
 
 sealPaths($dest, ['hero', 'assets/attachments', 'assets/imported', 'assets/rocks', 'data/maps', 'data/project.json', 'config'], $master, $packDir, 0.6, 0.85);
 if (is_dir($dest . '/assets') && count(scandir($dest . '/assets')) === 2) rmdir($dest . '/assets');
@@ -631,7 +680,8 @@ $vaultSource = str_replace('__CONFIG__', json_encode([
     'packDir' => $packDir,
     'linkSecret' => $linkSecret,
     'locks' => buildLocks($master, $secret, $allowedHosts),
-    'characters' => $bundled
+    'characters' => $bundled,
+    'fbxTextures' => (object) ($heroTextureResult['textures'] ?? [])
 ], JSON_UNESCAPED_SLASHES), (string) file_get_contents($root . '/runtime/protect/vault.js'));
 
 reportProgress(0.87, 'Mengecilkan dan melindungi kode');
@@ -675,13 +725,25 @@ if ($allowedHosts) {
     $warnings[] = 'Build dikunci ke domain: ' . implode(', ', $allowedHosts) . '. Play.bat dan alamat lain akan ditolak.';
 }
 
-reportProgress(1, 'Selesai');
+reportProgress(1, 'Build web selesai');
 [$fileCount, $bytes] = treeStats($dest);
-echo json_encode([
+$result = [
     'success' => true,
+    'target' => $exportTarget,
     'path' => $dest,
     'stageCount' => count($stages),
     'fileCount' => $fileCount,
     'sizeMB' => round($bytes / 1048576, 1),
-    'warnings' => array_values(array_unique($warnings))
-], JSON_UNESCAPED_UNICODE);
+    'textureVramMB' => $textureVram
+];
+
+if ($exportTarget === 'apk') {
+    $progressRange = [0.4, 1];
+    $result['android'] = buildAndroidApk($root, $dest, $gameName, $buildsRoot, 'reportProgress');
+    if ($result['android']['sizeMB'] > 150) {
+        $warnings[] = 'APK ' . $result['android']['sizeMB'] . ' MB melebihi batas 150 MB Play Store; untuk Play Store perlu AAB + Play Asset Delivery. Pasang langsung (sideload) tetap bisa.';
+    }
+}
+
+$result['warnings'] = array_values(array_unique($warnings));
+echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

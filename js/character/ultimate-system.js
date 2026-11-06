@@ -456,9 +456,10 @@ const PandoraUltimate = {
         this.ghostTimer = GHOST_SECONDS;
         this.spawnFog(wolfCharacter.root.position);
         wolfCharacter.root.traverse((child) => {
-            if (!child.isMesh || child.userData.isEagleVisionTwin) return;
+            if (!child.isMesh || child.userData.isEagleVisionTwin || child.userData.isShadowProxy) return;
             this.ghostSwapped.push({ mesh: child, material: child.material, castShadow: child.castShadow });
-            child.material = this.getGhostMaterial(!!child.isSkinnedMesh);
+            const ghost = this.getGhostMaterial(!!child.isSkinnedMesh);
+            child.material = child.isSkinnedMesh && window.PandoraAttachmentSystem && PandoraAttachmentSystem.bodyClipMaterial ? PandoraAttachmentSystem.bodyClipMaterial(child, ghost) : ghost;
             child.castShadow = false;
         });
         document.body.classList.add('ghost-mode');

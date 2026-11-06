@@ -757,9 +757,9 @@ const waterMat = new THREE.ShaderMaterial({
             uWaterSkyColor:     { value: waterAtmospherePresets.day.skyReflect.clone() },
             uWaterFoamColor:    { value: waterAtmospherePresets.day.foam.clone() },
             // Ocean parameters (100% identik ocean.html defaults: 0.70, 1.00, 0.80)
-            uAmp: { value: 0.70 },   // Tinggi gelombang Gerstner
+            uAmp: { value: 0.0 },    // Tinggi gelombang Gerstner (bawaan Studio: air tenang tanpa ombak)
             uSpeed: { value: 1.00 },   // Kecepatan gelombang
-            uChop: { value: 0.80 },   // Ketajaman puncak gelombang
+            uChop: { value: 0.0 },    // Ketajaman puncak gelombang
             // Kelvin wake / trail dari rubah
             uOceanTrailPos: { value: oceanTrailPos },
             uOceanTrailDir: { value: oceanTrailDir },
@@ -772,7 +772,7 @@ const waterMat = new THREE.ShaderMaterial({
             uSkySunIntensity: (typeof skyMat !== 'undefined') ? skyMat.uniforms.uSunIntensity : { value: 1.0 },
             // Searah komponen utama ombak Gerstner supaya riak dan alun bergerak sejalan
             uWindDir: { value: new THREE.Vector2(Math.cos(0.5), Math.sin(0.5)) },
-            uWaterLevelY: { value: 0.0 },
+            uWaterLevelY: { value: -0.4 },
             // Normal map air buatan sendiri (buildWaterNormalTexture); placeholder datar sampai dibuat
             uWaterNormalTex: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([128, 128, 255, 128]), 1, 1, THREE.RGBAFormat); t.needsUpdate = true; return t; })() },
             uWaterNormalTile: { value: WATER_NORMAL_TILE_METERS },
@@ -930,7 +930,7 @@ const waterMat = new THREE.ShaderMaterial({
             // Pasang surut dinamis di tepi pantai (hanya berayun di dalam area air)
             float shoreEdgeFactor = smoothstep(0.005, 0.08, maskVal) * smoothstep(0.40, 0.10, maskVal);
             float tideWave = sin(uTime * 1.8 * uSpeed - maskVal * 18.0 + onoise(vWorldPos.xz * 0.7) * 3.2);
-            float dynamicMask = clamp(maskVal + tideWave * 0.032 * clamp(uAmp, 0.2, 1.2) * shoreEdgeFactor, 0.0, 1.0);
+            float dynamicMask = clamp(maskVal + tideWave * 0.032 * clamp(uAmp, 0.0, 1.2) * shoreEdgeFactor, 0.0, 1.0);
             if (dynamicMask <= 0.005) discard;
 
             // ── DETEKSI OTOMATIS KEDALAMAN AIR TERHADAP SCULPT LANDSCAPE (Bilinear Hermite Smooth) ───
@@ -1028,7 +1028,7 @@ const waterMat = new THREE.ShaderMaterial({
             // ── BODY COLOR & LIT & SSS (Mengikuti suasana: Siang, Sore, Malam) ──────
             vec3 deep    = uWaterDeepColor;
             vec3 shallow = uWaterShallowColor;
-            float lit = smoothstep(-1.2 * uAmp, 2.0 * uAmp, vH + wakeWaveH * 1.8);
+            float lit = smoothstep(-1.2 * max(uAmp, 0.05), 2.0 * max(uAmp, 0.05), vH + wakeWaveH * 1.8);
             vec3 body = mix(deep, shallow, lit * 0.75) * sunF * shadow;
 
             float back = pow(max(dot(V, -normalize(vec3(sunDir.x, 0.1, sunDir.z))), 0.0), 3.0);
@@ -1125,7 +1125,7 @@ const waterMat = new THREE.ShaderMaterial({
 });
 
 const waterMesh = new THREE.Mesh(waterGeo, waterMat);
-waterMesh.position.y = 0.0;
+waterMesh.position.y = -0.4; // Sama dengan waterCurrentLevel bawaan di bawah
 waterMesh.renderOrder = 2;
 waterMesh.receiveShadow = true; // Menerima bayangan dari pohon, bebatuan, dan karakter rubah
 scene.add(waterMesh);
@@ -1192,7 +1192,7 @@ const waterAbsorbMat = new THREE.ShaderMaterial({
             if (maskVal <= 0.005) discard;
             float shoreEdgeFactor = smoothstep(0.005, 0.08, maskVal) * smoothstep(0.40, 0.10, maskVal);
             float tideWave = sin(uTime * 1.8 * uSpeed - maskVal * 18.0 + onoise(vWorldPos.xz * 0.7) * 3.2);
-            float dynamicMask = clamp(maskVal + tideWave * 0.032 * clamp(uAmp, 0.2, 1.2) * shoreEdgeFactor, 0.0, 1.0);
+            float dynamicMask = clamp(maskVal + tideWave * 0.032 * clamp(uAmp, 0.0, 1.2) * shoreEdgeFactor, 0.0, 1.0);
             if (dynamicMask <= 0.005) discard;
 
             float terrainH = sampleTerrainHeightSmooth(uTerrainHeightMap, baseUV, float(${terrainGridStride}));
@@ -1378,7 +1378,7 @@ function syncWaterGeometryWithTerrain() {
 resetWaterGeometryToFlat();
 
 // State kuas air & interpolasi goresan halus
-let waterCurrentLevel = 0.0;
+let waterCurrentLevel = -0.4; // Bawaan Studio sedikit di bawah tanah datar
 let hasAnyWaterDrawn = false;
 let lastStrokePoint = null;
 
@@ -1856,7 +1856,7 @@ function initOuterOcean() {
                 // ── BODY COLOR & LIT & SSS (Mengikuti suasana: Siang, Sore, Malam) ──────
                 vec3 deep    = uWaterDeepColor;
                 vec3 shallow = uWaterShallowColor;
-                float lit = smoothstep(-1.2 * uAmp, 2.0 * uAmp, vH + wakeWaveH * 1.8);
+                float lit = smoothstep(-1.2 * max(uAmp, 0.05), 2.0 * max(uAmp, 0.05), vH + wakeWaveH * 1.8);
                 vec3 body = mix(deep, shallow, lit * 0.75) * sunF * shadow;
 
                 float back = pow(max(dot(V, -normalize(vec3(sunDir.x, 0.1, sunDir.z))), 0.0), 3.0);

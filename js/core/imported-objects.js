@@ -36,6 +36,7 @@ const PandoraImportedObjects = {
             loader.setDRACOLoader(draco);
         }
         if (window.MeshoptDecoder && loader.setMeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+        if (window.PandoraKTX2) PandoraKTX2.attach(loader);
         this.loader = loader;
         return loader;
     },

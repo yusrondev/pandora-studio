@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ikon bawaan: kepala rubah sederhana. Area aman ikon adaptif adalah lingkaran 66dp di tengah kanvas 108dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Telinga -->
+    <path android:fillColor="#E8642A" android:pathData="M33,32 L46,46 L36,52 Z" />
+    <path android:fillColor="#E8642A" android:pathData="M75,32 L62,46 L72,52 Z" />
+    <!-- Kepala -->
+    <path android:fillColor="#F07A35" android:pathData="M36,44 L72,44 L78,56 L54,80 L30,56 Z" />
+    <!-- Pipi putih -->
+    <path android:fillColor="#FFF4E6" android:pathData="M30,56 L44,58 L54,80 Z" />
+    <path android:fillColor="#FFF4E6" android:pathData="M78,56 L64,58 L54,80 Z" />
+    <!-- Mata dan hidung -->
+    <path android:fillColor="#1C1B22" android:pathData="M42,53 L48,55 L42,57 Z" />
+    <path android:fillColor="#1C1B22" android:pathData="M66,53 L60,55 L66,57 Z" />
+    <path android:fillColor="#1C1B22" android:pathData="M51,76 L57,76 L54,80 Z" />
+</vector>

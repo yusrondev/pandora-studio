@@ -338,7 +338,7 @@ function ensureFoxEagleVisionSystem(wolfChar) {
 
     const meshesToTwin = [];
     root.traverse((child) => {
-        if (child.isMesh && !child.userData.isEagleVisionTwin) {
+        if (child.isMesh && !child.userData.isEagleVisionTwin && !child.userData.isShadowProxy) {
             meshesToTwin.push(child);
         }
     });
@@ -367,7 +367,7 @@ function ensureFoxEagleVisionSystem(wolfChar) {
         const origMesh = meshesToTwin[i];
         let twin;
         if (origMesh.isSkinnedMesh && origMesh.skeleton) {
-            twin = new THREE.SkinnedMesh(origMesh.geometry, matSkinned);
+            twin = new THREE.SkinnedMesh(origMesh.geometry, window.PandoraAttachmentSystem && PandoraAttachmentSystem.bodyClipMaterial ? PandoraAttachmentSystem.bodyClipMaterial(origMesh, matSkinned) : matSkinned);
             twin.bind(origMesh.skeleton, origMesh.bindMatrix);
             if (origMesh.bindMode) twin.bindMode = origMesh.bindMode;
             if (origMesh.bindMatrixInverse) twin.bindMatrixInverse.copy(origMesh.bindMatrixInverse);

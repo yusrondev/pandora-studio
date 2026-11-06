@@ -251,7 +251,9 @@
                 const baked = BUILD_ID ? decodeBakedClip(buffer) : null;
                 if (baked) return baked;
                 // Parse langsung dari buffer memori (0ms network)
-                return loader.parse(buffer, basePath);
+                const object = loader.parse(buffer, basePath);
+                // Game hasil Generate: tekstur model hero disimpan terpisah sebagai KTX2
+                return window.PandoraKTX2 ? PandoraKTX2.applyToFbx(object, url) : object;
             } catch (err) {
                 if (err && err.message && err.message.includes('404')) {
                     throw err;

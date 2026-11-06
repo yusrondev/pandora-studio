@@ -691,7 +691,11 @@ body.play-mode-active #viewport-container { border-radius: 0; }
 }
 .generate-bar.done b, .generate-bar.failed b { display: none; }
 .generate-bar.failed i { background: #a33a3a; }
-.generate-label { margin-top: 8px; color: var(--bl-text-dim); }
+.generate-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: var(--bl-text); font-size: 11px; }
+.generate-time { font-variant-numeric: tabular-nums; color: var(--bl-text-dim); }
+.generate-label { margin-top: 4px; color: var(--bl-text-dim); }
+.generate-hint { margin-top: 6px; color: #e0b050; font-size: 11px; }
+.generate-hint[hidden] { display: none; }
 .generate-result {
     margin-top: 10px;
     padding: 8px;

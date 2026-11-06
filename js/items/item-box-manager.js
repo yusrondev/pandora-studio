@@ -464,7 +464,7 @@ class ItemBoxManager {
         if (!character || !character.root) return;
         const meshes = [];
         character.root.traverse((child) => {
-            if (child.isMesh && !child.userData.isEagleVisionTwin) meshes.push(child);
+            if (child.isMesh && !child.userData.isEagleVisionTwin && !child.userData.isShadowProxy) meshes.push(child);
         });
         if (this.scanRoot === character.root && this.scanTwins.length === meshes.length) return;
 
@@ -473,7 +473,7 @@ class ItemBoxManager {
         this.scanTwins = meshes.map((mesh) => {
             let twin;
             if (mesh.isSkinnedMesh && mesh.skeleton) {
-                twin = new THREE.SkinnedMesh(mesh.geometry, materials.skinned);
+                twin = new THREE.SkinnedMesh(mesh.geometry, window.PandoraAttachmentSystem && PandoraAttachmentSystem.bodyClipMaterial ? PandoraAttachmentSystem.bodyClipMaterial(mesh, materials.skinned) : materials.skinned);
                 twin.bind(mesh.skeleton, mesh.bindMatrix);
                 twin.bindMode = mesh.bindMode;
                 twin.bindMatrixInverse.copy(mesh.bindMatrixInverse);

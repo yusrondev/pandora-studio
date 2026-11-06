@@ -265,8 +265,8 @@ const FoxStaminaState = {
                 }
             }
         } else if (isMovingForward) {
-            // JALAN PELAN (KEYS.W TANPA SPRINT) -> STAMINA BERTAMBAH PERLAHAN
-            this.current = Math.min(this.max, this.current + cfg.staminaRecoveryWalk * dt);
+            // JALAN PELAN (TANPA SPRINT) -> pulih secepat saat diam, supaya tidak perlu berhenti untuk mengisi stamina
+            this.current = Math.min(this.max, this.current + Math.max(cfg.staminaRecoveryWalk, cfg.staminaRecoveryIdle) * dt);
         } else {
             // DIAM (IDLE) ATAU BELOK DI TEMPAT -> STAMINA BERTAMBAH LEBIH CEPAT
             // Istirahat dalam posisi tiarap/mengendap (prone) memulihkan stamina ekstra cepat (+60%)

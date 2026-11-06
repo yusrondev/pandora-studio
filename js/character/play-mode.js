@@ -412,6 +412,8 @@ function startPlayMode() {
     }
 
     isPlayMode = true;
+    // Pohon digabung seperti di build selama bermain; dikembalikan di stopPlayMode
+    if (!window.PANDORA_RUNTIME && typeof bakeTreesForRuntime === 'function') bakeTreesForRuntime();
     if (typeof window.glbImporterInstance !== 'undefined' && window.glbImporterInstance.transformControl) {
         window.glbImporterInstance.transformControl.detach();
     }
@@ -507,6 +509,7 @@ function stopPlayMode() {
     if (!transitioning && window.PandoraGameSession) PandoraGameSession.onDemoEnded();
 
     isPlayMode = false;
+    if (!window.PANDORA_RUNTIME && !transitioning && typeof unbakeTrees === 'function') unbakeTrees();
     keys.w = false;
     keys.a = false;
     keys.s = false;

@@ -13,8 +13,8 @@ const PHONE_POST_FX = PANDORA_IS_PHONE ? 'lite' : true;
 const GRAPHICS_PRESETS = {
     low:    { label: 'Rendah', shadowDynamicEvery: 2, grassFar: 36, shadowTreeFar: 24, leafFraction: 0.55, shafts: 0.3, maxDpr: 0.85, shadowSize: 1024, shadowEvery: 4, cloudFraction: 0.25, grassFraction: 0.4,  waterDepthEvery: 12, antialias: false, gpu: 'default', ...(PANDORA_IS_PHONE ? PHONE_LOW : {}) },
     medium: { label: 'Sedang', grassFar: 54, shadowTreeFar: 38, postFx: PANDORA_IS_PHONE ? 'lite' : false, leafFraction: 0.8, shafts: 0.6, maxDpr: 1.0,  shadowSize: 1024, shadowEvery: 3, cloudFraction: 0.65, grassFraction: 0.7,  waterDepthEvery: 4, antialias: false, gpu: 'default' },
-    high:   { label: 'Tinggi', grassFar: 90, shadowTreeFar: 60, postFx: PHONE_POST_FX, leafFraction: 1, shafts: 1, maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 3, antialias: true,  gpu: 'high-performance' },
-    ultra:  { label: 'Ultra', grassFar: 140, shadowTreeFar: 90,  postFx: PHONE_POST_FX, leafFraction: 1, shafts: 1, maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 1, antialias: true,  gpu: 'high-performance' },
+    high:   { label: 'Tinggi', grassFar: 90, shadowTreeFar: 60, postFx: PHONE_POST_FX, leafFraction: 1, shafts: 1, maxDpr: PANDORA_IS_PHONE ? 1.25 : 1.5, shadowSize: 2048, shadowEvery: PANDORA_IS_PHONE ? 3 : 2, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 4, antialias: true,  gpu: 'high-performance' },
+    ultra:  { label: 'Ultra', grassFar: 140, shadowTreeFar: 90,  postFx: PHONE_POST_FX, leafFraction: 1, shafts: 1, maxDpr: 2.0,  shadowSize: 4096, shadowEvery: 1, cloudFraction: 1.0,  grassFraction: 1,  waterDepthEvery: 2, antialias: true,  gpu: 'high-performance' },
     auto:   { label: 'Rekomendasi' } // Isinya salah satu tingkat AUTO_QUALITY_LEVELS, dipilih dari FPS perangkat
 };
 
@@ -30,6 +30,9 @@ const AUTO_QUALITY_LEVELS = [
 ];
 const AUTO_START_PHONE = 1;
 const AUTO_START_DESKTOP = 5;
+// Rekomendasi tidak naik sendiri melewati Tinggi: Ultra hampir menggandakan beban render (panas)
+// untuk perbedaan visual kecil, jadi hanya dipakai bila dipilih sendiri
+const AUTO_MAX_LEVEL = 5;
 const AUTO_TARGET_FPS = 60;
 const AUTO_WINDOW_MS = 2000;
 const AUTO_DROP_RATIO = 0.9;          // Di bawah 54 dari 60 FPS dianggap tidak sanggup
@@ -109,7 +112,7 @@ const PandoraAutoQuality = {
         try {
             const stored = JSON.parse(localStorage.getItem(this.storageKey) || 'null');
             if (!stored) return;
-            if (AUTO_QUALITY_LEVELS[stored.level]) this.level = stored.level;
+            if (AUTO_QUALITY_LEVELS[stored.level]) this.level = Math.min(stored.level, AUTO_MAX_LEVEL);
             this.capped = !!stored.capped && Date.now() - (stored.ceilingAt || 0) < AUTO_CEILING_MS;
             // Batas lama dicoba ulang sesekali: perangkat yang tadinya panas bisa jadi kini sanggup
             if (AUTO_QUALITY_LEVELS[stored.ceiling] && Date.now() - stored.ceilingAt < AUTO_CEILING_MS) {
@@ -182,7 +185,7 @@ const PandoraAutoQuality = {
         this.slowWindows = 0;
         if (fps < target * AUTO_RAISE_RATIO) {
             this.stableSince = now;
-        } else if (!this.capped && now - this.stableSince >= AUTO_RAISE_AFTER_MS && this.level < this.ceiling) {
+        } else if (!this.capped && now - this.stableSince >= AUTO_RAISE_AFTER_MS && this.level < Math.min(this.ceiling, AUTO_MAX_LEVEL)) {
             this.raisedAt = now;
             this.setLevel(this.level + 1, now);
         }

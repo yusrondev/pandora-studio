@@ -58,6 +58,8 @@
     // Diperkecil saat dimuat supaya aksesori tidak menghabiskan GPU.
     const ATTACHMENT_MAX_TRIANGLES = 15000;
     const ATTACHMENT_SHADOW_MAX_TRIANGLES = 8000;
+    const BODY_CLIP_MAX = 2;          // Attachment "Potong tembus" per karakter
+    const BODY_CLIP_FLOOR = 0.12;     // Bagian bawah attachment (pinggiran topi) yang tidak ikut memotong
 
     function geometryTriangles(geometry) {
         if (!geometry) return 0;
@@ -87,10 +89,49 @@
         console.log('[AttachmentSystem] Model disederhanakan: ' + before + ' -> ' + (finalIndices.length / 3) + ' segitiga');
     }
 
+    // Model berat tidak ikut digambar ke peta bayangan; sebagai gantinya bentuk sederhananya
+    // (beberapa ratus segitiga) yang memberi bayangan, tidak terlihat di layar.
+    const ATTACHMENT_SHADOW_PROXY_TRIANGLES = 1500;
+    let _shadowProxyMaterial = null;
+    function addShadowProxy(mesh) {
+        const simplifier = window.MeshoptSimplifier;
+        const geometry = mesh.geometry;
+        if (!simplifier || !simplifier.supported || !geometry || !geometry.index) return false;
+        const position = geometry.attributes.position;
+        const positions = new Float32Array(position.count * 3);
+        for (let i = 0; i < position.count; i++) {
+            positions[i * 3] = position.getX(i);
+            positions[i * 3 + 1] = position.getY(i);
+            positions[i * 3 + 2] = position.getZ(i);
+        }
+        const source = new Uint32Array(geometry.index.array);
+        const target = ATTACHMENT_SHADOW_PROXY_TRIANGLES * 3;
+        // Bayangan tidak butuh detail: kesalahan bentuk sampai 8% ukuran model masih tidak terlihat
+        let indices = simplifier.simplifySloppy
+            ? simplifier.simplifySloppy(source, positions, 3, target, 0.02)[0]
+            : simplifier.simplify(source, positions, 3, target, 0.08)[0];
+        if (!indices || indices.length < 3 || indices.length / 3 > ATTACHMENT_SHADOW_MAX_TRIANGLES) return false;
+        const proxyGeometry = new THREE.BufferGeometry();
+        proxyGeometry.setAttribute('position', position);
+        proxyGeometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+        if (!_shadowProxyMaterial) {
+            _shadowProxyMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, side: THREE.DoubleSide });
+        }
+        const proxy = new THREE.Mesh(proxyGeometry, _shadowProxyMaterial);
+        proxy.name = 'shadowProxy';
+        proxy.userData.isShadowProxy = true;
+        proxy.castShadow = true;
+        proxy.receiveShadow = false;
+        proxy.frustumCulled = false;
+        mesh.add(proxy);
+        return true;
+    }
+
     async function getGLTFLoader() {
         if (window.MeshoptSimplifier && window.MeshoptSimplifier.ready) await window.MeshoptSimplifier.ready;
         if (!_gltfLoader && typeof THREE !== 'undefined' && THREE.GLTFLoader) {
             _gltfLoader = new THREE.GLTFLoader();
+            if (window.PandoraKTX2) PandoraKTX2.attach(_gltfLoader);
         }
         if (!_gltfLoader) return null;
 
@@ -468,10 +509,13 @@
          */
         prepareLoaded3DObject(obj) {
             if (!obj) return;
-            obj.traverse((child) => {
+            const meshes = [];
+            obj.traverse((child) => { if (child.isMesh && !child.userData.isShadowProxy) meshes.push(child); });
+            meshes.forEach((child) => {
                 if (child.isMesh) {
                     simplifyHeavyGeometry(child);
                     child.castShadow = geometryTriangles(child.geometry) <= ATTACHMENT_SHADOW_MAX_TRIANGLES;
+                    if (!child.castShadow && !child.isSkinnedMesh && !child.children.some(c => c.userData.isShadowProxy)) addShadowProxy(child);
                     child.receiveShadow = true;
                     child.frustumCulled = false;
                     if (child.material) {
@@ -491,6 +535,170 @@
          * @param {Object} att Data attachment dari config
          * @returns {THREE.Group}
          */
+        /**
+         * Potong tembus: bagian tubuh karakter di dalam lebar attachment dan di atas tepi bawahnya
+         * tidak digambar, misalnya telinga yang menembus topi. Dihitung di shader, jadi tetap
+         * mengikuti animasi. Maksimal BODY_CLIP_MAX attachment per karakter.
+         */
+        enableBodyClip(wrapper, attempt = 0) {
+            const visual = wrapper.userData.visualObject;
+            if (!visual) return;
+            // Karakter pemilik: leluhur teratas sebelum scene
+            let root = wrapper;
+            while (root.parent && !root.parent.isScene) root = root.parent;
+            const skinned = [];
+            root.traverse((child) => {
+                if (!child.isSkinnedMesh) return;
+                let socketAncestor = false;
+                for (let p = child.parent; p; p = p.parent) if (p.userData && p.userData.isAttachmentSocket) socketAncestor = true;
+                if (!socketAncestor) skinned.push(child);
+            });
+            if (skinned.length === 0) {
+                // Attachment belum terpasang ke tulang karakter: coba lagi sebentar lagi
+                if (attempt < 30) setTimeout(() => this.enableBodyClip(wrapper, attempt + 1), 100);
+                return;
+            }
+
+            // Kotak attachment di ruang lokalnya sendiri, supaya kemiringan topi ikut terhitung
+            visual.updateMatrixWorld(true);
+            const inverse = new THREE.Matrix4().copy(visual.matrixWorld).invert();
+            const box = new THREE.Box3();
+            const part = new THREE.Box3();
+            const relative = new THREE.Matrix4();
+            visual.traverse((child) => {
+                if (!child.isMesh || !child.geometry) return;
+                if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+                relative.multiplyMatrices(inverse, child.matrixWorld);
+                box.union(part.copy(child.geometry.boundingBox).applyMatrix4(relative));
+            });
+            if (box.isEmpty()) return;
+
+            const state = root.userData.bodyClip || (root.userData.bodyClip = this.createBodyClipState());
+            state.clips = state.clips.filter(clip => clip.wrapper !== wrapper && this.isClipAlive(clip, root));
+            if (state.clips.length >= BODY_CLIP_MAX) return;
+            state.clips.push({ wrapper, visual, min: box.min.clone(), max: box.max.clone() });
+            skinned.forEach(mesh => this.patchBodyClipMesh(mesh, state));
+        },
+
+        createBodyClipState() {
+            const matrices = [], mins = [], maxs = [];
+            for (let i = 0; i < BODY_CLIP_MAX; i++) {
+                matrices.push(new THREE.Matrix4());
+                mins.push(new THREE.Vector3());
+                maxs.push(new THREE.Vector3());
+            }
+            return {
+                clips: [],
+                uniforms: {
+                    uBodyClipCount: { value: 0 },
+                    uBodyClipMatrix: { value: matrices },
+                    uBodyClipMin: { value: mins },
+                    uBodyClipMax: { value: maxs }
+                }
+            };
+        },
+
+        // Attachment yang sudah dilepas, disembunyikan, atau dipindah ke karakter lain tidak lagi memotong
+        isClipAlive(clip, root) {
+            for (let p = clip.wrapper; p; p = p.parent) {
+                if (!p.visible) return false;
+                if (p === root) return true;
+            }
+            return false;
+        },
+
+        patchBodyClipMesh(mesh, state) {
+            if (mesh.userData.bodyClipPatched) {
+                mesh.userData.bodyClipState = state;
+                return;
+            }
+            mesh.userData.bodyClipPatched = true;
+            mesh.userData.bodyClipState = state;
+            const patch = (material) => this.makeBodyClipMaterial(material, state);
+            mesh.material = Array.isArray(mesh.material) ? mesh.material.map(patch) : patch(mesh.material);
+            // Bayangan memakai material kedalaman sendiri, jadi ikut dipotong juga
+            const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+            depth.skinning = true;
+            mesh.customDepthMaterial = this.makeBodyClipMaterial(depth, state);
+            // Lapisan efek (scan pickup, siluet tembus tembok) yang sudah dibuat ikut dipotong
+            if (mesh.parent) mesh.parent.children.forEach((twin) => {
+                if (twin !== mesh && twin.userData.isEagleVisionTwin && twin.geometry === mesh.geometry && twin.skeleton === mesh.skeleton) {
+                    twin.userData.bodyClipState = state;
+                    twin.material = patch(twin.material);
+                }
+            });
+            const previousBeforeRender = mesh.onBeforeRender;
+            mesh.onBeforeRender = (...args) => {
+                if (previousBeforeRender) previousBeforeRender.apply(mesh, args);
+                this.updateBodyClip(mesh.userData.bodyClipState, mesh);
+            };
+        },
+
+        /**
+         * Material efek lain (ghost, scan, siluet) untuk tubuh yang dipotong. Dipakai oleh sistem lain
+         * saat membuat lapisan/menukar material tubuh; tanpa potongan, material aslinya dikembalikan.
+         */
+        bodyClipMaterial(mesh, material) {
+            const state = mesh && mesh.userData && mesh.userData.bodyClipState;
+            if (!state || !material) return material;
+            return this.makeBodyClipMaterial(material, state);
+        },
+
+        makeBodyClipMaterial(material, state) {
+            if (material.userData && material.userData.bodyClipSource) return material;
+            if (!state.materials) state.materials = new Map();
+            const cached = state.materials.get(material);
+            if (cached) return cached;
+            // Material bisa dipakai karakter lain, jadi tiap karakter memakai salinannya sendiri
+            const copy = material.clone();
+            copy.userData = Object.assign({}, material.userData, { bodyClipSource: material });
+            if (material.isShaderMaterial) {
+                // Uniform efek (warna, waktu, alpha) tetap dibagi dengan material aslinya
+                copy.uniforms = Object.assign({}, material.uniforms, state.uniforms);
+            }
+            const previous = material.onBeforeCompile;
+            copy.onBeforeCompile = (shader, renderer) => {
+                if (previous) previous.call(copy, shader, renderer);
+                Object.assign(shader.uniforms, state.uniforms);
+                if (shader.vertexShader.indexOf('#include <skinning_vertex>') < 0) return;
+                shader.vertexShader = 'varying vec3 vBodyClipWorld;\n' + shader.vertexShader
+                    .replace('#include <skinning_vertex>', '#include <skinning_vertex>\nvBodyClipWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+                shader.fragmentShader = `varying vec3 vBodyClipWorld;
+                    uniform int uBodyClipCount;
+                    uniform mat4 uBodyClipMatrix[${BODY_CLIP_MAX}];
+                    uniform vec3 uBodyClipMin[${BODY_CLIP_MAX}];
+                    uniform vec3 uBodyClipMax[${BODY_CLIP_MAX}];
+                    ` + shader.fragmentShader.replace(/void\s+main\s*\(\s*\)\s*\{/, `void main() {
+                        for (int i = 0; i < ${BODY_CLIP_MAX}; i++) {
+                            if (i >= uBodyClipCount) break;
+                            vec3 p = (uBodyClipMatrix[i] * vec4(vBodyClipWorld, 1.0)).xyz;
+                            vec3 lo = uBodyClipMin[i];
+                            vec3 hi = uBodyClipMax[i];
+                            // Dari sedikit di atas tepi bawah attachment ke atas, di dalam lebarnya
+                            float floorY = lo.y + (hi.y - lo.y) * ${BODY_CLIP_FLOOR.toFixed(2)};
+                            if (p.x > lo.x && p.x < hi.x && p.z > lo.z && p.z < hi.z && p.y > floorY) discard;
+                        }`);
+            };
+            copy.customProgramCacheKey = () => (material.customProgramCacheKey ? material.customProgramCacheKey() : '') + '|bodyClip';
+            state.materials.set(material, copy);
+            return copy;
+        },
+
+        // Matriks attachment diperbarui tiap frame, karena topi bergerak bersama kepala
+        updateBodyClip(state, mesh) {
+            if (!state) return;
+            let root = mesh;
+            while (root.parent && !root.parent.isScene) root = root.parent;
+            state.clips = state.clips.filter(clip => this.isClipAlive(clip, root));
+            const u = state.uniforms;
+            u.uBodyClipCount.value = state.clips.length;
+            state.clips.forEach((clip, i) => {
+                u.uBodyClipMatrix.value[i].copy(clip.visual.matrixWorld).invert();
+                u.uBodyClipMin.value[i].copy(clip.min);
+                u.uBodyClipMax.value[i].copy(clip.max);
+            });
+        },
+
         createAttachmentMesh(att) {
             const wrapper = new THREE.Group();
             wrapper.name = 'SocketWrapper_' + (att.id || 'unnamed');
@@ -548,6 +756,7 @@
                 wrapper.userData.visualObject = loadedModel;
                 wrapper.userData.isModelLoaded = true;
                 wrapper.updateMatrixWorld(true);
+                if (att.clipBody) this.enableBodyClip(wrapper);
             };
 
             const onModelError = (err) => {

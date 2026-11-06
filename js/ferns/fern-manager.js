@@ -475,7 +475,7 @@ function buildReedClumpGeometry(config, seed = 1) {
     const c0 = new THREE.Color(config.c0);
     const c1 = new THREE.Color(config.c1);
     const hi = new THREE.Color(config.hi);
-    const dry = new THREE.Color(config.dry || 0xb9a24a);
+    const dry = new THREE.Color(config.dry || 0x6ec01e);
     const up = new THREE.Vector3(0, 1, 0);
 
     // Helai daun: strip 3 vertex per baris (tepi-tengah-tepi) dengan lipatan tengah
@@ -505,7 +505,7 @@ function buildReedClumpGeometry(config, seed = 1) {
             [[-1, 0], [0, 1], [1, 0]].forEach(([s, crease]) => {
                 const q = p.clone().addScaledVector(sd, s * half).addScaledVector(nr, -crease * half * 0.35);
                 pos.push(q.x, q.y, q.z);
-                const shade = crease ? 1.08 : 0.92;
+                const shade = crease ? 1.05 : 0.95;
                 col.push(tc.r * shade, tc.g * shade, tc.b * shade);
                 uv.push((s + 1) / 2, t);
             });
@@ -600,9 +600,11 @@ function buildReedClumpGeometry(config, seed = 1) {
     return { leafGeo, stemGeo };
 }
 
+// Konfigurasi dasar warna & bentuk rumput tinggi / reed:
+// c0 (pangkal), c1 (badan), hi (pucuk) mengikuti persis spektrum PANDORA_GRASS_GREEN (#52B314)
 const REED_BASE = {
-    blades: 46, spread: 0.22, bladeLen: 1.35, bladeWidth: 0.075, bladeBend: 0.75, dryChance: 0.12,
-    c0: 0x123a14, c1: 0x3f7f24, hi: 0x8fbf4a, dry: 0xa88f3a,
+    blades: 46, spread: 0.22, bladeLen: 1.35, bladeWidth: 0.075, bladeBend: 0.75, dryChance: 0.03,
+    c0: 0x245812, c1: 0x52b314, hi: 0x5ece17, dry: 0x6ec01e,
     spikeLen: 1.55, spikeBend: 0.6, blooms: 8, bloomSize: 0.1
 };
 function addReedModel(type, config, seed) {
@@ -632,31 +634,79 @@ FERN_MODELS.spawn_reed_crocosmia = [];
 FERN_MODELS.spawn_reed_golden = [];
 FERN_MODELS.spawn_reed_tall = [];
 for (let v = 0; v < 3; v++) {
-    // Montbretia: tangkai bunga merah-jingga
+    // Montbretia: tangkai bunga jingga marigold hangat (selaras alami dengan rumput hijau)
     addReedModel('spawn_reed_crocosmia', Object.assign({}, REED_BASE, {
-        spikes: 4 + v, flowerInner: 0x8f1204, flowerOuter: 0xff3a0a
+        spikes: 4 + v, flowerInner: 0xc85618, flowerOuter: 0xeb7820
     }), 307 + v * 43);
-    // Daylily liar: kuntum kuning keemasan lebih rapat
+    // Daylily liar: kuntum kuning keemasan lembut (tanpa kontras berlebih)
     addReedModel('spawn_reed_golden', Object.assign({}, REED_BASE, {
-        spikes: 6 + v, blooms: 9, bloomSize: 0.09, spikeLen: 1.3, flowerInner: 0xc77a0a, flowerOuter: 0xffd23a,
-        c1: 0x4f8c2c, hi: 0xa6c85a
+        spikes: 6 + v, blooms: 9, bloomSize: 0.09, spikeLen: 1.3, flowerInner: 0xcc8514, flowerOuter: 0xebb224
     }), 401 + v * 59);
-    // Rumput tinggi tanpa bunga, lebih rapat dan sedikit kering
+    // Rumput tinggi tanpa bunga: rimbun & segar, warna serasi penuh dengan rumput hijau
     addReedModel('spawn_reed_tall', Object.assign({}, REED_BASE, {
-        blades: 60, bladeLen: 1.5, spikes: 0, dryChance: 0.22
+        blades: 60, bladeLen: 1.5, spikes: 0, dryChance: 0.04
     }), 523 + v * 31);
 }
 
-const reedLeafMat = createFernMaterial({
-    vertexColors: true,
-    side: THREE.DoubleSide,
-    roughness: 0.62
-}, false);
+// Material khusus rumput reed (bunga jingga, bunga kuning, rumput tinggi)
+// Mengikuti 100% kaidah warna & lighting genshinGrassShader di grass.js:
+// Mengeliminasi overexposure PBR, rim, & translusensi ganda yang memutihkan rumput.
+function createReedMaterial(params) {
+    const mat = new THREE.MeshStandardMaterial(Object.assign({
+        roughness: 0.8,
+        metalness: 0.0
+    }, params));
 
-const reedStemMat = createFernMaterial({
-    color: 0x4f7a2b,
-    roughness: 0.7
-}, false);
+    mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uFernTime = fernTimeUniform;
+        sh.vertexShader = 'uniform float uFernTime;\n' + sh.vertexShader.replace(
+            '#include <begin_vertex>',
+            `
+            #include <begin_vertex>
+            #ifdef USE_INSTANCING
+            vec4 worldP = modelMatrix * instanceMatrix * vec4(position, 1.0);
+            #else
+            vec4 worldP = modelMatrix * vec4(position, 1.0);
+            #endif
+            float k = length(position) * 0.034;
+            transformed.x += sin(uFernTime * 1.5 + worldP.x * 0.35 + position.y * 1.6) * k;
+            transformed.z += cos(uFernTime * 1.2 + worldP.z * 0.35 + position.x * 2.0) * k * 0.7;
+            `
+        );
+        sh.fragmentShader = sh.fragmentShader.replace(
+            '#include <lights_fragment_end>',
+            `
+            #include <lights_fragment_end>
+            // Samakan sistem pencahayaan dengan rumput hijau (genshinGrassShader):
+            float reedShadow = 1.0;
+            #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+                reedShadow = getShadow(
+                    directionalShadowMap[0],
+                    directionalLightShadows[0].shadowMapSize,
+                    directionalLightShadows[0].shadowBias,
+                    directionalLightShadows[0].shadowRadius,
+                    vDirectionalShadowCoord[0]
+                );
+            #endif
+            float reedSoftShadow = smoothstep(0.0, 0.85, reedShadow);
+            reflectedLight.directDiffuse = vec3(0.0);
+            reflectedLight.directSpecular = vec3(0.0);
+            reflectedLight.indirectSpecular = vec3(0.0);
+            reflectedLight.indirectDiffuse = diffuseColor.rgb * mix(0.38, 1.05, reedSoftShadow);
+            `
+        );
+    };
+    return mat;
+}
+
+const reedLeafMat = createReedMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide
+});
+
+const reedStemMat = createReedMaterial({
+    color: 0x3d8c1c
+});
 
 function isReedType(fernType) {
     return typeof fernType === 'string' && fernType.indexOf('spawn_reed') === 0;

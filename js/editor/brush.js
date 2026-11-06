@@ -826,8 +826,9 @@ function updateBrushReticle(hitPoint, normal) {
         if (grassBrush === 'remove') colorHex = 0xef4444;       // Merah hapus rumput
         else if (grassBrush === 'spawn_yellow' || grassBrush === 'spawn_yellow_mix') colorHex = 0xfacc15; // Kuning emas padang rumput
         else if (grassBrush === 'spawn_white') colorHex = 0xf8fafc; // Putih salju
-        else if (grassBrush === 'spawn_reed_crocosmia') colorHex = 0xf97316; // Jingga bunga montbretia
-        else if (grassBrush === 'spawn_reed_golden') colorHex = 0xfbbf24;    // Kuning daylily
+        else if (grassBrush === 'spawn_reed_crocosmia') colorHex = 0xf08028; // Jingga lembut marigold
+        else if (grassBrush === 'spawn_reed_golden') colorHex = 0xebba28;    // Kuning lembut dandelion
+        else if (grassBrush === 'spawn_reed_tall') colorHex = 0x52b314;      // Hijau rumput tinggi (senada rumput hijau)
         else colorHex = 0x10b981;                               // Hijau zamrud rumput segar
     } else if (rockBrush !== 'none') {
         radius = (typeof sliderRockRadius !== 'undefined') ? (parseFloat(sliderRockRadius.value) || 4.0) : 4.0;

@@ -323,13 +323,35 @@ reportProgress(0.02, 'Membaca stage');
 
 // --- Stage ---
 $project = json_decode((string) @file_get_contents($root . '/config/project.json'), true) ?: [];
+// Map bisa 20+ MB per file. Saat perencanaan hanya bagian kecil yang disimpan (portal, objek impor,
+// karakter, musuh, trigger, aktor cinematic); isi lengkap dibaca ulang satu per satu saat ditulis ke build.
+ini_set('memory_limit', '1024M');
+function loadStageData($file) {
+    $data = json_decode((string) file_get_contents($file), true);
+    return is_array($data) ? $data : null;
+}
+function stagePlanningData($data) {
+    $lite = [];
+    foreach (['id', 'name', 'character', 'portals', 'importedObjects', 'foxes', 'triggers'] as $key) {
+        if (array_key_exists($key, $data)) $lite[$key] = $data[$key];
+    }
+    if (!empty($data['cinematic']['scenes'])) {
+        $lite['cinematic'] = ['scenes' => array_map(function ($scene) {
+            return ['isFoxEnabled' => !empty($scene['isFoxEnabled']), 'foxes' => array_map(function ($actor) {
+                return ['species' => $actor['species'] ?? null];
+            }, (array) ($scene['foxes'] ?? []))];
+        }, (array) $data['cinematic']['scenes'])];
+    }
+    return $lite;
+}
 $stages = [];
 foreach (glob($root . '/maps/*.json') as $file) {
-    $data = json_decode((string) file_get_contents($file), true);
+    $data = loadStageData($file);
     if (is_array($data)) {
         $id = $data['id'] ?? basename($file, '.json');
-        $stages[$id] = ['id' => $id, 'name' => $data['name'] ?? $id, 'file' => $file, 'data' => $data];
+        $stages[$id] = ['id' => $id, 'name' => $data['name'] ?? $id, 'file' => $file, 'data' => stagePlanningData($data)];
     }
+    unset($data);
 }
 if (!$stages) fail('Belum ada stage tersimpan', 400);
 
@@ -483,7 +505,8 @@ copy($root . '/runtime/launcher/play.sh', $dest . '/play.sh');
 // --- Data game ---
 mkdir($dest . '/data/maps', 0777, true);
 foreach ($stages as $id => $stage) {
-    $data = $stage['data'];
+    $data = loadStageData($stage['file']);
+    if (!is_array($data)) fail('Gagal membaca stage ' . $stage['name']);
     unset($data['meta']);
     $data['importedObjects'] = array_values(array_filter((array) ($data['importedObjects'] ?? []), function ($object) use ($importedModelFiles) {
         return isset($importedModelFiles[$object['file'] ?? '']);
@@ -497,6 +520,7 @@ foreach ($stages as $id => $stage) {
     // Urutan acak membuat preset rendah cukup menggambar sebagian awal rumput dan tetap merata
     if (!empty($data['activeGrass'])) shuffle($data['activeGrass']);
     file_put_contents($dest . '/data/maps/' . $id . '.json', json_encode($data, JSON_UNESCAPED_UNICODE));
+    unset($data);
 }
 file_put_contents($dest . '/data/project.json', json_encode([
     'name' => $gameName,

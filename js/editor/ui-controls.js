@@ -839,6 +839,18 @@ document.querySelectorAll('.btn-color-preset').forEach(btn => {
     });
 });
 
+// Landscape = warna rumput hijau kuas, persis (lihat PANDORA_GRASS_GREEN di terrain.js)
+const btnPlaneGrassGreen = document.getElementById('btn-plane-grass-green');
+if (btnPlaneGrassGreen) {
+    btnPlaneGrassGreen.addEventListener('click', () => {
+        const hex = '#' + new THREE.Color(PANDORA_GRASS_GREEN).getHexString();
+        if (typeof saveState === 'function') saveState();
+        if (pickerPlaneColor) pickerPlaneColor.value = hex;
+        if (valPlaneColor) valPlaneColor.innerText = hex;
+        if (typeof setTerrainPlaneColor === 'function') setTerrainPlaneColor(hex);
+    });
+}
+
 if (toggleStudioGrid) {
     toggleStudioGrid.addEventListener('change', (e) => {
         if (typeof studioGrid !== 'undefined') {

@@ -286,11 +286,23 @@ const claySoilTextures = generateAuthenticClayTextures();
 
 const groundMat = new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide });
 
+// Warna rumput hijau kuas (satu sumber untuk kuas rumput & landscape)
+const PANDORA_GRASS_GREEN = 0x52b314;
+window.PANDORA_GRASS_GREEN = PANDORA_GRASS_GREEN;
+// Shader rumput mengeluarkan warnanya langsung (tanpa tonemap ACES & konversi sRGB), sedangkan tanah
+// ikut keduanya ditambah pencahayaan toon, jadi hex yang sama tetap tampak berbeda di layar. Bagian
+// landscape yang warnanya persis hijau rumput dirender dengan cara rumput: hex penuh di bawah matahari,
+// 0.35x di bayangan (rumput: mix(0.35, 1.05) dengan rata-rata helai ~0.95x), dan sedikit bayangan lereng.
+const groundGrassMatchUniforms = {
+    uGroundGrassColor: { value: new THREE.Color(PANDORA_GRASS_GREEN) },
+    uGroundGrassTolerance: { value: 2.5 / 255 }
+};
+
 // Kustomisasi shader tanah: Mengembalikan bayangan pada seluruh landscape,
 // namun secara cerdas menghilangkan bayangan pada area tanah yang memiliki air
 // agar bayangan tidak ganda (karena bayangan sudah tampil di permukaan air).
 groundMat.customProgramCacheKey = function () {
-    return 'groundMat_waterShadow_v15';
+    return 'groundMat_waterShadow_v16_grassMatch';
 };
 
 groundMat.onBeforeCompile = function (shader) {
@@ -303,6 +315,7 @@ groundMat.onBeforeCompile = function (shader) {
     shader.uniforms.uClaySoilAlbedo = { value: claySoilTextures.albedo };
     shader.uniforms.uClaySoilNormal = { value: claySoilTextures.normal };
     Object.assign(shader.uniforms, groundCoverUniforms);
+    Object.assign(shader.uniforms, groundGrassMatchUniforms);
 
     shader.vertexShader = `
         varying vec3 vGroundWorldPos;
@@ -326,6 +339,8 @@ groundMat.onBeforeCompile = function (shader) {
         uniform float uGroundWaterSpeed;
         uniform sampler2D uClaySoilAlbedo;
         uniform sampler2D uClaySoilNormal;
+        uniform vec3 uGroundGrassColor;
+        uniform float uGroundGrassTolerance;
         ${GROUND_COVER_GLSL}
         varying vec3 vGroundWorldPos;
 
@@ -416,7 +431,13 @@ groundMat.onBeforeCompile = function (shader) {
         }
         // Salju dan tanah tebal
         vec4 coverColor = groundCover(vGroundWorldPos.xz, vec3(0.0, 1.0, 0.0));
-        diffuseColor.rgb = mix(diffuseColor.rgb, coverColor.rgb, coverColor.a);`
+        diffuseColor.rgb = mix(diffuseColor.rgb, coverColor.rgb, coverColor.a);
+        // Bobot "tanah = warna rumput hijau" (vertex color persis #52B314, tidak tertutup salju)
+        float grassMatch = 0.0;
+        #ifdef USE_COLOR
+            vec3 gDiff = abs(vColor.rgb - uGroundGrassColor);
+            grassMatch = step(max(max(gDiff.r, gDiff.g), gDiff.b), uGroundGrassTolerance) * (1.0 - coverColor.a);
+        #endif`
     );
 
     frag = frag.replace(
@@ -438,6 +459,29 @@ groundMat.onBeforeCompile = function (shader) {
                 normal = normalize(mix(normal, clayViewN, cDetNorm * 0.90));
             }
         #endif`
+    );
+
+    // Ganti hasil akhir piksel hijau-rumput sebelum kabut (rumput juga memberi kabut setelah warnanya)
+    frag = frag.replace(
+        '#include <fog_fragment>',
+        `if (grassMatch > 0.5) {
+            float gShadow = 1.0;
+            #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
+                gShadow = getShadow(directionalShadowMap[0], directionalLightShadows[0].shadowMapSize,
+                    directionalLightShadows[0].shadowBias, directionalLightShadows[0].shadowRadius, vDirectionalShadowCoord[0]);
+            #endif
+            float gSun = smoothstep(0.0, 0.9, gShadow);
+            // Lereng yang membelakangi matahari sedikit lebih gelap; tanah datar = 1.0 (hex persis)
+            float relief = 1.0;
+            #if NUM_DIR_LIGHTS > 0
+                vec3 upView = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+                vec3 lightView = directionalLights[0].direction;
+                // Kemiringan sangat kecil (normal tanah tidak 100% datar) dianggap datar agar hex tetap persis
+                relief = clamp(dot(normal, lightView) / max(dot(upView, lightView), 0.2) / 0.95, 0.7, 1.0);
+            #endif
+            gl_FragColor = vec4(uGroundGrassColor * mix(0.35 / 1.05, 1.0, gSun) * relief, gl_FragColor.a);
+        }
+        #include <fog_fragment>`
     );
 
     shader.fragmentShader = frag;

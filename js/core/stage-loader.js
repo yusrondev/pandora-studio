@@ -20,8 +20,14 @@ function tintGroundUnderGrass() {
         sums[vertex * 3 + 2] += colors[i * 3 + 2];
         counts[vertex]++;
     }
+    // Tanah yang sudah persis hijau rumput dirender sama dengan rumput (lihat terrain.js), jangan digelapkan
+    const grassGreen = new THREE.Color(PANDORA_GRASS_GREEN);
+    const tolerance = 2.5 / 255;
     for (let v = 0; v < ground.count; v++) {
         if (counts[v] === 0) continue;
+        const a = ground.array;
+        if (Math.abs(a[v * 3] - grassGreen.r) <= tolerance && Math.abs(a[v * 3 + 1] - grassGreen.g) <= tolerance
+            && Math.abs(a[v * 3 + 2] - grassGreen.b) <= tolerance) continue;
         for (let c = 0; c < 3; c++) ground.array[v * 3 + c] = sums[v * 3 + c] / counts[v] * GRASS_GROUND_SHADE;
     }
     ground.needsUpdate = true;

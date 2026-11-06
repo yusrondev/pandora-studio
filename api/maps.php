@@ -25,6 +25,64 @@ if (!$mapsDir) {
     $mapsDir = realpath($dirPath);
 }
 
+// Map besar (terrain, rumput, cinematic) bisa 20+ MB; di PHP satu json_decode-nya memakan ratusan MB.
+// Batas ini hanya terpakai oleh operasi yang memang mengurai map penuh (simpan & ringkasan pertama kali).
+const MAP_DECODE_MEMORY = '1024M';
+
+// Ringkasan kecil per map (nama, tanggal, jumlah objek) disimpan di maps/.index/<id>.json supaya
+// daftar map tidak perlu mengurai seluruh file setiap kali Studio dibuka.
+function mapIndexDir($mapsDir) {
+    $dir = $mapsDir . '/.index';
+    if (!is_dir($dir)) @mkdir($dir, 0777, true);
+    return $dir;
+}
+
+function buildMapSummary($data, $id, $file) {
+    return [
+        'id' => $data['id'] ?? $id,
+        'name' => $data['name'] ?? $id,
+        'filename' => basename($file),
+        'createdAt' => $data['createdAt'] ?? date('c', filectime($file)),
+        'updatedAt' => $data['updatedAt'] ?? date('c', filemtime($file)),
+        'treeCount' => isset($data['trees']) ? count($data['trees']) : ($data['meta']['treeCount'] ?? 0),
+        'grassCount' => isset($data['activeGrass']) ? count($data['activeGrass']) : ($data['meta']['grassCount'] ?? 0),
+        'character' => $data['character'] ?? null,
+        'portalCount' => isset($data['portals']) ? count($data['portals']) : 0,
+        'fileSize' => filesize($file)
+    ];
+}
+
+function writeMapSummary($mapsDir, $id, $summary, $file) {
+    clearstatcache(true, $file);
+    $summary['fileSize'] = filesize($file);
+    $entry = ['mtime' => filemtime($file), 'size' => filesize($file), 'summary' => $summary];
+    @file_put_contents(mapIndexDir($mapsDir) . '/' . $id . '.json', json_encode($entry, JSON_UNESCAPED_UNICODE));
+}
+
+function readMapSummary($mapsDir, $id, $file) {
+    $cache = $mapsDir . '/.index/' . $id . '.json';
+    if (is_file($cache)) {
+        $entry = json_decode((string) @file_get_contents($cache), true);
+        if (is_array($entry) && ($entry['mtime'] ?? 0) === filemtime($file) && ($entry['size'] ?? -1) === filesize($file)) {
+            return $entry['summary'];
+        }
+    }
+    // Belum ada / file berubah di luar Studio: urai sekali, lalu simpan ringkasannya
+    ini_set('memory_limit', MAP_DECODE_MEMORY);
+    $data = json_decode((string) @file_get_contents($file), true);
+    if (!is_array($data)) {
+        return [
+            'id' => $id, 'name' => $id, 'filename' => basename($file),
+            'createdAt' => date('c', filectime($file)), 'updatedAt' => date('c', filemtime($file)),
+            'treeCount' => 0, 'grassCount' => 0, 'fileSize' => filesize($file)
+        ];
+    }
+    $summary = buildMapSummary($data, $id, $file);
+    unset($data);
+    writeMapSummary($mapsDir, $id, $summary, $file);
+    return $summary;
+}
+
 function sanitizeSlug($string) {
     $slug = preg_replace('/[^\p{L}\p{N}]+/u', '-', $string);
     $slug = trim($slug, '-');
@@ -51,11 +109,17 @@ if ($method === 'GET') {
             }
         }
 
+        // File map ditulis oleh endpoint ini sendiri, jadi isinya dikirim apa adanya tanpa diurai ulang
+        // (mengurai lalu meng-encode ulang map 20 MB menghabiskan memori). Cek ringan: harus objek JSON.
         if ($targetFile && file_exists($targetFile)) {
-            $content = file_get_contents($targetFile);
-            $decoded = json_decode($content, true);
-            if ($decoded) {
-                echo json_encode(['success' => true, 'map' => $decoded]);
+            $fh = fopen($targetFile, 'rb');
+            $head = $fh ? ltrim((string) fread($fh, 64)) : '';
+            if ($fh) fclose($fh);
+            if ($head !== '' && $head[0] === '{') {
+                header('Content-Length: ' . (filesize($targetFile) + strlen('{"success":true,"map":}')));
+                echo '{"success":true,"map":';
+                readfile($targetFile);
+                echo '}';
                 exit;
             }
         }
@@ -65,41 +129,12 @@ if ($method === 'GET') {
         exit;
     }
 
-    // Ambil daftar list map
+    // Ambil daftar list map (dari ringkasan, bukan isi map penuh)
     $maps = [];
     $files = glob($mapsDir . '/*.json');
     if ($files) {
         foreach ($files as $file) {
-            $filename = basename($file);
-            $id = basename($file, '.json');
-            $content = @file_get_contents($file);
-            $data = @json_decode($content, true);
-
-            if ($data && is_array($data)) {
-                $maps[] = [
-                    'id' => $data['id'] ?? $id,
-                    'name' => $data['name'] ?? $id,
-                    'filename' => $filename,
-                    'createdAt' => $data['createdAt'] ?? date('c', filectime($file)),
-                    'updatedAt' => $data['updatedAt'] ?? date('c', filemtime($file)),
-                    'treeCount' => isset($data['trees']) ? count($data['trees']) : ($data['meta']['treeCount'] ?? 0),
-                    'grassCount' => isset($data['activeGrass']) ? count($data['activeGrass']) : ($data['meta']['grassCount'] ?? 0),
-                    'character' => $data['character'] ?? null,
-                    'portalCount' => isset($data['portals']) ? count($data['portals']) : 0,
-                    'fileSize' => filesize($file)
-                ];
-            } else {
-                $maps[] = [
-                    'id' => $id,
-                    'name' => $id,
-                    'filename' => $filename,
-                    'createdAt' => date('c', filectime($file)),
-                    'updatedAt' => date('c', filemtime($file)),
-                    'treeCount' => 0,
-                    'grassCount' => 0,
-                    'fileSize' => filesize($file)
-                ];
-            }
+            $maps[] = readMapSummary($mapsDir, basename($file, '.json'), $file);
         }
 
         // Urutkan berdasarkan updatedAt terbaru
@@ -114,8 +149,10 @@ if ($method === 'GET') {
 
 // 2. POST: Simpan atau update map
 if ($method === 'POST') {
+    ini_set('memory_limit', MAP_DECODE_MEMORY);
     $raw = file_get_contents('php://input');
     $payload = json_decode($raw, true);
+    unset($raw);
 
     if (!$payload || !isset($payload['name'])) {
         http_response_code(400);
@@ -144,9 +181,11 @@ if ($method === 'POST') {
         $payload['createdAt'] = $now;
     }
 
-    $saved = file_put_contents($filePath, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    // JSON rapat: pretty print membuat map berisi ribuan angka (terrain, rumput) berlipat-lipat ukurannya
+    $saved = file_put_contents($filePath, json_encode($payload, JSON_UNESCAPED_UNICODE), LOCK_EX);
 
     if ($saved !== false) {
+        writeMapSummary($mapsDir, $id, buildMapSummary($payload, $id, $filePath), $filePath);
         echo json_encode([
             'success' => true,
             'id' => $id,
@@ -192,6 +231,7 @@ if ($method === 'DELETE') {
 
     if ($targetFile && file_exists($targetFile)) {
         if (@unlink($targetFile)) {
+            @unlink($mapsDir . '/.index/' . $id . '.json');
             echo json_encode([
                 'success' => true,
                 'id' => $id,

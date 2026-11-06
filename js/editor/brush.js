@@ -7,7 +7,7 @@ const mouse = new THREE.Vector2();
 let isMouseDown = false;
 let isRightMouseDown = false;
 
-const greenColor = new THREE.Color(0x52b314);
+const greenColor = new THREE.Color(typeof PANDORA_GRASS_GREEN !== 'undefined' ? PANDORA_GRASS_GREEN : 0x52b314);
 const yellowColor = new THREE.Color(0xd9ab23);
 const whiteColor = new THREE.Color(0xf4f9fc);
 const greenMixColor = new THREE.Color(0.28, 0.78, 0.42);

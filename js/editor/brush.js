@@ -323,6 +323,67 @@ let selectionPointerDownInfo = null;
 let isHoldingForCamera = false;
 let lastFernSingleDragPos = null;
 
+// Penempatan sekali klik, dijalankan dari pointerup setelah dipastikan bukan seret kamera.
+// Mengembalikan true bila ada yang ditempatkan.
+function performOneShotPlacement(hitPoint) {
+    // Mode Player Spawn: Klik kiri = letakkan / pindahkan titik spawn player
+    if (window.isPlayerSpawnModeActive && window.PlayerSpawnManager) {
+        window.PlayerSpawnManager.setSpawnPosition(hitPoint.x, hitPoint.z);
+        window.PlayerSpawnManager.togglePlacementMode(false);
+        return true;
+    }
+
+    // Mode Trigger: Klik kiri = letakkan area trigger lalu keluar dari mode
+    if (window.isTriggerPlacementActive) {
+        const newTrigger = TriggerManager.create({ x: Math.round(hitPoint.x * 10) / 10, z: Math.round(hitPoint.z * 10) / 10 });
+        TriggerManager.togglePlacement(false);
+        TriggerPanel.select(newTrigger.id);
+        return true;
+    }
+
+    // Mode Portal: Klik kiri = letakkan portal lalu keluar dari mode
+    if (window.isPortalPlacementActive) {
+        const newPortal = PortalManager.create({ x: Math.round(hitPoint.x * 10) / 10, z: Math.round(hitPoint.z * 10) / 10 });
+        PortalManager.togglePlacement(false);
+        PortalPanel.select(newPortal.id);
+        return true;
+    }
+
+    // Mode Item Box Spawner: Klik kiri = letakkan item box di permukaan tanah
+    if (window.isItemBoxSpawnerActive) {
+        if (window.itemBoxManagerInstance) {
+            window.itemBoxManagerInstance.createItemBox(hitPoint.x, hitPoint.z);
+            window.itemBoxManagerInstance.updateCountUI();
+        }
+        return true;
+    }
+
+    const treeMode = selectTreeMode.value;
+    if (treeMode !== 'none') {
+        spawnTreeAtLocation(treeMode, hitPoint.x, hitPoint.z);
+        return true;
+    }
+
+    const currentFoxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
+    const foxMode = currentFoxSelect ? currentFoxSelect.value : 'none';
+    if (foxMode !== 'none') {
+        const pose = (typeof currentSpawnerPose === 'string') ? currentSpawnerPose : 'idle';
+        if (typeof spawnFoxAtLocation === 'function') {
+            spawnFoxAtLocation(foxMode, pose, hitPoint.x, hitPoint.z);
+        }
+        return true;
+    }
+    return false;
+}
+
+function isOneShotPlacementActive() {
+    const foxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
+    return !!(window.isPlayerSpawnModeActive || window.isTriggerPlacementActive || window.isPortalPlacementActive
+        || window.isItemBoxSpawnerActive || selectTreeMode.value !== 'none' || (foxSelect && foxSelect.value !== 'none'));
+}
+
+let placementPointerDownInfo = null;
+
 function handleCanvasPointerDown(e) {
     if (typeof isPlayMode !== 'undefined' && isPlayMode) return;
     if (e.target.tagName !== 'CANVAS') return;
@@ -579,182 +640,19 @@ function handleCanvasPointerDown(e) {
     if (e.button === 0) {
         const toolActive = isSpawnerToolActive();
 
-        // 0. Prioritaskan Seleksi Rubah jika pointer mengklik tepat pada Rubah yang sudah ada di scene!
-        if (!toolActive && typeof spawnedFoxesList !== 'undefined' && spawnedFoxesList.length > 0) {
-            const foxRoots = spawnedFoxesList.map(f => f.root).filter(Boolean);
-            const foxHits = raycaster.intersectObjects(foxRoots, true);
-            if (foxHits.length > 0) {
-                let targetRoot = null;
-                for (let i = 0; i < foxHits.length; i++) {
-                    const hitObj = foxHits[i].object;
-                    if (hitObj.userData && hitObj.userData.foxRoot) {
-                        targetRoot = hitObj.userData.foxRoot;
-                        break;
-                    }
-                    let curr = hitObj;
-                    while (curr && curr.parent && curr.parent !== scene) {
-                        if (curr.userData && curr.userData.isSpawnedFox) {
-                            targetRoot = curr;
-                            break;
-                        }
-                        curr = curr.parent;
-                    }
-                    if (targetRoot) break;
-                }
-                if (targetRoot) {
-                    const foxIdx = spawnedFoxesList.findIndex(f => f.root === targetRoot);
-                    if (foxIdx !== -1) {
-                        if (typeof selectFoxByIndex === 'function') {
-                            selectFoxByIndex(foxIdx, true);
-                        }
-                        if (e.stopPropagation) e.stopPropagation();
-                        return; // Langsung pilih rubah dan cegah spawn menumpuk!
-                    }
-                }
-            }
-        }
+        // Seleksi objek (musuh, trigger, portal, pohon, batu) TIDAK dijalankan di sini: menekan tombol bisa
+        // berarti mulai memutar kamera. Seleksi baru terjadi di pointerup bila ternyata klik cepat.
 
-        // Seleksi trigger
-        if (!toolActive && typeof TriggerManager !== 'undefined') {
-            const pickedTrigger = TriggerManager.pickFromRay(raycaster);
-            if (pickedTrigger) {
-                TriggerPanel.select(pickedTrigger.id);
-                if (e.stopPropagation) e.stopPropagation();
-                return;
-            }
-        }
-
-        // Seleksi portal
-        if (!toolActive && typeof PortalManager !== 'undefined') {
-            const pickedPortal = PortalManager.pickFromRay(raycaster);
-            if (pickedPortal) {
-                PortalPanel.select(pickedPortal.id);
-                if (e.stopPropagation) e.stopPropagation();
-                return;
-            }
-        }
-
-        // Prioritaskan Seleksi Pohon jika mengklik tepat pada Pohon yang sudah ada di scene
-        if (!toolActive && typeof treesList !== 'undefined' && treesList.length > 0) {
-            const treeHits = raycaster.intersectObjects(treesList, true);
-            if (treeHits.length > 0) {
-                let rootTree = treeHits[0].object;
-                while (rootTree && rootTree.parent && rootTree.parent !== scene) {
-                    rootTree = rootTree.parent;
-                }
-                const treeIdx = treesList.indexOf(rootTree);
-                if (treeIdx !== -1) {
-                    selectedTreeIndex = treeIdx;
-                    window.selectedTreeIndex = treeIdx;
-                    window.selectedRockIndex = -1;
-                    if (typeof selectedRockIndex !== 'undefined') selectedRockIndex = -1;
-                    if (typeof selectedFoxIndex !== 'undefined') {
-                        selectedFoxIndex = -1;
-                        window.selectedFoxIndex = -1;
-                    }
-                    if (typeof layerGroupStates !== 'undefined') {
-                        layerGroupStates.trees = true;
-                    }
-                    refreshLayerUI();
-                    if (typeof updateEditorUI === 'function') updateEditorUI();
-                    if (typeof SelectionOutlineManager !== 'undefined') {
-                        SelectionOutlineManager.selectObject(rootTree, true);
-                    }
-                    if (e.stopPropagation) e.stopPropagation();
-                    return;
-                }
-            }
-        }
-
-        // Prioritaskan Seleksi Bebatuan jika mengklik tepat pada Bebatuan yang sudah ada di scene
-        if (!toolActive && typeof rocksList !== 'undefined' && rocksList.length > 0) {
-            const rockHits = raycaster.intersectObjects(rocksList, true);
-            if (rockHits.length > 0) {
-                let rootRock = rockHits[0].object;
-                while (rootRock && rootRock.parent && rootRock.parent !== scene && (typeof rocksGroup === 'undefined' || rootRock.parent !== rocksGroup)) {
-                    rootRock = rootRock.parent;
-                }
-                const rockIdx = rocksList.indexOf(rootRock);
-                if (rockIdx !== -1) {
-                    selectedRockIndex = rockIdx;
-                    window.selectedRockIndex = rockIdx;
-                    window.selectedTreeIndex = -1;
-                    if (typeof selectedTreeIndex !== 'undefined') selectedTreeIndex = -1;
-                    if (typeof selectedFoxIndex !== 'undefined') {
-                        selectedFoxIndex = -1;
-                        window.selectedFoxIndex = -1;
-                    }
-                    if (typeof layerGroupStates !== 'undefined') {
-                        layerGroupStates.rocks = true;
-                    }
-                    refreshLayerUI();
-                    if (typeof updateEditorUI === 'function') updateEditorUI();
-                    if (typeof SelectionOutlineManager !== 'undefined') {
-                        SelectionOutlineManager.selectObject(rootRock, true);
-                    }
-                    if (e.stopPropagation) e.stopPropagation();
-                    return;
-                }
-            }
+        // Penempatan sekali klik (titik spawn, trigger, portal, item box, pohon, musuh) juga menunggu
+        // pointerup: memutar kamera dengan spawner aktif tidak boleh menaruh objek.
+        if (isOneShotPlacementActive()) {
+            placementPointerDownInfo = { x: e.clientX, y: e.clientY, time: performance.now() };
+            return;
         }
 
         const intersects = raycaster.intersectObject(ground);
         if (intersects.length > 0) {
             const hitPoint = intersects[0].point;
-
-            // Mode Player Spawn: Klik kiri = letakkan / pindahkan titik spawn player
-            if (window.isPlayerSpawnModeActive && window.PlayerSpawnManager) {
-                window.PlayerSpawnManager.setSpawnPosition(hitPoint.x, hitPoint.z);
-                window.PlayerSpawnManager.togglePlacementMode(false);
-                if (e.stopPropagation) e.stopPropagation();
-                return;
-            }
-
-            // Mode Trigger: Klik kiri = letakkan area trigger lalu keluar dari mode
-            if (window.isTriggerPlacementActive) {
-                const newTrigger = TriggerManager.create({ x: Math.round(hitPoint.x * 10) / 10, z: Math.round(hitPoint.z * 10) / 10 });
-                TriggerManager.togglePlacement(false);
-                TriggerPanel.select(newTrigger.id);
-                if (e.stopPropagation) e.stopPropagation();
-                return;
-            }
-
-            // Mode Portal: Klik kiri = letakkan portal lalu keluar dari mode
-            if (window.isPortalPlacementActive) {
-                const newPortal = PortalManager.create({ x: Math.round(hitPoint.x * 10) / 10, z: Math.round(hitPoint.z * 10) / 10 });
-                PortalManager.togglePlacement(false);
-                PortalPanel.select(newPortal.id);
-                if (e.stopPropagation) e.stopPropagation();
-                return;
-            }
-
-            // Mode Item Box Spawner: Klik kiri = letakkan item box di permukaan tanah
-            if (window.isItemBoxSpawnerActive) {
-                if (window.itemBoxManagerInstance) {
-                    window.itemBoxManagerInstance.createItemBox(hitPoint.x, hitPoint.z);
-                    window.itemBoxManagerInstance.updateCountUI();
-                }
-                if (e.stopPropagation) e.stopPropagation();
-                return;
-            }
-
-            const treeMode = selectTreeMode.value;
-            if (treeMode !== 'none') {
-                spawnTreeAtLocation(treeMode, hitPoint.x, hitPoint.z);
-                if (e.stopPropagation) e.stopPropagation();
-                return;
-            }
-
-            const currentFoxSelect = (typeof selectFoxMode !== 'undefined' && selectFoxMode) ? selectFoxMode : (window.selectFoxMode || document.getElementById('select-fox-mode'));
-            const foxMode = currentFoxSelect ? currentFoxSelect.value : 'none';
-            if (foxMode !== 'none') {
-                const pose = (typeof currentSpawnerPose === 'string') ? currentSpawnerPose : 'idle';
-                if (typeof spawnFoxAtLocation === 'function') {
-                    spawnFoxAtLocation(foxMode, pose, hitPoint.x, hitPoint.z);
-                }
-                if (e.stopPropagation) e.stopPropagation();
-                return;
-            }
 
             if (selectTerrainMode.value !== 'none' || selectRoadBrush.value !== 'none' || (typeof selectWaterBrush !== 'undefined' && selectWaterBrush.value !== 'none') || (typeof selectFogBrush !== 'undefined' && selectFogBrush.value !== 'none') || selectGrassBrush.value !== 'none' || (typeof selectRockBrush !== 'undefined' && selectRockBrush.value !== 'none') || (typeof selectFlowerBrush !== 'undefined' && selectFlowerBrush.value !== 'none') || (typeof selectFernBrush !== 'undefined' && selectFernBrush.value !== 'none') || (typeof selectBushBrush !== 'undefined' && selectBushBrush.value !== 'none') || (typeof selectButterflyBrush !== 'undefined' && selectButterflyBrush.value !== 'none')) {
                 saveState();
@@ -1217,6 +1115,26 @@ function handleCanvasPointerUp(e) {
     if (typeof endFogStroke === 'function') endFogStroke();
     updateToolControlsState();
 
+    // Penempatan sekali klik: hanya jika klik cepat, bukan seret kamera
+    if (placementPointerDownInfo) {
+        const info = placementPointerDownInfo;
+        placementPointerDownInfo = null;
+        const endX = (e && typeof e.clientX === 'number') ? e.clientX : info.x;
+        const endY = (e && typeof e.clientY === 'number') ? e.clientY : info.y;
+        // Geser > 6 px = memutar kamera. Waktu dilonggarkan: saat menaruh objek orang sering menahan klik sedikit lebih lama
+        const isTap = Math.hypot(endX - info.x, endY - info.y) <= 6 && (performance.now() - info.time) <= 500;
+        if (isTap && isOneShotPlacementActive()) {
+            if (typeof updateMouseCoords === 'function') updateMouseCoords({ clientX: endX, clientY: endY }, mouse);
+            else {
+                mouse.x = (endX / window.innerWidth) * 2 - 1;
+                mouse.y = -(endY / window.innerHeight) * 2 + 1;
+            }
+            raycaster.setFromCamera(mouse, camera);
+            const groundHits = raycaster.intersectObject(ground);
+            if (groundHits.length > 0) performOneShotPlacement(groundHits[0].point);
+        }
+    }
+
     // Seleksi & Fokus Objek HANYA dieksekusi jika Klik Cepat (Tap), BUKAN saat On-Hold / Drag Kamera
     if (selectionPointerDownInfo) {
         const info = selectionPointerDownInfo;
@@ -1284,6 +1202,22 @@ function handleCanvasPointerUp(e) {
                             handled = true;
                         }
                     }
+                }
+            }
+
+            // 2b. Seleksi trigger & portal
+            if (!handled && typeof TriggerManager !== 'undefined') {
+                const pickedTrigger = TriggerManager.pickFromRay(raycaster);
+                if (pickedTrigger) {
+                    TriggerPanel.select(pickedTrigger.id);
+                    handled = true;
+                }
+            }
+            if (!handled && typeof PortalManager !== 'undefined') {
+                const pickedPortal = PortalManager.pickFromRay(raycaster);
+                if (pickedPortal) {
+                    PortalPanel.select(pickedPortal.id);
+                    handled = true;
                 }
             }
 

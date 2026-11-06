@@ -384,7 +384,8 @@ const PandoraGroundCover = {
 
     supported() {
         const caps = renderer.capabilities;
-        return caps.maxVertexTextures >= 3 && (caps.isWebGL2 || !!renderer.extensions.get('OES_texture_float'));
+        // Vertex shader membaca 4 tekstur: tinggi tanah, peta penutup, alur, noise (salju cuaca)
+        return caps.maxVertexTextures >= 4 && (caps.isWebGL2 || !!renderer.extensions.get('OES_texture_float'));
     },
 
     create() {
@@ -411,16 +412,24 @@ const PandoraGroundCover = {
         const heightChunk = `
             uniform sampler2D uCoverMap;
             uniform sampler2D uCoverTrail;
+            uniform sampler2D uCoverNoise;
+            uniform float uSnowCover;
+            // Salju cuaca (rumus sama dengan groundCover & weatherSnowAmountAt di terrain.js)
+            float weatherSnowDepth(vec2 xz) {
+                if (uSnowCover <= 0.001) return 0.0;
+                float patchy = texture2D(uCoverNoise, xz * 0.05).r * 0.7 + texture2D(uCoverNoise, xz * 0.21).r * 0.3;
+                return clamp(uSnowCover * 1.35 - (1.0 - patchy) * 0.45, 0.0, 1.0) * ${WEATHER_SNOW_DEPTH.toFixed(2)};
+            }
             float coverHeight(vec2 xz) {
                 vec4 cover = texture2D(uCoverMap, (xz + ${COVER_MAP_EXTENT.toFixed(1)} * 0.5) / ${COVER_MAP_EXTENT.toFixed(1)});
-                float depth = max(cover.r * ${COVER_DIRT_DEPTH.toFixed(2)}, cover.a * ${COVER_SNOW_DEPTH.toFixed(2)});
+                float depth = max(max(cover.r * ${COVER_DIRT_DEPTH.toFixed(2)}, cover.a * ${COVER_SNOW_DEPTH.toFixed(2)}), weatherSnowDepth(xz));
                 float trail = texture2D(uCoverTrail, xz / ${COVER_TRAIL_EXTENT.toFixed(1)}).r;
                 float carve = clamp((0.5 - trail) * 2.0, 0.0, 1.0);
                 float rim = clamp((trail - 0.5) * 2.0, 0.0, 1.0);
                 return depth * (1.0 - carve) + rim * min(depth, 0.35) * 0.5;
             }`;
         const material = new THREE.MeshToonMaterial({ polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-        material.customProgramCacheKey = () => 'pandoraGroundCover_v2';
+        material.customProgramCacheKey = () => 'pandoraGroundCover_v3_weather';
         material.onBeforeCompile = (shader) => {
             Object.assign(shader.uniforms, this.uniforms);
             shader.vertexShader = shader.vertexShader
@@ -454,9 +463,8 @@ const PandoraGroundCover = {
                 .replace('#include <common>', `#include <common>
                     varying vec3 vCoverWorld;
                     ${heightChunk}
-                    uniform sampler2D uCoverNoise;
                     uniform vec3 uCoverSun;
-                    ${GROUND_COVER_GLSL.replace('uniform sampler2D uCoverMap;', '').replace('uniform sampler2D uCoverNoise;', '').replace('uniform vec3 uCoverSun;', '')}`)
+                    ${GROUND_COVER_GLSL.replace('uniform sampler2D uCoverMap;', '').replace('uniform sampler2D uCoverNoise;', '').replace('uniform vec3 uCoverSun;', '').replace('uniform float uSnowCover;', '')}`)
                 .replace('#include <color_fragment>', `
                     vec2 coverPos = vCoverWorld.xz;
                     float coverE = 0.1;
@@ -465,7 +473,8 @@ const PandoraGroundCover = {
                     vec4 coverColor = groundCover(coverPos, coverN);
                     if (coverColor.a < 0.5) discard;
                     float coverCarve = clamp((0.5 - texture2D(uCoverTrail, coverPos / ${COVER_TRAIL_EXTENT.toFixed(1)}).r) * 2.0, 0.0, 1.0);
-                    diffuseColor.rgb = coverColor.rgb * (1.0 - coverCarve * 0.3);`);
+                    // Jejak: salju yang terinjak padat & berbayang biru keabu-abuan, jadi alur terlihat di atas salju putih
+                    diffuseColor.rgb = mix(coverColor.rgb, coverColor.rgb * vec3(0.62, 0.68, 0.8), coverCarve);`);
         };
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.frustumCulled = false;

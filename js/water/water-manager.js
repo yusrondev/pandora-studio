@@ -499,6 +499,33 @@ uniform vec2  uWindDir;
 uniform float uWaterLevelY;
 uniform sampler2D uWaterNormalTex;
 uniform float uWaterNormalTile;
+uniform float uRainAmount;
+uniform float uWeatherTime;
+
+// Riak tetes hujan di permukaan air: cincin melebar per sel acak. Mengembalikan gradien tinggi.
+vec2 roRainSlope(vec2 p, float t){
+    vec2 g = p * 1.6;
+    vec2 id = floor(g);
+    vec2 f = fract(g);
+    vec2 acc = vec2(0.0);
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            vec2 o = vec2(float(x), float(y));
+            vec2 cid = id + o;
+            float h = fract(sin(dot(cid, vec2(127.1, 311.7))) * 43758.5453);
+            float h2 = fract(sin(dot(cid, vec2(269.5, 183.3))) * 43758.5453);
+            float life = fract(t * (0.85 + h * 0.7) + h2);
+            vec2 c = o + vec2(h, h2) - f;
+            float d = max(length(c), 0.001);
+            float w = d - life * 0.6;
+            float k = 700.0;
+            // Turunan profil cincin exp(-k w^2): arah radial, mengecil seiring umur riak
+            float dprof = -2.0 * k * w * exp(-k * w * w) * (1.0 - life) * (1.0 - life);
+            acc += dprof * (-c / d) * 0.0035;
+        }
+    }
+    return acc * 1.6;
+}
 
 vec3 roLin(vec3 c){ return pow(max(c, vec3(0.0)), vec3(2.2)); }
 
@@ -609,7 +636,8 @@ vec4 realOcean(vec2 q, vec3 V, float dist, vec3 geoN, float pathLen, float vertD
     // Riak arah angin analitik (gelombang menengah) + normal map (riak halus)
     vec3 dw = roWaves(q, uTime, dist, strength * 0.75);
     vec2 nd = roNormalDetail(q, uTime) * strength * mix(0.45, 0.85, farFade);
-    vec3 N = normalize(geoN + vec3(-dw.x - nd.x + wakeSlope.x * 0.85, 0.0, -dw.y - nd.y + wakeSlope.y * 0.85));
+    vec2 rs = uRainAmount > 0.01 ? roRainSlope(q, uWeatherTime) * uRainAmount * farFade : vec2(0.0);
+    vec3 N = normalize(geoN + vec3(-dw.x - nd.x - rs.x + wakeSlope.x * 0.85, 0.0, -dw.y - nd.y - rs.y + wakeSlope.y * 0.85));
     // ── Fresnel Schlick air (F0 = 0.02) & pantulan langit ──
     // Takaran pantul/tembus memakai normal ombak (sama dengan pass penyerapan, agar energinya pas);
     // arah pantulan memakai normal riak sehingga detail permukaan terbaca.
@@ -776,6 +804,9 @@ const waterMat = new THREE.ShaderMaterial({
             // Normal map air buatan sendiri (buildWaterNormalTexture); placeholder datar sampai dibuat
             uWaterNormalTex: { value: (() => { const t = new THREE.DataTexture(new Uint8Array([128, 128, 255, 128]), 1, 1, THREE.RGBAFormat); t.needsUpdate = true; return t; })() },
             uWaterNormalTile: { value: WATER_NORMAL_TILE_METERS },
+            // Cuaca (scene.js): riak tetes hujan
+            uRainAmount: WEATHER_UNIFORMS.uRainAmount,
+            uWeatherTime: WEATHER_UNIFORMS.uWeatherTime,
         }
     ),
     // rgb keluaran shader sudah dikali alpha (premultiplied)
@@ -985,6 +1016,7 @@ const waterMat = new THREE.ShaderMaterial({
             float rough = 0.18 * fade + 0.20 * wakeFoam;
             // Riak halus dari normal map buatan sendiri, juga untuk tekstur Klasik (air brush & laut luar)
             vec2 nmd = roNormalDetail(q, uTime) * (0.55 * fade + 0.15) * clamp(0.5 + uAmp * 0.5, 0.4, 1.2);
+            if (uRainAmount > 0.01) nmd += roRainSlope(q, uWeatherTime) * uRainAmount * fade;
             vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.85 + dt.x * rough - nmd.x, 0.0, wakeSlope.y * 0.85 + dt.y * rough - nmd.y));
 
             // ── FRESNEL & SUN (100% ocean.html) ──────────────────────
@@ -1816,6 +1848,7 @@ function initOuterOcean() {
                 float rough = 0.18 * fade + 0.20 * wakeFoam;
                 // Riak halus dari normal map buatan sendiri, juga untuk tekstur Klasik (air brush & laut luar)
                 vec2 nmd = roNormalDetail(q, uTime) * (0.55 * fade + 0.15) * clamp(0.5 + uAmp * 0.5, 0.4, 1.2);
+                if (uRainAmount > 0.01) nmd += roRainSlope(q, uWeatherTime) * uRainAmount * fade;
                 vec3 N = normalize(vNormal + vec3(wakeSlope.x * 0.85 + dt.x * rough - nmd.x, 0.0, wakeSlope.y * 0.85 + dt.y * rough - nmd.y));
 
                 // ── FRESNEL & SUN (100% ocean.html) ──────────────────────

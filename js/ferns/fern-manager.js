@@ -361,11 +361,40 @@ const FERN_MODELS = {
     spawn_fern_golden: []
 };
 
-// Tiap varian punya versi LOD (detail rendah, tanpa batang) untuk chunk yang jauh dari kamera
+// Atribut vertex dipadatkan tanpa mengubah tampilan: warna 8-bit, normal & UV 16-bit (ternormalisasi).
+// Dari 44 menjadi ~24 byte per vertex, jadi memori & bandwidth GPU untuk ribuan rumpun jauh lebih kecil.
+function compactFernGeometry(geo) {
+    if (!geo || geo.userData.compacted) return geo;
+    const pack = (name, ArrayType, scale, signed) => {
+        const attr = geo.attributes[name];
+        if (!attr || !(attr.array instanceof Float32Array)) return;
+        const src = attr.array;
+        for (let i = 0; i < src.length; i++) {
+            if (signed ? (src[i] < -1.0001 || src[i] > 1.0001) : (src[i] < -0.0001 || src[i] > 1.0001)) return; // Di luar rentang: biarkan float
+        }
+        const out = new ArrayType(src.length);
+        for (let i = 0; i < src.length; i++) out[i] = Math.round(Math.max(signed ? -1 : 0, Math.min(1, src[i])) * scale);
+        geo.setAttribute(name, new THREE.BufferAttribute(out, attr.itemSize, true));
+    };
+    pack('color', Uint8Array, 255, false);
+    pack('normal', Int16Array, 32767, true);
+    pack('uv', Uint16Array, 65535, false);
+    geo.userData.compacted = true;
+    return geo;
+}
+function compactFernModel(model) {
+    [model, model.lodNear, model.lod, model.lod2].forEach(m => { if (m) { compactFernGeometry(m.leafGeo); compactFernGeometry(m.stemGeo); } });
+    return model;
+}
+
+// Tiap varian punya versi LOD (detail rendah, tanpa batang) untuk chunk yang jauh dari kamera.
+// LOD kedua untuk pakis sama dengan LOD pertama (sudah ringan).
 function addFernModel(type, config, fronds, seed) {
     const model = buildFernCompoundGeometry(config, fronds, seed);
     model.lod = buildFernCompoundGeometry(Object.assign({}, config, { pairs: Math.max(6, Math.round((config.pairs || 26) / 3)) }), fronds, seed);
-    FERN_MODELS[type].push(model);
+    model.lod2 = model.lod;
+    model.lodNear = model;
+    FERN_MODELS[type].push(compactFernModel(model));
 }
 
 // 1) Rumpun Pakis (Default Bush - 6 Fronds)
@@ -578,13 +607,26 @@ const REED_BASE = {
 };
 function addReedModel(type, config, seed) {
     const model = buildReedClumpGeometry(config, seed);
+    // 7–14 m: 60% helai sedikit lebih lebar; bunga & tangkai tetap lengkap (jarak ini masih terlihat jelas)
+    model.lodNear = buildReedClumpGeometry(Object.assign({}, config, {
+        blades: Math.round(config.blades * 0.6),
+        bladeWidth: config.bladeWidth * 1.15
+    }), seed);
     model.lod = buildReedClumpGeometry(Object.assign({}, config, {
         blades: Math.round(config.blades * 0.35),
         bladeWidth: config.bladeWidth * 1.5,
         blooms: Math.ceil((config.blooms || 0) / 2),
         bloomSize: config.bloomSize * 1.3
     }), seed);
-    FERN_MODELS[type].push(model);
+    // LOD jauh (> FERN_FAR_LOD_DISTANCE): rumpun hanya beberapa piksel, cukup siluet dan titik warna bunga.
+    // Helai sedikit tapi lebar, kuntum sedikit tapi besar, jadi warna & kerapatan dari jauh tetap sama.
+    model.lod2 = buildReedClumpGeometry(Object.assign({}, config, {
+        blades: Math.max(5, Math.round(config.blades * 0.14)),
+        bladeWidth: config.bladeWidth * 2.4,
+        blooms: Math.ceil((config.blooms || 0) / 3),
+        bloomSize: config.bloomSize * 1.6
+    }), seed);
+    FERN_MODELS[type].push(compactFernModel(model));
 }
 FERN_MODELS.spawn_reed_crocosmia = [];
 FERN_MODELS.spawn_reed_golden = [];
@@ -631,8 +673,16 @@ function getFernMaterials(fernType) {
 // Yang digambar adalah InstancedMesh per chunk 16m x per varian geometri, sehingga ribuan rumpun cukup
 // beberapa puluh draw call. Chunk di luar pandangan kamera / terlalu jauh tidak digambar, dan chunk
 // yang jauh memakai geometri LOD tanpa bayangan.
-const FERN_CHUNK_SIZE = 16;
-const FERN_LOD_DISTANCE = 18;   // Lebih jauh dari ini pakai geometri LOD
+// 8 m: LOD dipilih per area kecil. Dengan 16 m, rumpun hingga ~29 m dari kamera ikut digambar detail penuh.
+const FERN_CHUNK_SIZE = 8;
+const FERN_FULL_DISTANCE = 7;   // Detail penuh hanya sedekat ini
+const FERN_LOD_DISTANCE = 14;   // Lebih jauh dari ini pakai geometri LOD
+const FERN_FAR_LOD_DISTANCE = 30;   // Lebih jauh dari ini pakai LOD kedua + sebagian instance
+const FERN_FAR_FRACTION = 0.65;     // Bagian rumpun yang tetap digambar di jarak jauh (diperlebar agar rapat)
+const FERN_FAR_WIDEN = 1.2;
+const FERN_SHADOW_LAYER = 1;        // Mesh bayangan ringan hanya dilihat kamera bayangan
+// Kamera bayangan matahari ikut melihat layer itu; kamera utama (layer 0) tidak
+if (typeof sunLight !== 'undefined' && sunLight && sunLight.shadow) sunLight.shadow.camera.layers.enable(FERN_SHADOW_LAYER);
 const FERN_CULL_DISTANCE = 95;  // Lebih jauh dari ini tidak digambar sama sekali
 const fernChunks = new Map();   // key "cx,cz" -> { ferns: [], group, center, radius, dirty }
 const fernTrampled = new Set(); // Pakis yang sedang rebah / pulih, diproses walau rubah sudah jauh
@@ -653,7 +703,10 @@ function getFernChunk(key) {
             group: null,
             center: new THREE.Vector3((cx + 0.5) * FERN_CHUNK_SIZE, 0, (cz + 0.5) * FERN_CHUNK_SIZE),
             radius: FERN_CHUNK_SIZE * 0.75 + 3.0, // Setengah diagonal + tinggi/lebar rumpun
+            full: [],
+            near2: [],
             near: [],
+            mid: [],
             far: [],
             dirty: true
         };
@@ -684,8 +737,24 @@ function disposeFernChunkMeshes(chunk) {
     fernsGroup.remove(chunk.group);
     chunk.group.children.forEach(m => m.dispose && m.dispose()); // Hanya buffer instance; geometri & material dipakai bersama
     chunk.group = null;
+    chunk.full = [];
+    chunk.near2 = [];
     chunk.near = [];
+    chunk.mid = [];
     chunk.far = [];
+}
+
+function fernOrderHash(fern) {
+    const p = fern.position;
+    const h = Math.sin(p.x * 12.9898 + p.z * 78.233) * 43758.5453;
+    return h - Math.floor(h);
+}
+
+const _fernWideMatrix = new THREE.Matrix4();
+const _fernWideScale = new THREE.Vector3();
+function fernWidenMatrix(fern) {
+    _fernWideScale.set(fern.scale.x * FERN_FAR_WIDEN, fern.scale.y, fern.scale.z * FERN_FAR_WIDEN);
+    return _fernWideMatrix.compose(fern.position, fern.quaternion, _fernWideScale);
 }
 
 function makeFernInstancedMesh(geo, mat, count, castShadow) {
@@ -721,19 +790,35 @@ function rebuildFernChunk(chunk) {
         const variations = FERN_MODELS[fernType] || FERN_MODELS.spawn_fern_clump;
         const model = variations[ferns[0].userData.variantIndex] || variations[0];
         const { leafMat, stemMat } = getFernMaterials(fernType);
+        // Urutan acak tetap (dari posisi), supaya sebagian yang digambar di jarak jauh tersebar merata
+        ferns.sort((a, b) => fernOrderHash(a) - fernOrderHash(b));
         const n = ferns.length;
-        const nearLeaf = makeFernInstancedMesh(model.leafGeo, leafMat, n, true);
-        const nearStem = makeFernInstancedMesh(model.stemGeo, stemMat, n, true);
-        const farLeaf = makeFernInstancedMesh((model.lod || model).leafGeo, leafMat, n, false);
+        const lod = model.lod || model;
+        const lod2 = model.lod2 || lod;
+        // Dekat: detail penuh tanpa bayangan; bayangannya dari geometri LOD (mesh khusus kamera bayangan)
+        const nearLeaf = makeFernInstancedMesh(model.leafGeo, leafMat, n, false);
+        const near2Leaf = makeFernInstancedMesh((model.lodNear || model).leafGeo, leafMat, n, false);
+        const nearStem = makeFernInstancedMesh(model.stemGeo, stemMat, n, false);
+        const shadowLeaf = makeFernInstancedMesh(lod.leafGeo, leafMat, n, true);
+        shadowLeaf.layers.set(FERN_SHADOW_LAYER);
+        const midLeaf = makeFernInstancedMesh(lod.leafGeo, leafMat, n, false);
+        const farLeaf = makeFernInstancedMesh(lod2.leafGeo, leafMat, n, false);
+        farLeaf.count = Math.max(1, Math.ceil(n * FERN_FAR_FRACTION));
         ferns.forEach((fern, i) => {
             fern.updateMatrix();
             nearLeaf.setMatrixAt(i, fern.matrix);
+            near2Leaf.setMatrixAt(i, fern.matrix);
             nearStem.setMatrixAt(i, fern.matrix);
-            farLeaf.setMatrixAt(i, fern.matrix);
-            fern.userData.instanceSlot = { meshes: [nearLeaf, nearStem, farLeaf], index: i };
+            shadowLeaf.setMatrixAt(i, fern.matrix);
+            midLeaf.setMatrixAt(i, fern.matrix);
+            farLeaf.setMatrixAt(i, fernWidenMatrix(fern));
+            fern.userData.instanceSlot = { meshes: [nearLeaf, near2Leaf, nearStem, shadowLeaf, midLeaf], far: farLeaf, index: i };
         });
-        group.add(nearLeaf, nearStem, farLeaf);
-        chunk.near.push(nearLeaf, nearStem);
+        group.add(nearLeaf, near2Leaf, nearStem, shadowLeaf, midLeaf, farLeaf);
+        chunk.full.push(nearLeaf);
+        chunk.near2.push(near2Leaf);
+        chunk.near.push(nearStem, shadowLeaf);
+        chunk.mid.push(midLeaf);
         chunk.far.push(farLeaf);
     });
     chunk.group = group;
@@ -749,6 +834,10 @@ function syncFernInstance(fern) {
         mesh.setMatrixAt(slot.index, fern.matrix);
         mesh.instanceMatrix.needsUpdate = true;
     });
+    if (slot.far) {
+        slot.far.setMatrixAt(slot.index, fernWidenMatrix(fern));
+        slot.far.instanceMatrix.needsUpdate = true;
+    }
 }
 
 // Bangun ulang chunk yang berubah (tanam/hapus/undo). Dipanggil tiap frame dan sebelum kompilasi stage.
@@ -774,9 +863,19 @@ function updateFernChunkVisibility() {
         const visible = dist < FERN_CULL_DISTANCE && _fernFrustum.intersectsSphere(_fernSphere);
         chunk.group.visible = visible;
         if (!visible) return;
-        const near = dist < FERN_LOD_DISTANCE;
-        chunk.near.forEach(m => { m.visible = near; });
-        chunk.far.forEach(m => { m.visible = !near; });
+        // LOD dari jarak ke titik terdekat kotak chunk (bukan tepi bola pembatas yang jauh lebih longgar)
+        const half = FERN_CHUNK_SIZE / 2;
+        const ex = Math.max(0, Math.abs(camPos.x - chunk.center.x) - half);
+        const ez = Math.max(0, Math.abs(camPos.z - chunk.center.z) - half);
+        const lodDist = Math.hypot(ex, ez, Math.max(0, Math.abs(camPos.y - chunk.center.y) - 2));
+        const near = lodDist < FERN_LOD_DISTANCE;
+        const far = lodDist >= FERN_FAR_LOD_DISTANCE;
+        const full = lodDist < FERN_FULL_DISTANCE || window.__fernForceFull === true;
+        chunk.full.forEach(m => { m.visible = full; });
+        chunk.near2.forEach(m => { m.visible = near && !full; });
+        chunk.near.forEach(m => { m.visible = near || full; });
+        chunk.mid.forEach(m => { m.visible = !near && !far && !full; });
+        chunk.far.forEach(m => { m.visible = far && !full; });
     });
 }
 

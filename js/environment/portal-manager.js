@@ -505,6 +505,8 @@ const PandoraStageFlow = {
             // Beri kesempatan layar menggambar sebelum kompilasi shader yang berat
             await new Promise(resolve => setTimeout(resolve, 30));
         }
+        // Efek salju/basah dipasang ke material musuh & objek yang baru selesai dimuat, sebelum dikompilasi
+        if (window.PandoraWeather && PandoraWeather.type !== 'clear') PandoraWeather.patchScene();
         // Collision objek impor dibangun sekarang, bukan saat pertama kali disentuh pemain
         if (window.PandoraGLBCollision && window.importedObjectsList) {
             importedObjectsList.forEach(item => item.hasCollision && PandoraGLBCollision.prebuild(item));

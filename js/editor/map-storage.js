@@ -309,7 +309,8 @@ rockTheme: typeof rockParams !== 'undefined' ? rockParams.currentTheme : undefin
         sunAzimuth: sliderAzim ? parseFloat(sliderAzim.value) : 300,
         sunElevation: sliderElev ? parseFloat(sliderElev.value) : 45,
         windSpeed: sliderWind ? parseFloat(sliderWind.value) : 1.0,
-        leafFall: sliderLeaf ? parseFloat(sliderLeaf.value) : 1.0
+        leafFall: sliderLeaf ? parseFloat(sliderLeaf.value) : 1.0,
+        weather: window.PandoraWeather ? PandoraWeather.serialize() : { type: 'clear', intensity: 0.7 }
     };
 
     return {

@@ -302,7 +302,7 @@ const groundGrassMatchUniforms = {
 // namun secara cerdas menghilangkan bayangan pada area tanah yang memiliki air
 // agar bayangan tidak ganda (karena bayangan sudah tampil di permukaan air).
 groundMat.customProgramCacheKey = function () {
-    return 'groundMat_waterShadow_v16_grassMatch';
+    return 'groundMat_waterShadow_v18_puddleWaves';
 };
 
 groundMat.onBeforeCompile = function (shader) {
@@ -316,6 +316,9 @@ groundMat.onBeforeCompile = function (shader) {
     shader.uniforms.uClaySoilNormal = { value: claySoilTextures.normal };
     Object.assign(shader.uniforms, groundCoverUniforms);
     Object.assign(shader.uniforms, groundGrassMatchUniforms);
+    Object.assign(shader.uniforms, WEATHER_UNIFORMS);
+    // Genangan memantulkan warna cakrawala langit (objek uniform yang sama dengan kubah langit)
+    shader.uniforms.uPuddleSky = (typeof skyMat !== 'undefined') ? skyMat.uniforms.uBottomColor : { value: new THREE.Color(0xb8ecff) };
 
     shader.vertexShader = `
         varying vec3 vGroundWorldPos;
@@ -341,6 +344,49 @@ groundMat.onBeforeCompile = function (shader) {
         uniform sampler2D uClaySoilNormal;
         uniform vec3 uGroundGrassColor;
         uniform float uGroundGrassTolerance;
+        uniform float uWetness;
+        uniform float uPuddles;
+        uniform float uRainAmount;
+        uniform float uWeatherTime;
+        uniform vec3 uPuddleSky;
+        uniform vec4 uPuddleRipples[12];
+
+        // Gelombang dari langkah kaki di genangan: paket cincin yang merambat ~0.85 m/s (riak air dangkal),
+        // beberapa puncak di belakang muka gelombang, meredam seiring waktu & jarak, dan saling bertumpuk
+        float puddleWaves(vec2 p, float t) {
+            float h = 0.0;
+            for (int i = 0; i < 12; i++) {
+                vec4 r = uPuddleRipples[i];
+                float age = t - r.z;
+                if (age < 0.0 || age > 2.6) continue;
+                float d = distance(p, r.xy);
+                float w = d - age * 0.85;
+                if (abs(w) > 0.6) continue;
+                float damp = exp(-age * 1.4) / (1.0 + d * 1.2);
+                h += r.w * damp * cos(w * 24.0) * exp(-w * w * 12.0);
+            }
+            return h;
+        }
+
+        // Riak tetes hujan: tiap sel punya satu tetes dengan waktu & posisi acak, cincinnya melebar lalu hilang
+        float rainRipple(vec2 p, float t) {
+            vec2 g = p * 2.2;
+            vec2 id = floor(g);
+            vec2 f = fract(g);
+            float acc = 0.0;
+            for (int y = -1; y <= 1; y++) {
+                for (int x = -1; x <= 1; x++) {
+                    vec2 o = vec2(float(x), float(y));
+                    vec2 cid = id + o;
+                    float h = fract(sin(dot(cid, vec2(127.1, 311.7))) * 43758.5453);
+                    float h2 = fract(sin(dot(cid, vec2(269.5, 183.3))) * 43758.5453);
+                    float life = fract(t * (0.9 + h * 0.6) + h2);
+                    float d = length(o + vec2(h, h2) - f);
+                    acc += smoothstep(0.05, 0.0, abs(d - life * 0.5)) * (1.0 - life);
+                }
+            }
+            return acc;
+        }
         ${GROUND_COVER_GLSL}
         varying vec3 vGroundWorldPos;
 
@@ -480,6 +526,34 @@ groundMat.onBeforeCompile = function (shader) {
                 relief = clamp(dot(normal, lightView) / max(dot(upView, lightView), 0.2) / 0.95, 0.7, 1.0);
             #endif
             gl_FragColor = vec4(uGroundGrassColor * mix(0.35 / 1.05, 1.0, gSun) * relief, gl_FragColor.a);
+        }
+
+        // ── Hujan: tanah basah & genangan ──
+        float wetK = uWetness * (1.0 - coverColor.a);
+        if (wetK > 0.001) {
+            vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+            float flatness = smoothstep(0.93, 0.995, dot(normalize(normal), upV));
+            // Genangan di cekungan acak tanah datar; makin lama hujan makin luas dan menyatu
+            float pn = texture2D(uCoverNoise, vGroundWorldPos.xz * 0.045).r * 0.65
+                     + texture2D(uCoverNoise, vGroundWorldPos.xz * 0.16).r * 0.35;
+            float thr = mix(0.9, 0.5, uPuddles);
+            float puddle = smoothstep(thr, thr + 0.05, pn) * flatness * min(1.0, uPuddles * 2.0) * (1.0 - coverColor.a);
+            // Tanah basah lebih gelap; tepi genangan paling gelap karena paling jenuh air
+            float rim = smoothstep(thr - 0.08, thr, pn) * (1.0 - puddle);
+            gl_FragColor.rgb *= mix(1.0, 0.64 - rim * 0.1, wetK);
+            if (puddle > 0.001) {
+                vec3 V = normalize(vViewPosition);
+                float fres = 0.04 + 0.96 * pow(1.0 - clamp(dot(V, upV), 0.0, 1.0), 4.0);
+                float ripple = uRainAmount > 0.01 ? rainRipple(vGroundWorldPos.xz, uWeatherTime) * uRainAmount : 0.0;
+                // Air keruh menyerap warna tanah, permukaannya memantulkan langit
+                vec3 puddleCol = mix(gl_FragColor.rgb * 0.5, uPuddleSky * 0.92, clamp(fres * 0.9 + 0.12, 0.0, 1.0));
+                puddleCol += ripple * 0.16;
+                // Riak dari langkah karakter: puncak memantulkan langit lebih terang, lembah lebih gelap
+                float wave = puddleWaves(vGroundWorldPos.xz, uWeatherTime);
+                puddleCol = mix(puddleCol, uPuddleSky, clamp(wave, 0.0, 1.0) * 0.55);
+                puddleCol *= 1.0 + clamp(wave, -1.0, 0.0) * 0.35;
+                gl_FragColor.rgb = mix(gl_FragColor.rgb, puddleCol, puddle);
+            }
         }
         #include <fog_fragment>`
     );
@@ -714,6 +788,7 @@ function createCoverNoiseTexture() {
 }
 
 const groundCoverUniforms = {
+    uSnowCover: WEATHER_UNIFORMS.uSnowCover,   // Salju cuaca menutup tanah merata (weather.js)
     uCoverMap: { value: coverMapTexture },
     uCoverNoise: { value: createCoverNoiseTexture() },
     uCoverSun: { value: new THREE.Vector3(0.5, 0.8, 0.3).normalize() }
@@ -724,10 +799,18 @@ const GROUND_COVER_GLSL = `
     uniform sampler2D uCoverMap;
     uniform sampler2D uCoverNoise;
     uniform vec3 uCoverSun;
+    uniform float uSnowCover;
     vec4 groundCover(vec2 xz, vec3 shapeNormal) {
         vec4 cover = texture2D(uCoverMap, (xz + ${COVER_MAP_EXTENT.toFixed(1)} * 0.5) / ${COVER_MAP_EXTENT.toFixed(1)});
         float dirt = cover.r;
         float snow = cover.a;
+        // Salju cuaca: mula-mula tipis berbintik, lalu menutup rata. Bercak tanah terakhir yang tertutup
+        // mengikuti noise lebar, jadi tidak tampak seperti lapisan cat seragam.
+        if (uSnowCover > 0.001) {
+            float patchy = texture2D(uCoverNoise, xz * 0.05).r * 0.7 + texture2D(uCoverNoise, xz * 0.21).r * 0.3;
+            snow = max(snow, clamp(uSnowCover * 1.35 - (1.0 - patchy) * 0.45, 0.0, 1.0));
+            dirt *= 1.0 - snow;
+        }
         float amount = max(dirt, snow);
         if (amount < 0.01) return vec4(0.0);
         // Empat skala dengan sudut dan periode berbeda, supaya ulangan teksturnya tidak pernah segaris
@@ -815,23 +898,63 @@ function getDirtStrokes() {
     return dirtStrokes;
 }
 
+// ── Salju & genangan cuaca di sisi CPU, rumusnya sama persis dengan shader ──
+// Dipakai fisika: jejak/alur di salju cuaca dan riak/percikan saat melewati genangan.
+const WEATHER_SNOW_DEPTH = 0.14;    // Salju cuaca lebih tipis dari salju kuas
+
+// Sampel kanal R noise penutup, bilinear + berulang (sama dengan texture2D pada RepeatWrapping)
+function sampleCoverNoise(u, v) {
+    const tex = groundCoverUniforms.uCoverNoise.value;
+    const data = tex.image.data, size = tex.image.width;
+    const fx = u * size - 0.5, fy = v * size - 0.5;
+    const x0 = Math.floor(fx), y0 = Math.floor(fy);
+    const tx = fx - x0, ty = fy - y0;
+    const wrap = n => ((n % size) + size) % size;
+    const at = (x, y) => data[(wrap(y) * size + wrap(x)) * 4] / 255;
+    return (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
+}
+
+function weatherSnowAmountAt(x, z) {
+    const cover = WEATHER_UNIFORMS.uSnowCover.value;
+    if (cover <= 0.001) return 0;
+    const patchy = sampleCoverNoise(x * 0.05, z * 0.05) * 0.7 + sampleCoverNoise(x * 0.21, z * 0.21) * 0.3;
+    return Math.max(0, Math.min(1, cover * 1.35 - (1 - patchy) * 0.45));
+}
+
+// 0..1 seberapa dalam titik ini berada di genangan (sama dengan shader tanah)
+function getPuddleAmountAt(x, z) {
+    const puddles = WEATHER_UNIFORMS.uPuddles.value;
+    if (puddles <= 0.001) return 0;
+    const normal = getTerrainNormalAt(x, z);
+    const flatness = THREE.MathUtils.smoothstep(normal.y, 0.93, 0.995);
+    if (flatness <= 0) return 0;
+    const pn = sampleCoverNoise(x * 0.045, z * 0.045) * 0.65 + sampleCoverNoise(x * 0.16, z * 0.16) * 0.35;
+    const thr = 0.9 + (0.5 - 0.9) * puddles;
+    return THREE.MathUtils.smoothstep(pn, thr, thr + 0.05) * flatness * Math.min(1, puddles * 2);
+}
+window.getPuddleAmountAt = getPuddleAmountAt;
+
 function hasDirtPainted() {
-    return dirtStrokes.length > 0;
+    // Salju cuaca juga lapisan yang bisa diinjak (jejak, alur, butiran terlempar)
+    return dirtStrokes.length > 0 || WEATHER_UNIFORMS.uSnowCover.value > 0.05;
 }
 
 // Kedalaman lapisan di titik ini dalam satuan dunia
 function getCoverDepth(x, z) {
+    const weather = weatherSnowAmountAt(x, z) * WEATHER_SNOW_DEPTH;
     const scale = COVER_MAP_SIZE / COVER_MAP_EXTENT;
     const col = Math.round((x + COVER_MAP_EXTENT / 2) * scale);
     const row = Math.round((z + COVER_MAP_EXTENT / 2) * scale);
-    if (col < 0 || row < 0 || col >= COVER_MAP_SIZE || row >= COVER_MAP_SIZE) return 0;
+    if (col < 0 || row < 0 || col >= COVER_MAP_SIZE || row >= COVER_MAP_SIZE) return weather;
     const index = (row * COVER_MAP_SIZE + col) * 2;
-    return Math.max(coverMapData[index] * COVER_DIRT_DEPTH, coverMapData[index + 1] * COVER_SNOW_DEPTH) / 255;
+    return Math.max(weather, Math.max(coverMapData[index] * COVER_DIRT_DEPTH, coverMapData[index + 1] * COVER_SNOW_DEPTH) / 255);
 }
 
 function isCoverSnow(x, z) {
     const scale = COVER_MAP_SIZE / COVER_MAP_EXTENT;
     const index = (Math.round((z + COVER_MAP_EXTENT / 2) * scale) * COVER_MAP_SIZE + Math.round((x + COVER_MAP_EXTENT / 2) * scale)) * 2;
+    const dirt = (coverMapData[index] || 0) * COVER_DIRT_DEPTH / 255;
+    if (weatherSnowAmountAt(x, z) * WEATHER_SNOW_DEPTH > dirt) return true;
     return coverMapData[index + 1] > coverMapData[index];
 }
 

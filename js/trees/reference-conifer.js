@@ -154,6 +154,8 @@ function getConiferAssets() {
             uniform vec3 uBaseColor;
             uniform vec3 uShadowColor;
             uniform vec3 uHighlightColor;
+            uniform float uSnowCover;
+            uniform float uWetness;
             varying vec2 vUv;
             varying vec3 vWorldNormal;
             varying vec3 vWorldPosition;
@@ -179,12 +181,23 @@ function getConiferAssets() {
                 lit *= smoothstep(0.1, 0.9, shadowVal);
                 vec3 lightColor = mix(uBaseColor, uHighlightColor, smoothstep(0.55, 0.95, tex.r));
                 vec3 darkColor = uShadowColor * (0.75 + tex.r * 0.55);
-                gl_FragColor = vec4(mix(darkColor, lightColor, lit) * vTint, 1.0);
+                vec3 col = mix(darkColor, lightColor, lit) * vTint;
+                // Cuaca: dahan basah lebih gelap; salju menumpuk di atas dahan, bawahnya tetap hijau
+                if (uSnowCover > 0.001 || uWetness > 0.001) {
+                    float speck = fract(sin(dot(floor(vWorldPosition.xz * 9.0 + vWorldPosition.y * 5.0), vec2(12.9898, 78.233))) * 43758.5453);
+                    float up = (vWorldNormal * facing).y + (speck - 0.5) * 0.35;
+                    float snowAmt = uSnowCover * smoothstep(0.2 - uSnowCover * 0.4, 0.65 - uSnowCover * 0.3, up);
+                    vec3 snowCol = mix(vec3(0.6, 0.67, 0.78), vec3(0.95, 0.97, 1.0), lit);
+                    col = mix(col * (1.0 - uWetness * 0.18), snowCol, snowAmt);
+                }
+                gl_FragColor = vec4(col, 1.0);
                 #include <fog_fragment>
             }
         `
     });
     material.uniforms.uTexture.value = frond;
+    material.uniforms.uSnowCover = WEATHER_UNIFORMS.uSnowCover;
+    material.uniforms.uWetness = WEATHER_UNIFORMS.uWetness;
     material.uniforms.uBaseColor.value.setHex(0x5a862e);
     material.uniforms.uShadowColor.value.setHex(0x204227);
     material.uniforms.uHighlightColor.value.setHex(0xb0c844);

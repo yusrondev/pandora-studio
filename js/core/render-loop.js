@@ -287,6 +287,7 @@ function animate() {
     if (typeof updateWater === 'function') {
         updateWater(delta, elapsedTime);
     }
+    if (window.PandoraWeather) PandoraWeather.update(delta);
     if (typeof updateFog === 'function') {
         updateFog(delta, elapsedTime);
     }

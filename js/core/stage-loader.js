@@ -97,6 +97,14 @@ function applyMapDataToScene(mapData) {
             updateSunPosition();
         }
 
+        // Cuaca stage: langsung sesuai simpanan (genangan & salju sudah terbentuk saat stage dibuka).
+        // Map lama tanpa cuaca = cerah.
+        if (window.PandoraWeather) {
+            const weather = env.weather || { type: 'clear', intensity: 0.7 };
+            PandoraWeather.set(weather.type, weather.intensity, true);
+            if (typeof window.refreshWeatherControls === 'function') window.refreshWeatherControls();
+        }
+
         // Wind Speed & Leaf Fall
         const sliderWind = document.getElementById('slider-wind-speed');
         const sliderLeaf = document.getElementById('slider-leaf-fall');

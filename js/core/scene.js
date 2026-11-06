@@ -8,6 +8,19 @@ scene.background = new THREE.Color(0xb8ecff);
 // Fog dinonaktifkan total (scene.fog = null)
 scene.fog = null;
 
+// Uniform cuaca bersama (js/environment/weather.js). Objek yang sama dipasang di shader tanah, rumput,
+// daun, air, dan material objek/karakter, jadi perubahan cuaca hanya mengubah angka tanpa kompilasi ulang.
+const WEATHER_UNIFORMS = {
+    uSnowCover: { value: 0 },    // 0..1 salju menumpuk di permukaan menghadap atas
+    uWetness: { value: 0 },      // 0..1 permukaan basah (lebih gelap, lebih licin)
+    uPuddles: { value: 0 },      // 0..1 genangan di tanah datar
+    uRainAmount: { value: 0 },   // 0..1 hujan sedang turun (riak di air & genangan)
+    uWeatherTime: { value: 0 },
+    // Riak langkah di genangan: x, z, waktu mulai, kekuatan (weather.js mengisi secara bergiliran)
+    uPuddleRipples: { value: Array.from({ length: 12 }, () => new THREE.Vector4(0, 0, -999, 0)) }
+};
+window.WEATHER_UNIFORMS = WEATHER_UNIFORMS;
+
 const viewportContainer = document.getElementById('viewport-container') || document.body;
 const initW = viewportContainer.clientWidth || window.innerWidth;
 const initH = viewportContainer.clientHeight || window.innerHeight;

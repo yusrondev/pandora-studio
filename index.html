@@ -332,6 +332,27 @@
             <input type="range" id="slider-leaf-fall" min="0.0" max="3.0" step="0.2" value="1.0">
         </div>
 
+        <div class="toolbar-group" id="toolbar-group-weather" data-overflow-item="weather" title="Cuaca stage: hujan membuat tanah basah & genangan, salju menumpuk di tanah, daun, dan tubuh karakter">
+            <label>
+                <span class="svg-icon" style="color:#7dd3fc;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path>
+                        <line x1="8" y1="16" x2="8" y2="20"></line>
+                        <line x1="12" y1="18" x2="12" y2="22"></line>
+                        <line x1="16" y1="16" x2="16" y2="20"></line>
+                    </svg>
+                </span>
+                <span>Cuaca</span>
+            </label>
+            <select id="select-weather" class="cinematic-mini-select" style="max-width:90px; height:22px;">
+                <option value="clear" selected>Cerah</option>
+                <option value="rain">Hujan</option>
+                <option value="snow">Salju</option>
+            </select>
+            <input type="range" id="slider-weather-intensity" min="0.1" max="1" step="0.05" value="0.7" title="Intensitas cuaca">
+            <span id="val-weather-intensity" class="val-badge">70%</span>
+        </div>
+
         <div class="divider" id="divider-env-2"></div>
 
         <button id="btn-toggle-fullscreen" class="btn-icon-only" data-overflow-item="fullscreen" title="Toggle Fullscreen (F)">
@@ -3427,6 +3448,7 @@
     <script src="js/terrain/terrain.js"></script>
     <script src="js/water/water-manager.js"></script>
     <script src="js/environment/fog-manager.js"></script>
+    <script src="js/environment/weather.js"></script>
     <script src="js/trees/foliage-materials.js"></script>
     <script src="js/trees/falling-leaves.js"></script>
     <script src="js/trees/tree-generators.js"></script>

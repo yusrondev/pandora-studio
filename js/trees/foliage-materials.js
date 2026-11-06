@@ -235,6 +235,8 @@ const genshinFoliageShader = {
         uniform vec3 uShadowColor;
         uniform vec3 uHighlightColor;
         uniform float uFoliageShadow;
+        uniform float uSnowCover;
+        uniform float uWetness;
 
         varying vec2 vUv;
         varying vec3 vSphericalNormal;
@@ -267,6 +269,17 @@ const genshinFoliageShader = {
             float externalShadow = smoothstep(0.0, 0.95, shadowVal);
             vec3 finalColor = mix(uShadowColor * 0.9, toonColor, externalShadow);
 
+            // Cuaca: daun basah sedikit lebih gelap; salju menumpuk di bagian tajuk yang menghadap atas
+            if (uSnowCover > 0.001 || uWetness > 0.001) {
+                // Gumpalan salju: noise kasar (per ~0.3 m) + halus (per daun), jadi batasnya tidak segaris
+                float clump = fract(sin(dot(floor(vWorldPosition.xz * 3.2 + vWorldPosition.y * 2.1), vec2(12.9898, 78.233))) * 43758.5453);
+                float speck = fract(sin(dot(floor(vWorldPosition.xz * 11.0 + vWorldPosition.y * 7.0), vec2(39.34, 11.13))) * 43758.5453);
+                float leafUp = normalize(vSphericalNormal).y + (clump - 0.5) * 0.7 + (speck - 0.5) * 0.3;
+                float snowLeaf = uSnowCover * 0.92 * smoothstep(0.35 - uSnowCover * 0.4, 0.95 - uSnowCover * 0.35, leafUp);
+                vec3 snowCol = mix(vec3(0.6, 0.67, 0.78), vec3(0.95, 0.97, 1.0), externalShadow * smoothstep(-0.3, 0.6, NdotL));
+                finalColor = mix(finalColor * (1.0 - uWetness * 0.18), snowCol, snowLeaf);
+            }
+
             gl_FragColor = vec4(finalColor, 1.0);
             #include <fog_fragment>
         }
@@ -284,6 +297,9 @@ function createGenshinFoliageMaterial(baseHex, shadowHex, highlightHex, tex = le
     });
 
     mat.uniforms.uFoliageShadow = { value: foliageShadowValue() };
+    // Objek uniform cuaca bersama (scene.js), bukan salinan
+    mat.uniforms.uSnowCover = WEATHER_UNIFORMS.uSnowCover;
+    mat.uniforms.uWetness = WEATHER_UNIFORMS.uWetness;
 
     // Di build daun banyak pohon digabung, jadi pusat tiap pohon dibawa per daun
     if (window.PANDORA_RUNTIME) mat.defines = { TREE_BAKED: 1 };

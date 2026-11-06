@@ -87,6 +87,8 @@ for (let i = 0; i < FOX_TRAIL_COUNT; i++) {
 
 const sharedBushUniforms = {
     uTime: { value: 0 },
+    uSnowCover: WEATHER_UNIFORMS.uSnowCover,
+    uWetness: WEATHER_UNIFORMS.uWetness,
     uSun: { value: new THREE.Vector3(-0.6, 0.42, -0.55).normalize() },
     uFogCol: { value: new THREE.Vector3(0.85, 0.94, 0.84) },
     uFogDen: { value: 0.0 },
@@ -291,6 +293,8 @@ function createBushFragmentShader(theme) {
     }
 
     return BUSH_COMMON_GLSL + BUSH_LIGHTING_GLSL + `
+    uniform float uSnowCover;
+    uniform float uWetness;
     varying vec3 vN, vW;
     varying float vH, vRel, vDep, vR, vBH, vX;
 
@@ -321,6 +325,14 @@ function createBushFragmentShader(theme) {
 
         vec3 col = toonLit(a, n, V, ao, 0.9);
         col += vec3(1.0, 0.95, 0.7) * pow(max(dot(n, normalize(uSun + V)), 0.0), 30.0) * 0.14 * ao;
+
+        // Cuaca: daun basah lebih gelap; salju di permukaan atas semak, bagian dalam yang gelap tetap hijau
+        if (uSnowCover > 0.001 || uWetness > 0.001) {
+            float speck = fract(sin(dot(floor(vW.xz * 10.0 + vW.y * 6.0), vec2(12.9898, 78.233))) * 43758.5453);
+            float up = n.y + (speck - 0.5) * 0.35;
+            float snowAmt = uSnowCover * smoothstep(0.2 - uSnowCover * 0.4, 0.65 - uSnowCover * 0.3, up) * smoothstep(0.2, 0.6, vDep);
+            col = mix(col * (1.0 - uWetness * 0.18), mix(vec3(0.6, 0.67, 0.78), vec3(0.95, 0.97, 1.0), ao), snowAmt);
+        }
 
         gl_FragColor = vec4(applyFog(col, vW), 1.0);
     }

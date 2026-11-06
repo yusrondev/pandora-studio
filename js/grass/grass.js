@@ -120,6 +120,8 @@ function createGrassGridSystem(count, areaSize) {
         fog: true
     });
     tuftMat.uniforms.uFoliageShadow = { value: foliageShadowValue() };
+    tuftMat.uniforms.uSnowCover = WEATHER_UNIFORMS.uSnowCover;
+    tuftMat.uniforms.uWetness = WEATHER_UNIFORMS.uWetness;
 
     instancedGrassMesh = new THREE.InstancedMesh(tuftGeo, tuftMat, count);
     instancedGrassMesh.receiveShadow = true;
@@ -284,6 +286,8 @@ const genshinGrassShader = {
 
         uniform sampler2D uTexture;
         uniform float uFoliageShadow;
+        uniform float uSnowCover;
+        uniform float uWetness;
         varying vec2 vUv;
         varying vec3 vWorldPosition;
         varying vec3 vInstanceColor;
@@ -360,6 +364,12 @@ const genshinGrassShader = {
             #endif
 
             float softShadow = smoothstep(0.0, 0.9, shadowVal);
+            // Cuaca: rumput basah lebih gelap; salju mengendap di ujung helai lebih dulu, lalu turun ke pangkal
+            if (uSnowCover > 0.001 || uWetness > 0.001) {
+                float bladeHash = fract(sin(dot(vInstPos, vec2(41.3, 289.1))) * 43758.5453);
+                float snowBlade = uSnowCover * smoothstep(1.0 - uSnowCover * 1.1, 1.05 - uSnowCover * 0.6, vUv.y + (bladeHash - 0.5) * 0.3);
+                grassColor = mix(grassColor * (1.0 - uWetness * 0.22), vec3(0.93, 0.96, 1.0), snowBlade);
+            }
             vec3 finalLighting = mix(grassColor * 0.35, grassColor * 1.05, softShadow);
 
             gl_FragColor = vec4(finalLighting, 1.0);

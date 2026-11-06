@@ -806,6 +806,7 @@ function initToolbarOverflowManager() {
     const candidateIds = [
         'btn-toggle-battle-mode',
         'btn-toggle-fullscreen',
+        'toolbar-group-weather',
         'toolbar-group-leaves',
         'toolbar-group-wind',
         'toolbar-group-elevation',
